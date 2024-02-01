@@ -30,7 +30,7 @@
         "vue": "^3.0.0"
     },
     "peerDependencies": {
-        "@flareapp/js": "^1.0.0-beta",
+        "@flareapp/js": "^1.0.0",
         "vue": "^2.0.0||^3.0.0"
     },
     "publishConfig": {
