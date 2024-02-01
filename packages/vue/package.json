@@ -3,10 +3,10 @@
     "version": "1.0.0",
     "description": "Vue client for flareapp.io",
     "homepage": "https://flareapp.io",
-    "bugs": "https://github.com/facade/flare-client-js/issues",
+    "bugs": "https://github.com/spatie/flare-client-js/issues",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/facade/flare-client-js.git"
+        "url": "git+https://github.com/spatie/flare-client-js.git"
     },
     "license": "MIT",
     "author": "adriaan@spatie.be",
