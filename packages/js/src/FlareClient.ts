@@ -10,7 +10,7 @@ export default class FlareClient {
 
     public config: Flare.Config = {
         key: '',
-        reportingUrl: 'https://flareapp.io/api/reports',
+        reportingUrl: 'https://reporting.flareapp.io/api/reports',
         maxGlowsPerReport: 30,
         maxReportsPerMinute: 500,
     };
