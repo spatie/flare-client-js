@@ -1,5 +1,6 @@
-import { deflateRawSync } from 'zlib';
 import axios from 'axios';
+import { deflateRawSync } from 'zlib';
+
 import { Sourcemap } from './index';
 
 export default class FlareApi {
@@ -15,9 +16,7 @@ export default class FlareApi {
 
     uploadSourcemap(sourcemap: Sourcemap) {
         return new Promise((resolve, reject) => {
-            const base64GzipSourcemap = deflateRawSync(
-                sourcemap.content,
-            ).toString('base64');
+            const base64GzipSourcemap = deflateRawSync(sourcemap.content).toString('base64');
 
             axios
                 .post(this.endpoint, {
@@ -28,9 +27,7 @@ export default class FlareApi {
                 })
                 .then(resolve)
                 .catch((error) => {
-                    return reject(
-                        `${error.response.status}: ${JSON.stringify(error.response.data)}`,
-                    );
+                    return reject(`${error.response.status}: ${JSON.stringify(error.response.data)}`);
                 });
         });
     }

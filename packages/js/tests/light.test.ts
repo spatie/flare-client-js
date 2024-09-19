@@ -1,5 +1,6 @@
-import { Flare } from '../src';
 import { expect, test } from 'vitest';
+
+import { Flare } from '../src';
 
 test('light', () => {
     const client = new Flare();

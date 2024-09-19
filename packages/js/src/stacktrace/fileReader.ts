@@ -9,11 +9,7 @@ type ReaderResponse = {
     trimmedColumnNumber: number | null;
 };
 
-export function getCodeSnippet(
-    url?: string,
-    lineNumber?: number,
-    columnNumber?: number,
-): Promise<ReaderResponse> {
+export function getCodeSnippet(url?: string, lineNumber?: number, columnNumber?: number): Promise<ReaderResponse> {
     return new Promise((resolve) => {
         if (!url || !lineNumber) {
             return resolve({
@@ -34,9 +30,7 @@ export function getCodeSnippet(
                 });
             }
 
-            return resolve(
-                readLinesFromFile(fileText, lineNumber, columnNumber),
-            );
+            return resolve(readLinesFromFile(fileText, lineNumber, columnNumber));
         });
     });
 }
@@ -62,7 +56,7 @@ export function readLinesFromFile(
     lineNumber: number,
     columnNumber?: number,
     maxSnippetLineLength = 1000,
-    maxSnippetLines = 40,
+    maxSnippetLines = 40
 ): ReaderResponse {
     const codeSnippet: CodeSnippet = {};
     let trimmedColumnNumber = null;
@@ -76,28 +70,20 @@ export function readLinesFromFile(
             const displayLine = currentLineIndex + 1; // the linenumber in a stacktrace is not zero-based like an array
 
             if (lines[currentLineIndex].length > maxSnippetLineLength) {
-                if (
-                    columnNumber &&
-                    columnNumber + maxSnippetLineLength / 2 >
-                        maxSnippetLineLength
-                ) {
+                if (columnNumber && columnNumber + maxSnippetLineLength / 2 > maxSnippetLineLength) {
                     codeSnippet[displayLine] = lines[currentLineIndex].substr(
                         columnNumber - Math.round(maxSnippetLineLength / 2),
-                        maxSnippetLineLength,
+                        maxSnippetLineLength
                     );
 
                     if (displayLine === lineNumber) {
-                        trimmedColumnNumber = Math.round(
-                            maxSnippetLineLength / 2,
-                        );
+                        trimmedColumnNumber = Math.round(maxSnippetLineLength / 2);
                     }
 
                     continue;
                 }
 
-                codeSnippet[displayLine] =
-                    lines[currentLineIndex].substr(0, maxSnippetLineLength) +
-                    '…';
+                codeSnippet[displayLine] = lines[currentLineIndex].substr(0, maxSnippetLineLength) + '…';
 
                 continue;
             }

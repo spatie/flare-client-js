@@ -1,5 +1,5 @@
-import { ReactNode, Component, PropsWithChildren } from 'react';
 import { flare } from '@flareapp/js';
+import { Component, PropsWithChildren, ReactNode } from 'react';
 
 interface Context {
     react: {
@@ -11,9 +11,7 @@ export class FlareErrorBoundary extends Component<PropsWithChildren> {
     componentDidCatch(error: Error, reactErrorInfo: React.ErrorInfo) {
         const context: Context = {
             react: {
-                componentStack: formatReactComponentStack(
-                    reactErrorInfo?.componentStack ?? '',
-                ),
+                componentStack: formatReactComponentStack(reactErrorInfo?.componentStack ?? ''),
             },
         };
 

@@ -1,19 +1,14 @@
 import ErrorStackParser from 'error-stack-parser';
-import { getCodeSnippet } from './fileReader';
+
 import { StackFrame } from '../types';
 import { assert } from '../util';
 
-export function createStackTrace(
-    error: Error,
-    debug: boolean,
-): Promise<Array<StackFrame>> {
+import { getCodeSnippet } from './fileReader';
+
+export function createStackTrace(error: Error, debug: boolean): Promise<Array<StackFrame>> {
     return new Promise((resolve) => {
         if (!hasStack(error)) {
-            assert(
-                false,
-                "Couldn't generate stacktrace of below error:",
-                debug,
-            );
+            assert(false, "Couldn't generate stacktrace of below error:", debug);
 
             if (debug) {
                 console.error(error);
@@ -37,17 +32,11 @@ export function createStackTrace(
         Promise.all(
             ErrorStackParser.parse(error).map((frame) => {
                 return new Promise<StackFrame>((resolve) => {
-                    getCodeSnippet(
-                        frame.fileName,
-                        frame.lineNumber,
-                        frame.columnNumber,
-                    ).then((snippet) => {
+                    getCodeSnippet(frame.fileName, frame.lineNumber, frame.columnNumber).then((snippet) => {
                         resolve({
                             line_number: frame.lineNumber || 1,
                             column_number: frame.columnNumber || 1,
-                            method:
-                                frame.functionName ||
-                                'Anonymous or unknown function',
+                            method: frame.functionName || 'Anonymous or unknown function',
                             file: frame.fileName || 'Unknown file',
                             code_snippet: snippet.codeSnippet,
                             trimmed_column_number: snippet.trimmedColumnNumber,
@@ -55,7 +44,7 @@ export function createStackTrace(
                         });
                     });
                 });
-            }),
+            })
         ).then(resolve);
     });
 }
@@ -64,8 +53,7 @@ function hasStack(err: any): boolean {
     return (
         !!err &&
         (!!err.stack || !!err.stacktrace || !!err['opera#sourceloc']) &&
-        typeof (err.stack || err.stacktrace || err['opera#sourceloc']) ===
-            'string' &&
+        typeof (err.stack || err.stacktrace || err['opera#sourceloc']) === 'string' &&
         err.stack !== `${err.name}: ${err.message}`
     );
 }

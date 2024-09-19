@@ -17,12 +17,10 @@ export class Api {
         }).then(
             (response) => {
                 if (response.status !== 204) {
-                    console.error(
-                        `Received response with status ${response.status} from Flare`,
-                    );
+                    console.error(`Received response with status ${response.status} from Flare`);
                 }
             },
-            (error) => console.error(error),
+            (error) => console.error(error)
         );
     }
 }

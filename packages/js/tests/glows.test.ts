@@ -1,6 +1,8 @@
-import { Flare } from '../src';
-import { FakeApi } from './helpers';
 import { beforeEach, expect, test } from 'vitest';
+
+import { Flare } from '../src';
+
+import { FakeApi } from './helpers';
 
 let fakeHttp: FakeApi;
 let client: Flare;

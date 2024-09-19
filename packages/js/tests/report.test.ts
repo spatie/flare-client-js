@@ -1,5 +1,7 @@
+import { beforeEach, expect, test } from 'vitest';
+
 import { Flare } from '../src';
-import { expect, test, beforeEach } from 'vitest';
+
 import { FakeApi } from './helpers';
 
 let fakeHttp: FakeApi;
@@ -33,7 +35,5 @@ test('report the test message', async () => {
     await client.test();
 
     expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe(
-        'The Flare client is set up correctly!',
-    );
+    expect(fakeHttp.lastReport?.message).toBe('The Flare client is set up correctly!');
 });

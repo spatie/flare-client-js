@@ -1,18 +1,18 @@
-import { assert, assertKey, assertSolutionProvider, now } from './util';
+import { Api } from './api';
 import { collectContext } from './context';
-import { createStackTrace } from './stacktrace';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { getSolutions } from './solutions';
+import { createStackTrace } from './stacktrace';
 import {
     Config,
-    Glow,
     Context,
+    Glow,
+    MessageLevel,
     Report,
     SolutionProvider,
     SolutionProviderExtraParameters,
-    MessageLevel,
 } from './types';
-import { Api } from './api';
+import { assert, assertKey, assertSolutionProvider, now } from './util';
 
 export class Flare {
     config: Config = {
@@ -50,11 +50,7 @@ export class Flare {
         return this.report(new Error('The Flare client is set up correctly!'));
     }
 
-    glow(
-        name: string,
-        level: MessageLevel = 'info',
-        data: object | object[] = [],
-    ): Flare {
+    glow(name: string, level: MessageLevel = 'info', data: object | object[] = []): Flare {
         const time = now();
 
         this.glows.push({
@@ -66,9 +62,7 @@ export class Flare {
         });
 
         if (this.glows.length > this.config.maxGlowsPerReport) {
-            this.glows = this.glows.slice(
-                this.glows.length - this.config.maxGlowsPerReport,
-            );
+            this.glows = this.glows.slice(this.glows.length - this.config.maxGlowsPerReport);
         }
 
         return this;
@@ -105,7 +99,7 @@ export class Flare {
     async report(
         error: Error,
         context: Context = {},
-        extraSolutionParameters: SolutionProviderExtraParameters = {},
+        extraSolutionParameters: SolutionProviderExtraParameters = {}
     ): Promise<void> {
         const errorToReport = await this.config.beforeEvaluate(error);
 
@@ -113,11 +107,7 @@ export class Flare {
             return;
         }
 
-        const report = await this.createReportFromError(
-            error,
-            context,
-            extraSolutionParameters,
-        );
+        const report = await this.createReportFromError(error, context, extraSolutionParameters);
 
         if (!report) {
             return;
@@ -126,11 +116,7 @@ export class Flare {
         return this.sendReport(report);
     }
 
-    async reportMessage(
-        message: string,
-        context: Context = {},
-        exceptionClass: string = 'Log',
-    ): Promise<void> {
+    async reportMessage(message: string, context: Context = {}, exceptionClass: string = 'Log'): Promise<void> {
         const stackTrace = await createStackTrace(Error(), this.config.debug);
 
         // The first item in the stacktrace is from this file, and irrelevant
@@ -154,7 +140,7 @@ export class Flare {
     createReportFromError(
         error: Error,
         context: Context = {},
-        extraSolutionParameters: SolutionProviderExtraParameters = {},
+        extraSolutionParameters: SolutionProviderExtraParameters = {}
     ): Promise<Report | false> {
         if (!assert(error, 'No error provided.', this.config.debug)) {
             return Promise.resolve(false);
@@ -163,27 +149,16 @@ export class Flare {
         const seenAt = now();
 
         return Promise.all([
-            getSolutions(
-                this.solutionProviders,
-                error,
-                extraSolutionParameters,
-            ),
+            getSolutions(this.solutionProviders, error, extraSolutionParameters),
             createStackTrace(error, this.config.debug),
         ]).then((result) => {
             const [solutions, stacktrace] = result;
 
-            assert(
-                stacktrace.length,
-                "Couldn't generate stacktrace of this error: " + error,
-                this.config.debug,
-            );
+            assert(stacktrace.length, "Couldn't generate stacktrace of this error: " + error, this.config.debug);
 
             return {
                 notifier: `Flare JavaScript client v${CLIENT_VERSION}`,
-                exception_class:
-                    error.constructor && error.constructor.name
-                        ? error.constructor.name
-                        : 'undefined',
+                exception_class: error.constructor && error.constructor.name ? error.constructor.name : 'undefined',
                 seen_at: seenAt,
                 message: error.message,
                 language: 'javascript',
@@ -208,11 +183,7 @@ export class Flare {
             return;
         }
 
-        return this.http.report(
-            reportToSubmit,
-            this.config.reportingUrl,
-            this.config.key,
-        );
+        return this.http.report(reportToSubmit, this.config.reportingUrl, this.config.key);
     }
 
     // Deprecated, the following methods exist for backwards compatibility.

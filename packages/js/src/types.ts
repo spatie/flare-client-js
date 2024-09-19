@@ -6,12 +6,8 @@ export type Config = {
     maxGlowsPerReport: number;
     reportingUrl: string;
     debug: boolean;
-    beforeEvaluate: (
-        error: Error,
-    ) => Error | false | null | Promise<Error | false | null>;
-    beforeSubmit: (
-        report: Report,
-    ) => Report | false | null | Promise<Report | false | null>;
+    beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
+    beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };
 
 export type Report = {
@@ -31,14 +27,8 @@ export type Report = {
 export interface SolutionProviderExtraParameters {}
 
 export type SolutionProvider = {
-    canSolve: (
-        error: Error,
-        extraParameters?: SolutionProviderExtraParameters,
-    ) => boolean | Promise<boolean>;
-    getSolutions: (
-        error: Error,
-        extraParameters?: SolutionProviderExtraParameters,
-    ) => Solution[] | Promise<Solution[]>;
+    canSolve: (error: Error, extraParameters?: SolutionProviderExtraParameters) => boolean | Promise<boolean>;
+    getSolutions: (error: Error, extraParameters?: SolutionProviderExtraParameters) => Solution[] | Promise<Solution[]>;
 };
 
 export type Solution = {
