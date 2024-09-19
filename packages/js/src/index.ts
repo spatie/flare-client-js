@@ -1,11 +1,14 @@
-import FlareClient from './FlareClient';
-import catchWindowErrors from './browserClient';
-export { readLinesFromFile } from './stacktrace/fileReader';
+import { Flare } from './Flare';
+import { catchWindowErrors } from './browser';
 
-export const flare = new FlareClient();
+// Expose package singleton
+export const flare = new Flare();
 
 if (typeof window !== 'undefined' && window) {
+    // @ts-expect-error
     window.flare = flare;
+
+    catchWindowErrors();
 }
 
-catchWindowErrors();
+export { Flare } from './Flare';

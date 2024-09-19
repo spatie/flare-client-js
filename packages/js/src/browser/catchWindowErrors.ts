@@ -1,8 +1,9 @@
-export default function catchWindowErrors() {
+export function catchWindowErrors() {
     if (typeof window === 'undefined') {
         return;
     }
 
+    // @ts-ignore
     const flare = window.flare;
 
     if (!window || !flare) {
@@ -26,8 +27,6 @@ export default function catchWindowErrors() {
         if (error.reason instanceof Error) {
             flare.report(error.reason);
         }
-
-        // TODO: Maybe also send errors without stacktrace for unhandled rejections without an Error as reason? (could be a string, …)
 
         if (typeof originalOnunhandledrejectionHandler === 'function') {
             // @ts-ignore
