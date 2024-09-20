@@ -1,5 +1,5 @@
 import { flare } from '@flareapp/js';
-import { Component, PropsWithChildren, ReactNode } from 'react';
+import { Component, PropsWithChildren } from 'react';
 
 interface Context {
     react: {
