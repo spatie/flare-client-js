@@ -7,8 +7,8 @@ export class Api {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-Api-Token': key,
                 'X-Requested-With': 'XMLHttpRequest',
-                'x-api-token': key,
             },
             body: flatJsonStringify({
                 ...report,
