@@ -1,10 +1,11 @@
-import { resolve } from 'path';
-import { existsSync, readFileSync, unlinkSync } from 'fs';
 import glob from 'fast-glob';
-import { Plugin, ResolvedConfig, UserConfig } from 'vite';
+import { existsSync, readFileSync, unlinkSync } from 'fs';
+import { resolve } from 'path';
 import { OutputOptions } from 'rollup';
-import { uuid } from './util';
+import { Plugin, ResolvedConfig, UserConfig } from 'vite';
+
 import FlareApi from './flareApi';
+import { uuid } from './util';
 
 export type PluginConfig = {
     key: string;
@@ -30,17 +31,13 @@ export default function flareSourcemapUploader({
     removeSourcemaps = false,
 }: PluginConfig): Plugin {
     if (!key) {
-        flareLog(
-            'No Flare API key was provided, not uploading sourcemaps to Flare.',
-        );
+        flareLog('No Flare API key was provided, not uploading sourcemaps to Flare.');
     }
 
     const flare = new FlareApi(apiEndpoint, key, version);
 
     const enableUploadingSourcemaps =
-        key &&
-        (process.env.NODE_ENV !== 'development' || runInDevelopment) &&
-        process.env.SKIP_SOURCEMAPS !== 'true';
+        key && (process.env.NODE_ENV !== 'development' || runInDevelopment) && process.env.SKIP_SOURCEMAPS !== 'true';
 
     return {
         name: 'flare-vite-plugin',
@@ -55,10 +52,8 @@ export default function flareSourcemapUploader({
                 },
                 build: {
                     sourcemap: (() => {
-                        if (build?.sourcemap !== undefined)
-                            return build.sourcemap;
-                        const enableSourcemaps =
-                            enableUploadingSourcemaps && mode !== 'development';
+                        if (build?.sourcemap !== undefined) return build.sourcemap;
+                        const enableSourcemaps = enableUploadingSourcemaps && mode !== 'development';
                         if (enableSourcemaps) return 'hidden';
                         return false;
                     })(),
@@ -85,10 +80,7 @@ export default function flareSourcemapUploader({
                     const sourceFilename = resolve(outputDir, sourcePath);
 
                     if (!existsSync(sourceFilename)) {
-                        flareLog(
-                            `no corresponding source found for "${file}"`,
-                            true,
-                        );
+                        flareLog(`no corresponding source found for "${file}"`, true);
                         return null;
                     }
 
@@ -101,13 +93,7 @@ export default function flareSourcemapUploader({
                             original_file: `${base}${sourcePath}`,
                         };
                     } catch (error) {
-                        flareLog(
-                            'Error reading sourcemap file ' +
-                                sourcemapLocation +
-                                ': ' +
-                                error,
-                            true,
-                        );
+                        flareLog('Error reading sourcemap file ' + sourcemapLocation + ': ' + error, true);
                         return null;
                     }
                 })
@@ -117,28 +103,19 @@ export default function flareSourcemapUploader({
                 return;
             }
 
-            flareLog(
-                `Uploading ${sourcemaps.length} sourcemap files to Flare.`,
-            );
+            flareLog(`Uploading ${sourcemaps.length} sourcemap files to Flare.`);
 
-            const pendingUploads = sourcemaps.map(
-                (sourcemap) => () => flare.uploadSourcemap(sourcemap),
-            );
+            const pendingUploads = sourcemaps.map((sourcemap) => () => flare.uploadSourcemap(sourcemap));
 
             try {
                 while (pendingUploads.length) {
                     // Maximum 10 at once https://stackoverflow.com/a/58686835
-                    await Promise.all(
-                        pendingUploads.splice(0, 10).map((f) => f()),
-                    );
+                    await Promise.all(pendingUploads.splice(0, 10).map((f) => f()));
                 }
 
                 flareLog('Successfully uploaded sourcemaps to Flare.');
             } catch (error) {
-                flareLog(
-                    `Something went wrong while uploading the sourcemaps to Flare: ${error}`,
-                    true,
-                );
+                flareLog(`Something went wrong while uploading the sourcemaps to Flare: ${error}`, true);
             }
 
             if (removeSourcemaps) {
@@ -146,12 +123,7 @@ export default function flareSourcemapUploader({
                     try {
                         unlinkSync(sourcemap_url);
                     } catch (error) {
-                        console.error(
-                            'Error removing sourcemap file',
-                            sourcemap_url,
-                            ': ',
-                            error,
-                        );
+                        console.error('Error removing sourcemap file', sourcemap_url, ': ', error);
                     }
                 });
 

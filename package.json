@@ -13,9 +13,12 @@
     "devDependencies": {
         "husky": "^8.0.3",
         "lint-staged": "^15.2.0",
-        "prettier": "^3.1.1"
+        "prettier": "^3.3.3"
     },
     "lint-staged": {
         "*.{js,json,vue,ts,tsx}": "prettier --write"
+    },
+    "dependencies": {
+        "@trivago/prettier-plugin-sort-imports": "^4.3.0"
     }
 }

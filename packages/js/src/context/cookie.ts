@@ -11,7 +11,7 @@ export default function cookie() {
 
                 return cookies;
             },
-            {} as { [key: string]: string },
+            {} as { [key: string]: string }
         ),
     };
 }
