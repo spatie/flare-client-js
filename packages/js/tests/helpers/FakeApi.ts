@@ -4,13 +4,19 @@ import { Report } from '../../src/types';
 export class FakeApi extends Api {
     reports: Report[] = [];
 
-    report(report: Report): Promise<void> {
+    lastReport?: Report;
+    lastUrl?: string;
+    lastKey?: string;
+    lastReportBrowserExtensionErrors?: boolean;
+
+    report(report: Report, url: string, key: string, reportBrowserExtensionErrors: boolean): Promise<void> {
         this.reports.push(report);
 
-        return Promise.resolve();
-    }
+        this.lastUrl = url;
+        this.lastKey = key;
+        this.lastReportBrowserExtensionErrors = reportBrowserExtensionErrors;
+        this.lastReport = report;
 
-    get lastReport(): Report | undefined {
-        return this.reports[this.reports.length - 1];
+        return Promise.resolve();
     }
 }

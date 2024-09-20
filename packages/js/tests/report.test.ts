@@ -37,3 +37,17 @@ test('report the test message', async () => {
     expect(fakeHttp.reports).toHaveLength(1);
     expect(fakeHttp.lastReport?.message).toBe('The Flare client is set up correctly!');
 });
+
+test('does not report browser extension errors by default', async () => {
+    await client.test();
+
+    expect(fakeHttp.lastReportBrowserExtensionErrors).toBe(false);
+});
+
+test('can be configured to report browser extension errors', async () => {
+    client.configure({ reportBrowserExtensionErrors: true });
+
+    await client.test();
+
+    expect(fakeHttp.lastReportBrowserExtensionErrors).toBe(true);
+});

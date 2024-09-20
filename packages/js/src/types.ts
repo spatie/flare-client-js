@@ -4,6 +4,7 @@ export type Config = {
     sourcemapVersion: string;
     stage: string;
     maxGlowsPerReport: number;
+    reportBrowserExtensionErrors: boolean;
     reportingUrl: string;
     debug: boolean;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
