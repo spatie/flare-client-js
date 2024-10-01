@@ -16,7 +16,7 @@ import { assert, assertKey, assertSolutionProvider, now } from './util';
 
 export class Flare {
     config: Config = {
-        key: KEY,
+        key: null,
         version: CLIENT_VERSION,
         sourcemapVersion: SOURCEMAP_VERSION,
         stage: '',

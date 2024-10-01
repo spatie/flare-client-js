@@ -2,12 +2,12 @@ import { Report } from '../types';
 import { flatJsonStringify } from '../util';
 
 export class Api {
-    report(report: Report, url: string, key: string, reportBrowserExtensionErrors: boolean): Promise<void> {
+    report(report: Report, url: string, key: string | null, reportBrowserExtensionErrors: boolean): Promise<void> {
         return fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Api-Token': key,
+                'X-Api-Token': key ?? '',
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-Report-Browser-Extension-Errors': JSON.stringify(reportBrowserExtensionErrors),
             },
