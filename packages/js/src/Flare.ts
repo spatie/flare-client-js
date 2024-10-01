@@ -32,7 +32,7 @@ export class Flare {
     context: Context = { context: {} };
     solutionProviders: SolutionProvider[] = [];
 
-    constructor(public http: Api = new Api()) {}
+    constructor(public api: Api = new Api()) {}
 
     light(key: string = KEY, debug: boolean = false): Flare {
         this.config.key = key;
@@ -184,7 +184,7 @@ export class Flare {
             return;
         }
 
-        return this.http.report(
+        return this.api.report(
             reportToSubmit,
             this.config.reportingUrl,
             this.config.key,

@@ -4,12 +4,12 @@ import { Flare } from '../src';
 
 import { FakeApi } from './helpers';
 
-let fakeHttp: FakeApi;
+let fakeApi: FakeApi;
 let client: Flare;
 
 beforeEach(() => {
-    fakeHttp = new FakeApi();
-    client = new Flare(fakeHttp).configure({
+    fakeApi = new FakeApi();
+    client = new Flare(fakeApi).configure({
         key: 'key',
         debug: true,
     });
@@ -39,8 +39,8 @@ test('can use solution providers', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.lastReport?.solutions).toHaveLength(1);
-    expect(fakeHttp.lastReport?.solutions[0]?.title).toBe('My solution');
+    expect(fakeApi.lastReport?.solutions).toHaveLength(1);
+    expect(fakeApi.lastReport?.solutions[0]?.title).toBe('My solution');
 });
 
 test('can use async solution providers', async () => {
@@ -58,8 +58,8 @@ test('can use async solution providers', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.lastReport?.solutions).toHaveLength(1);
-    expect(fakeHttp.lastReport?.solutions[0]?.title).toBe('My solution');
+    expect(fakeApi.lastReport?.solutions).toHaveLength(1);
+    expect(fakeApi.lastReport?.solutions[0]?.title).toBe('My solution');
 });
 
 test('does not use solution providers that can not solve the error', async () => {
@@ -77,5 +77,5 @@ test('does not use solution providers that can not solve the error', async () =>
 
     await client.report(new Error());
 
-    expect(fakeHttp.lastReport?.solutions).toHaveLength(0);
+    expect(fakeApi.lastReport?.solutions).toHaveLength(0);
 });
