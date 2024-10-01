@@ -22,6 +22,7 @@ export class Flare {
         stage: '',
         maxGlowsPerReport: 30,
         reportingUrl: 'https://reporting.flareapp.io/api/reports',
+        reportBrowserExtensionErrors: false,
         debug: false,
         beforeEvaluate: (error) => error,
         beforeSubmit: (report) => report,
@@ -183,7 +184,12 @@ export class Flare {
             return;
         }
 
-        return this.http.report(reportToSubmit, this.config.reportingUrl, this.config.key);
+        return this.http.report(
+            reportToSubmit,
+            this.config.reportingUrl,
+            this.config.key,
+            this.config.reportBrowserExtensionErrors
+        );
     }
 
     // Deprecated, the following methods exist for backwards compatibility.
