@@ -1,5 +1,5 @@
 export type Config = {
-    key: string;
+    key: string | null;
     version: string;
     sourcemapVersion: string;
     stage: string;

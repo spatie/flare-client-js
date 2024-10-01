@@ -4,12 +4,12 @@ import { Flare } from '../src';
 
 import { FakeApi } from './helpers';
 
-let fakeHttp: FakeApi;
+let fakeApi: FakeApi;
 let client: Flare;
 
 beforeEach(() => {
-    fakeHttp = new FakeApi();
-    client = new Flare(fakeHttp).configure({
+    fakeApi = new FakeApi();
+    client = new Flare(fakeApi).configure({
         key: 'key',
         debug: true,
     });
@@ -20,28 +20,28 @@ test('can send an error report from an error', async () => {
 
     await client.report(error);
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('Critical malfunction !?!?');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('Critical malfunction !?!?');
 });
 
 test('can send a message', async () => {
     await client.reportMessage('Hello, Flare!');
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('Hello, Flare!');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('Hello, Flare!');
 });
 
 test('report the test message', async () => {
     await client.test();
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('The Flare client is set up correctly!');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('The Flare client is set up correctly!');
 });
 
 test('does not report browser extension errors by default', async () => {
     await client.test();
 
-    expect(fakeHttp.lastReportBrowserExtensionErrors).toBe(false);
+    expect(fakeApi.lastReportBrowserExtensionErrors).toBe(false);
 });
 
 test('can be configured to report browser extension errors', async () => {
@@ -49,5 +49,5 @@ test('can be configured to report browser extension errors', async () => {
 
     await client.test();
 
-    expect(fakeHttp.lastReportBrowserExtensionErrors).toBe(true);
+    expect(fakeApi.lastReportBrowserExtensionErrors).toBe(true);
 });

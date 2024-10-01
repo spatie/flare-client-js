@@ -9,7 +9,7 @@ export class FakeApi extends Api {
     lastKey?: string;
     lastReportBrowserExtensionErrors?: boolean;
 
-    report(report: Report, url: string, key: string, reportBrowserExtensionErrors: boolean): Promise<void> {
+    report(report: Report, url: string, key: string | null, reportBrowserExtensionErrors: boolean): Promise<void> {
         this.reports.push(report);
 
         this.lastUrl = url;

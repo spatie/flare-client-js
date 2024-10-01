@@ -4,12 +4,12 @@ import { Flare } from '../src';
 
 import { FakeApi } from './helpers';
 
-let fakeHttp: FakeApi;
+let fakeApi: FakeApi;
 let client: Flare;
 
 beforeEach(() => {
-    fakeHttp = new FakeApi();
-    client = new Flare(fakeHttp).configure({
+    fakeApi = new FakeApi();
+    client = new Flare(fakeApi).configure({
         key: 'key',
         debug: true,
     });
@@ -22,7 +22,7 @@ test('can stop a report from being submitted by returning null from beforeEvalua
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can stop a report from being submitted by returning false from beforeEvaluate', async () => {
@@ -32,7 +32,7 @@ test('can stop a report from being submitted by returning false from beforeEvalu
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can stop a report from being submitted by returning null from async beforeEvaluate', async () => {
@@ -42,7 +42,7 @@ test('can stop a report from being submitted by returning null from async before
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can stop a report from being submitted by returning false from async beforeEvaluate', async () => {
@@ -52,7 +52,7 @@ test('can stop a report from being submitted by returning false from async befor
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can edit a report using beforeEvaluate', async () => {
@@ -65,8 +65,8 @@ test('can edit a report using beforeEvaluate', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('All your base are belong to us');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('All your base are belong to us');
 });
 
 test('can edit a report using async beforeEvaluate', async () => {
@@ -79,8 +79,8 @@ test('can edit a report using async beforeEvaluate', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('All your base are belong to us');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('All your base are belong to us');
 });
 
 test('can stop a report from being submitted by returning null from beforeSubmit', async () => {
@@ -90,7 +90,7 @@ test('can stop a report from being submitted by returning null from beforeSubmit
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can stop a report from being submitted by returning false from beforeSubmit', async () => {
@@ -100,7 +100,7 @@ test('can stop a report from being submitted by returning false from beforeSubmi
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can stop a report from being submitted by returning null from async beforeSubmit', async () => {
@@ -110,7 +110,7 @@ test('can stop a report from being submitted by returning null from async before
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can stop a report from being submitted by returning false from async beforeSubmit', async () => {
@@ -120,7 +120,7 @@ test('can stop a report from being submitted by returning false from async befor
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(0);
+    expect(fakeApi.reports).toHaveLength(0);
 });
 
 test('can edit a report using beforeSubmit', async () => {
@@ -133,8 +133,8 @@ test('can edit a report using beforeSubmit', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('All your base are belong to us');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('All your base are belong to us');
 });
 
 test('can edit a report using async beforeSubmit', async () => {
@@ -147,6 +147,6 @@ test('can edit a report using async beforeSubmit', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.message).toBe('All your base are belong to us');
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.message).toBe('All your base are belong to us');
 });

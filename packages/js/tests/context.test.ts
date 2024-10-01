@@ -4,12 +4,12 @@ import { Flare } from '../src';
 
 import { FakeApi } from './helpers';
 
-let fakeHttp: FakeApi;
+let fakeApi: FakeApi;
 let client: Flare;
 
 beforeEach(() => {
-    fakeHttp = new FakeApi();
-    client = new Flare(fakeHttp).configure({
+    fakeApi = new FakeApi();
+    client = new Flare(fakeApi).configure({
         key: 'key',
         debug: true,
     });
@@ -21,8 +21,8 @@ test('can create custom context and context groups', async () => {
 
     await client.report(new Error());
 
-    expect(fakeHttp.reports).toHaveLength(1);
-    expect(fakeHttp.lastReport?.context).toEqual({
+    expect(fakeApi.reports).toHaveLength(1);
+    expect(fakeApi.lastReport?.context).toEqual({
         context: {
             user: 1,
         },
