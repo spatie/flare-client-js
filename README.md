@@ -18,9 +18,8 @@ There are a few commands that can be run from the root of this repository to exe
 To publish a new package version:
 
 - Update the version number in the package's `package.json` `version` field
-- Run `npm publish`
+- Run `npm publish` from the package directory
 
 ## License
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
-
