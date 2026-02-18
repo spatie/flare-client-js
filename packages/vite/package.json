@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/vite",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Vite plugin for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
