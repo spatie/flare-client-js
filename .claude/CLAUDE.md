@@ -85,7 +85,7 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [ ] `husky` ^8.0.3 → ^9.x (root) — v9 has a much simpler setup, no more `.husky/_/husky.sh` sourcing
 - [ ] `@types/react` ^18.2.47 → add ^19 support (packages/react has `react: ^19.0.0` as devDep but types are still v18)
 - [ ] `@types/node` — consolidate: root has ^24.3.0, vite package still has ^18.11.17. Remove from vite, use root's.
-- [ ] `@trivago/prettier-plugin-sort-imports` → `@ianvs/prettier-plugin-sort-imports` (the trivago version is less actively maintained, @ianvs is the maintained fork)
+- [ ] `@trivago/prettier-plugin-sort-imports` — update once [minimatch fix PR](https://github.com/trivago/prettier-plugin-sort-imports/pull/401) is released
 
 ### Replace axios with native fetch in vite package
 
