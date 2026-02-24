@@ -74,6 +74,71 @@ Run tests: `npm run test` from root, or `npx vitest run` from `packages/js`.
 
 ---
 
+## Project 0: Repo modernization
+
+Before building new features, clean up the repo to make it a solid foundation. Keep it simple — no over-engineering.
+
+### Dependencies to update
+
+- [ ] `typescript` ^5.3.3 → ^5.7 (all packages)
+- [ ] `vitest` ^1.0.4 → ^3.x (packages/js)
+- [ ] `husky` ^8.0.3 → ^9.x (root) — v9 has a much simpler setup, no more `.husky/_/husky.sh` sourcing
+- [ ] `@types/react` ^18.2.47 → add ^19 support (packages/react has `react: ^19.0.0` as devDep but types are still v18)
+- [ ] `@types/node` — consolidate: root has ^24.3.0, vite package still has ^18.11.17. Remove from vite, use root's.
+- [ ] `@trivago/prettier-plugin-sort-imports` → `@ianvs/prettier-plugin-sort-imports` (the trivago version is less actively maintained, @ianvs is the maintained fork)
+
+### Replace axios with native fetch in vite package
+
+- [ ] `@flareapp/vite` uses `axios` + `https` module just for POSTing sourcemaps. Node 18+ has native `fetch`. The core `@flareapp/js` already uses `fetch`. Replace axios with fetch to drop 2 dependencies and keep the codebase consistent.
+
+### Clean up tsconfig.json
+
+- [ ] Remove all the commented-out boilerplate — keep only what's actually used
+- [ ] Add `moduleResolution: "bundler"` (modern resolution, matches tsup/esbuild)
+- [ ] Add `isolatedModules: true` (tsup uses esbuild which transpiles per-file, this catches issues early)
+- [ ] Consider bumping target to `es2022` (adds `error.cause` support which we'll need)
+
+### Package.json fixes
+
+- [ ] Root: move `@trivago/prettier-plugin-sort-imports` from `dependencies` to `devDependencies` (it's a dev tool, not a runtime dep)
+- [ ] All packages: add `types` condition to exports map for better TS resolution:
+  ```json
+  "exports": { ".": { "types": "./dist/index.d.ts", "require": "./dist/index.js", "import": "./dist/index.mjs" } }
+  ```
+- [ ] Add `engines` field to root package.json (`"node": ">=18"`) — documents minimum Node version
+- [ ] Add `.nvmrc` or `.node-version` file for consistent dev environments
+- [ ] Consider committing `package-lock.json` (currently gitignored) for reproducible installs
+
+### Vue package: convert to TypeScript
+
+- [ ] `packages/vue/src/index.js` is plain JavaScript — the only non-TS source in the monorepo
+- [ ] Convert to `index.ts` with proper types for Vue's `App`, component instance, etc.
+- [ ] Add a `typescript` script to vue's package.json (currently missing because it's JS)
+- [ ] Update build script from `tsup src/index.js` to `tsup src/index.ts`
+
+### CI improvements
+
+- [ ] Pin Node.js version in GitHub Actions (`node-version: '22'` or use `.nvmrc`)
+- [ ] Add npm dependency caching (`actions/setup-node` has `cache: 'npm'` option)
+- [ ] Consolidate the two workflows (test.yml + typescript.yml) into one — they both run `npm install` + `npm run build` separately, wasteful
+- [ ] Consider running on `push` to `main` + PRs only (currently runs on every push to every branch)
+
+### Local dev/test app
+
+- [ ] Add a simple test app inside the repo (e.g. `playground/` directory) that imports `@flareapp/js`, `@flareapp/react`, `@flareapp/vue` etc. from the local packages
+- [ ] Should be a basic Vite app with a few buttons that trigger different error types (uncaught exception, unhandled promise rejection, console.error, manual report, etc.)
+- [ ] Makes it easy to iterate without setting up an external project — just `npm run dev` in the playground and click around
+- [ ] Wire it up as an npm workspace so it picks up local package changes automatically
+- [ ] Add a `playground` script to root package.json for quick access
+- [ ] Gitignore the playground's Flare API key (use `.env.local` or similar)
+- [ ] Not published to npm — `"private": true`
+
+### Housekeeping
+
+- [ ] Add `.idea/` to `.gitignore` (currently showing as untracked in git status)
+
+---
+
 ## Current mission
 
 **Goal:** Make Flare's JavaScript error tracking good enough to stand on its own — not just an add-on for Laravel/PHP
