@@ -21,11 +21,11 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsup src/index.js --format cjs,esm --dts --clean"
+        "build": "tsdown src/index.js --format cjs,esm --dts --clean"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
-        "tsup": "^8.0.1",
+        "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vue": "^3.0.0"
     },

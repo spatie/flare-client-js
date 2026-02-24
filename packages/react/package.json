@@ -21,14 +21,14 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+        "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
         "typescript": "tsc --noEmit"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
         "@types/react": "^19.0.0",
         "react": "^19.0.0",
-        "tsup": "^8.0.1",
+        "tsdown": "^0.20.3",
         "typescript": "^5.7.0"
     },
     "peerDependencies": {

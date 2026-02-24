@@ -23,7 +23,7 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsup src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=\\\"$(node -p \"require('./package.json').version\")\\\" --clean",
+        "build": "tsdown src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=\\\"$(node -p \"require('./package.json').version\")\\\" --clean",
         "test": "vitest run",
         "typescript": "tsc"
     },
@@ -31,7 +31,7 @@
         "error-stack-parser": "^2.0.2"
     },
     "devDependencies": {
-        "tsup": "^8.0.1",
+        "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18"
     },
