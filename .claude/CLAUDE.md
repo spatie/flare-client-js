@@ -117,17 +117,9 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [x] Add a `typescript` script to vue's package.json (`tsc --noEmit`)
 - [x] Update build script from `tsdown src/index.js` to `tsdown src/index.ts`
 
-### CI improvements
-
-- [ ] Pin Node.js version in GitHub Actions (`node-version: '22'` or use `.nvmrc`)
-- [ ] Add npm dependency caching (`actions/setup-node` has `cache: 'npm'` option)
-- [ ] Consolidate the two workflows (test.yml + typescript.yml) into one — they both run `npm install` + `npm run build` separately, wasteful
-- [ ] Consider running on `push` to `main` + PRs only (currently runs on every push to every branch)
-
 ### Housekeeping
 
 - [x] Add `.idea/` to `.gitignore` (currently showing as untracked in git status)
-- [ ] Make use of absolute paths and aliases
 
 ### Local dev/test app
 
@@ -138,6 +130,62 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [ ] Add a `playground` script to root package.json for quick access
 - [ ] Gitignore the playground's Flare API key (use `.env.local` or similar)
 - [ ] Not published to npm — `"private": true`
+
+#### Playground implementation plan
+
+**Architecture:** Vite multi-page app (MPA) — one HTML entry per framework (vanilla JS, React, Vue). A landing page at the root links to all three. Multi-page over a tabbed SPA because: isolation (React and Vue don't share DOM), mirrors real usage (nobody imports both framework integrations in one app), and no routing library needed.
+
+**File structure:**
+
+```
+playground/
+    package.json              # private, workspace deps on @flareapp/*
+    tsconfig.json             # extends root, adds jsx: react-jsx
+    vite.config.ts            # MPA config + React + Vue plugins
+    .env.local.example        # VITE_FLARE_API_KEY template
+    index.html                # Landing page with links
+    src/
+        env.d.ts              # Vite env var types
+        shared/
+            flare.ts          # Shared flare.light() init
+            styles.css        # Minimal shared styles
+            layout.ts         # Nav header + log panel helpers
+        js/
+            index.html        # Vanilla JS entry
+            main.ts           # Error trigger buttons
+        react/
+            index.html        # React entry
+            main.tsx          # createRoot
+            App.tsx           # Error boundary + trigger buttons
+            BuggyComponent.tsx
+        vue/
+            index.html        # Vue entry
+            main.ts           # createApp + flareVue
+            App.vue           # Error trigger buttons
+            BuggyComponent.vue
+```
+
+**Workspace integration:**
+- Root `package.json` gets `"playground"` added to `workspaces` array + a `"playground"` script
+- Playground uses `"@flareapp/js": "*"` etc. — npm workspaces resolves to local packages
+- Requires `npm run build` first (playground imports built `dist/` output, same as published packages)
+- No `build`/`test`/`typescript` scripts in playground (avoids interference with root `--workspaces` commands)
+
+**Error scenarios per page:**
+
+Vanilla JS (`@flareapp/js`): uncaught error (via setTimeout), unhandled promise rejection, non-Error rejection (exposes silent drop gap), manual `flare.report()`, `flare.reportMessage()`, `flare.test()`, error with glows, error with custom context, TypeError (null access), error with cause chain (exposes gap), `beforeEvaluate` filter, `beforeSubmit` modify, rapid-fire errors (exposes lack of rate limiting).
+
+React (`@flareapp/react`): render error via BuggyComponent (caught by FlareErrorBoundary), event handler error (goes through window.onerror, not boundary), async error in useEffect, manual report. Exposes current limitation: no fallback UI (page goes blank on render error).
+
+Vue (`@flareapp/vue`): render error via BuggyComponent (caught by flareVue error handler), event handler error, async error in onMounted, manual report, named component error (tests component name extraction).
+
+**Key decisions:**
+- API key via `.env.local` (Vite loads automatically, gitignored)
+- `@vitejs/plugin-react` and `@vitejs/plugin-vue` coexist (different file extensions)
+- No `@flareapp/vite` in playground (sourcemap upload is for production builds)
+- No styling framework, no routing libraries, no state management — plain and minimal
+
+**Files to modify:** root `package.json` (workspaces + script), `.gitignore` (add `playground/.env.local`)
 
 ---
 
