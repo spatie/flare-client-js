@@ -29,12 +29,12 @@ packages/$ARGUMENTS/
 3. **`package.json`** — based on the React package pattern:
    - `name`: `@flareapp/$ARGUMENTS`
    - `version`: `1.0.0`
-   - `main`: `./dist/index.js`
+   - `main`: `./dist/index.cjs`
    - `module`: `./dist/index.mjs`
-   - `types`: `./dist/index.d.ts`
-   - `exports`: CJS + ESM map (same pattern as React package)
-   - `scripts`: `build` (tsup), `prepublishOnly`, `typescript` (tsc)
-   - `devDependencies`: `@flareapp/js` as `file:../js`, `typescript`, `tsup`
+   - `types`: `./dist/index.d.cts`
+   - `exports`: CJS + ESM map with conditional `types` (same pattern as React package)
+   - `scripts`: `build` (tsdown), `prepublishOnly`, `typescript` (tsc)
+   - `devDependencies`: `@flareapp/js` as `file:../js`, `typescript`, `tsdown`
    - `peerDependencies`: `@flareapp/js: ^1.0.0` + the framework (ask user for version range)
    - `publishConfig`: `{ "access": "public" }`
    - Same `author`, `license`, `homepage`, `bugs`, `repository` fields as existing packages
