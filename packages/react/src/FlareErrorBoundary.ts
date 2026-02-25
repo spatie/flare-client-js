@@ -5,6 +5,7 @@ import { formatComponentStack } from './format-component-stack';
 
 export type FlareErrorBoundaryFallbackProps = {
     error: Error;
+    componentStack: string[];
     resetErrorBoundary: () => void;
 };
 
@@ -13,17 +14,18 @@ export type FlareErrorBoundaryProps = PropsWithChildren<{
     resetKeys?: unknown[];
     beforeCapture?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
     onError?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
-    onReset?: () => void;
+    onReset?: (error: Error | null) => void;
 }>;
 
 export type FlareErrorBoundaryState = {
     error: Error | null;
+    componentStack: string[];
 };
 
 export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, FlareErrorBoundaryState> {
-    state: FlareErrorBoundaryState = { error: null };
+    state: FlareErrorBoundaryState = { error: null, componentStack: [] };
 
-    static getDerivedStateFromError(error: Error): FlareErrorBoundaryState {
+    static getDerivedStateFromError(error: Error): Partial<FlareErrorBoundaryState> {
         return { error };
     }
 
@@ -38,6 +40,8 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
                 componentStack: formatComponentStack(errorInfo.componentStack ?? ''),
             },
         };
+
+        this.setState({ componentStack: context.react.componentStack });
 
         flare.report(error, context, { react: { errorInfo } });
 
@@ -64,9 +68,11 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
     }
 
     reset = () => {
-        this.setState({ error: null });
+        const { error } = this.state;
 
-        this.props.onReset?.();
+        this.props.onReset?.(error);
+
+        this.setState({ error: null, componentStack: [] });
     };
 
     render() {
@@ -78,6 +84,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
             if (typeof fallback === 'function') {
                 return fallback({
                     error,
+                    componentStack: this.state.componentStack,
                     resetErrorBoundary: this.reset,
                 });
             }
