@@ -5,11 +5,14 @@ import { formatComponentStack } from './format-component-stack';
 
 export type FlareErrorBoundaryFallbackProps = {
     error: Error;
+    resetErrorBoundary: () => void;
 };
 
 export type FlareErrorBoundaryProps = PropsWithChildren<{
     fallback?: ReactNode | ((props: FlareErrorBoundaryFallbackProps) => ReactNode);
+    resetKeys?: unknown[];
     onError?: (error: Error, errorInfo: ErrorInfo) => void;
+    onReset?: () => void;
 }>;
 
 export type FlareErrorBoundaryState = {
@@ -35,6 +38,28 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
         this.props.onError?.(error, errorInfo);
     }
 
+    componentDidUpdate(prevProps: FlareErrorBoundaryProps) {
+        if (this.state.error === null || !this.props.resetKeys) {
+            return;
+        }
+
+        const prevKeys = prevProps.resetKeys;
+        const nextKeys = this.props.resetKeys;
+
+        const lengthChanged = prevKeys?.length !== nextKeys.length;
+        const valuesChanged = nextKeys.some((key, i) => !Object.is(key, prevKeys?.[i]));
+
+        if (lengthChanged || valuesChanged) {
+            this.reset();
+        }
+    }
+
+    reset = () => {
+        this.setState({ error: null });
+
+        this.props.onReset?.();
+    };
+
     render() {
         const { error } = this.state;
 
@@ -44,6 +69,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
             if (typeof fallback === 'function') {
                 return fallback({
                     error,
+                    resetErrorBoundary: this.reset,
                 });
             }
 
