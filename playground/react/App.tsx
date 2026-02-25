@@ -1,6 +1,7 @@
-import { flare } from '@flareapp/js';
 import { FlareErrorBoundary } from '@flareapp/react';
 import { useState } from 'react';
+
+import { flare } from '../shared/flare';
 
 import { AsyncErrorButton } from './AsyncErrorButton';
 import { BuggyComponent } from './BuggyComponent';
@@ -32,6 +33,10 @@ export function App() {
                     resetKeys={[]}
                     onError={() => console.log('FlareErrorBoundary onError callback')}
                     onReset={() => console.log('FlareErrorBoundary onReset callback')}
+                    beforeCapture={() => {
+                        flare.addContext('playground', 'test');
+                        flare.addContext('showBuggy', showBuggy);
+                    }}
                     fallback={({ error, resetErrorBoundary }) => (
                         <div className="space-y-1">
                             <p>Something went wrong: {error.message}</p>
