@@ -4,12 +4,14 @@
         "node": ">=18"
     },
     "workspaces": [
-        "packages/*"
+        "packages/*",
+        "playground"
     ],
     "scripts": {
-        "build": "npm run build --workspaces",
+        "build": "npm run build --workspaces --if-present",
         "test": "npm run test --workspaces --if-present",
         "typescript": "npm run typescript --workspaces --if-present",
+        "playground": "npm run build && npm run dev --workspace=playground",
         "format": "prettier --write \"**/*.{js,json,vue,ts,tsx}\"",
         "prepare": "husky"
     },

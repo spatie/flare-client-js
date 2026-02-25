@@ -8,14 +8,16 @@ argument-hint: <competitor-name>
 
 # Competitor Research: $ARGUMENTS
 
-Research **$ARGUMENTS**'s JavaScript/frontend error tracking SDK and produce a structured comparison against Flare's current capabilities.
+Research **$ARGUMENTS**'s JavaScript/frontend error tracking SDK and produce a structured comparison against Flare's
+current capabilities.
 
 ## Research areas
 
 For each area, document what $ARGUMENTS offers and note whether Flare has it, partially has it, or is missing it:
 
 1. **SDK setup & configuration** — initialization, config options, enabled/disabled toggle, sampling, filtering
-2. **Error capture** — how errors are caught (global listeners, framework integrations), error cause chaining, non-Error handling
+2. **Error capture** — how errors are caught (global listeners, framework integrations), error cause chaining, non-Error
+   handling
 3. **Context collection** — what browser/device/user context is automatically collected
 4. **Breadcrumbs** — what automatic breadcrumbs are captured (console, clicks, navigation, network, etc.)
 5. **User identification** — setUser API, custom tags/metadata
@@ -28,7 +30,7 @@ For each area, document what $ARGUMENTS offers and note whether Flare has it, pa
 
 ## Output format
 
-Produce a markdown summary with:
+Produce a markdown summary in .claude/docs/research.md with:
 
 1. A quick overview paragraph
 2. A comparison table (Feature | $ARGUMENTS | Flare | Gap?)
@@ -37,4 +39,5 @@ Produce a markdown summary with:
 
 ## Reference
 
-Before starting, read the `CLAUDE.md` in the repo root to understand Flare's current capabilities and existing research findings. Avoid duplicating what's already documented there — focus on new or deeper findings.
+Before starting, read the `CLAUDE.md` in the repo root to understand Flare's current capabilities and existing research
+findings. Avoid duplicating what's already documented there — focus on new or deeper findings.

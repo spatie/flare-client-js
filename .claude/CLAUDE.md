@@ -7,27 +7,32 @@
 - We're equals.
 - Try to be neutral and objective.
 - Do not use emojis.
+- For more information regarding:
+    - The research: take a look at .claude/docs/research
+    - Repo cleanup: take a look at .claude/docs/repo-cleanup
 
 ## What is this?
 
-The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking by Spatie. Captures frontend errors, collects
+The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking by Spatie. Captures frontend
+errors, collects
 browser context (cookies, request data, query params), and reports them to the Flare backend. Includes framework
 integrations for React and Vue, and a Vite plugin for sourcemap uploads.
 
 ## Monorepo structure
 
-npm workspaces monorepo with 4 packages:
+npm workspaces monorepo with 4 packages + a playground app:
 
-| Package | npm name | Version | Purpose |
-|---|---|---|---|
-| `packages/js` | `@flareapp/js` | 1.1.0 | Core client — error capture, stack traces, context, API reporting |
-| `packages/react` | `@flareapp/react` | 1.0.1 | React `FlareErrorBoundary` error boundary component |
-| `packages/vue` | `@flareapp/vue` | 1.0.1 | Vue error handler plugin (`flareVue()`) |
-| `packages/vite` | `@flareapp/vite` | 1.0.3 | Vite build plugin for sourcemap upload with retry logic |
+| Package          | npm name          | Version | Purpose                                                           |
+|------------------|-------------------|---------|-------------------------------------------------------------------|
+| `packages/js`    | `@flareapp/js`    | 1.1.0   | Core client — error capture, stack traces, context, API reporting |
+| `packages/react` | `@flareapp/react` | 1.0.1   | React `FlareErrorBoundary` error boundary component               |
+| `packages/vue`   | `@flareapp/vue`   | 1.0.1   | Vue error handler plugin (`flareVue()`)                           |
+| `packages/vite`  | `@flareapp/vite`  | 1.0.3   | Vite build plugin for sourcemap upload with retry logic           |
+| `playground`     | (private)         | —       | Local dev/test app for all integrations (JS, React, Vue)          |
 
 ## Tech stack
 
-- **Language:** TypeScript 5.7, target ES2021, strict mode
+- **Language:** TypeScript 5.7, target ES2022, strict mode
 - **Build:** tsdown (outputs CJS + ESM + .d.ts declarations)
 - **Test:** Vitest (tests only in `packages/js/tests/`)
 - **Formatting:** Prettier with `@trivago/prettier-plugin-sort-imports`
@@ -41,6 +46,7 @@ npm run build        # Build all packages
 npm run test         # Run tests (vitest) across all workspaces
 npm run typescript   # Type-check all packages
 npm run format       # Run Prettier on all files
+npm run playground   # Build packages, then start playground dev server
 ```
 
 ## Key source files (packages/js)
@@ -58,11 +64,23 @@ npm run format       # Run Prettier on all files
 ## Tests
 
 All tests are in `packages/js/tests/`:
+
 - `configure.test.ts`, `context.test.ts`, `glows.test.ts`, `hooks.test.ts`
 - `light.test.ts`, `report.test.ts`, `solutions.test.ts`
 - `helpers/FakeApi.ts` — Test helper for mocking the API
 
 Run tests: `npm run test` from root, or `npx vitest run` from `packages/js`.
+
+## Playground
+
+Local Vite dev app (`playground/`) for manually testing all integrations. Multi-page setup with separate entry points
+for plain JS, React, and Vue. Each page has buttons that trigger different error types (uncaught exceptions, unhandled
+promise rejections, async errors, component errors, etc.).
+
+- Registered as an npm workspace (`"private": true`, not published)
+- Imports `@flareapp/js`, `@flareapp/react`, `@flareapp/vue` from local packages
+- Flare API key goes in `playground/.env.local` (gitignored) — see `playground/.env.example`
+- Run with `npm run playground` from root (builds packages first, then starts Vite dev server)
 
 ## Error reporting flow
 
@@ -79,302 +97,3 @@ Run tests: `npm run test` from root, or `npx vitest run` from `packages/js`.
 
 - Update `version` in the package's `package.json`
 - Run `npm publish` from the individual package directory
-
----
-
-## Project 0: Repo modernization
-
-Before building new features, clean up the repo to make it a solid foundation. Keep it simple — no over-engineering.
-
-### Dependencies to update
-
-- [x] `typescript` ^5.3.3 → ^5.7 (all packages)
-- [x] `vitest` ^1.0.4 → ^3.x (packages/js)
-- [x] `husky` ^8.0.3 → ^9.x (root) — v9 has a much simpler setup, no more `.husky/_/husky.sh` sourcing
-- [x] `@types/react` ^18.2.47 → add ^19 support (packages/react has `react: ^19.0.0` as devDep but types are still v18)
-- [x] `@types/node` — consolidate: root has ^24.3.0, vite package still has ^18.11.17. Remove from vite, use root's.
-- [x] `tsup` — Migrate tsup to tsdown as it's maintained and considered the successor.
-- [ ] `@trivago/prettier-plugin-sort-imports` — update once [minimatch fix PR](https://github.com/trivago/prettier-plugin-sort-imports/pull/401) is released
-
-### Clean up tsconfig.json
-
-- [x] Remove all the commented-out boilerplate — keep only what's actually used
-- [x] Add `moduleResolution: "bundler"` (modern resolution, matches tsdown/rolldown)
-- [x] Add `isolatedModules: true` (tsdown uses rolldown which transpiles per-file, this catches issues early)
-- [x] Bump target to `es2022` (adds `error.cause` support which we'll need) — also changed `module` to `esnext` to match bundler workflow
-
-### Package.json fixes
-
-- [x] Root: move `@trivago/prettier-plugin-sort-imports` from `dependencies` to `devDependencies` (it's a dev tool, not a runtime dep) — was already in devDependencies
-- [x] All packages: add `types` condition to exports map for better TS resolution (done as part of tsdown migration — exports now use conditional `types` with `.d.cts`/`.d.mts`)
-- [x] Add `engines` field to root package.json (`"node": ">=18"`) — documents minimum Node version
-- [x] Add `.node-version` file for consistent dev environments (using fnm)
-
-### Vue package: convert to TypeScript
-
-- [x] `packages/vue/src/index.js` was plain JavaScript — converted to TypeScript
-- [x] Convert to `index.ts` with proper types for Vue's `App`, `ComponentPublicInstance`, etc.
-- [x] Add a `typescript` script to vue's package.json (`tsc --noEmit`)
-- [x] Update build script from `tsdown src/index.js` to `tsdown src/index.ts`
-
-### Housekeeping
-
-- [x] Add `.idea/` to `.gitignore` (currently showing as untracked in git status)
-
-### Local dev/test app
-
-- [ ] Add a simple test app inside the repo (e.g. `playground/` directory) that imports `@flareapp/js`, `@flareapp/react`, `@flareapp/vue` etc. from the local packages
-- [ ] Should be a basic Vite app with a few buttons that trigger different error types (uncaught exception, unhandled promise rejection, console.error, manual report, etc.)
-- [ ] Makes it easy to iterate without setting up an external project — just `npm run dev` in the playground and click around
-- [ ] Wire it up as an npm workspace so it picks up local package changes automatically
-- [ ] Add a `playground` script to root package.json for quick access
-- [ ] Gitignore the playground's Flare API key (use `.env.local` or similar)
-- [ ] Not published to npm — `"private": true`
-
-#### Playground implementation plan
-
-**Architecture:** Vite multi-page app (MPA) — one HTML entry per framework (vanilla JS, React, Vue). A landing page at the root links to all three. Multi-page over a tabbed SPA because: isolation (React and Vue don't share DOM), mirrors real usage (nobody imports both framework integrations in one app), and no routing library needed.
-
-**File structure:**
-
-```
-playground/
-    package.json              # private, workspace deps on @flareapp/*
-    tsconfig.json             # extends root, adds jsx: react-jsx
-    vite.config.ts            # MPA config + React + Vue plugins
-    .env.local.example        # VITE_FLARE_API_KEY template
-    index.html                # Landing page with links
-    src/
-        env.d.ts              # Vite env var types
-        shared/
-            flare.ts          # Shared flare.light() init
-            styles.css        # Minimal shared styles
-            layout.ts         # Nav header + log panel helpers
-        js/
-            index.html        # Vanilla JS entry
-            main.ts           # Error trigger buttons
-        react/
-            index.html        # React entry
-            main.tsx          # createRoot
-            App.tsx           # Error boundary + trigger buttons
-            BuggyComponent.tsx
-        vue/
-            index.html        # Vue entry
-            main.ts           # createApp + flareVue
-            App.vue           # Error trigger buttons
-            BuggyComponent.vue
-```
-
-**Workspace integration:**
-- Root `package.json` gets `"playground"` added to `workspaces` array + a `"playground"` script
-- Playground uses `"@flareapp/js": "*"` etc. — npm workspaces resolves to local packages
-- Requires `npm run build` first (playground imports built `dist/` output, same as published packages)
-- No `build`/`test`/`typescript` scripts in playground (avoids interference with root `--workspaces` commands)
-
-**Error scenarios per page:**
-
-Vanilla JS (`@flareapp/js`): uncaught error (via setTimeout), unhandled promise rejection, non-Error rejection (exposes silent drop gap), manual `flare.report()`, `flare.reportMessage()`, `flare.test()`, error with glows, error with custom context, TypeError (null access), error with cause chain (exposes gap), `beforeEvaluate` filter, `beforeSubmit` modify, rapid-fire errors (exposes lack of rate limiting).
-
-React (`@flareapp/react`): render error via BuggyComponent (caught by FlareErrorBoundary), event handler error (goes through window.onerror, not boundary), async error in useEffect, manual report. Exposes current limitation: no fallback UI (page goes blank on render error).
-
-Vue (`@flareapp/vue`): render error via BuggyComponent (caught by flareVue error handler), event handler error, async error in onMounted, manual report, named component error (tests component name extraction).
-
-**Key decisions:**
-- API key via `.env.local` (Vite loads automatically, gitignored)
-- `@vitejs/plugin-react` and `@vitejs/plugin-vue` coexist (different file extensions)
-- No `@flareapp/vite` in playground (sourcemap upload is for production builds)
-- No styling framework, no routing libraries, no state management — plain and minimal
-
-**Files to modify:** root `package.json` (workspaces + script), `.gitignore` (add `playground/.env.local`)
-
----
-
-## Current mission
-
-**Goal:** Make Flare's JavaScript error tracking good enough to stand on its own — not just an add-on for Laravel/PHP
-users, but a worthy error tracker for JavaScript-only projects.
-
-The frontend error monitoring is currently barebones. We need to research competitors (Sentry, PostHog, etc.), identify
-gaps, and ship improvements as a series of projects. Each project gets a release and an announcement post.
-
-## Research & discovery
-
-- [x] Research Sentry — features, DX, SDK capabilities, what they do well
-- [x] Research PostHog — error tracking features, session replay, context collection
-- [x] Research other competitors (Bugsnag, Rollbar, LogRocket, Datadog RUM, New Relic, Raygun, Highlight.io)
-- [x] Audit current Flare JS client capabilities in detail
-- [x] Compile findings: what are we missing? What's table stakes vs. differentiators?
-- [x] Organize findings + idea list into concrete projects with priorities
-
-## Competitive research findings
-
-### What every competitor has (table stakes we're missing)
-
-| Feature | Sentry | Bugsnag | Rollbar | Flare |
-|---|---|---|---|---|
-| **Automatic breadcrumbs** (console, clicks, navigation, network) | Yes | Yes (best-in-class) | Yes ("telemetry") | Manual "glows" only |
-| **User identification API** (`setUser()`) | Yes | Yes | Yes | None |
-| **Device/browser/OS context** (parsed from UA) | Yes | Yes | Yes | Raw UA string only |
-| **Sampling / rate limiting** | Yes | Yes | Yes (`itemsPerMinute`) | None |
-| **addEventListener** (robust error capture) | Yes | Yes | Yes | Fragile `window.onerror =` assignment |
-| **Error deduplication** | Yes | Yes | Yes | None |
-| **Release/version tracking** | Yes | Yes | Yes | Only `sourcemapVersion` for sourcemaps |
-| **ignoreErrors / URL filtering** | Yes | Yes | Yes | Must implement manually in hooks |
-| **Error cause chaining** (`error.cause`) | Yes | Yes | No | None |
-| **Retry logic** for report submission | Yes | Yes | Yes | None (single fetch, lost on failure) |
-| **React Error Boundary with fallback UI** | Yes | Yes | Yes | No fallback, no getDerivedStateFromError |
-| **Multiple sourcemap upload tools** | Vite/Webpack/Rollup/esbuild/CLI | CLI + Webpack | CLI + Webpack | Vite only |
-
-### What differentiates the leaders
-
-| Feature | Leader | Notes |
-|---|---|---|
-| Session replay linked to errors | LogRocket, Sentry, PostHog | Watch what user did before crash |
-| Backend trace correlation | Datadog, New Relic | Link frontend error to backend span |
-| Stability/crash-free scores | Bugsnag | Session-based release health tracking |
-| Feature flag context | Bugsnag, PostHog, Datadog | Which flag variant caused the regression? |
-| State management integration | LogRocket | Redux/Vuex snapshots at time of error |
-| Rage/dead click detection | LogRocket, Datadog | User frustration signals |
-| Performance monitoring / Web Vitals | Sentry, Datadog, New Relic | Tracing + Core Web Vitals |
-| `guess_uncaught_frames` | Rollbar | Reconstruct missing stack frames heuristically |
-| Plugin/integration architecture | Sentry, Bugsnag | Tree-shakeable, modular, extensible |
-| Tunnel / ad blocker bypass | Sentry | Proxy events through your own server |
-
-### Flare's existing unique strengths
-
-- **Solution providers** — no competitor has programmatic "here's how to fix this" suggestions
-- **Tiny bundle** — ~3-5KB gzipped vs Sentry's ~22KB+ core
-- **Laravel/PHP ecosystem** — deep integration with the most popular PHP framework
-- **Vite-first** — modern build tool support (most competitors still lead with Webpack)
-- **Clean two-hook system** — `beforeEvaluate` (filter errors) + `beforeSubmit` (modify reports)
-
-### Current gaps in Flare (detailed)
-
-**Context collection** — only captures URL, user agent (raw string), referrer, readyState, cookies, query params. Missing: browser name/version, OS, device type, screen size, viewport, locale, timezone, online/offline status, memory, connection info.
-
-**Breadcrumbs** — "glows" are manual only. No automatic capture of: console output, DOM clicks/inputs, navigation/history changes, XHR/fetch requests, network errors.
-
-**Error handling** — uses `window.onerror =` / `window.onunhandledrejection =` assignment (can be overwritten by other scripts). Missing: `addEventListener` approach, console.error interception, timer/rAF wrapping, non-Error rejection handling (strings, numbers silently dropped).
-
-**Networking** — single `fetch()` POST per error. No retry, no offline queue, no rate limiting, no batching, no `sendBeacon()` for unload, no request timeout.
-
-**React** (`@flareapp/react`) — captures component stack string only. Missing: fallback UI (`getDerivedStateFromError`), component props, component name, onError/onReset callbacks, React Router integration, Redux/Zustand state.
-
-**Vue** (`@flareapp/vue`) — captures component name + info string. Missing: component props, Vue Router context, Pinia/Vuex state, component tree. Written in plain JS (no TypeScript).
-
-**Config** — missing: `enabled` toggle, `sampleRate`, `ignoreErrors` patterns, `allowUrls`/`denyUrls`, `release` (for the user's app), transport customization.
-
----
-
-## Roadmap: organized into projects
-
-### Project 1: Core SDK hardening (table stakes)
-
-Make `@flareapp/js` robust and feature-complete with what every competitor ships. This is the foundation everything else builds on.
-
-- [ ] Switch from `window.onerror =` to `addEventListener('error')` / `addEventListener('unhandledrejection')` for robustness
-- [ ] Automatic breadcrumbs: console output interception (`console.log/warn/error/info/debug`)
-- [ ] Automatic breadcrumbs: DOM click tracking (element tag, CSS selector)
-- [ ] Automatic breadcrumbs: Navigation / History API changes (`pushState`, `replaceState`, `popstate`)
-- [ ] Automatic breadcrumbs: XHR and Fetch request tracking (method, URL, status, duration)
-- [ ] User identification API: `flare.setUser({ id, name, email, ...custom })` with a `flare.clearUser()`
-- [ ] Device/browser/OS context: parse user agent into structured data (browser name + version, OS name + version, device type)
-- [ ] Screen/viewport context: `window.screen.width/height`, `window.innerWidth/innerHeight`
-- [ ] Additional context: `navigator.language`, timezone, `navigator.onLine`
-- [ ] Error cause chain traversal: follow `error.cause` to capture linked errors
-- [ ] Handle non-Error promise rejections: wrap strings/numbers into a proper error instead of silently dropping them
-- [ ] Client-side rate limiting: configurable max errors per minute to prevent error storms
-- [ ] Sampling: `sampleRate` config option (0.0-1.0)
-- [ ] Error deduplication: don't send the same error repeatedly within a short window
-- [ ] Retry logic for report submission: retry with backoff on network failure
-- [ ] `sendBeacon()` fallback for errors during page unload
-- [ ] `ignoreErrors` config: array of strings/regexes to suppress known noise
-- [ ] `allowUrls` / `denyUrls` config: filter errors by script URL
-- [ ] `release` config: track the user's app version (separate from `sourcemapVersion`)
-- [ ] `enabled` config toggle: easy on/off switch
-- [ ] Release + announce
-
-### Project 2: Enhanced React package
-
-Make `@flareapp/react` competitive with Sentry's React integration.
-
-- [ ] Fallback UI: implement `getDerivedStateFromError` so the boundary can render a fallback component
-- [ ] Configurable fallback: `<FlareErrorBoundary fallback={<ErrorPage />}>` or render prop `fallback={(error, reset) => ...}`
-- [ ] `onError` callback prop: let developers hook into error events
-- [ ] `onReset` callback prop: for error recovery flows
-- [ ] Capture component props from the error boundary's child tree
-- [ ] Capture the erroring component's name (not just the stack)
-- [ ] React Router integration: capture current route/path as context + navigation breadcrumbs
-- [ ] Release + announce
-
-### Project 3: Enhanced Vue package
-
-Make `@flareapp/vue` competitive with Sentry's Vue integration.
-
-- [ ] Rewrite in TypeScript (currently plain JS)
-- [ ] Capture component props (configurable: `attachProps: true/false`)
-- [ ] Capture full component name including parent hierarchy
-- [ ] Vue Router integration: capture current route as context + navigation breadcrumbs
-- [ ] Pinia/Vuex store state capture (opt-in)
-- [ ] Release + announce
-
-### Project 4: Svelte package (new `@flareapp/svelte`)
-
-New framework integration — Svelte/SvelteKit is increasingly popular.
-
-- [ ] Create `@flareapp/svelte` package in the monorepo
-- [ ] Svelte error boundary component (or `handleError` hook)
-- [ ] Capture component context (name, props)
-- [ ] SvelteKit integration: `handleError` server/client hooks
-- [ ] SvelteKit routing context as breadcrumbs
-- [ ] Release + announce
-
-### Project 5: Sourcemap support for more build tools
-
-Currently Vite-only. Webpack and Turbopack are heavily used.
-
-- [ ] Extract shared sourcemap upload core from `@flareapp/vite` (API client, upload logic, retry)
-- [ ] `@flareapp/webpack` plugin: Webpack 4/5 sourcemap upload
-- [ ] `@flareapp/turbopack` plugin: Turbopack (Next.js) sourcemap upload
-- [ ] Consider: Rollup plugin, esbuild plugin (lower priority — Vite covers Rollup users)
-- [ ] Release + announce
-
-### Project 6: Node.js and other environments
-
-Verify and ensure Flare works beyond the browser.
-
-- [ ] Node.js: add `process.on('uncaughtException')` / `process.on('unhandledRejection')` handlers
-- [ ] Node.js: add filesystem-based source code reader (fs.readFileSync) alongside the fetch-based browser reader
-- [ ] Node.js: server context collection (hostname, process info, Node version)
-- [ ] Electron: verify it works in both main and renderer processes, document setup
-- [ ] React Native: verify it works, document setup, handle native crash edge cases
-- [ ] Write environment-specific setup instructions for each
-- [ ] Release + announce
-
-### Project 7: Documentation overhaul
-
-- [ ] Update frontend docs on flareapp.io
-- [ ] Split "JavaScript" docs into separate sections: React, Vue, Svelte, JavaScript, Node.js
-- [ ] Review existing docs for clarity & completeness
-- [ ] Update spatie/flare-client-js internal docs (monorepo workflow, tagging versions, local dev setup)
-- [ ] Release + announce
-
-### Project 8: Internal tooling & DX
-
-- [ ] Create a playground repo to test JavaScript integrations (with automated testing — internal tooling, not a public release)
-- [x] Evaluate build tools: migrated from tsup to tsdown (maintained successor, powered by rolldown)
-
----
-
-## Future considerations (not yet planned as projects)
-
-These are features the leading competitors have but that may be out of scope for now:
-
-- **Session replay** — would be a major undertaking (PostHog, Sentry, LogRocket all have this)
-- **Performance monitoring / Web Vitals** — could be a lightweight add-on
-- **Distributed tracing** — connecting frontend errors to backend spans (Datadog/New Relic territory)
-- **Feature flag integration** — linking errors to active feature flags
-- **Tunnel / ad blocker bypass** — proxy events through the user's own server
-- **Plugin/integration architecture** — modular system like Sentry's integrations (would require significant refactoring)
-- **Offline event queuing** — persist unsent events in localStorage/IndexedDB
-- **Rage/dead click detection** — user frustration signals without explicit errors
