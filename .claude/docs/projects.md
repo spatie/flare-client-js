@@ -1,6 +1,6 @@
 # Projects
 
-## Project 1: Core SDK hardening
+## Project: Core SDK hardening
 
 Make `@flareapp/js` robust and feature-complete with what every competitor ships. This is the foundation everything else
 builds on — every framework package inherits its gaps.
@@ -55,7 +55,7 @@ builds on — every framework package inherits its gaps.
 
 ---
 
-## Project 2: Enhanced React package
+## Project: Enhanced React package
 
 Make `@flareapp/react` competitive. Current implementation is 28 lines with no fallback UI.
 
@@ -72,7 +72,7 @@ Make `@flareapp/react` competitive. Current implementation is 28 lines with no f
 
 ---
 
-## Project 4: Svelte package
+## Project: Svelte package
 
 New `@flareapp/svelte` package. Svelte/SvelteKit is increasingly popular and has no good lightweight error tracker.
 
@@ -87,7 +87,7 @@ New `@flareapp/svelte` package. Svelte/SvelteKit is increasingly popular and has
 
 ---
 
-## Project 5: Turbopack sourcemap support
+## Project: Turbopack sourcemap support
 
 Currently Vite-only. The vite plugin's `FlareApi` (HTTP client, retry, compression) is mostly framework-agnostic —
 main work is abstracting away Vite's hook system.
@@ -101,7 +101,7 @@ main work is abstracting away Vite's hook system.
 
 ---
 
-## Project 7: Documentation
+## Project: Documentation
 
 Update docs after all features ship. Do this last so docs reflect the final state.
 
@@ -115,12 +115,12 @@ Update docs after all features ship. Do this last so docs reflect the final stat
 
 ## Deferred projects
 
-### Project 3: Vue enhancements
+### Project: Vue enhancements
 
 TypeScript rewrite is done. Remaining work (component props, Vue Router integration, Pinia state capture) deferred to
 next sprint.
 
-### Project 6: Node.js and other environments
+### Project: Node.js and other environments
 
 Verify Flare works in Node.js, Electron, React Native. Deferred because scope is unpredictable — could be quick if
 things already work, could balloon if they don't.
