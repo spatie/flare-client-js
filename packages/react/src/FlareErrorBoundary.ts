@@ -3,13 +3,26 @@ import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 're
 
 import { formatComponentStack } from './format-component-stack';
 
-type Props = PropsWithChildren<{
+export type FlareErrorBoundaryFallbackProps = {
+    error: Error;
+};
+
+export type FlareErrorBoundaryProps = PropsWithChildren<{
+    fallback?: ReactNode | ((props: FlareErrorBoundaryFallbackProps) => ReactNode);
     onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }>;
 
-type State = {};
+export type FlareErrorBoundaryState = {
+    error: Error | null;
+};
 
-export class FlareErrorBoundary extends Component<Props, State> {
+export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, FlareErrorBoundaryState> {
+    state: FlareErrorBoundaryState = { error: null };
+
+    static getDerivedStateFromError(error: Error): FlareErrorBoundaryState {
+        return { error };
+    }
+
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         const context = {
             react: {
@@ -22,7 +35,21 @@ export class FlareErrorBoundary extends Component<Props, State> {
         this.props.onError?.(error, errorInfo);
     }
 
-    render(): ReactNode {
+    render() {
+        const { error } = this.state;
+
+        if (error !== null) {
+            const { fallback } = this.props;
+
+            if (typeof fallback === 'function') {
+                return fallback({
+                    error,
+                });
+            }
+
+            return fallback ?? null;
+        }
+
         return this.props.children;
     }
 }

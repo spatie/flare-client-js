@@ -28,7 +28,10 @@ export function App() {
                 Reset render error
             </Button>
             {showBuggy && (
-                <FlareErrorBoundary onError={() => console.log('FlareErrorBoundary onError callback')}>
+                <FlareErrorBoundary
+                    onError={() => console.log('FlareErrorBoundary onError callback')}
+                    fallback={({ error }) => <p>There has been an error: {error.message}</p>}
+                >
                     <BuggyComponent />
                 </FlareErrorBoundary>
             )}
