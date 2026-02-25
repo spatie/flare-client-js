@@ -11,7 +11,8 @@ export type FlareErrorBoundaryFallbackProps = {
 export type FlareErrorBoundaryProps = PropsWithChildren<{
     fallback?: ReactNode | ((props: FlareErrorBoundaryFallbackProps) => ReactNode);
     resetKeys?: unknown[];
-    onError?: (error: Error, errorInfo: ErrorInfo) => void;
+    beforeCapture?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
+    onError?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
     onReset?: () => void;
 }>;
 
@@ -27,6 +28,11 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        this.props.beforeCapture?.({
+            error,
+            errorInfo,
+        });
+
         const context = {
             react: {
                 componentStack: formatComponentStack(errorInfo.componentStack ?? ''),
@@ -35,7 +41,10 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         flare.report(error, context, { react: { errorInfo } });
 
-        this.props.onError?.(error, errorInfo);
+        this.props.onError?.({
+            error,
+            errorInfo,
+        });
     }
 
     componentDidUpdate(prevProps: FlareErrorBoundaryProps) {
