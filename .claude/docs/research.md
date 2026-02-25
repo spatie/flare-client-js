@@ -104,6 +104,21 @@ builds on.
 
 - [ ] Switch from `window.onerror =` to `addEventListener('error')` / `addEventListener('unhandledrejection')` for
   robustness
+    - Sentry uses `window.onerror` for specific reasons that don't apply here: their async loader needs to inspect
+      `window.onerror` (can't introspect `addEventListener` listeners), they have years of cross-browser edge case
+      coverage they don't want to risk, and they support downcompilation to ES5. Their maintainers acknowledge the
+      functional difference is
+      marginal. ([Discussion #5786](https://github.com/getsentry/sentry-javascript/discussions/5786))
+        - `addEventListener` advantages: multiple handlers coexist (no silent overwrite by third-party scripts), catches
+          resource load errors in capture phase, proper `ErrorEvent` object instead of decomposed args.
+        - `window.onerror` advantage: handler is inspectable afterward (irrelevant for Flare).
+        - Recommendation: switch to `addEventListener` — Flare targets ES2022, has no lazy loader pattern, and the
+          current
+          property-based approach is fragile in multi-script environments.
+        - Sources:
+            - https://github.com/getsentry/sentry-javascript/discussions/5786
+            - https://github.com/getsentry/sentry-javascript/discussions/7542
+            - https://blog.sentry.io/client-javascript-reporting-window-onerror/
 - [ ] Automatic breadcrumbs: console output interception (`console.log/warn/error/info/debug`)
 - [ ] Automatic breadcrumbs: DOM click tracking (element tag, CSS selector)
 - [ ] Automatic breadcrumbs: Navigation / History API changes (`pushState`, `replaceState`, `popstate`)
