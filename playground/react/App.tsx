@@ -33,9 +33,14 @@ export function App() {
                     onError={() => console.log('FlareErrorBoundary onError callback')}
                     onReset={() => console.log('FlareErrorBoundary onReset callback')}
                     fallback={({ error, resetErrorBoundary }) => (
-                        <div>
+                        <div className="space-y-1">
                             <p>Something went wrong: {error.message}</p>
-                            <button onClick={resetErrorBoundary}>Try again</button>
+                            <button
+                                className="bg-black text-white rounded-md text-sm font-medium px-2 py-1"
+                                onClick={resetErrorBoundary}
+                            >
+                                Try again
+                            </button>
                         </div>
                     )}
                 >
