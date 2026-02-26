@@ -104,3 +104,4 @@ For the `@flareapp/react` package specifically:
 - [x] FlareErrorBoundary supports beforeCapture callback
 - [x] FlareErrorBoundary onReset passes previous error
 - [x] FlareErrorBoundary fallback passes componentStack
+- [x] Add flareReactErrorHandler
