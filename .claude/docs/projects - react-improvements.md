@@ -11,13 +11,17 @@
 - [x] FlareErrorBoundary `onReset` passes previous error
 - [x] FlareErrorBoundary supports `resetKeys` property
 - [x] Add `flareReactErrorHandler`
+- [x] Structured component stack parsing with sourcemap-ready frames
 
 ## FlareErrorBoundary: `fallback` property
 
 ### Inspiration
 
-- [Sentry ErrorBoundary `fallback`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#fallback-ui-options) -- supports a static element and a render function receiving `{ error, componentStack, resetError }`
-- [react-error-boundary](https://github.com/bvaughn/react-error-boundary) -- the most popular standalone error boundary library, supports `fallback`, `fallbackRender`, and `FallbackComponent` as three separate props
+- [Sentry ErrorBoundary
+  `fallback`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#fallback-ui-options) --
+  supports a static element and a render function receiving `{ error, componentStack, resetError }`
+- [react-error-boundary](https://github.com/bvaughn/react-error-boundary) -- the most popular standalone error boundary
+  library, supports `fallback`, `fallbackRender`, and `FallbackComponent` as three separate props
 
 ### Why
 
@@ -55,9 +59,11 @@ The `fallback` prop accepts either a static `ReactNode` or a render function. Th
 
 ### Inspiration
 
-- [Sentry ErrorBoundary `onError`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#options-reference) -- called when the boundary encounters an error
-- [react-error-boundary `onError`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#onerror) -- same concept, receives `(error, info)`
-
+- [Sentry ErrorBoundary
+  `onError`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#options-reference) --
+  called when the boundary encounters an error
+- [react-error-boundary `onError`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#onerror) -- same
+  concept, receives `(error, info)`
 
 ### Why
 
@@ -79,7 +85,9 @@ showing a toast, updating app state, etc. This fires *after* the error has been 
 
 ### Inspiration
 
-- [Sentry ErrorBoundary `beforeCapture`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#options-reference) -- the only competitor that offers this; receives the Sentry scope to set tags and context before the event is sent
+- [Sentry ErrorBoundary
+  `beforeCapture`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#options-reference) --
+  the only competitor that offers this; receives the Sentry scope to set tags and context before the event is sent
 
 No other competitor (Datadog, Bugsnag, Rollbar, LogRocket) provides an equivalent hook.
 
@@ -104,8 +112,11 @@ the developer decide what to include rather than trying to automatically seriali
 
 ### Inspiration
 
-- [react-error-boundary `onReset`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#onreset) -- the primary inspiration; called when the boundary resets, receives details about what triggered the reset
-- [Sentry ErrorBoundary `onReset`](https://github.com/getsentry/sentry-javascript/blob/master/packages/react/src/errorboundary.tsx) -- exists in Sentry's source code (receives `error, componentStack, eventId`) but is not documented in their official docs
+- [react-error-boundary `onReset`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#onreset) -- the
+  primary inspiration; called when the boundary resets, receives details about what triggered the reset
+- [Sentry ErrorBoundary
+  `onReset`](https://github.com/getsentry/sentry-javascript/blob/master/packages/react/src/errorboundary.tsx) -- exists
+  in Sentry's source code (receives `error, componentStack, eventId`) but is not documented in their official docs
 
 ### Why
 
@@ -131,7 +142,8 @@ error allows conditional cleanup based on what went wrong.
 
 ### Inspiration
 
-- [react-error-boundary `resetKeys`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#resetkeys) -- the sole source for this pattern; Sentry does not offer it
+- [react-error-boundary `resetKeys`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#resetkeys) --
+  the sole source for this pattern; Sentry does not offer it
 
 This is a feature unique to react-error-boundary that neither Sentry nor any other error tracking competitor provides.
 When any value in the `resetKeys` array changes between renders (compared via `Object.is`), the boundary automatically
@@ -165,8 +177,11 @@ function App() {
 
 ### Inspiration
 
-- [Sentry `reactErrorHandler`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#error-hooks-vs-errorboundary) -- provides `Sentry.reactErrorHandler()` for all three React 19 root error hooks, with an optional callback parameter
-- [React 19 `createRoot` error handling docs](https://react.dev/reference/react-dom/client/createRoot#parameters) -- the React docs describing `onCaughtError`, `onUncaughtError`, and `onRecoverableError`
+- [Sentry
+  `reactErrorHandler`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#error-hooks-vs-errorboundary) --
+  provides `Sentry.reactErrorHandler()` for all three React 19 root error hooks, with an optional callback parameter
+- [React 19 `createRoot` error handling docs](https://react.dev/reference/react-dom/client/createRoot#parameters) -- the
+  React docs describing `onCaughtError`, `onUncaughtError`, and `onRecoverableError`
 
 Our API mirrors Sentry's approach: a wrapper function that accepts an optional callback. The key difference is that
 `flareReactErrorHandler` also handles non-Error values (strings, objects) by converting them to proper Error instances
@@ -199,3 +214,76 @@ const root = createRoot(document.getElementById('root')!, {
 
 root.render(<App />);
 ```
+
+## Structured component stack parsing with sourcemap-ready frames
+
+### Inspiration
+
+- [Sentry
+  `captureReactException`](https://github.com/getsentry/sentry-javascript/blob/master/packages/react/src/error.ts) --
+  creates a synthetic Error with the raw `componentStack` as its `.stack` property and links it to the original error
+  via `error.cause`; server-side sourcemap processing then applies to this synthetic stack trace
+- [Bugsnag `formatComponentStack`](https://github.com/bugsnag/bugsnag-js/tree/main/packages/plugin-react) -- only trims
+  whitespace; sends componentStack as raw metadata; has
+  an [open feature request (issue #2097)](https://github.com/bugsnag/bugsnag-js/issues/2097) to apply sourcemaps to it
+- Rollbar and LogRocket do not parse or sourcemap the componentStack at all
+
+### Why
+
+React's `ErrorInfo.componentStack` is a raw multiline string whose format differs between browser engines:
+
+- **Chromium** (Chrome, Edge, Opera, Brave): `at ComponentName (http://localhost:5173/src/App.tsx:12:9)`
+- **Firefox/Safari** (Gecko, WebKit): `ComponentName@http://localhost:5173/src/App.tsx:12:9`
+
+Previously, `formatComponentStack()` just split this string by newlines into a `string[]`, giving the Flare dashboard
+nothing structured to work with. By parsing each line into `{ component, file, line, column }` objects, we give the
+backend clean structured data for sourcemap resolution and rich dashboard rendering (clickable source links, component
+tree views, searchable component names) -- without requiring the backend to re-parse a raw string or a synthetic stack
+trace like Sentry does.
+
+Both `componentStack` (original `string[]`) and `componentStackFrames` (new `ComponentStackFrame[]`) are sent in the
+report context for backwards compatibility. The backend can adopt the structured format when ready.
+
+### Report context structure
+
+```json
+{
+  "context": {
+    "react": {
+      "componentStack": [
+        "at ErrorComponent (http://localhost:5173/src/App.tsx:12:9)",
+        "at div",
+        "at App (http://localhost:5173/src/App.tsx:5:3)"
+      ],
+      "componentStackFrames": [
+        {
+          "component": "ErrorComponent",
+          "file": "http://localhost:5173/src/App.tsx",
+          "line": 12,
+          "column": 9
+        },
+        {
+          "component": "div",
+          "file": null,
+          "line": null,
+          "column": null
+        },
+        {
+          "component": "App",
+          "file": "http://localhost:5173/src/App.tsx",
+          "line": 5,
+          "column": 3
+        }
+      ]
+    }
+  }
+}
+```
+
+### Backend requirements
+
+The Flare backend/dashboard needs to:
+
+1. Read `componentStackFrames` from the report context
+2. Apply sourcemap resolution to each frame's `file`/`line`/`column`
+3. Render the component stack as a structured list in the dashboard

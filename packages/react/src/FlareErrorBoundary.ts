@@ -2,6 +2,7 @@ import { flare } from '@flareapp/js';
 import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 
 import { formatComponentStack } from './format-component-stack';
+import { parseComponentStack } from './parse-component-stack';
 import { FlareReactContext } from './types';
 
 export type FlareErrorBoundaryFallbackProps = {
@@ -36,9 +37,12 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
             errorInfo,
         });
 
+        const rawStack = errorInfo.componentStack ?? '';
+
         const context: FlareReactContext = {
             react: {
-                componentStack: formatComponentStack(errorInfo.componentStack ?? ''),
+                componentStack: formatComponentStack(rawStack),
+                componentStackFrames: parseComponentStack(rawStack),
             },
         };
 
