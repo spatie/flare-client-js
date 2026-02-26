@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-    readonly VITE_FLARE_API_KEY: string;
+    readonly VITE_FLARE_JS_KEY: string;
+    readonly VITE_FLARE_REACT_KEY: string;
+    readonly VITE_FLARE_VUE_KEY: string;
 }
 
 interface ImportMeta {

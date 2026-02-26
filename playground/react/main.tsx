@@ -1,8 +1,11 @@
 import { createRoot } from 'react-dom/client';
 
 import { createSidebar } from '../shared/create-sidebar';
+import { initFlare } from '../shared/init-flare';
 
 import { App } from './App';
+
+initFlare(import.meta.env.VITE_FLARE_REACT_KEY);
 
 createSidebar();
 
