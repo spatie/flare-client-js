@@ -3,61 +3,50 @@
 **Goal:** Make Flare's JavaScript error tracking good enough to stand on its own — not just an add-on for Laravel/PHP
 users, but a worthy error tracker for JavaScript-only projects.
 
-The frontend error monitoring is currently barebones. We need to research competitors (Sentry, PostHog, etc.), identify
-gaps, and ship improvements as a series of projects. Each project gets a release and an announcement post.
+The frontend error monitoring is currently barebones. We need to identify gaps and ship improvements as a series of
+projects. Each project gets a release and an announcement post.
 
-## Research & discovery
+## Industry-standard features we're missing
 
-- [x] Research Sentry — features, DX, SDK capabilities, what they do well
-- [x] Research PostHog — error tracking features, session replay, context collection
-- [x] Research other competitors (Bugsnag, Rollbar, LogRocket, Datadog RUM, New Relic, Raygun, Highlight.io)
-- [x] Audit current Flare JS client capabilities in detail
-- [x] Compile findings: what are we missing? What's table stakes vs. differentiators?
-- [x] Organize findings + idea list into concrete projects with priorities
+| Feature                                                          | Industry standard | Flare                                    |
+|------------------------------------------------------------------|-------------------|------------------------------------------|
+| **Automatic breadcrumbs** (console, clicks, navigation, network) | Yes               | Manual "glows" only                      |
+| **User identification API** (`setUser()`)                        | Yes               | None                                     |
+| **Device/browser/OS context** (parsed from UA)                   | Yes               | Raw UA string only                       |
+| **Sampling / rate limiting**                                     | Yes               | None                                     |
+| **addEventListener** (robust error capture)                      | Yes               | Fragile `window.onerror =` assignment    |
+| **Error deduplication**                                          | Yes               | None                                     |
+| **Release/version tracking**                                     | Yes               | Only `sourcemapVersion` for sourcemaps   |
+| **ignoreErrors / URL filtering**                                 | Yes               | Must implement manually in hooks         |
+| **Error cause chaining** (`error.cause`)                         | Yes               | None                                     |
+| **Retry logic** for report submission                            | Yes               | None (single fetch, lost on failure)     |
+| **React Error Boundary with fallback UI**                        | Yes               | No fallback, no getDerivedStateFromError |
+| **Multiple sourcemap upload tools**                              | Yes               | Vite only                                |
 
-## Competitive research findings
+## Advanced features to consider
 
-### What every competitor has (table stakes we're missing)
+| Feature                             | Notes                                          |
+|-------------------------------------|------------------------------------------------|
+| Session replay linked to errors     | Watch what user did before crash               |
+| Backend trace correlation           | Link frontend error to backend span            |
+| Stability/crash-free scores         | Session-based release health tracking          |
+| Feature flag context                | Which flag variant caused the regression?      |
+| State management integration        | Redux/Vuex snapshots at time of error          |
+| Rage/dead click detection           | User frustration signals                       |
+| Performance monitoring / Web Vitals | Tracing + Core Web Vitals                      |
+| Uncaught frame reconstruction       | Reconstruct missing stack frames heuristically |
+| Plugin/integration architecture     | Tree-shakeable, modular, extensible            |
+| Tunnel / ad blocker bypass          | Proxy events through your own server           |
 
-| Feature                                                          | Sentry                          | Bugsnag             | Rollbar                | Flare                                    |
-|------------------------------------------------------------------|---------------------------------|---------------------|------------------------|------------------------------------------|
-| **Automatic breadcrumbs** (console, clicks, navigation, network) | Yes                             | Yes (best-in-class) | Yes ("telemetry")      | Manual "glows" only                      |
-| **User identification API** (`setUser()`)                        | Yes                             | Yes                 | Yes                    | None                                     |
-| **Device/browser/OS context** (parsed from UA)                   | Yes                             | Yes                 | Yes                    | Raw UA string only                       |
-| **Sampling / rate limiting**                                     | Yes                             | Yes                 | Yes (`itemsPerMinute`) | None                                     |
-| **addEventListener** (robust error capture)                      | Yes                             | Yes                 | Yes                    | Fragile `window.onerror =` assignment    |
-| **Error deduplication**                                          | Yes                             | Yes                 | Yes                    | None                                     |
-| **Release/version tracking**                                     | Yes                             | Yes                 | Yes                    | Only `sourcemapVersion` for sourcemaps   |
-| **ignoreErrors / URL filtering**                                 | Yes                             | Yes                 | Yes                    | Must implement manually in hooks         |
-| **Error cause chaining** (`error.cause`)                         | Yes                             | Yes                 | No                     | None                                     |
-| **Retry logic** for report submission                            | Yes                             | Yes                 | Yes                    | None (single fetch, lost on failure)     |
-| **React Error Boundary with fallback UI**                        | Yes                             | Yes                 | Yes                    | No fallback, no getDerivedStateFromError |
-| **Multiple sourcemap upload tools**                              | Vite/Webpack/Rollup/esbuild/CLI | CLI + Webpack       | CLI + Webpack          | Vite only                                |
+## Flare's existing strengths
 
-### What differentiates the leaders
-
-| Feature                             | Leader                     | Notes                                          |
-|-------------------------------------|----------------------------|------------------------------------------------|
-| Session replay linked to errors     | LogRocket, Sentry, PostHog | Watch what user did before crash               |
-| Backend trace correlation           | Datadog, New Relic         | Link frontend error to backend span            |
-| Stability/crash-free scores         | Bugsnag                    | Session-based release health tracking          |
-| Feature flag context                | Bugsnag, PostHog, Datadog  | Which flag variant caused the regression?      |
-| State management integration        | LogRocket                  | Redux/Vuex snapshots at time of error          |
-| Rage/dead click detection           | LogRocket, Datadog         | User frustration signals                       |
-| Performance monitoring / Web Vitals | Sentry, Datadog, New Relic | Tracing + Core Web Vitals                      |
-| `guess_uncaught_frames`             | Rollbar                    | Reconstruct missing stack frames heuristically |
-| Plugin/integration architecture     | Sentry, Bugsnag            | Tree-shakeable, modular, extensible            |
-| Tunnel / ad blocker bypass          | Sentry                     | Proxy events through your own server           |
-
-### Flare's existing unique strengths
-
-- **Solution providers** — no competitor has programmatic "here's how to fix this" suggestions
-- **Tiny bundle** — ~3-5KB gzipped vs Sentry's ~22KB+ core
+- **Solution providers** — programmatic "here's how to fix this" suggestions
+- **Tiny bundle** — ~3-5KB gzipped
 - **Laravel/PHP ecosystem** — deep integration with the most popular PHP framework
-- **Vite-first** — modern build tool support (most competitors still lead with Webpack)
+- **Vite-first** — modern build tool support
 - **Clean two-hook system** — `beforeEvaluate` (filter errors) + `beforeSubmit` (modify reports)
 
-### Current gaps in Flare (detailed)
+## Current gaps in Flare (detailed)
 
 **Context collection** — only captures URL, user agent (raw string), referrer, readyState, cookies, query params.
 Missing: browser name/version, OS, device type, screen size, viewport, locale, timezone, online/offline status, memory,
@@ -74,10 +63,10 @@ handling (strings, numbers silently dropped).
 `sendBeacon()` for unload, no request timeout.
 
 **React** (`@flareapp/react`) — captures component stack string only. Missing: fallback UI (`getDerivedStateFromError`),
-component props, component name, onError/onReset callbacks, React Router integration, Redux/Zustand state.
+component props, component name, onError/onReset callbacks, React Router integration, state management integration.
 
 **Vue** (`@flareapp/vue`) — captures component name + info string. Missing: component props, Vue Router context,
-Pinia/Vuex state, component tree. Written in plain JS (no TypeScript).
+Pinia/Vuex state, component tree.
 
 **Config** — missing: `enabled` toggle, `sampleRate`, `ignoreErrors` patterns, `allowUrls`/`denyUrls`, `release` (for
 the user's app), transport customization.
@@ -97,10 +86,9 @@ rate limiting, fragile error capture, etc.). Should be the next sprint priority.
 
 ---
 
-### Project 1: Core SDK hardening (table stakes) -- DEFERRED
+### Project 1: Core SDK hardening -- DEFERRED
 
-Make `@flareapp/js` robust and feature-complete with what every competitor ships. This is the foundation everything else
-builds on.
+Make `@flareapp/js` robust and feature-complete. This is the foundation everything else builds on.
 
 - [ ] Switch from `window.onerror =` to `addEventListener('error')` / `addEventListener('unhandledrejection')` for
   robustness
@@ -143,7 +131,7 @@ builds on.
 
 ### Project 2: Enhanced React package -- IN SCOPE (subset)
 
-Make `@flareapp/react` competitive with Sentry's React integration.
+Make `@flareapp/react` a full-featured React error tracking integration.
 
 Sprint target: fallback UI, callbacks, and component name. Defer React Router integration.
 
@@ -159,7 +147,7 @@ Sprint target: fallback UI, callbacks, and component name. Defer React Router in
 
 ### Project 3: Enhanced Vue package -- DEFERRED
 
-Make `@flareapp/vue` competitive with Sentry's Vue integration.
+Make `@flareapp/vue` a full-featured Vue error tracking integration.
 
 - [x] Rewrite in TypeScript (done as part of repo cleanup)
 - [ ] Capture component props (configurable: `attachProps: true/false`)
@@ -226,14 +214,11 @@ Sprint target: internal monorepo docs + frontend doc split and review.
 
 ## Future considerations (not yet planned as projects)
 
-These are features the leading competitors have but that may be out of scope for now:
-
-- **Session replay** — would be a major undertaking (PostHog, Sentry, LogRocket all have this)
+- **Session replay** — would be a major undertaking
 - **Performance monitoring / Web Vitals** — could be a lightweight add-on
-- **Distributed tracing** — connecting frontend errors to backend spans (Datadog/New Relic territory)
+- **Distributed tracing** — connecting frontend errors to backend spans
 - **Feature flag integration** — linking errors to active feature flags
 - **Tunnel / ad blocker bypass** — proxy events through the user's own server
-- **Plugin/integration architecture** — modular system like Sentry's integrations (would require significant
-  refactoring)
+- **Plugin/integration architecture** — modular, tree-shakeable, extensible system (would require significant refactoring)
 - **Offline event queuing** — persist unsent events in localStorage/IndexedDB
 - **Rage/dead click detection** — user frustration signals without explicit errors
