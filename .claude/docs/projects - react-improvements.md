@@ -14,17 +14,12 @@
 
 ## FlareErrorBoundary: `fallback` property
 
-### Inspiration
-
-- [Sentry ErrorBoundary `fallback`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#fallback-ui-options) -- supports a static element and a render function receiving `{ error, componentStack, resetError }`
-- [react-error-boundary](https://github.com/bvaughn/react-error-boundary) -- the most popular standalone error boundary library, supports `fallback`, `fallbackRender`, and `FallbackComponent` as three separate props
-
 ### Why
 
 Without a `fallback` prop, the error boundary rendered nothing when an error was caught, giving users no way to
-show a recovery UI. Every major competitor supports this.
+show a recovery UI.
 
-Our implementation combines the static and render function approaches into a single `fallback` prop (like Sentry), and
+Our implementation combines the static and render function approaches into a single `fallback` prop, and
 passes `componentStack` as a parsed string array rather than a raw string.
 
 The `fallback` prop accepts either a static `ReactNode` or a render function. The render function receives the caught
@@ -53,12 +48,6 @@ The `fallback` prop accepts either a static `ReactNode` or a render function. Th
 
 ## FlareErrorBoundary: `onError` callback
 
-### Inspiration
-
-- [Sentry ErrorBoundary `onError`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#options-reference) -- called when the boundary encounters an error
-- [react-error-boundary `onError`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#onerror) -- same concept, receives `(error, info)`
-
-
 ### Why
 
 Developers need a hook to perform side effects when an error is caught -- logging to a secondary service,
@@ -76,12 +65,6 @@ showing a toast, updating app state, etc. This fires *after* the error has been 
 ```
 
 ## FlareErrorBoundary: `beforeCapture` callback
-
-### Inspiration
-
-- [Sentry ErrorBoundary `beforeCapture`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#options-reference) -- the only competitor that offers this; receives the Sentry scope to set tags and context before the event is sent
-
-No other competitor (Datadog, Bugsnag, Rollbar, LogRocket) provides an equivalent hook.
 
 ### Why
 
@@ -101,11 +84,6 @@ the developer decide what to include rather than trying to automatically seriali
 ```
 
 ## FlareErrorBoundary: `onReset` property (with previous error)
-
-### Inspiration
-
-- [react-error-boundary `onReset`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#onreset) -- the primary inspiration; called when the boundary resets, receives details about what triggered the reset
-- [Sentry ErrorBoundary `onReset`](https://github.com/getsentry/sentry-javascript/blob/master/packages/react/src/errorboundary.tsx) -- exists in Sentry's source code (receives `error, componentStack, eventId`) but is not documented in their official docs
 
 ### Why
 
@@ -128,14 +106,6 @@ error allows conditional cleanup based on what went wrong.
 ```
 
 ## FlareErrorBoundary: `resetKeys` property
-
-### Inspiration
-
-- [react-error-boundary `resetKeys`](https://github.com/bvaughn/react-error-boundary?tab=readme-ov-file#resetkeys) -- the sole source for this pattern; Sentry does not offer it
-
-This is a feature unique to react-error-boundary that neither Sentry nor any other error tracking competitor provides.
-When any value in the `resetKeys` array changes between renders (compared via `Object.is`), the boundary automatically
-resets and re-renders its children.
 
 ### Why
 
@@ -165,19 +135,16 @@ function App() {
 
 ### Inspiration
 
-- [Sentry `reactErrorHandler`](https://docs.sentry.io/platforms/javascript/guides/react/features/error-boundary/#error-hooks-vs-errorboundary) -- provides `Sentry.reactErrorHandler()` for all three React 19 root error hooks, with an optional callback parameter
 - [React 19 `createRoot` error handling docs](https://react.dev/reference/react-dom/client/createRoot#parameters) -- the React docs describing `onCaughtError`, `onUncaughtError`, and `onRecoverableError`
-
-Our API mirrors Sentry's approach: a wrapper function that accepts an optional callback. The key difference is that
-`flareReactErrorHandler` also handles non-Error values (strings, objects) by converting them to proper Error instances
-via `convertToError()`, making it more resilient to edge cases.
 
 ### Why
 
 React 19 introduced `onCaughtError`, `onUncaughtError`, and `onRecoverableError` callbacks on `createRoot`.
-These are root-level error handlers that catch errors *without* requiring an ErrorBoundary wrapper. At the time of
-implementation, only Sentry and Datadog supported this -- Bugsnag, Rollbar, and LogRocket did not. This puts Flare ahead
-of most competitors for React 19 support.
+These are root-level error handlers that catch errors *without* requiring an ErrorBoundary wrapper.
+
+`flareReactErrorHandler` is a wrapper function that accepts an optional callback. It also handles non-Error values
+(strings, objects) by converting them to proper Error instances via `convertToError()`, making it more resilient to
+edge cases.
 
 ```tsx
 import { flareReactErrorHandler } from '@flareapp/react';
