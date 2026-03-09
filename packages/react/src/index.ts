@@ -5,4 +5,8 @@ export {
     type FlareErrorBoundaryState,
 } from './FlareErrorBoundary';
 
-export { flareReactErrorHandler, type FlareReactErrorHandlerCallback } from './flare-react-error-handler';
+export {
+    flareReactErrorHandler,
+    type FlareReactErrorHandlerCallback,
+    type FlareReactErrorHandlerOptions,
+} from './flare-react-error-handler';

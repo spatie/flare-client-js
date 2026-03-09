@@ -7,9 +7,25 @@ import { FlareReactContext } from './types';
 
 export type FlareReactErrorHandlerCallback = (error: unknown, errorInfo: { componentStack?: string }) => void;
 
-export function flareReactErrorHandler(callback?: FlareReactErrorHandlerCallback): FlareReactErrorHandlerCallback {
+export type FlareReactErrorHandlerOptions = {
+    beforeEvaluate?: (params: { error: Error; errorInfo: { componentStack?: string } }) => void;
+    beforeSubmit?: (params: {
+        error: Error;
+        errorInfo: { componentStack?: string };
+        context: FlareReactContext;
+    }) => FlareReactContext;
+    afterSubmit?: (params: {
+        error: Error;
+        errorInfo: { componentStack?: string };
+        context: FlareReactContext;
+    }) => void;
+};
+
+export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions): FlareReactErrorHandlerCallback {
     return (error: unknown, errorInfo: { componentStack?: string }) => {
         const errorObject = convertToError(error);
+
+        options?.beforeEvaluate?.({ error: errorObject, errorInfo });
 
         const rawStack = errorInfo.componentStack ?? '';
 
@@ -20,8 +36,15 @@ export function flareReactErrorHandler(callback?: FlareReactErrorHandlerCallback
             },
         };
 
-        flare.report(errorObject, context);
+        const finalContext =
+            options?.beforeSubmit?.({
+                error: errorObject,
+                errorInfo,
+                context,
+            }) ?? context;
 
-        callback?.(error, errorInfo);
+        flare.report(errorObject, finalContext);
+
+        options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });
     };
 }
