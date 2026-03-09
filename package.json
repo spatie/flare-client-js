@@ -8,18 +8,13 @@
         "test": "npm run test --workspaces --if-present",
         "typescript": "npm run typescript --workspaces --if-present",
         "format": "prettier --write \"**/*.{js,json,vue,ts,tsx}\"",
-        "prepare": "husky install"
+        "prepare": "husky"
     },
     "devDependencies": {
-        "@types/node": "^24.3.0",
-        "husky": "^8.0.3",
-        "lint-staged": "^15.2.0",
+        "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+        "@types/node": "^25.3.0",
+        "husky": "^9.0.0",
+        "lint-staged": "^16.2.7",
         "prettier": "^3.3.3"
-    },
-    "lint-staged": {
-        "*.{js,json,vue,ts,tsx}": "prettier --write"
-    },
-    "dependencies": {
-        "@trivago/prettier-plugin-sort-imports": "^4.3.0"
     }
 }

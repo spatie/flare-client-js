@@ -32,8 +32,8 @@
     },
     "devDependencies": {
         "tsup": "^8.0.1",
-        "typescript": "^5.3.3",
-        "vitest": "^1.0.4"
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.18"
     },
     "publishConfig": {
         "access": "public"
