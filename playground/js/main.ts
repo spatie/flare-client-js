@@ -1,7 +1,9 @@
 import { createSidebar } from '../shared/create-sidebar';
-import { flare } from '../shared/flare';
+import { flare, initFlare } from '../shared/init-flare';
 
 import { createButton } from './create-button';
+
+initFlare(import.meta.env.VITE_FLARE_JS_KEY);
 
 createSidebar();
 
