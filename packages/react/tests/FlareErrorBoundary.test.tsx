@@ -3,6 +3,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { FlareErrorBoundary } from '../src/FlareErrorBoundary';
+import { FlareReactContext } from '../src/types';
 
 const mockReport = vi.fn();
 
@@ -161,13 +162,92 @@ describe('FlareErrorBoundary', () => {
         expect(beforeEvaluate.mock.calls[0][0].errorInfo).toBeDefined();
     });
 
+    test('calls beforeSubmit after beforeEvaluate and before reporting', () => {
+        const callOrder: string[] = [];
+
+        const beforeEvaluate = vi.fn(() => callOrder.push('beforeEvaluate'));
+        const beforeSubmit = vi.fn((params: { context: FlareReactContext }) => {
+            callOrder.push('beforeSubmit');
+            return params.context;
+        });
+        mockReport.mockImplementationOnce(() => callOrder.push('report'));
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        expect(callOrder).toEqual(['beforeEvaluate', 'beforeSubmit', 'report']);
+    });
+
+    test('calls beforeSubmit with error, errorInfo, and context', () => {
+        const beforeSubmit = vi.fn(
+            (params: { error: Error; errorInfo: unknown; context: FlareReactContext }) => params.context
+        );
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeSubmit.mock.calls[0][0].error).toBe(testError);
+        expect(beforeSubmit.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(beforeSubmit.mock.calls[0][0].context.react.componentStack).toBeInstanceOf(Array);
+        expect(beforeSubmit.mock.calls[0][0].context.react.componentStackFrames).toBeInstanceOf(Array);
+    });
+
+    test('beforeSubmit can modify the context before reporting', () => {
+        const customStack = ['at Custom (custom.tsx:1:1)'];
+        const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: customStack,
+            },
+        }));
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        const reportedContext = mockReport.mock.calls[0][1];
+        expect(reportedContext.react.componentStack).toBe(customStack);
+    });
+
+    test('beforeSubmit modified context is passed to afterSubmit', () => {
+        const customStack = ['at Custom (custom.tsx:1:1)'];
+        const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: customStack,
+            },
+        }));
+        const afterSubmit = vi.fn();
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit} afterSubmit={afterSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toBe(customStack);
+    });
+
     test('calls afterSubmit after reporting', () => {
         const callOrder: string[] = [];
 
         mockReport.mockImplementationOnce(() => callOrder.push('report'));
-        const afterSubmit = vi.fn((_params: { error: Error; errorInfo: unknown }) => {
-            callOrder.push('afterSubmit');
-        });
+        const afterSubmit = vi.fn(
+            (_params: { error: Error; errorInfo: unknown; context: { react: { componentStack: string[] } } }) => {
+                callOrder.push('afterSubmit');
+            }
+        );
 
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
@@ -178,6 +258,7 @@ describe('FlareErrorBoundary', () => {
         expect(afterSubmit).toHaveBeenCalledOnce();
         expect(afterSubmit.mock.calls[0][0].error).toBe(testError);
         expect(afterSubmit.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toBeInstanceOf(Array);
         expect(callOrder).toEqual(['report', 'afterSubmit']);
     });
 
