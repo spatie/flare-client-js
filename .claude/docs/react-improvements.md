@@ -100,4 +100,5 @@ For the `@flareapp/react` package specifically:
 - [x] FlareErrorBoundary supports fallback property
 - [x] FlareErrorBoundary supports onReset property
 - [x] FlareErrorBoundary supports resetKeys property
-- [x] FlareErrorBoundary supports fallback with a reset method for reseting the Error Boundary
+- [x] FlareErrorBoundary supports fallback with a reset method for resetting the Error Boundary
+- [x] FlareErrorBoundary supports beforeCapture callback
