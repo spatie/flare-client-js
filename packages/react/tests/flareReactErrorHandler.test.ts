@@ -278,4 +278,69 @@ describe('flareReactErrorHandler', () => {
             expect(callOrder).toEqual(['beforeEvaluate', 'beforeSubmit', 'report', 'afterSubmit']);
         });
     });
+
+    describe('callback error propagation', () => {
+        test('beforeEvaluate throwing prevents reporting and propagates to caller', () => {
+            const handler = flareReactErrorHandler({
+                beforeEvaluate: () => {
+                    throw new Error('beforeEvaluate error');
+                },
+            });
+
+            expect(() => handler(new Error('test'), {})).toThrow('beforeEvaluate error');
+            expect(mockReport).not.toHaveBeenCalled();
+        });
+
+        test('beforeSubmit throwing prevents reporting and propagates to caller', () => {
+            const handler = flareReactErrorHandler({
+                beforeSubmit: () => {
+                    throw new Error('beforeSubmit error');
+                },
+            });
+
+            expect(() => handler(new Error('test'), {})).toThrow('beforeSubmit error');
+            expect(mockReport).not.toHaveBeenCalled();
+        });
+
+        test('afterSubmit throwing propagates to caller after reporting', () => {
+            const handler = flareReactErrorHandler({
+                afterSubmit: () => {
+                    throw new Error('afterSubmit error');
+                },
+            });
+
+            expect(() => handler(new Error('test'), {})).toThrow('afterSubmit error');
+            expect(mockReport).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe('beforeSubmit return value', () => {
+        test('uses original context when beforeSubmit does not return', () => {
+            const handler = flareReactErrorHandler({
+                beforeSubmit: () => {
+                    // user forgot to return context
+                },
+            });
+
+            handler(new Error('test'), { componentStack: '\n    at App\n' });
+
+            const reportedContext = mockReport.mock.calls[0][1];
+            expect(reportedContext.react.componentStack).toEqual(['at App']);
+            expect(reportedContext.react.componentStackFrames).toBeInstanceOf(Array);
+        });
+
+        test('afterSubmit receives original context when beforeSubmit does not return', () => {
+            const afterSubmit = vi.fn();
+            const handler = flareReactErrorHandler({
+                beforeSubmit: () => {
+                    // user forgot to return context
+                },
+                afterSubmit,
+            });
+
+            handler(new Error('test'), { componentStack: '\n    at App\n' });
+
+            expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toEqual(['at App']);
+        });
+    });
 });

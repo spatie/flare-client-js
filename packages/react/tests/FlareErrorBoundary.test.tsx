@@ -396,4 +396,103 @@ describe('FlareErrorBoundary', () => {
         expect(beforeEvaluate).toHaveBeenCalledOnce();
         expect(mockReport).not.toHaveBeenCalled();
     });
+
+    test('beforeSubmit throwing prevents reporting and crashes the boundary', () => {
+        const beforeSubmit = vi.fn(() => {
+            throw new Error('beforeSubmit error');
+        });
+
+        expect(() =>
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>
+            )
+        ).toThrow('beforeSubmit error');
+
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('afterSubmit throwing crashes the boundary after reporting', () => {
+        const afterSubmit = vi.fn(() => {
+            throw new Error('afterSubmit error');
+        });
+
+        expect(() =>
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>
+            )
+        ).toThrow('afterSubmit error');
+
+        expect(afterSubmit).toHaveBeenCalledOnce();
+        expect(mockReport).toHaveBeenCalledOnce();
+    });
+
+    test('uses original context when beforeSubmit does not return', () => {
+        const beforeSubmit = vi.fn(() => {
+            // user forgot to return context
+        });
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        const reportedContext = mockReport.mock.calls[0][1];
+        expect(reportedContext.react.componentStack).toBeInstanceOf(Array);
+        expect(reportedContext.react.componentStackFrames).toBeInstanceOf(Array);
+    });
+
+    test('beforeSubmit modified componentStack is reflected in the fallback render', () => {
+        const customStack = ['at Custom (custom.tsx:1:1)'];
+        const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: customStack,
+            },
+        }));
+
+        const fallbackFn = vi.fn(({ componentStack }) => <span data-testid="stack">{componentStack.join(',')}</span>);
+
+        render(
+            <FlareErrorBoundary fallback={fallbackFn} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(screen.getByTestId('stack')).toHaveTextContent('at Custom (custom.tsx:1:1)');
+    });
+
+    test('callbacks fire again after reset and re-throw', () => {
+        const beforeEvaluate = vi.fn();
+        const beforeSubmit = vi.fn((params: { context: FlareReactContext }) => params.context);
+        const afterSubmit = vi.fn();
+
+        render(
+            <FlareErrorBoundary
+                beforeEvaluate={beforeEvaluate}
+                beforeSubmit={beforeSubmit}
+                afterSubmit={afterSubmit}
+                fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Reset</button>}
+            >
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeEvaluate).toHaveBeenCalledOnce();
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        expect(afterSubmit).toHaveBeenCalledOnce();
+
+        fireEvent.click(screen.getByText('Reset'));
+
+        expect(beforeEvaluate).toHaveBeenCalledTimes(2);
+        expect(beforeSubmit).toHaveBeenCalledTimes(2);
+        expect(afterSubmit).toHaveBeenCalledTimes(2);
+    });
 });
