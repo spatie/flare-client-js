@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import Button from './Button.vue';
 import BuggyComponent from './BuggyComponent.vue';
-import { flare } from '../shared/init-flare';
+import { flare } from '../shared/initFlare';
 
 const showBuggy = ref(false);
 </script>

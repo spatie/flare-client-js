@@ -1,8 +1,8 @@
 import { flareVue } from '@flareapp/vue';
 import { createApp } from 'vue';
 
-import { createSidebar } from '../shared/create-sidebar';
-import { initFlare } from '../shared/init-flare';
+import { createSidebar } from '../shared/createSidebar';
+import { initFlare } from '../shared/initFlare';
 
 import App from './App.vue';
 

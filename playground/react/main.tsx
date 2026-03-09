@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 
-import { createSidebar } from '../shared/create-sidebar';
-import { initFlare } from '../shared/init-flare';
+import { createSidebar } from '../shared/createSidebar';
+import { initFlare } from '../shared/initFlare';
 
 import { App } from './App';
 

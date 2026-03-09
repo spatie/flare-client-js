@@ -1,7 +1,7 @@
 import { FlareErrorBoundary } from '@flareapp/react';
 import { useState } from 'react';
 
-import { flare } from '../shared/init-flare';
+import { flare } from '../shared/initFlare';
 
 import { AsyncErrorButton } from './AsyncErrorButton';
 import { BuggyComponent } from './BuggyComponent';

@@ -1,5 +1,5 @@
-import { createSidebar } from '../shared/create-sidebar';
-import { flare, initFlare } from '../shared/init-flare';
+import { createSidebar } from '../shared/createSidebar';
+import { flare, initFlare } from '../shared/initFlare';
 
 import { createButton } from './create-button';
 
