@@ -132,33 +132,33 @@ describe('FlareErrorBoundary', () => {
         expect(screen.getByTestId('has-stack')).toHaveTextContent('yes');
     });
 
-    test('calls beforeCapture before reporting', () => {
+    test('calls beforeEvaluate before reporting', () => {
         const callOrder: string[] = [];
 
-        const beforeCapture = vi.fn(() => callOrder.push('beforeCapture'));
+        const beforeEvaluate = vi.fn(() => callOrder.push('beforeEvaluate'));
         mockReport.mockImplementationOnce(() => callOrder.push('report'));
 
         render(
-            <FlareErrorBoundary fallback={<div>Error</div>} beforeCapture={beforeCapture}>
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        expect(beforeCapture).toHaveBeenCalledOnce();
-        expect(callOrder).toEqual(['beforeCapture', 'report']);
+        expect(beforeEvaluate).toHaveBeenCalledOnce();
+        expect(callOrder).toEqual(['beforeEvaluate', 'report']);
     });
 
-    test('calls beforeCapture with error and errorInfo', () => {
-        const beforeCapture = vi.fn();
+    test('calls beforeEvaluate with error and errorInfo', () => {
+        const beforeEvaluate = vi.fn();
 
         render(
-            <FlareErrorBoundary fallback={<div>Error</div>} beforeCapture={beforeCapture}>
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        expect(beforeCapture.mock.calls[0][0].error).toBe(testError);
-        expect(beforeCapture.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(beforeEvaluate.mock.calls[0][0].error).toBe(testError);
+        expect(beforeEvaluate.mock.calls[0][0].errorInfo).toBeDefined();
     });
 
     test('calls onError after reporting', () => {
@@ -296,23 +296,23 @@ describe('FlareErrorBoundary', () => {
         expect(screen.getByText('Reset')).toBeInTheDocument();
     });
 
-    test('beforeCapture throwing prevents reporting and crashes the boundary', () => {
-        const beforeCapture = vi.fn(() => {
-            throw new Error('beforeCapture error');
+    test('beforeEvaluate throwing prevents reporting and crashes the boundary', () => {
+        const beforeEvaluate = vi.fn(() => {
+            throw new Error('beforeEvaluate error');
         });
 
-        // beforeCapture throwing inside componentDidCatch propagates the error
+        // beforeEvaluate throwing inside componentDidCatch propagates the error
         // through React, which escalates it and unmounts the tree.
         // There is no try/catch around the callback in componentDidCatch.
         expect(() =>
             render(
-                <FlareErrorBoundary fallback={<div>Error</div>} beforeCapture={beforeCapture}>
+                <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                     <ThrowingComponent />
                 </FlareErrorBoundary>
             )
-        ).toThrow('beforeCapture error');
+        ).toThrow('beforeEvaluate error');
 
-        expect(beforeCapture).toHaveBeenCalledOnce();
+        expect(beforeEvaluate).toHaveBeenCalledOnce();
         expect(mockReport).not.toHaveBeenCalled();
     });
 });

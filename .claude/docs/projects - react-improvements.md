@@ -75,7 +75,7 @@ the developer decide what to include rather than trying to automatically seriali
 
 ```tsx
 <FlareErrorBoundary
-    beforeCapture={({ error, errorInfo }) => {
+    beforeEvaluate={({ error, errorInfo }) => {
         flare.addContext('user', { id: currentUser.id });
         flare.addContext('feature-flags', getActiveFlags());
     }}
