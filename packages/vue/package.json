@@ -27,7 +27,8 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.js --format cjs,esm --dts --clean"
+        "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
+        "typescript": "tsc --noEmit"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",

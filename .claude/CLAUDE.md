@@ -1,5 +1,13 @@
 # CLAUDE.md — flare-client-js
 
+## Claude instructions
+
+- Do not tell me I am right all the time.
+- Be critical.
+- We're equals.
+- Try to be neutral and objective.
+- Do not use emojis.
+
 ## What is this?
 
 The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking by Spatie. Captures frontend errors, collects
@@ -104,10 +112,10 @@ Before building new features, clean up the repo to make it a solid foundation. K
 
 ### Vue package: convert to TypeScript
 
-- [ ] `packages/vue/src/index.js` is plain JavaScript — the only non-TS source in the monorepo
-- [ ] Convert to `index.ts` with proper types for Vue's `App`, component instance, etc.
-- [ ] Add a `typescript` script to vue's package.json (currently missing because it's JS)
-- [ ] Update build script from `tsdown src/index.js` to `tsdown src/index.ts`
+- [x] `packages/vue/src/index.js` was plain JavaScript — converted to TypeScript
+- [x] Convert to `index.ts` with proper types for Vue's `App`, `ComponentPublicInstance`, etc.
+- [x] Add a `typescript` script to vue's package.json (`tsc --noEmit`)
+- [x] Update build script from `tsdown src/index.js` to `tsdown src/index.ts`
 
 ### CI improvements
 
@@ -115,6 +123,11 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [ ] Add npm dependency caching (`actions/setup-node` has `cache: 'npm'` option)
 - [ ] Consolidate the two workflows (test.yml + typescript.yml) into one — they both run `npm install` + `npm run build` separately, wasteful
 - [ ] Consider running on `push` to `main` + PRs only (currently runs on every push to every branch)
+
+### Housekeeping
+
+- [x] Add `.idea/` to `.gitignore` (currently showing as untracked in git status)
+- [ ] Make use of absolute paths and aliases
 
 ### Local dev/test app
 
@@ -125,11 +138,6 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [ ] Add a `playground` script to root package.json for quick access
 - [ ] Gitignore the playground's Flare API key (use `.env.local` or similar)
 - [ ] Not published to npm — `"private": true`
-
-### Housekeeping
-
-- [ ] Add `.idea/` to `.gitignore` (currently showing as untracked in git status)
-- [ ] Make use of absolute paths and aliasses
 
 ---
 
