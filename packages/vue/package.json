@@ -10,22 +10,28 @@
     },
     "license": "MIT",
     "author": "adriaan@spatie.be",
-    "main": "./dist/index.js",
+    "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
-    "types": "./dist/index.d.ts",
+    "types": "./dist/index.d.cts",
     "exports": {
         ".": {
-            "require": "./dist/index.js",
-            "import": "./dist/index.mjs"
+            "import": {
+                "types": "./dist/index.d.mts",
+                "default": "./dist/index.mjs"
+            },
+            "require": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            }
         }
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsup src/index.js --format cjs,esm --dts --clean"
+        "build": "tsdown src/index.js --format cjs,esm --dts --clean"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
-        "tsup": "^8.0.1",
+        "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vue": "^3.0.0"
     },

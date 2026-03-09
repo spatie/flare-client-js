@@ -15,7 +15,7 @@ Audit all `package.json` files in the monorepo for version consistency.
 
 2. **Internal devDependencies**: All packages should use `file:../` references for local packages (not published versions).
 
-3. **Shared devDependencies**: Check that `typescript` and `tsup` versions are the same across all packages that use them.
+3. **Shared devDependencies**: Check that `typescript` and `tsdown` versions are the same across all packages that use them.
 
 4. **Monorepo table in CLAUDE.md**: Check if the version numbers listed in the CLAUDE.md monorepo structure table match the actual versions in each `package.json`.
 
@@ -26,7 +26,7 @@ Show a concise report:
 ```
 @flareapp/js       1.1.0  OK
 @flareapp/react    1.0.1  OK
-@flareapp/vue      1.0.1  WARNING: tsup version differs from root (...)
+@flareapp/vue      1.0.1  WARNING: tsdown version differs from root (...)
 @flareapp/vite     1.0.3  OK
 
 CLAUDE.md versions: all match / X mismatches found
