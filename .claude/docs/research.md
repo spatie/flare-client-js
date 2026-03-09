@@ -63,7 +63,7 @@ handling (strings, numbers silently dropped).
 `sendBeacon()` for unload, no request timeout.
 
 **React** (`@flareapp/react`) — captures component stack string only. Missing: fallback UI (`getDerivedStateFromError`),
-component props, component name, onError/onReset callbacks, React Router integration, state management integration.
+component props, component name, afterSubmit/onReset callbacks, React Router integration, state management integration.
 
 **Vue** (`@flareapp/vue`) — captures component name + info string. Missing: component props, Vue Router context,
 Pinia/Vuex state, component tree.
@@ -123,7 +123,7 @@ Sprint target: fallback UI, callbacks, and component name. Defer React Router in
 - [ ] Fallback UI: implement `getDerivedStateFromError` so the boundary can render a fallback component
 - [ ] Configurable fallback: `<FlareErrorBoundary fallback={<ErrorPage />}>` or render prop
   `fallback={(error, reset) => ...}`
-- [ ] `onError` callback prop: let developers hook into error events
+- [ ] `afterSubmit` callback prop: let developers hook into error events
 - [ ] `onReset` callback prop: for error recovery flows
 - [ ] Capture component props from the error boundary's child tree
 - [ ] Capture the erroring component's name (not just the stack)

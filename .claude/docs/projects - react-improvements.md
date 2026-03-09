@@ -5,8 +5,8 @@
 - [x] FlareErrorBoundary supports `fallback` property
 - [x] FlareErrorBoundary supports fallback with a reset method for resetting the Error Boundary
 - [x] FlareErrorBoundary fallback passes `componentStack`
-- [x] FlareErrorBoundary supports `onError` callback
-- [x] FlareErrorBoundary supports `beforeCapture` callback
+- [x] FlareErrorBoundary supports `afterSubmit` callback
+- [x] FlareErrorBoundary supports `beforeEvaluate` callback
 - [x] FlareErrorBoundary supports `onReset` property
 - [x] FlareErrorBoundary `onReset` passes previous error
 - [x] FlareErrorBoundary supports `resetKeys` property
@@ -47,7 +47,7 @@ The `fallback` prop accepts either a static `ReactNode` or a render function. Th
 </FlareErrorBoundary>
 ```
 
-## FlareErrorBoundary: `onError` callback
+## FlareErrorBoundary: `afterSubmit` callback
 
 ### Why
 
@@ -56,7 +56,7 @@ showing a toast, updating app state, etc. This fires *after* the error has been 
 
 ```tsx
 <FlareErrorBoundary
-    onError={({ error, errorInfo }) => {
+    afterSubmit={({ error, errorInfo }) => {
         console.error('Caught by FlareErrorBoundary:', error);
         console.error('Component stack:', errorInfo.componentStack);
     }}
@@ -65,7 +65,7 @@ showing a toast, updating app state, etc. This fires *after* the error has been 
 </FlareErrorBoundary>
 ```
 
-## FlareErrorBoundary: `beforeCapture` callback
+## FlareErrorBoundary: `beforeEvaluate` callback
 
 ### Why
 

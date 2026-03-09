@@ -161,24 +161,24 @@ describe('FlareErrorBoundary', () => {
         expect(beforeEvaluate.mock.calls[0][0].errorInfo).toBeDefined();
     });
 
-    test('calls onError after reporting', () => {
+    test('calls afterSubmit after reporting', () => {
         const callOrder: string[] = [];
 
         mockReport.mockImplementationOnce(() => callOrder.push('report'));
-        const onError = vi.fn((_params: { error: Error; errorInfo: unknown }) => {
-            callOrder.push('onError');
+        const afterSubmit = vi.fn((_params: { error: Error; errorInfo: unknown }) => {
+            callOrder.push('afterSubmit');
         });
 
         render(
-            <FlareErrorBoundary fallback={<div>Error</div>} onError={onError}>
+            <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        expect(onError).toHaveBeenCalledOnce();
-        expect(onError.mock.calls[0][0].error).toBe(testError);
-        expect(onError.mock.calls[0][0].errorInfo).toBeDefined();
-        expect(callOrder).toEqual(['report', 'onError']);
+        expect(afterSubmit).toHaveBeenCalledOnce();
+        expect(afterSubmit.mock.calls[0][0].error).toBe(testError);
+        expect(afterSubmit.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(callOrder).toEqual(['report', 'afterSubmit']);
     });
 
     test('resetErrorBoundary clears the error and re-renders children', () => {
