@@ -29,8 +29,20 @@ export function App() {
             </Button>
             {showBuggy && (
                 <FlareErrorBoundary
+                    resetKeys={[]}
                     onError={() => console.log('FlareErrorBoundary onError callback')}
-                    fallback={({ error }) => <p>There has been an error: {error.message}</p>}
+                    onReset={() => console.log('FlareErrorBoundary onReset callback')}
+                    fallback={({ error, resetErrorBoundary }) => (
+                        <div className="space-y-1">
+                            <p>Something went wrong: {error.message}</p>
+                            <button
+                                className="bg-black text-white rounded-md text-sm font-medium px-2 py-1"
+                                onClick={resetErrorBoundary}
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    )}
                 >
                     <BuggyComponent />
                 </FlareErrorBoundary>

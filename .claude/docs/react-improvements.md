@@ -97,3 +97,7 @@ For the `@flareapp/react` package specifically:
 ## Tasks
 
 - [x] FlareErrorBoundary supports onError callback
+- [x] FlareErrorBoundary supports fallback property
+- [x] FlareErrorBoundary supports onReset property
+- [x] FlareErrorBoundary supports resetKeys property
+- [x] FlareErrorBoundary supports fallback with a reset method for reseting the Error Boundary
