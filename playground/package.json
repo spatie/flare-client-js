@@ -3,7 +3,8 @@
     "private": true,
     "scripts": {
         "dev": "vite",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "build": "vite build"
     },
     "dependencies": {
         "@flareapp/js": "*",
