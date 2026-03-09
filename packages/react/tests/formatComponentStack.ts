@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { formatComponentStack } from '../src/format-component-stack';
+import { formatComponentStack } from '../src/formatComponentStack';
 
 describe('formatComponentStack', () => {
     test('splits a component stack into lines', () => {

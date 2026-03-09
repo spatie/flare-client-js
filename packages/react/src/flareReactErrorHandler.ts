@@ -1,8 +1,8 @@
 import { flare } from '@flareapp/js';
 
-import { convertToError } from './convert-to-error';
-import { formatComponentStack } from './format-component-stack';
-import { parseComponentStack } from './parse-component-stack';
+import { convertToError } from './convertToError';
+import { formatComponentStack } from './formatComponentStack';
+import { parseComponentStack } from './parseComponentStack';
 import { FlareReactContext } from './types';
 
 export type FlareReactErrorHandlerCallback = (error: unknown, errorInfo: { componentStack?: string }) => void;

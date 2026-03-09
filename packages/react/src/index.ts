@@ -9,4 +9,4 @@ export {
     flareReactErrorHandler,
     type FlareReactErrorHandlerCallback,
     type FlareReactErrorHandlerOptions,
-} from './flare-react-error-handler';
+} from './flareReactErrorHandler';

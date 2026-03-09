@@ -1,8 +1,8 @@
 import { flare } from '@flareapp/js';
 import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 
-import { formatComponentStack } from './format-component-stack';
-import { parseComponentStack } from './parse-component-stack';
+import { formatComponentStack } from './formatComponentStack';
+import { parseComponentStack } from './parseComponentStack';
 import { FlareReactContext } from './types';
 
 export type FlareErrorBoundaryFallbackProps = {

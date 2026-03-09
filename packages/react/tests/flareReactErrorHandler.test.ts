@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { flareReactErrorHandler } from '../src/flare-react-error-handler';
+import { flareReactErrorHandler } from '../src/flareReactErrorHandler';
 
 const mockReport = vi.fn();
 
