@@ -28,7 +28,7 @@ export function App() {
                 Reset render error
             </Button>
             {showBuggy && (
-                <FlareErrorBoundary>
+                <FlareErrorBoundary onError={() => console.log('FlareErrorBoundary onError callback')}>
                     <BuggyComponent />
                 </FlareErrorBoundary>
             )}

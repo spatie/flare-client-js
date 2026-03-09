@@ -1,7 +1,12 @@
 {
     "extends": "../tsconfig.json",
     "compilerOptions": {
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "paths": {
+            "@flareapp/js": ["../packages/js/src/index.ts"],
+            "@flareapp/react": ["../packages/react/src/index.ts"],
+            "@flareapp/vue": ["../packages/vue/src/index.ts"]
+        }
     },
     "include": ["**/*.ts", "**/*.tsx", "**/*.vue"]
 }

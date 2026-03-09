@@ -9,6 +9,13 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd());
 
     return {
+        resolve: {
+            alias: {
+                '@flareapp/js': resolve(__dirname, '../packages/js/src/index.ts'),
+                '@flareapp/react': resolve(__dirname, '../packages/react/src/index.ts'),
+                '@flareapp/vue': resolve(__dirname, '../packages/vue/src/index.ts'),
+            },
+        },
         plugins: [
             tailwindcss(),
             react(),
