@@ -11,6 +11,7 @@
 - [x] FlareErrorBoundary `onReset` passes previous error
 - [x] FlareErrorBoundary supports `resetKeys` property
 - [x] Add `flareReactErrorHandler`
+- [x] Structured component stack parsing with sourcemap-ready frames
 
 ## FlareErrorBoundary: `fallback` property
 
@@ -113,6 +114,9 @@ Allows automatic reset of the error boundary when certain values change. Common 
 boundary when the user navigates to a different page or when some external state changes. Without this, the only way to
 reset is to call `resetErrorBoundary()` manually or remount the component.
 
+When any value in the `resetKeys` array changes between renders (compared via `Object.is`), the boundary automatically
+resets and re-renders its children.
+
 ```tsx
 function App() {
     const location = useLocation();
@@ -132,10 +136,6 @@ function App() {
 ```
 
 ## `flareReactErrorHandler`
-
-### Inspiration
-
-- [React 19 `createRoot` error handling docs](https://react.dev/reference/react-dom/client/createRoot#parameters) -- the React docs describing `onCaughtError`, `onUncaughtError`, and `onRecoverableError`
 
 ### Why
 
@@ -166,3 +166,64 @@ const root = createRoot(document.getElementById('root')!, {
 
 root.render(<App />);
 ```
+
+## Structured component stack parsing with sourcemap-ready frames
+
+### Why
+
+React's `ErrorInfo.componentStack` is a raw multiline string whose format differs between browser engines:
+
+- **Chromium** (Chrome, Edge, Opera, Brave): `at ComponentName (http://localhost:5173/src/App.tsx:12:9)`
+- **Firefox/Safari** (Gecko, WebKit): `ComponentName@http://localhost:5173/src/App.tsx:12:9`
+
+Previously, `formatComponentStack()` just split this string by newlines into a `string[]`, giving the Flare dashboard
+nothing structured to work with. By parsing each line into `{ component, file, line, column }` objects, we give the
+backend clean structured data for sourcemap resolution and rich dashboard rendering (clickable source links, component
+tree views, searchable component names) -- without requiring the backend to re-parse a raw string.
+
+Both `componentStack` (original `string[]`) and `componentStackFrames` (new `ComponentStackFrame[]`) are sent in the
+report context for backwards compatibility. The backend can adopt the structured format when ready.
+
+### Report context structure
+
+```json
+{
+  "context": {
+    "react": {
+      "componentStack": [
+        "at ErrorComponent (http://localhost:5173/src/App.tsx:12:9)",
+        "at div",
+        "at App (http://localhost:5173/src/App.tsx:5:3)"
+      ],
+      "componentStackFrames": [
+        {
+          "component": "ErrorComponent",
+          "file": "http://localhost:5173/src/App.tsx",
+          "line": 12,
+          "column": 9
+        },
+        {
+          "component": "div",
+          "file": null,
+          "line": null,
+          "column": null
+        },
+        {
+          "component": "App",
+          "file": "http://localhost:5173/src/App.tsx",
+          "line": 5,
+          "column": 3
+        }
+      ]
+    }
+  }
+}
+```
+
+### Backend requirements
+
+The Flare backend/dashboard needs to:
+
+1. Read `componentStackFrames` from the report context
+2. Apply sourcemap resolution to each frame's `file`/`line`/`column`
+3. Render the component stack as a structured list in the dashboard
