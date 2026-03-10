@@ -24,7 +24,7 @@ function ThrowingComponent({ shouldThrow = true }: { shouldThrow?: boolean }) {
 }
 
 describe('FlareErrorBoundary', () => {
-    // React logs caught errors to console.error -- suppress during tests
+    // React logs caught errors to console.error - suppress during tests
     let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -437,6 +437,7 @@ describe('FlareErrorBoundary', () => {
         });
 
         render(
+            // @ts-expect-error - intentionally testing a user mistake where beforeSubmit does not return
             <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
             </FlareErrorBoundary>

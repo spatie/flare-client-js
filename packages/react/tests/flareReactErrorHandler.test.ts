@@ -317,6 +317,7 @@ describe('flareReactErrorHandler', () => {
     describe('beforeSubmit return value', () => {
         test('uses original context when beforeSubmit does not return', () => {
             const handler = flareReactErrorHandler({
+                // @ts-expect-error -- intentionally testing a user mistake where beforeSubmit does not return
                 beforeSubmit: () => {
                     // user forgot to return context
                 },
@@ -332,6 +333,7 @@ describe('flareReactErrorHandler', () => {
         test('afterSubmit receives original context when beforeSubmit does not return', () => {
             const afterSubmit = vi.fn();
             const handler = flareReactErrorHandler({
+                // @ts-expect-error -- intentionally testing a user mistake where beforeSubmit does not return
                 beforeSubmit: () => {
                     // user forgot to return context
                 },

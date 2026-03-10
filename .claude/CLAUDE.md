@@ -7,6 +7,7 @@
 - We're equals.
 - Try to be neutral and objective.
 - Do not use emojis.
+- Do not use -- when writing comments or explaining something.
 - For more information regarding:
     - The research: take a look at .claude/docs/research
     - Repo cleanup: take a look at .claude/docs/repo-cleanup
