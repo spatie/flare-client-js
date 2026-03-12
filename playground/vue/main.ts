@@ -5,12 +5,15 @@ import { createSidebar } from '../shared/createSidebar';
 import { initFlare } from '../shared/initFlare';
 
 import App from './App.vue';
+import { router } from './router';
 
 initFlare(import.meta.env.VITE_FLARE_VUE_KEY);
 
 createSidebar();
 
 const app = createApp(App);
+
+app.use(router);
 
 app.use(flareVue, {
     captureWarnings: true,
