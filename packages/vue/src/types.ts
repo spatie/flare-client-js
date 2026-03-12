@@ -26,6 +26,7 @@ export type FlareErrorBoundaryHookParams = {
 };
 
 export type FlareVueOptions = {
+    captureWarnings?: boolean;
     beforeEvaluate?: (params: FlareErrorBoundaryHookParams) => void;
     beforeSubmit?: (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => FlareVueContext;
     afterSubmit?: (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => void;

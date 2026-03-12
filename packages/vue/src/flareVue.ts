@@ -40,4 +40,18 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         throw errorToReport;
     };
+
+    if (options?.captureWarnings) {
+        const initialWarnHandler = app.config.warnHandler;
+
+        app.config.warnHandler = (msg: string, instance: ComponentPublicInstance | null, trace: string) => {
+            const componentName = getComponentName(instance);
+
+            flare.reportMessage(msg, { vue: { message: msg, componentName, trace } }, 'VueWarning');
+
+            if (typeof initialWarnHandler === 'function') {
+                initialWarnHandler(msg, instance, trace);
+            }
+        };
+    }
 };
