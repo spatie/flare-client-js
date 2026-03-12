@@ -6,6 +6,7 @@ import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
+import { getErrorOrigin } from './getErrorOrigin';
 import { ComponentHierarchyFrame, FlareErrorBoundaryHookParams, FlareVueContext } from './types';
 
 export const FlareErrorBoundary = defineComponent({
@@ -80,9 +81,12 @@ export const FlareErrorBoundary = defineComponent({
 
             const instanceProps = instance?.$props ? { ...instance.$props } : null;
 
+            const errorOrigin = getErrorOrigin(info);
+
             const context: FlareVueContext = {
                 vue: {
                     info,
+                    errorOrigin,
                     componentName,
                     componentProps: instanceProps,
                     componentHierarchy: hierarchy,
