@@ -12,6 +12,6 @@ createSidebar();
 
 const app = createApp(App);
 
-flareVue(app);
+app.use(flareVue);
 
 app.mount('#root');
