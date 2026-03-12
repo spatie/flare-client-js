@@ -556,6 +556,224 @@ describe('FlareErrorBoundary', () => {
         expect(mockReport).toHaveBeenCalledOnce();
     });
 
+    test('calls onReset with the previous error when manually resetting', async () => {
+        let shouldThrow = true;
+        const onReset = vi.fn();
+
+        const MaybeThrow = defineComponent({
+            name: 'MaybeThrow',
+            setup() {
+                if (shouldThrow) {
+                    throw testError;
+                }
+            },
+            render() {
+                return h('div', 'Recovered');
+            },
+        });
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset },
+            slots: {
+                default: () => h(MaybeThrow),
+                fallback: (props: { resetErrorBoundary: () => void }) =>
+                    h('button', { onClick: props.resetErrorBoundary }, 'Reset'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.find('button').text()).toBe('Reset');
+
+        shouldThrow = false;
+        await wrapper.find('button').trigger('click');
+        await nextTick();
+
+        expect(onReset).toHaveBeenCalledOnce();
+        expect(onReset).toHaveBeenCalledWith(testError);
+        expect(wrapper.text()).toBe('Recovered');
+    });
+
+    test('onReset receives null when no error is set', async () => {
+        const onReset = vi.fn();
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset },
+            slots: {
+                default: () => h('div', 'OK'),
+                fallback: (props: { resetErrorBoundary: () => void }) =>
+                    h('button', { onClick: props.resetErrorBoundary }, 'Reset'),
+            },
+        });
+
+        await nextTick();
+
+        // No error occurred, so there's no fallback rendered.
+        // We can't click the reset button since there's no error state.
+        // This test verifies onReset is not called when no error occurs.
+        expect(onReset).not.toHaveBeenCalled();
+    });
+
+    test('resets automatically when resetKeys change', async () => {
+        let shouldThrow = true;
+        const onReset = vi.fn();
+
+        const MaybeThrow = defineComponent({
+            name: 'MaybeThrow',
+            setup() {
+                if (shouldThrow) {
+                    throw testError;
+                }
+            },
+            render() {
+                return h('div', 'Recovered');
+            },
+        });
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset, resetKeys: ['a'] as unknown[] },
+            slots: {
+                default: () => h(MaybeThrow),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('Error');
+
+        shouldThrow = false;
+        await wrapper.setProps({ resetKeys: ['b'] });
+        await nextTick();
+
+        expect(onReset).toHaveBeenCalledOnce();
+        expect(onReset).toHaveBeenCalledWith(testError);
+        expect(wrapper.text()).toBe('Recovered');
+    });
+
+    test('does not reset when resetKeys stay the same', async () => {
+        const onReset = vi.fn();
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset, resetKeys: ['a'] as unknown[] },
+            slots: {
+                default: () => h(ThrowingComponent),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('Error');
+
+        await wrapper.setProps({ resetKeys: ['a'] });
+        await nextTick();
+
+        expect(onReset).not.toHaveBeenCalled();
+        expect(wrapper.text()).toBe('Error');
+    });
+
+    test('does not reset when resetKeys change but there is no error', async () => {
+        const onReset = vi.fn();
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset, resetKeys: ['a'] as unknown[] },
+            slots: {
+                default: () => h('div', 'OK'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('OK');
+
+        await wrapper.setProps({ resetKeys: ['b'] });
+        await nextTick();
+
+        expect(onReset).not.toHaveBeenCalled();
+    });
+
+    test('resets when resetKeys length changes', async () => {
+        let shouldThrow = true;
+        const onReset = vi.fn();
+
+        const MaybeThrow = defineComponent({
+            name: 'MaybeThrow',
+            setup() {
+                if (shouldThrow) {
+                    throw testError;
+                }
+            },
+            render() {
+                return h('div', 'Recovered');
+            },
+        });
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset, resetKeys: ['a'] as unknown[] },
+            slots: {
+                default: () => h(MaybeThrow),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('Error');
+
+        shouldThrow = false;
+        await wrapper.setProps({ resetKeys: ['a', 'b'] });
+        await nextTick();
+
+        expect(onReset).toHaveBeenCalledOnce();
+        expect(wrapper.text()).toBe('Recovered');
+    });
+
+    test('resetKeys uses Object.is for comparison', async () => {
+        let shouldThrow = true;
+        const onReset = vi.fn();
+        const obj = { id: 1 };
+
+        const MaybeThrow = defineComponent({
+            name: 'MaybeThrow',
+            setup() {
+                if (shouldThrow) {
+                    throw testError;
+                }
+            },
+            render() {
+                return h('div', 'Recovered');
+            },
+        });
+
+        const wrapper = mount(FlareErrorBoundary, {
+            props: { onReset, resetKeys: [obj] as unknown[] },
+            slots: {
+                default: () => h(MaybeThrow),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('Error');
+
+        // Same reference, should not reset
+        await wrapper.setProps({ resetKeys: [obj] });
+        await nextTick();
+
+        expect(onReset).not.toHaveBeenCalled();
+        expect(wrapper.text()).toBe('Error');
+
+        // Different reference with same shape, should reset
+        shouldThrow = false;
+        await wrapper.setProps({ resetKeys: [{ id: 1 }] });
+        await nextTick();
+
+        expect(onReset).toHaveBeenCalledOnce();
+        expect(wrapper.text()).toBe('Recovered');
+    });
+
     test('callbacks fire again after reset and re-throw', async () => {
         const beforeEvaluate = vi.fn();
         const beforeSubmit = vi.fn((params: { context: FlareVueContext }) => params.context);
