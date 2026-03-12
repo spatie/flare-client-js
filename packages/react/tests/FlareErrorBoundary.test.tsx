@@ -3,6 +3,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { FlareErrorBoundary } from '../src/FlareErrorBoundary';
+import { FlareReactContext } from '../src/types';
 
 const mockReport = vi.fn();
 
@@ -23,7 +24,7 @@ function ThrowingComponent({ shouldThrow = true }: { shouldThrow?: boolean }) {
 }
 
 describe('FlareErrorBoundary', () => {
-    // React logs caught errors to console.error -- suppress during tests
+    // React logs caught errors to console.error - suppress during tests
     let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -132,53 +133,133 @@ describe('FlareErrorBoundary', () => {
         expect(screen.getByTestId('has-stack')).toHaveTextContent('yes');
     });
 
-    test('calls beforeCapture before reporting', () => {
+    test('calls beforeEvaluate before reporting', () => {
         const callOrder: string[] = [];
 
-        const beforeCapture = vi.fn(() => callOrder.push('beforeCapture'));
+        const beforeEvaluate = vi.fn(() => callOrder.push('beforeEvaluate'));
         mockReport.mockImplementationOnce(() => callOrder.push('report'));
 
         render(
-            <FlareErrorBoundary fallback={<div>Error</div>} beforeCapture={beforeCapture}>
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        expect(beforeCapture).toHaveBeenCalledOnce();
-        expect(callOrder).toEqual(['beforeCapture', 'report']);
+        expect(beforeEvaluate).toHaveBeenCalledOnce();
+        expect(callOrder).toEqual(['beforeEvaluate', 'report']);
     });
 
-    test('calls beforeCapture with error and errorInfo', () => {
-        const beforeCapture = vi.fn();
+    test('calls beforeEvaluate with error and errorInfo', () => {
+        const beforeEvaluate = vi.fn();
 
         render(
-            <FlareErrorBoundary fallback={<div>Error</div>} beforeCapture={beforeCapture}>
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        expect(beforeCapture.mock.calls[0][0].error).toBe(testError);
-        expect(beforeCapture.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(beforeEvaluate.mock.calls[0][0].error).toBe(testError);
+        expect(beforeEvaluate.mock.calls[0][0].errorInfo).toBeDefined();
     });
 
-    test('calls onError after reporting', () => {
+    test('calls beforeSubmit after beforeEvaluate and before reporting', () => {
         const callOrder: string[] = [];
 
-        mockReport.mockImplementationOnce(() => callOrder.push('report'));
-        const onError = vi.fn((_params: { error: Error; errorInfo: unknown }) => {
-            callOrder.push('onError');
+        const beforeEvaluate = vi.fn(() => callOrder.push('beforeEvaluate'));
+        const beforeSubmit = vi.fn((params: { context: FlareReactContext }) => {
+            callOrder.push('beforeSubmit');
+            return params.context;
         });
+        mockReport.mockImplementationOnce(() => callOrder.push('report'));
 
         render(
-            <FlareErrorBoundary fallback={<div>Error</div>} onError={onError}>
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        expect(onError).toHaveBeenCalledOnce();
-        expect(onError.mock.calls[0][0].error).toBe(testError);
-        expect(onError.mock.calls[0][0].errorInfo).toBeDefined();
-        expect(callOrder).toEqual(['report', 'onError']);
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        expect(callOrder).toEqual(['beforeEvaluate', 'beforeSubmit', 'report']);
+    });
+
+    test('calls beforeSubmit with error, errorInfo, and context', () => {
+        const beforeSubmit = vi.fn(
+            (params: { error: Error; errorInfo: unknown; context: FlareReactContext }) => params.context
+        );
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeSubmit.mock.calls[0][0].error).toBe(testError);
+        expect(beforeSubmit.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(beforeSubmit.mock.calls[0][0].context.react.componentStack).toBeInstanceOf(Array);
+        expect(beforeSubmit.mock.calls[0][0].context.react.componentStackFrames).toBeInstanceOf(Array);
+    });
+
+    test('beforeSubmit can modify the context before reporting', () => {
+        const customStack = ['at Custom (custom.tsx:1:1)'];
+        const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: customStack,
+            },
+        }));
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        const reportedContext = mockReport.mock.calls[0][1];
+        expect(reportedContext.react.componentStack).toBe(customStack);
+    });
+
+    test('beforeSubmit modified context is passed to afterSubmit', () => {
+        const customStack = ['at Custom (custom.tsx:1:1)'];
+        const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: customStack,
+            },
+        }));
+        const afterSubmit = vi.fn();
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit} afterSubmit={afterSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toBe(customStack);
+    });
+
+    test('calls afterSubmit after reporting', () => {
+        const callOrder: string[] = [];
+
+        mockReport.mockImplementationOnce(() => callOrder.push('report'));
+        const afterSubmit = vi.fn(
+            (_params: { error: Error; errorInfo: unknown; context: { react: { componentStack: string[] } } }) => {
+                callOrder.push('afterSubmit');
+            }
+        );
+
+        render(
+            <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(afterSubmit).toHaveBeenCalledOnce();
+        expect(afterSubmit.mock.calls[0][0].error).toBe(testError);
+        expect(afterSubmit.mock.calls[0][0].errorInfo).toBeDefined();
+        expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toBeInstanceOf(Array);
+        expect(callOrder).toEqual(['report', 'afterSubmit']);
     });
 
     test('resetErrorBoundary clears the error and re-renders children', () => {
@@ -296,23 +377,123 @@ describe('FlareErrorBoundary', () => {
         expect(screen.getByText('Reset')).toBeInTheDocument();
     });
 
-    test('beforeCapture throwing prevents reporting and crashes the boundary', () => {
-        const beforeCapture = vi.fn(() => {
-            throw new Error('beforeCapture error');
+    test('beforeEvaluate throwing prevents reporting and crashes the boundary', () => {
+        const beforeEvaluate = vi.fn(() => {
+            throw new Error('beforeEvaluate error');
         });
 
-        // beforeCapture throwing inside componentDidCatch propagates the error
+        // beforeEvaluate throwing inside componentDidCatch propagates the error
         // through React, which escalates it and unmounts the tree.
         // There is no try/catch around the callback in componentDidCatch.
         expect(() =>
             render(
-                <FlareErrorBoundary fallback={<div>Error</div>} beforeCapture={beforeCapture}>
+                <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                     <ThrowingComponent />
                 </FlareErrorBoundary>
             )
-        ).toThrow('beforeCapture error');
+        ).toThrow('beforeEvaluate error');
 
-        expect(beforeCapture).toHaveBeenCalledOnce();
+        expect(beforeEvaluate).toHaveBeenCalledOnce();
         expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('beforeSubmit throwing prevents reporting and crashes the boundary', () => {
+        const beforeSubmit = vi.fn(() => {
+            throw new Error('beforeSubmit error');
+        });
+
+        expect(() =>
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>
+            )
+        ).toThrow('beforeSubmit error');
+
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('afterSubmit throwing crashes the boundary after reporting', () => {
+        const afterSubmit = vi.fn(() => {
+            throw new Error('afterSubmit error');
+        });
+
+        expect(() =>
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>
+            )
+        ).toThrow('afterSubmit error');
+
+        expect(afterSubmit).toHaveBeenCalledOnce();
+        expect(mockReport).toHaveBeenCalledOnce();
+    });
+
+    test('uses original context when beforeSubmit does not return', () => {
+        const beforeSubmit = vi.fn(() => {
+            // user forgot to return context
+        });
+
+        render(
+            // @ts-expect-error - intentionally testing a user mistake where beforeSubmit does not return
+            <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        const reportedContext = mockReport.mock.calls[0][1];
+        expect(reportedContext.react.componentStack).toBeInstanceOf(Array);
+        expect(reportedContext.react.componentStackFrames).toBeInstanceOf(Array);
+    });
+
+    test('beforeSubmit modified componentStack is reflected in the fallback render', () => {
+        const customStack = ['at Custom (custom.tsx:1:1)'];
+        const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: customStack,
+            },
+        }));
+
+        const fallbackFn = vi.fn(({ componentStack }) => <span data-testid="stack">{componentStack.join(',')}</span>);
+
+        render(
+            <FlareErrorBoundary fallback={fallbackFn} beforeSubmit={beforeSubmit}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(screen.getByTestId('stack')).toHaveTextContent('at Custom (custom.tsx:1:1)');
+    });
+
+    test('callbacks fire again after reset and re-throw', () => {
+        const beforeEvaluate = vi.fn();
+        const beforeSubmit = vi.fn((params: { context: FlareReactContext }) => params.context);
+        const afterSubmit = vi.fn();
+
+        render(
+            <FlareErrorBoundary
+                beforeEvaluate={beforeEvaluate}
+                beforeSubmit={beforeSubmit}
+                afterSubmit={afterSubmit}
+                fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Reset</button>}
+            >
+                <ThrowingComponent />
+            </FlareErrorBoundary>
+        );
+
+        expect(beforeEvaluate).toHaveBeenCalledOnce();
+        expect(beforeSubmit).toHaveBeenCalledOnce();
+        expect(afterSubmit).toHaveBeenCalledOnce();
+
+        fireEvent.click(screen.getByText('Reset'));
+
+        expect(beforeEvaluate).toHaveBeenCalledTimes(2);
+        expect(beforeSubmit).toHaveBeenCalledTimes(2);
+        expect(afterSubmit).toHaveBeenCalledTimes(2);
     });
 });

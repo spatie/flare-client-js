@@ -5,12 +5,13 @@
 - [x] FlareErrorBoundary supports `fallback` property
 - [x] FlareErrorBoundary supports fallback with a reset method for resetting the Error Boundary
 - [x] FlareErrorBoundary fallback passes `componentStack`
-- [x] FlareErrorBoundary supports `onError` callback
-- [x] FlareErrorBoundary supports `beforeCapture` callback
+- [x] FlareErrorBoundary supports `beforeEvaluate` callback
+- [x] FlareErrorBoundary supports `beforeSubmit` callback
+- [x] FlareErrorBoundary supports `afterSubmit` callback
 - [x] FlareErrorBoundary supports `onReset` property
 - [x] FlareErrorBoundary `onReset` passes previous error
 - [x] FlareErrorBoundary supports `resetKeys` property
-- [x] Add `flareReactErrorHandler`
+- [x] Add `flareReactErrorHandler` with `beforeEvaluate`, `beforeSubmit`, and `afterSubmit` callbacks
 - [x] Structured component stack parsing with sourcemap-ready frames
 
 ## FlareErrorBoundary: `fallback` property
@@ -47,37 +48,64 @@ The `fallback` prop accepts either a static `ReactNode` or a render function. Th
 </FlareErrorBoundary>
 ```
 
-## FlareErrorBoundary: `onError` callback
+## FlareErrorBoundary: `beforeEvaluate` callback
 
 ### Why
 
-Developers need a hook to perform side effects when an error is caught -- logging to a secondary service,
-showing a toast, updating app state, etc. This fires *after* the error has been reported to Flare.
+Fires *before* the component stack context is built, giving developers a chance to attach custom context, tags, or
+user information to the Flare report. This is the pragmatic answer to "how do we capture component props/state" -- let
+the developer decide what to include rather than trying to automatically serialize React internals.
 
 ```tsx
 <FlareErrorBoundary
-    onError={({ error, errorInfo }) => {
-        console.error('Caught by FlareErrorBoundary:', error);
-        console.error('Component stack:', errorInfo.componentStack);
+    beforeEvaluate={({ error, errorInfo }) => {
+        flare.addContext('user', { id: currentUser.id });
+        flare.addContext('feature-flags', getActiveFlags());
     }}
 >
     <App />
 </FlareErrorBoundary>
 ```
 
-## FlareErrorBoundary: `beforeCapture` callback
+## FlareErrorBoundary: `beforeSubmit` callback
 
 ### Why
 
-Fires *before* the error is reported to Flare, giving developers a chance to attach custom context, tags, or
-user information to the Flare report. This is the pragmatic answer to "how do we capture component props/state" -- let
-the developer decide what to include rather than trying to automatically serialize React internals.
+Fires after the component stack context is built but *before* the error is reported to Flare. The callback receives
+the `context` and must return a (possibly modified) context object. Use this to filter or enrich the report context.
 
 ```tsx
 <FlareErrorBoundary
-    beforeCapture={({ error, errorInfo }) => {
-        flare.addContext('user', { id: currentUser.id });
-        flare.addContext('feature-flags', getActiveFlags());
+    beforeSubmit={({ error, errorInfo, context }) => {
+        return {
+            ...context,
+            react: {
+                ...context.react,
+                componentStack: context.react.componentStack.filter(
+                    (line) => !line.includes('ThirdPartyWrapper'),
+                ),
+            },
+        };
+    }}
+>
+    <App />
+</FlareErrorBoundary>
+```
+
+## FlareErrorBoundary: `afterSubmit` callback
+
+### Why
+
+Developers need a hook to perform side effects when an error is caught -- logging to a secondary service,
+showing a toast, updating app state, etc. This fires *after* the error has been reported to Flare. The callback
+receives the final context that was submitted.
+
+```tsx
+<FlareErrorBoundary
+    afterSubmit={({ error, errorInfo, context }) => {
+        console.error('Caught by FlareErrorBoundary:', error);
+        console.error('Component stack:', errorInfo.componentStack);
+        console.error('Reported context:', context);
     }}
 >
     <App />
@@ -142,22 +170,37 @@ function App() {
 React 19 introduced `onCaughtError`, `onUncaughtError`, and `onRecoverableError` callbacks on `createRoot`.
 These are root-level error handlers that catch errors *without* requiring an ErrorBoundary wrapper.
 
-`flareReactErrorHandler` is a wrapper function that accepts an optional callback. It also handles non-Error values
-(strings, objects) by converting them to proper Error instances via `convertToError()`, making it more resilient to
-edge cases.
+`flareReactErrorHandler` is a wrapper function that accepts an optional options object with `beforeEvaluate`,
+`beforeSubmit`, and `afterSubmit` callbacks -- the same callback pattern used by `FlareErrorBoundary`. It also handles
+non-Error values (strings, objects) by converting them to proper Error instances via `convertToError()`, making it more
+resilient to edge cases.
+
+### Callback lifecycle
+
+1. **`beforeEvaluate`** -- called after the error is converted to an `Error`, before building the component stack context. Use this to attach custom context to Flare (e.g. user info, feature flags).
+2. **`beforeSubmit`** -- called with the built context, must return a (possibly modified) context object. Use this to filter or enrich the report context before it is sent.
+3. **`flare.report()`** -- the error is reported to Flare.
+4. **`afterSubmit`** -- called after the report is sent. Use this for side effects like logging or showing a toast.
 
 ```tsx
 import { flareReactErrorHandler } from '@flareapp/react';
 
 const root = createRoot(document.getElementById('root')!, {
     // Errors caught by an Error Boundary
-    onCaughtError: flareReactErrorHandler((error, errorInfo) => {
-        console.warn('Caught error:', error);
+    onCaughtError: flareReactErrorHandler({
+        afterSubmit: ({ error, errorInfo }) => {
+            console.warn('Caught error:', error);
+        },
     }),
 
     // Errors NOT caught by any Error Boundary
-    onUncaughtError: flareReactErrorHandler((error, errorInfo) => {
-        console.error('Uncaught error:', error);
+    onUncaughtError: flareReactErrorHandler({
+        beforeEvaluate: ({ error }) => {
+            flare.addContext('user', { id: currentUser.id });
+        },
+        afterSubmit: ({ error }) => {
+            console.error('Uncaught error:', error);
+        },
     }),
 
     // Errors React recovers from automatically (e.g. hydration mismatches)

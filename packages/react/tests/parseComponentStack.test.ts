@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { parseComponentStack } from '../src/parse-component-stack';
+import { parseComponentStack } from '../src/parseComponentStack';
 
 describe('parseComponentStack', () => {
     describe('Chrome format (at Component (file:line:col))', () => {

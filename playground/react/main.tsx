@@ -11,13 +11,19 @@ createSidebar();
 
 createRoot(document.querySelector('#root')!, {
     // Not using callbacks here because FlareErrorBoundary already reports caught errors. Using both would result in duplicate reports.
-    // onCaughtError: flareReactErrorHandler((error, errorInfo) => {
-    //     console.log('onCaughtError', error, errorInfo.componentStack);
+    // onCaughtError: flareReactErrorHandler({
+    //     afterSubmit: ({ error, errorInfo }) => {
+    //         console.log('onCaughtError', error, errorInfo.componentStack);
+    //     },
     // }),
-    // onUncaughtError: flareReactErrorHandler((error, errorInfo) => {
-    //     console.log('onUncaughtError', error, errorInfo.componentStack);
+    // onUncaughtError: flareReactErrorHandler({
+    //     afterSubmit: ({ error, errorInfo }) => {
+    //         console.log('onUncaughtError', error, errorInfo.componentStack);
+    //     },
     // }),
-    // onRecoverableError: flareReactErrorHandler((error, errorInfo) => {
-    //     console.log('onRecoverableError', error, errorInfo.componentStack);
+    // onRecoverableError: flareReactErrorHandler({
+    //     afterSubmit: ({ error, errorInfo }) => {
+    //         console.log('onRecoverableError', error, errorInfo.componentStack);
+    //     },
     // }),
 }).render(<App />);

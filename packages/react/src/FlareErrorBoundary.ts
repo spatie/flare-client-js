@@ -1,8 +1,8 @@
 import { flare } from '@flareapp/js';
 import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 
-import { formatComponentStack } from './format-component-stack';
-import { parseComponentStack } from './parse-component-stack';
+import { formatComponentStack } from './formatComponentStack';
+import { parseComponentStack } from './parseComponentStack';
 import { FlareReactContext } from './types';
 
 export type FlareErrorBoundaryFallbackProps = {
@@ -14,8 +14,9 @@ export type FlareErrorBoundaryFallbackProps = {
 export type FlareErrorBoundaryProps = PropsWithChildren<{
     fallback?: ReactNode | ((props: FlareErrorBoundaryFallbackProps) => ReactNode);
     resetKeys?: unknown[];
-    beforeCapture?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
-    onError?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
+    beforeEvaluate?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
+    beforeSubmit?: (params: { error: Error; errorInfo: ErrorInfo; context: FlareReactContext }) => FlareReactContext;
+    afterSubmit?: (params: { error: Error; errorInfo: ErrorInfo; context: FlareReactContext }) => void;
     onReset?: (error: Error | null) => void;
 }>;
 
@@ -32,7 +33,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        this.props.beforeCapture?.({
+        this.props.beforeEvaluate?.({
             error,
             errorInfo,
         });
@@ -46,13 +47,21 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
             },
         };
 
-        this.setState({ componentStack: context.react.componentStack });
+        const finalContext =
+            this.props.beforeSubmit?.({
+                error,
+                errorInfo,
+                context,
+            }) ?? context;
 
-        flare.report(error, context, { react: { errorInfo } });
+        this.setState({ componentStack: finalContext.react.componentStack });
 
-        this.props.onError?.({
+        flare.report(error, finalContext, { react: { errorInfo } });
+
+        this.props.afterSubmit?.({
             error,
             errorInfo,
+            context: finalContext,
         });
     }
 

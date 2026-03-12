@@ -31,9 +31,9 @@ export function App() {
             {showBuggy && (
                 <FlareErrorBoundary
                     resetKeys={[]}
-                    onError={() => console.log('FlareErrorBoundary onError callback')}
+                    afterSubmit={() => console.log('FlareErrorBoundary afterSubmit callback')}
                     onReset={() => console.log('FlareErrorBoundary onReset callback')}
-                    beforeCapture={() => {
+                    beforeEvaluate={() => {
                         flare.addContext('playground', 'test');
                         flare.addContext('showBuggy', showBuggy);
                     }}
