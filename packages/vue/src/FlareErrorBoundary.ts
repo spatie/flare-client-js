@@ -1,6 +1,6 @@
 import { flare } from '@flareapp/js';
 import type { ComponentPublicInstance, PropType } from 'vue';
-import { defineComponent, onErrorCaptured, ref } from 'vue';
+import { defineComponent, onErrorCaptured, ref, watch } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { convertToError } from './convertToError';
@@ -25,6 +25,14 @@ export const FlareErrorBoundary = defineComponent({
             type: Function as PropType<(params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => void>,
             default: undefined,
         },
+        onReset: {
+            type: Function as PropType<(error: Error | null) => void>,
+            default: undefined,
+        },
+        resetKeys: {
+            type: Array as PropType<unknown[]>,
+            default: undefined,
+        },
     },
 
     setup(props, { slots }) {
@@ -32,9 +40,27 @@ export const FlareErrorBoundary = defineComponent({
         const componentHierarchy = ref<string[]>([]);
 
         const resetErrorBoundary = () => {
+            props.onReset?.(error.value);
+
             error.value = null;
             componentHierarchy.value = [];
         };
+
+        watch(
+            () => props.resetKeys,
+            (nextKeys, prevKeys) => {
+                if (error.value === null || !nextKeys) {
+                    return;
+                }
+
+                const lengthChanged = prevKeys?.length !== nextKeys.length;
+                const valuesChanged = nextKeys.some((key, i) => !Object.is(key, prevKeys?.[i]));
+
+                if (lengthChanged || valuesChanged) {
+                    resetErrorBoundary();
+                }
+            }
+        );
 
         onErrorCaptured((currentError: unknown, instance: ComponentPublicInstance | null, info: string) => {
             const errorToReport = convertToError(currentError);
