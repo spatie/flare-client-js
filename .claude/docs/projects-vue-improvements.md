@@ -8,9 +8,9 @@
 - [x] `FlareErrorBoundary` supports `beforeEvaluate` callback
 - [x] `FlareErrorBoundary` supports `beforeSubmit` callback
 - [x] `FlareErrorBoundary` supports `afterSubmit` callback
-- [ ] `FlareErrorBoundary` supports `onReset` prop
-- [ ] `FlareErrorBoundary` `onReset` passes previous error
-- [ ] `FlareErrorBoundary` supports `resetKeys` prop (via watchers)
+- [x] `FlareErrorBoundary` supports `onReset` prop
+- [x] `FlareErrorBoundary` `onReset` passes previous error
+- [x] `FlareErrorBoundary` supports `resetKeys` prop (via watchers)
 - [ ] Enhance `flareVue()` with `beforeEvaluate`, `beforeSubmit`, and `afterSubmit` callbacks
 - [ ] Structured component hierarchy parsing (`componentHierarchyFrames` with file/props)
 
