@@ -38,6 +38,7 @@ export const FlareErrorBoundary = defineComponent({
 
     setup(props, { slots }) {
         const error = ref<Error | null>(null);
+        const componentProps = ref<Record<string, unknown> | null>(null);
         const componentHierarchy = ref<string[]>([]);
         const componentHierarchyFrames = ref<ComponentHierarchyFrame[]>([]);
 
@@ -45,6 +46,7 @@ export const FlareErrorBoundary = defineComponent({
             props.onReset?.(error.value);
 
             error.value = null;
+            componentProps.value = null;
             componentHierarchy.value = [];
             componentHierarchyFrames.value = [];
         };
@@ -76,10 +78,13 @@ export const FlareErrorBoundary = defineComponent({
 
             error.value = errorToReport;
 
+            const instanceProps = instance?.$props ? { ...instance.$props } : null;
+
             const context: FlareVueContext = {
                 vue: {
                     info,
                     componentName,
+                    componentProps: instanceProps,
                     componentHierarchy: hierarchy,
                     componentHierarchyFrames: hierarchyFrames,
                 },
@@ -87,6 +92,7 @@ export const FlareErrorBoundary = defineComponent({
 
             const finalContext = props.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
+            componentProps.value = finalContext.vue.componentProps;
             componentHierarchy.value = finalContext.vue.componentHierarchy;
             componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
@@ -104,6 +110,7 @@ export const FlareErrorBoundary = defineComponent({
                 if (slots.fallback) {
                     return slots.fallback({
                         error: error.value,
+                        componentProps: componentProps.value,
                         componentHierarchy: componentHierarchy.value,
                         componentHierarchyFrames: componentHierarchyFrames.value,
                         resetErrorBoundary,
