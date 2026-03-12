@@ -13,6 +13,7 @@ createSidebar();
 const app = createApp(App);
 
 app.use(flareVue, {
+    captureWarnings: true,
     beforeEvaluate: ({ error, info }) => {
         console.log(`[flareVue] beforeEvaluate: ${error.message} (${info})`);
     },
