@@ -76,7 +76,7 @@ describe('FlareErrorBoundary', () => {
         expect(mockReport.mock.calls[0][0]).toBe(testError);
     });
 
-    test('passes vue context with info, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', async () => {
+    test('passes vue context with info, errorOrigin, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', async () => {
         mount(FlareErrorBoundary, {
             slots: {
                 default: () => h(ThrowingComponent),
@@ -88,6 +88,7 @@ describe('FlareErrorBoundary', () => {
 
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.info).toEqual(expect.any(String));
+        expect(context.vue.errorOrigin).toEqual(expect.any(String));
         expect(context.vue.componentName).toBe('ThrowingComponent');
         expect(context.vue.componentProps).toBeDefined();
         expect(context.vue.componentHierarchy).toBeInstanceOf(Array);

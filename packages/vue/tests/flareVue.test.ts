@@ -80,7 +80,7 @@ describe('flareVue', () => {
         expect(reportedError.message).toBe('string error');
     });
 
-    test('passes vue context with info, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', () => {
+    test('passes vue context with info, errorOrigin, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
@@ -92,6 +92,7 @@ describe('flareVue', () => {
 
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.info).toBe('setup function');
+        expect(context.vue.errorOrigin).toBe('setup');
         expect(context.vue.componentName).toBe('Button');
         expect(context.vue.componentProps).toEqual({ variant: 'primary' });
         expect(context.vue.componentHierarchy).toEqual(['Button', 'Layout', 'App']);
@@ -100,6 +101,17 @@ describe('flareVue', () => {
             { component: 'Layout', file: null, props: {} },
             { component: 'App', file: null, props: {} },
         ]);
+    });
+
+    test('sets errorOrigin based on the info string', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        callHandler(app, new Error('test'), createMockInstance('MyComponent'), 'mounted hook');
+
+        const context = mockReport.mock.calls[0][1];
+        expect(context.vue.info).toBe('mounted hook');
+        expect(context.vue.errorOrigin).toBe('lifecycle');
     });
 
     test('componentProps is a shallow copy of instance props', () => {
