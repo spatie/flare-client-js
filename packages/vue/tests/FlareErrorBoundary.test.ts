@@ -25,6 +25,20 @@ const ThrowingComponent = defineComponent({
     },
 });
 
+const ThrowingComponentWithProps = defineComponent({
+    name: 'ThrowingComponentWithProps',
+    props: {
+        userId: { type: Number, required: true },
+        name: { type: String, required: true },
+    },
+    setup() {
+        throw testError;
+    },
+    render() {
+        return h('div', 'should not render');
+    },
+});
+
 describe('FlareErrorBoundary', () => {
     let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
@@ -62,7 +76,7 @@ describe('FlareErrorBoundary', () => {
         expect(mockReport.mock.calls[0][0]).toBe(testError);
     });
 
-    test('passes vue context with info, componentName, componentHierarchy, and componentHierarchyFrames', async () => {
+    test('passes vue context with info, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', async () => {
         mount(FlareErrorBoundary, {
             slots: {
                 default: () => h(ThrowingComponent),
@@ -75,12 +89,45 @@ describe('FlareErrorBoundary', () => {
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.info).toEqual(expect.any(String));
         expect(context.vue.componentName).toBe('ThrowingComponent');
+        expect(context.vue.componentProps).toBeDefined();
         expect(context.vue.componentHierarchy).toBeInstanceOf(Array);
         expect(context.vue.componentHierarchy).toContain('ThrowingComponent');
         expect(context.vue.componentHierarchyFrames).toBeInstanceOf(Array);
         expect(context.vue.componentHierarchyFrames[0].component).toBe('ThrowingComponent');
         expect(context.vue.componentHierarchyFrames[0]).toHaveProperty('file');
         expect(context.vue.componentHierarchyFrames[0]).toHaveProperty('props');
+    });
+
+    test('captures componentProps from the erroring component', async () => {
+        mount(FlareErrorBoundary, {
+            slots: {
+                default: () => h(ThrowingComponentWithProps, { userId: 42, name: 'Alice' }),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        const context = mockReport.mock.calls[0][1];
+        expect(context.vue.componentProps).toEqual({ userId: 42, name: 'Alice' });
+    });
+
+    test('fallback slot receives componentProps', async () => {
+        let receivedProps: Record<string, unknown> | null = null;
+
+        mount(FlareErrorBoundary, {
+            slots: {
+                default: () => h(ThrowingComponentWithProps, { userId: 42, name: 'Alice' }),
+                fallback: (props: { componentProps: Record<string, unknown> | null }) => {
+                    receivedProps = props.componentProps;
+                    return h('div', 'Error');
+                },
+            },
+        });
+
+        await nextTick();
+
+        expect(receivedProps).toEqual({ userId: 42, name: 'Alice' });
     });
 
     test('passes instance and info as extra solution parameters', async () => {

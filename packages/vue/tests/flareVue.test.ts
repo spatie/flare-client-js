@@ -80,25 +80,40 @@ describe('flareVue', () => {
         expect(reportedError.message).toBe('string error');
     });
 
-    test('passes vue context with info, componentName, componentHierarchy, and componentHierarchyFrames', () => {
+    test('passes vue context with info, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
         const grandparent = createMockInstance('App');
         const parent = createMockInstance('Layout', grandparent);
-        const instance = createMockInstance('Button', parent);
+        const instance = createMockInstance('Button', parent, { variant: 'primary' });
 
         callHandler(app, new Error('test'), instance, 'setup function');
 
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.info).toBe('setup function');
         expect(context.vue.componentName).toBe('Button');
+        expect(context.vue.componentProps).toEqual({ variant: 'primary' });
         expect(context.vue.componentHierarchy).toEqual(['Button', 'Layout', 'App']);
         expect(context.vue.componentHierarchyFrames).toEqual([
-            { component: 'Button', file: null, props: {} },
+            { component: 'Button', file: null, props: { variant: 'primary' } },
             { component: 'Layout', file: null, props: {} },
             { component: 'App', file: null, props: {} },
         ]);
+    });
+
+    test('componentProps is a shallow copy of instance props', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        const originalProps = { userId: 42 };
+        const instance = createMockInstance('UserCard', null, originalProps);
+
+        callHandler(app, new Error('test'), instance, 'setup function');
+
+        const context = mockReport.mock.calls[0][1];
+        expect(context.vue.componentProps).toEqual({ userId: 42 });
+        expect(context.vue.componentProps).not.toBe(originalProps);
     });
 
     test('passes instance and info as extra solution parameters', () => {
@@ -187,6 +202,7 @@ describe('flareVue', () => {
 
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.componentName).toBe('AnonymousComponent');
+        expect(context.vue.componentProps).toBeNull();
         expect(context.vue.componentHierarchy).toEqual([]);
         expect(context.vue.componentHierarchyFrames).toEqual([]);
     });
