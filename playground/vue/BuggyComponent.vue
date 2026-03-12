@@ -5,7 +5,11 @@ export default {
 </script>
 
 <script lang="ts" setup>
-throw new Error('BuggyComponent render error in Vue');
+const props = defineProps<{
+    message?: string;
+}>();
+
+throw new Error(props.message ?? 'BuggyComponent render error in Vue');
 </script>
 
 <template>
