@@ -1,10 +1,17 @@
 import type { ComponentPublicInstance } from 'vue';
 
+export type ComponentHierarchyFrame = {
+    component: string;
+    file: string | null;
+    props: Record<string, unknown> | null;
+};
+
 export type FlareVueContext = {
     vue: {
         info: string;
         componentName: string;
         componentHierarchy: string[];
+        componentHierarchyFrames: ComponentHierarchyFrame[];
     };
 };
 
@@ -23,5 +30,6 @@ export type FlareVueOptions = {
 export type FlareErrorBoundaryFallbackProps = {
     error: Error;
     componentHierarchy: string[];
+    componentHierarchyFrames: ComponentHierarchyFrame[];
     resetErrorBoundary: () => void;
 };
