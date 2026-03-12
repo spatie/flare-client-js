@@ -7,6 +7,7 @@ import { flare } from '../shared/initFlare';
 import AsyncErrorButton from './AsyncErrorButton.vue';
 import BuggyComponent from './BuggyComponent.vue';
 import Button from './Button.vue';
+import ResetKeysTest from './ResetKeysTest.vue';
 
 const showBuggy = ref(false);
 </script>
@@ -57,6 +58,11 @@ const showBuggy = ref(false);
                 console.log(`FlareErrorBoundary afterSubmit: ${error.message} (${info}) reported to Flare`);
             }
         "
+        :on-reset="
+            (error) => {
+                console.log(`FlareErrorBoundary onReset: recovering from ${error?.message}`);
+            }
+        "
     >
         <BuggyComponent />
         <template #fallback="{ error, componentHierarchy, resetErrorBoundary }">
@@ -72,6 +78,7 @@ const showBuggy = ref(false);
             </div>
         </template>
     </FlareErrorBoundary>
+    <ResetKeysTest />
     <Button
         @click="
             () => {
