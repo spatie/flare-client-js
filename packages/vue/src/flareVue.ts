@@ -1,7 +1,7 @@
 import { flare } from '@flareapp/js';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
-import { buildComponentHierarchy } from './componentHierarchy';
+import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { FlareVueContext } from './types';
