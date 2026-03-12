@@ -1,5 +1,7 @@
 import type { ComponentPublicInstance } from 'vue';
 
+export type ErrorOrigin = 'setup' | 'render' | 'lifecycle' | 'event' | 'watcher' | 'unknown';
+
 export type ComponentHierarchyFrame = {
     component: string;
     file: string | null;
@@ -9,6 +11,7 @@ export type ComponentHierarchyFrame = {
 export type FlareVueContext = {
     vue: {
         info: string;
+        errorOrigin: ErrorOrigin;
         componentName: string;
         componentProps: Record<string, unknown> | null;
         componentHierarchy: string[];
