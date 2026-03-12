@@ -8,8 +8,10 @@ import AsyncErrorButton from './AsyncErrorButton.vue';
 import BuggyComponent from './BuggyComponent.vue';
 import Button from './Button.vue';
 import ResetKeysTest from './ResetKeysTest.vue';
+import WarnTrigger from './WarnTrigger.vue';
 
 const showBuggy = ref(false);
+const showWarnTrigger = ref(false);
 </script>
 
 <template>
@@ -116,6 +118,18 @@ const showBuggy = ref(false);
     >
         flare.reportMessage()
     </Button>
+    <Button
+        @click="
+            () => {
+                console.log('Triggering Vue warning via wrong prop type');
+                showWarnTrigger = true;
+            }
+        "
+    >
+        Trigger Vue warning (wrong prop type)
+    </Button>
+    <!-- @vue-ignore -->
+    <WarnTrigger v-if="showWarnTrigger" count="not-a-number" />
     <Button
         @click="
             () => {
