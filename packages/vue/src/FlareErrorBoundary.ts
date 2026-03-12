@@ -1,12 +1,13 @@
 import { flare } from '@flareapp/js';
 import type { ComponentPublicInstance, PropType } from 'vue';
-import { defineComponent, onErrorCaptured, ref, watch } from 'vue';
+import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
+import { getRouteContext } from './getRouteContext';
 import { ComponentHierarchyFrame, FlareErrorBoundaryHookParams, FlareVueContext } from './types';
 
 export const FlareErrorBoundary = defineComponent({
@@ -38,6 +39,7 @@ export const FlareErrorBoundary = defineComponent({
     },
 
     setup(props, { slots }) {
+        const currentInstance = getCurrentInstance();
         const error = ref<Error | null>(null);
         const componentProps = ref<Record<string, unknown> | null>(null);
         const componentHierarchy = ref<string[]>([]);
@@ -83,6 +85,8 @@ export const FlareErrorBoundary = defineComponent({
 
             const errorOrigin = getErrorOrigin(info);
 
+            const route = getRouteContext(currentInstance?.appContext.config.globalProperties.$router);
+
             const context: FlareVueContext = {
                 vue: {
                     info,
@@ -91,6 +95,7 @@ export const FlareErrorBoundary = defineComponent({
                     componentProps: instanceProps,
                     componentHierarchy: hierarchy,
                     componentHierarchyFrames: hierarchyFrames,
+                    ...(route && { route }),
                 },
             };
 
