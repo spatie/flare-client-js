@@ -64,7 +64,7 @@ const showBuggy = ref(false);
             }
         "
     >
-        <BuggyComponent />
+        <BuggyComponent message="BuggyComponent render error in Vue" />
         <template #fallback="{ error, componentHierarchy, componentHierarchyFrames, resetErrorBoundary }">
             <div class="space-y-1">
                 <p>Something went wrong: {{ error.message }}</p>
