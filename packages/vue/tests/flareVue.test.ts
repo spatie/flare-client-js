@@ -14,14 +14,22 @@ vi.mock('@flareapp/js', () => ({
     },
 }));
 
+function createMockRouter(route: Record<string, unknown>) {
+    return { currentRoute: { value: route } };
+}
+
 function createMockApp(options?: {
     errorHandler?: (...args: unknown[]) => void;
     warnHandler?: (...args: unknown[]) => void;
+    router?: ReturnType<typeof createMockRouter>;
 }) {
     return {
         config: {
             errorHandler: options?.errorHandler ?? undefined,
             warnHandler: options?.warnHandler ?? undefined,
+            globalProperties: {
+                $router: options?.router ?? undefined,
+            } as Record<string, unknown>,
         },
     };
 }
@@ -634,5 +642,83 @@ describe('flareVue captureWarnings', () => {
         expect(mockReportMessage).toHaveBeenCalledTimes(2);
         expect(mockReportMessage.mock.calls[0][0]).toBe('First warning');
         expect(mockReportMessage.mock.calls[1][0]).toBe('Second warning');
+    });
+});
+
+describe('flareVue route context', () => {
+    const mockRoute = {
+        name: 'user-profile',
+        path: '/users/42',
+        fullPath: '/users/42?tab=settings',
+        params: { id: '42' },
+        query: { tab: 'settings' },
+        hash: '',
+        matched: [{ name: 'AppLayout' }, { name: 'UserProfile' }],
+    };
+
+    test('includes route context when Vue Router is present', () => {
+        const app = createMockApp({ router: createMockRouter(mockRoute) });
+        (flareVue as Function)(app);
+
+        callHandler(app, new Error('test'), null, 'setup function');
+
+        const context = mockReport.mock.calls[0][1];
+        expect(context.vue.route).toEqual({
+            name: 'user-profile',
+            path: '/users/42',
+            fullPath: '/users/42?tab=settings',
+            params: { id: '42' },
+            query: { tab: 'settings' },
+            hash: '',
+            matched: ['AppLayout', 'UserProfile'],
+        });
+    });
+
+    test('does not include route context when Vue Router is not present', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        callHandler(app, new Error('test'), null, 'setup function');
+
+        const context = mockReport.mock.calls[0][1];
+        expect(context.vue.route).toBeUndefined();
+    });
+
+    test('includes route context in warning reports when Vue Router is present', () => {
+        const app = createMockApp({ router: createMockRouter(mockRoute) });
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Invalid prop', null, 'trace');
+
+        const context = mockReportMessage.mock.calls[0][1];
+        expect(context.vue.route).toEqual({
+            name: 'user-profile',
+            path: '/users/42',
+            fullPath: '/users/42?tab=settings',
+            params: { id: '42' },
+            query: { tab: 'settings' },
+            hash: '',
+            matched: ['AppLayout', 'UserProfile'],
+        });
+    });
+
+    test('does not include route context in warning reports when Vue Router is not present', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Warning', null, '');
+
+        const context = mockReportMessage.mock.calls[0][1];
+        expect(context.vue.route).toBeUndefined();
+    });
+
+    test('route context is available to beforeSubmit hook', () => {
+        const beforeSubmit = vi.fn(({ context }: { context: FlareVueContext }) => context);
+        const app = createMockApp({ router: createMockRouter(mockRoute) });
+        (flareVue as Function)(app, { beforeSubmit } satisfies FlareVueOptions);
+
+        callHandler(app, new Error('test'), null, 'setup function');
+
+        expect(beforeSubmit.mock.calls[0][0].context.vue.route?.name).toBe('user-profile');
     });
 });
