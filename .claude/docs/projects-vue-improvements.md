@@ -21,7 +21,7 @@
   normalized `errorOrigin` category maps info to `setup`, `render`, `lifecycle`, `event`, `watcher`, or `unknown`
 - [x] Component hierarchy traversal via `$parent` chain
 - [x] `app.config.warnHandler` integration for capturing Vue warnings
-- [ ] Vue Router integration: capture current route as context
+- [x] Vue Router integration: capture current route as context
 
 ---
 
