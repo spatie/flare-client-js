@@ -1,14 +1,10 @@
 # Vue improvements
 
-## Completed tasks
-
-(none yet)
-
 ## Planned tasks (mirrored from React)
 
-- [ ] `FlareErrorBoundary` component with `fallback` slot
-- [ ] `FlareErrorBoundary` fallback with `reset` method
-- [ ] `FlareErrorBoundary` fallback passes component hierarchy info
+- [x] `FlareErrorBoundary` component with `fallback` slot
+- [x] `FlareErrorBoundary` fallback with `reset` method
+- [x] `FlareErrorBoundary` fallback passes component hierarchy info
 - [ ] `FlareErrorBoundary` supports `beforeEvaluate` callback
 - [ ] `FlareErrorBoundary` supports `beforeSubmit` callback
 - [ ] `FlareErrorBoundary` supports `afterSubmit` callback
@@ -16,13 +12,14 @@
 - [ ] `FlareErrorBoundary` `onReset` passes previous error
 - [ ] `FlareErrorBoundary` supports `resetKeys` prop (via watchers)
 - [ ] Enhance `flareVue()` with `beforeEvaluate`, `beforeSubmit`, and `afterSubmit` callbacks
-- [ ] Structured component hierarchy parsing
+- [ ] Structured component hierarchy parsing (`componentHierarchyFrames` with file/props)
 
 ## Planned tasks (Vue-only features)
 
 - [ ] Capture component props from the erroring component instance
-- [ ] Capture lifecycle hook / origin info (where the error occurred)
-- [ ] Component hierarchy traversal via `$parent` chain
+- [~] Capture lifecycle hook / origin info (where the error occurred) — `info` string is sent as `context.vue.info`, but
+  normalized `errorOrigin` category is not yet implemented
+- [x] Component hierarchy traversal via `$parent` chain
 - [ ] `app.config.warnHandler` integration for capturing Vue warnings
 - [ ] Vue Router integration: capture current route as context
 
@@ -70,6 +67,7 @@ default content of the `fallback` slot.
 ### Implementation notes
 
 Vue's `onErrorCaptured` hook receives `(err, instance, info)`:
+
 - `err`: the error object
 - `instance`: the component instance that threw the error (or `null`)
 - `info`: a string describing where the error was captured (e.g. `"setup function"`, `"render function"`,
@@ -86,10 +84,12 @@ components, so the error boundary itself will be a `<script setup>` component ra
 
 ### Why
 
-Same rationale as React. Fires before the component hierarchy context is built, letting developers attach custom context,
+Same rationale as React. Fires before the component hierarchy context is built, letting developers attach custom
+context,
 tags, or user information to the Flare report before the error is evaluated.
 
 ```vue
+
 <FlareErrorBoundary
     :before-evaluate="({ error, instance, info }) => {
         flare.addContext('user', { id: currentUser.id });
@@ -114,6 +114,7 @@ Fires after the component hierarchy context is built but before the error is rep
 the `context` and must return a (possibly modified) context object. Use this to filter or enrich the report context.
 
 ```vue
+
 <FlareErrorBoundary
     :before-submit="({ error, instance, info, context }) => {
         return {
@@ -139,6 +140,7 @@ Developers need a hook to perform side effects after an error is reported. This 
 reported to Flare.
 
 ```vue
+
 <FlareErrorBoundary
     :after-submit="({ error, instance, info, context }) => {
         console.error('Caught by FlareErrorBoundary:', error);
@@ -158,6 +160,7 @@ Same rationale as React. When the error boundary resets, developers often need t
 allows conditional cleanup based on what went wrong.
 
 ```vue
+
 <FlareErrorBoundary
     :on-reset="(error) => {
         console.log('Recovering from:', error?.message);
@@ -182,10 +185,11 @@ and next key arrays. Vue's version uses a `watch` on the `resetKeys` prop with `
 `Object.is` the same way React does.
 
 ```vue
-<script setup>
-import { useRoute } from 'vue-router';
 
-const route = useRoute();
+<script setup>
+    import { useRoute } from 'vue-router';
+
+    const route = useRoute();
 </script>
 
 <template>
@@ -289,40 +293,42 @@ structured data.
 
 ```json
 {
-    "context": {
-        "vue": {
-            "info": "setup function",
-            "componentName": "BuggyComponent",
-            "componentHierarchy": [
-                "BuggyComponent",
-                "ParentPage",
-                "AppLayout",
-                "App"
-            ],
-            "componentHierarchyFrames": [
-                {
-                    "component": "BuggyComponent",
-                    "file": "src/components/BuggyComponent.vue",
-                    "props": { "userId": 42 }
-                },
-                {
-                    "component": "ParentPage",
-                    "file": "src/pages/ParentPage.vue",
-                    "props": {}
-                },
-                {
-                    "component": "AppLayout",
-                    "file": "src/layouts/AppLayout.vue",
-                    "props": {}
-                },
-                {
-                    "component": "App",
-                    "file": "src/App.vue",
-                    "props": {}
-                }
-            ]
+  "context": {
+    "vue": {
+      "info": "setup function",
+      "componentName": "BuggyComponent",
+      "componentHierarchy": [
+        "BuggyComponent",
+        "ParentPage",
+        "AppLayout",
+        "App"
+      ],
+      "componentHierarchyFrames": [
+        {
+          "component": "BuggyComponent",
+          "file": "src/components/BuggyComponent.vue",
+          "props": {
+            "userId": 42
+          }
+        },
+        {
+          "component": "ParentPage",
+          "file": "src/pages/ParentPage.vue",
+          "props": {}
+        },
+        {
+          "component": "AppLayout",
+          "file": "src/layouts/AppLayout.vue",
+          "props": {}
+        },
+        {
+          "component": "App",
+          "file": "src/App.vue",
+          "props": {}
         }
+      ]
     }
+  }
 }
 ```
 
@@ -353,9 +359,11 @@ enabled, the props of the erroring component are included in the report context.
 
 ```ts
 // In FlareErrorBoundary
-<FlareErrorBoundary :attach-props="true">
-    <App />
-</FlareErrorBoundary>
+<FlareErrorBoundary
+:
+attach - props = "true" >
+    <App / >
+    </FlareErrorBoundary>
 
 // In flareVue()
 flareVue(app, { attachProps: true });
@@ -368,16 +376,18 @@ symbols are excluded. A configurable `propsMaxDepth` option (default 2) controls
 
 ```json
 {
-    "context": {
-        "vue": {
-            "info": "render function",
-            "componentName": "UserProfile",
-            "componentProps": {
-                "userId": 42,
-                "settings": { "theme": "dark" }
-            }
+  "context": {
+    "vue": {
+      "info": "render function",
+      "componentName": "UserProfile",
+      "componentProps": {
+        "userId": 42,
+        "settings": {
+          "theme": "dark"
         }
+      }
     }
+  }
 }
 ```
 
@@ -390,6 +400,7 @@ lifecycle. This is already partially captured by the current `flareVue()` implem
 documented.
 
 Vue provides values like:
+
 - `"setup function"` -- error in `<script setup>` or `setup()`
 - `"render function"` -- error during template rendering
 - `"watcher getter"` / `"watcher callback"` -- error in a `watch` or `watchEffect`
@@ -405,12 +416,12 @@ map it to a structured `errorOrigin` field with a normalized category (e.g. `"li
 
 ```json
 {
-    "context": {
-        "vue": {
-            "info": "mounted hook",
-            "errorOrigin": "lifecycle"
-        }
+  "context": {
+    "vue": {
+      "info": "mounted hook",
+      "errorOrigin": "lifecycle"
     }
+  }
 }
 ```
 
@@ -446,14 +457,14 @@ feature is primarily useful during development and staging, not production.
 
 ```json
 {
-    "context": {
-        "vue": {
-            "type": "warning",
-            "info": "Invalid prop: type check failed for prop \"count\". Expected Number, got String.",
-            "componentName": "Counter",
-            "componentTrace": "found in\n---> <Counter> at src/Counter.vue\n       <App> at src/App.vue"
-        }
+  "context": {
+    "vue": {
+      "type": "warning",
+      "info": "Invalid prop: type check failed for prop \"count\". Expected Number, got String.",
+      "componentName": "Counter",
+      "componentTrace": "found in\n---> <Counter> at src/Counter.vue\n       <App> at src/App.vue"
     }
+  }
 }
 ```
 
@@ -480,19 +491,26 @@ flareVue(app);
 
 ```json
 {
-    "context": {
-        "vue": {
-            "route": {
-                "name": "user-profile",
-                "path": "/users/42",
-                "fullPath": "/users/42?tab=settings",
-                "params": { "id": "42" },
-                "query": { "tab": "settings" },
-                "hash": "",
-                "matched": ["AppLayout", "UserProfile"]
-            }
-        }
+  "context": {
+    "vue": {
+      "route": {
+        "name": "user-profile",
+        "path": "/users/42",
+        "fullPath": "/users/42?tab=settings",
+        "params": {
+          "id": "42"
+        },
+        "query": {
+          "tab": "settings"
+        },
+        "hash": "",
+        "matched": [
+          "AppLayout",
+          "UserProfile"
+        ]
+      }
     }
+  }
 }
 ```
 
