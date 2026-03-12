@@ -3,9 +3,10 @@ import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, onErrorCaptured, ref, watch } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
+import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
-import { FlareErrorBoundaryHookParams, FlareVueContext } from './types';
+import { ComponentHierarchyFrame, FlareErrorBoundaryHookParams, FlareVueContext } from './types';
 
 export const FlareErrorBoundary = defineComponent({
     name: 'FlareErrorBoundary',
@@ -38,12 +39,14 @@ export const FlareErrorBoundary = defineComponent({
     setup(props, { slots }) {
         const error = ref<Error | null>(null);
         const componentHierarchy = ref<string[]>([]);
+        const componentHierarchyFrames = ref<ComponentHierarchyFrame[]>([]);
 
         const resetErrorBoundary = () => {
             props.onReset?.(error.value);
 
             error.value = null;
             componentHierarchy.value = [];
+            componentHierarchyFrames.value = [];
         };
 
         watch(
@@ -68,6 +71,7 @@ export const FlareErrorBoundary = defineComponent({
             props.beforeEvaluate?.({ error: errorToReport, instance, info });
 
             const hierarchy = buildComponentHierarchy(instance);
+            const hierarchyFrames = buildComponentHierarchyFrames(instance);
             const componentName = getComponentName(instance);
 
             error.value = errorToReport;
@@ -77,12 +81,14 @@ export const FlareErrorBoundary = defineComponent({
                     info,
                     componentName,
                     componentHierarchy: hierarchy,
+                    componentHierarchyFrames: hierarchyFrames,
                 },
             };
 
             const finalContext = props.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
             componentHierarchy.value = finalContext.vue.componentHierarchy;
+            componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
             flare.report(errorToReport, finalContext, { vue: { instance, info } });
 
@@ -99,6 +105,7 @@ export const FlareErrorBoundary = defineComponent({
                     return slots.fallback({
                         error: error.value,
                         componentHierarchy: componentHierarchy.value,
+                        componentHierarchyFrames: componentHierarchyFrames.value,
                         resetErrorBoundary,
                     });
                 }

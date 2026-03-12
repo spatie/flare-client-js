@@ -2,6 +2,7 @@ import { flare } from '@flareapp/js';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
+import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { FlareVueContext, FlareVueOptions } from './types';
@@ -16,9 +17,10 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const componentName = getComponentName(instance);
         const componentHierarchy = buildComponentHierarchy(instance);
+        const componentHierarchyFrames = buildComponentHierarchyFrames(instance);
 
         const context: FlareVueContext = {
-            vue: { info, componentName, componentHierarchy },
+            vue: { info, componentName, componentHierarchy, componentHierarchyFrames },
         };
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
