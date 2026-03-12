@@ -1,16 +1,33 @@
 import { flare } from '@flareapp/js';
-import type { ComponentPublicInstance } from 'vue';
+import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, onErrorCaptured, ref } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
-import { FlareVueContext } from './types';
+import { FlareErrorBoundaryHookParams, FlareVueContext } from './types';
 
 export const FlareErrorBoundary = defineComponent({
     name: 'FlareErrorBoundary',
 
-    setup(_, { slots }) {
+    props: {
+        beforeEvaluate: {
+            type: Function as PropType<(params: FlareErrorBoundaryHookParams) => void>,
+            default: undefined,
+        },
+        beforeSubmit: {
+            type: Function as PropType<
+                (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => FlareVueContext
+            >,
+            default: undefined,
+        },
+        afterSubmit: {
+            type: Function as PropType<(params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => void>,
+            default: undefined,
+        },
+    },
+
+    setup(props, { slots }) {
         const error = ref<Error | null>(null);
         const componentHierarchy = ref<string[]>([]);
 
@@ -21,11 +38,13 @@ export const FlareErrorBoundary = defineComponent({
 
         onErrorCaptured((currentError: unknown, instance: ComponentPublicInstance | null, info: string) => {
             const errorToReport = convertToError(currentError);
+
+            props.beforeEvaluate?.({ error: errorToReport, instance, info });
+
             const hierarchy = buildComponentHierarchy(instance);
             const componentName = getComponentName(instance);
 
             error.value = errorToReport;
-            componentHierarchy.value = hierarchy;
 
             const context: FlareVueContext = {
                 vue: {
@@ -35,7 +54,13 @@ export const FlareErrorBoundary = defineComponent({
                 },
             };
 
-            flare.report(errorToReport, context, { vue: { instance, info } });
+            const finalContext = props.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
+
+            componentHierarchy.value = finalContext.vue.componentHierarchy;
+
+            flare.report(errorToReport, finalContext, { vue: { instance, info } });
+
+            props.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 
             // Prevent the error from propagating to app.config.errorHandler (set by flareVue()),
             // so the error is only reported to Flare once when both are used together.
