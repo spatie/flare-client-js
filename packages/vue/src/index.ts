@@ -6,4 +6,5 @@ export type {
     FlareErrorBoundaryHookParams,
     FlareVueContext,
     FlareVueOptions,
+    ErrorOrigin,
 } from './types';
