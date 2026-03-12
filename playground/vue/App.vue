@@ -32,7 +32,32 @@ const showBuggy = ref(false);
     >
         Reset render error
     </Button>
-    <FlareErrorBoundary v-if="showBuggy">
+    <FlareErrorBoundary
+        v-if="showBuggy"
+        :before-evaluate="
+            ({ error, info }) => {
+                console.log(`FlareErrorBoundary beforeEvaluate: ${error.message} (${info})`);
+                flare.addContext('playground', 'vue-test');
+            }
+        "
+        :before-submit="
+            ({ error, context }) => {
+                console.log(`FlareErrorBoundary beforeSubmit: ${error.message}`);
+                return {
+                    ...context,
+                    vue: {
+                        ...context.vue,
+                        componentHierarchy: [...context.vue.componentHierarchy, 'injected-by-beforeSubmit'],
+                    },
+                };
+            }
+        "
+        :after-submit="
+            ({ error, info }) => {
+                console.log(`FlareErrorBoundary afterSubmit: ${error.message} (${info}) reported to Flare`);
+            }
+        "
+    >
         <BuggyComponent />
         <template #fallback="{ error, componentHierarchy, resetErrorBoundary }">
             <div class="space-y-1">
