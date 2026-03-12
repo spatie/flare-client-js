@@ -5,6 +5,7 @@ import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
+import { getErrorOrigin } from './getErrorOrigin';
 import { FlareVueContext, FlareVueOptions } from './types';
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
@@ -15,13 +16,14 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         options?.beforeEvaluate?.({ error: errorToReport, instance, info });
 
+        const errorOrigin = getErrorOrigin(info);
         const componentName = getComponentName(instance);
         const componentProps = instance?.$props ? { ...instance.$props } : null;
         const componentHierarchy = buildComponentHierarchy(instance);
         const componentHierarchyFrames = buildComponentHierarchyFrames(instance);
 
         const context: FlareVueContext = {
-            vue: { info, componentName, componentProps, componentHierarchy, componentHierarchyFrames },
+            vue: { info, errorOrigin, componentName, componentProps, componentHierarchy, componentHierarchyFrames },
         };
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
