@@ -8,6 +8,16 @@ export type ComponentHierarchyFrame = {
     props: Record<string, unknown> | null;
 };
 
+export type RouteContext = {
+    name: string | null;
+    path: string;
+    fullPath: string;
+    params: Record<string, unknown>;
+    query: Record<string, unknown>;
+    hash: string;
+    matched: string[];
+};
+
 export type FlareVueContext = {
     vue: {
         info: string;
@@ -16,6 +26,7 @@ export type FlareVueContext = {
         componentProps: Record<string, unknown> | null;
         componentHierarchy: string[];
         componentHierarchyFrames: ComponentHierarchyFrame[];
+        route?: RouteContext;
     };
 };
 

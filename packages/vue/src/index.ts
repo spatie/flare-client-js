@@ -7,4 +7,5 @@ export type {
     FlareVueContext,
     FlareVueOptions,
     ErrorOrigin,
+    RouteContext,
 } from './types';
