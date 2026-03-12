@@ -17,8 +17,8 @@
 ## Planned tasks (Vue-only features)
 
 - [x] Capture component props from the erroring component instance
-- [~] Capture lifecycle hook / origin info (where the error occurred) — `info` string is sent as `context.vue.info`, but
-  normalized `errorOrigin` category is not yet implemented
+- [x] Capture lifecycle hook / origin info (where the error occurred) — `info` string is sent as `context.vue.info`,
+  normalized `errorOrigin` category maps info to `setup`, `render`, `lifecycle`, `event`, `watcher`, or `unknown`
 - [x] Component hierarchy traversal via `$parent` chain
 - [ ] `app.config.warnHandler` integration for capturing Vue warnings
 - [ ] Vue Router integration: capture current route as context
