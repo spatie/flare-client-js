@@ -10,6 +10,7 @@ export type FlareVueContext = {
     vue: {
         info: string;
         componentName: string;
+        componentProps: Record<string, unknown> | null;
         componentHierarchy: string[];
         componentHierarchyFrames: ComponentHierarchyFrame[];
     };
@@ -29,6 +30,7 @@ export type FlareVueOptions = {
 
 export type FlareErrorBoundaryFallbackProps = {
     error: Error;
+    componentProps: Record<string, unknown> | null;
     componentHierarchy: string[];
     componentHierarchyFrames: ComponentHierarchyFrame[];
     resetErrorBoundary: () => void;
