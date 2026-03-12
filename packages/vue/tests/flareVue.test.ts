@@ -5,17 +5,23 @@ import { flareVue } from '../src/flareVue';
 import type { FlareVueContext, FlareVueOptions } from '../src/types';
 
 const mockReport = vi.fn();
+const mockReportMessage = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
+        reportMessage: (...args: unknown[]) => mockReportMessage(...args),
     },
 }));
 
-function createMockApp(initialHandler?: (...args: unknown[]) => void) {
+function createMockApp(options?: {
+    errorHandler?: (...args: unknown[]) => void;
+    warnHandler?: (...args: unknown[]) => void;
+}) {
     return {
         config: {
-            errorHandler: initialHandler ?? undefined,
+            errorHandler: options?.errorHandler ?? undefined,
+            warnHandler: options?.warnHandler ?? undefined,
         },
     };
 }
@@ -45,6 +51,7 @@ function callHandler(
 
 beforeEach(() => {
     mockReport.mockReset();
+    mockReportMessage.mockReset();
 });
 
 describe('flareVue', () => {
@@ -143,7 +150,7 @@ describe('flareVue', () => {
 
     test('calls initial error handler if one exists', () => {
         const initialHandler = vi.fn();
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app);
 
         const error = new Error('test');
@@ -157,7 +164,7 @@ describe('flareVue', () => {
 
     test('passes original error (not converted) to initial handler', () => {
         const initialHandler = vi.fn();
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app);
 
         app.config.errorHandler!('string error', null, 'setup function');
@@ -167,7 +174,7 @@ describe('flareVue', () => {
 
     test('does not throw when initial error handler exists', () => {
         const initialHandler = vi.fn();
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app);
 
         expect(() => {
@@ -198,7 +205,7 @@ describe('flareVue', () => {
         const initialHandler = vi.fn(() => callOrder.push('initialHandler'));
         mockReport.mockImplementation(() => callOrder.push('report'));
 
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app);
 
         app.config.errorHandler!(new Error('test'), null, 'setup function');
@@ -236,7 +243,7 @@ describe('flareVue', () => {
 
     test('reports each error independently when called multiple times', () => {
         const initialHandler = vi.fn();
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app);
 
         const error1 = new Error('first');
@@ -253,7 +260,7 @@ describe('flareVue', () => {
 
     test('does not call initial handler when flare.report() throws', () => {
         const initialHandler = vi.fn();
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app);
 
         mockReport.mockImplementation(() => {
@@ -503,7 +510,7 @@ describe('flareVue', () => {
         const beforeSubmit = vi.fn((params: { context: FlareVueContext }) => params.context);
         const afterSubmit = vi.fn();
 
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app, { beforeEvaluate, beforeSubmit, afterSubmit } satisfies FlareVueOptions);
 
         app.config.errorHandler!(new Error('first'), null, 'setup function');
@@ -521,11 +528,111 @@ describe('flareVue', () => {
         mockReport.mockImplementation(() => callOrder.push('report'));
         const afterSubmit = vi.fn(() => callOrder.push('afterSubmit'));
 
-        const app = createMockApp(initialHandler);
+        const app = createMockApp({ errorHandler: initialHandler });
         (flareVue as Function)(app, { afterSubmit } satisfies FlareVueOptions);
 
         app.config.errorHandler!(new Error('test'), null, 'setup function');
 
         expect(callOrder).toEqual(['report', 'afterSubmit', 'initialHandler']);
+    });
+});
+
+describe('flareVue captureWarnings', () => {
+    test('does not set warnHandler when captureWarnings is not set', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        expect(app.config.warnHandler).toBeUndefined();
+    });
+
+    test('does not set warnHandler when captureWarnings is false', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: false } satisfies FlareVueOptions);
+
+        expect(app.config.warnHandler).toBeUndefined();
+    });
+
+    test('sets warnHandler when captureWarnings is true', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        expect(typeof app.config.warnHandler).toBe('function');
+    });
+
+    test('reports warning via flare.reportMessage with message, context, and VueWarning exception class', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        const instance = createMockInstance('Counter');
+        app.config.warnHandler!('Invalid prop type', instance, 'found in\n---> <Counter>');
+
+        expect(mockReportMessage).toHaveBeenCalledOnce();
+        expect(mockReportMessage).toHaveBeenCalledWith(
+            'Invalid prop type',
+            { vue: { message: 'Invalid prop type', componentName: 'Counter', trace: 'found in\n---> <Counter>' } },
+            'VueWarning'
+        );
+    });
+
+    test('context includes component name and trace', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        const instance = createMockInstance('UserProfile');
+        const trace = 'found in\n---> <UserProfile> at src/UserProfile.vue\n       <App> at src/App.vue';
+        app.config.warnHandler!('Missing required prop', instance, trace);
+
+        const context = mockReportMessage.mock.calls[0][1];
+        expect(context.vue.componentName).toBe('UserProfile');
+        expect(context.vue.trace).toBe(trace);
+        expect(context.vue.message).toBe('Missing required prop');
+    });
+
+    test('uses AnonymousComponent when instance is null', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Some warning', null, '');
+
+        const context = mockReportMessage.mock.calls[0][1];
+        expect(context.vue.componentName).toBe('AnonymousComponent');
+    });
+
+    test('calls initial warn handler after reporting', () => {
+        const initialWarnHandler = vi.fn();
+        const app = createMockApp({ warnHandler: initialWarnHandler });
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        const instance = createMockInstance('Counter');
+        app.config.warnHandler!('Invalid prop', instance, 'trace');
+
+        expect(mockReportMessage).toHaveBeenCalledOnce();
+        expect(initialWarnHandler).toHaveBeenCalledOnce();
+        expect(initialWarnHandler).toHaveBeenCalledWith('Invalid prop', instance, 'trace');
+    });
+
+    test('calls initial warn handler after flare.reportMessage', () => {
+        const callOrder: string[] = [];
+        const initialWarnHandler = vi.fn(() => callOrder.push('initialWarnHandler'));
+        mockReportMessage.mockImplementation(() => callOrder.push('reportMessage'));
+
+        const app = createMockApp({ warnHandler: initialWarnHandler });
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Warning', null, '');
+
+        expect(callOrder).toEqual(['reportMessage', 'initialWarnHandler']);
+    });
+
+    test('reports each warning independently', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('First warning', null, 'trace1');
+        app.config.warnHandler!('Second warning', null, 'trace2');
+
+        expect(mockReportMessage).toHaveBeenCalledTimes(2);
+        expect(mockReportMessage.mock.calls[0][0]).toBe('First warning');
+        expect(mockReportMessage.mock.calls[1][0]).toBe('Second warning');
     });
 });
