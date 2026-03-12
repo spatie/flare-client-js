@@ -12,6 +12,17 @@ createSidebar();
 
 const app = createApp(App);
 
-app.use(flareVue);
+app.use(flareVue, {
+    beforeEvaluate: ({ error, info }) => {
+        console.log(`[flareVue] beforeEvaluate: ${error.message} (${info})`);
+    },
+    beforeSubmit: ({ error, context }) => {
+        console.log(`[flareVue] beforeSubmit: ${error.message}`);
+        return context;
+    },
+    afterSubmit: ({ error, info }) => {
+        console.log(`[flareVue] afterSubmit: ${error.message} (${info}) reported to Flare`);
+    },
+});
 
 app.mount('#root');
