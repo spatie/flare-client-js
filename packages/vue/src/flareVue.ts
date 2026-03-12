@@ -4,13 +4,16 @@ import type { App, ComponentPublicInstance, Plugin } from 'vue';
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
-import { FlareVueContext } from './types';
+import { FlareVueContext, FlareVueOptions } from './types';
 
-export const flareVue: Plugin = (app: App): void => {
+export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
     const initialErrorHandler = app.config.errorHandler;
 
     app.config.errorHandler = (error: unknown, instance: ComponentPublicInstance | null, info: string) => {
         const errorToReport = convertToError(error);
+
+        options?.beforeEvaluate?.({ error: errorToReport, instance, info });
+
         const componentName = getComponentName(instance);
         const componentHierarchy = buildComponentHierarchy(instance);
 
@@ -18,7 +21,11 @@ export const flareVue: Plugin = (app: App): void => {
             vue: { info, componentName, componentHierarchy },
         };
 
-        flare.report(errorToReport, context, { vue: { instance, info } });
+        const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
+
+        flare.report(errorToReport, finalContext, { vue: { instance, info } });
+
+        options?.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 
         if (typeof initialErrorHandler === 'function') {
             initialErrorHandler(error, instance, info);

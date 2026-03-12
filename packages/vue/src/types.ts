@@ -14,6 +14,12 @@ export type FlareErrorBoundaryHookParams = {
     info: string;
 };
 
+export type FlareVueOptions = {
+    beforeEvaluate?: (params: FlareErrorBoundaryHookParams) => void;
+    beforeSubmit?: (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => FlareVueContext;
+    afterSubmit?: (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => void;
+};
+
 export type FlareErrorBoundaryFallbackProps = {
     error: Error;
     componentHierarchy: string[];
