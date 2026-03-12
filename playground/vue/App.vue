@@ -65,10 +65,16 @@ const showBuggy = ref(false);
         "
     >
         <BuggyComponent />
-        <template #fallback="{ error, componentHierarchy, resetErrorBoundary }">
+        <template #fallback="{ error, componentHierarchy, componentHierarchyFrames, resetErrorBoundary }">
             <div class="space-y-1">
                 <p>Something went wrong: {{ error.message }}</p>
                 <p class="text-xs text-gray-500">Hierarchy: {{ componentHierarchy.join(' > ') }}</p>
+                <details class="text-xs text-gray-500">
+                    <summary>Hierarchy frames ({{ componentHierarchyFrames.length }})</summary>
+                    <pre class="mt-1 overflow-auto text-xs">{{
+                        JSON.stringify(componentHierarchyFrames, null, 2)
+                    }}</pre>
+                </details>
                 <button
                     class="rounded-md bg-black px-2 py-1 text-sm font-medium text-white"
                     @click="resetErrorBoundary"
