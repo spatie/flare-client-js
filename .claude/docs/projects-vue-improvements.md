@@ -5,9 +5,9 @@
 - [x] `FlareErrorBoundary` component with `fallback` slot
 - [x] `FlareErrorBoundary` fallback with `reset` method
 - [x] `FlareErrorBoundary` fallback passes component hierarchy info
-- [ ] `FlareErrorBoundary` supports `beforeEvaluate` callback
-- [ ] `FlareErrorBoundary` supports `beforeSubmit` callback
-- [ ] `FlareErrorBoundary` supports `afterSubmit` callback
+- [x] `FlareErrorBoundary` supports `beforeEvaluate` callback
+- [x] `FlareErrorBoundary` supports `beforeSubmit` callback
+- [x] `FlareErrorBoundary` supports `afterSubmit` callback
 - [ ] `FlareErrorBoundary` supports `onReset` prop
 - [ ] `FlareErrorBoundary` `onReset` passes previous error
 - [ ] `FlareErrorBoundary` supports `resetKeys` prop (via watchers)
