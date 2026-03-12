@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
 
 import { FlareErrorBoundary } from '../src/FlareErrorBoundary';
-import { FlareVueContext } from '../src/types';
+import { ComponentHierarchyFrame, FlareVueContext } from '../src/types';
 
 const mockReport = vi.fn();
 
@@ -62,7 +62,7 @@ describe('FlareErrorBoundary', () => {
         expect(mockReport.mock.calls[0][0]).toBe(testError);
     });
 
-    test('passes vue context with info, componentName, and componentHierarchy', async () => {
+    test('passes vue context with info, componentName, componentHierarchy, and componentHierarchyFrames', async () => {
         mount(FlareErrorBoundary, {
             slots: {
                 default: () => h(ThrowingComponent),
@@ -77,6 +77,10 @@ describe('FlareErrorBoundary', () => {
         expect(context.vue.componentName).toBe('ThrowingComponent');
         expect(context.vue.componentHierarchy).toBeInstanceOf(Array);
         expect(context.vue.componentHierarchy).toContain('ThrowingComponent');
+        expect(context.vue.componentHierarchyFrames).toBeInstanceOf(Array);
+        expect(context.vue.componentHierarchyFrames[0].component).toBe('ThrowingComponent');
+        expect(context.vue.componentHierarchyFrames[0]).toHaveProperty('file');
+        expect(context.vue.componentHierarchyFrames[0]).toHaveProperty('props');
     });
 
     test('passes instance and info as extra solution parameters', async () => {
@@ -135,6 +139,30 @@ describe('FlareErrorBoundary', () => {
 
         expect(wrapper.find('.error-msg').text()).toBe('test error');
         expect(wrapper.find('.hierarchy').text()).toContain('ThrowingComponent');
+    });
+
+    test('fallback slot receives componentHierarchyFrames', async () => {
+        let receivedFrames: ComponentHierarchyFrame[] = [];
+
+        mount(FlareErrorBoundary, {
+            slots: {
+                default: () => h(ThrowingComponent),
+                fallback: (props: { componentHierarchyFrames: ComponentHierarchyFrame[] }) => {
+                    receivedFrames = props.componentHierarchyFrames;
+                    return h('div', 'Error');
+                },
+            },
+        });
+
+        await nextTick();
+
+        expect(receivedFrames).toBeInstanceOf(Array);
+        expect(receivedFrames.length).toBeGreaterThan(0);
+        expect(receivedFrames[0]).toMatchObject({
+            component: 'ThrowingComponent',
+        });
+        expect(receivedFrames[0]).toHaveProperty('file');
+        expect(receivedFrames[0]).toHaveProperty('props');
     });
 
     test('fallback slot receives resetErrorBoundary function', async () => {
@@ -376,6 +404,7 @@ describe('FlareErrorBoundary', () => {
         expect(beforeSubmit.mock.calls[0][0].instance).toBeDefined();
         expect(beforeSubmit.mock.calls[0][0].info).toEqual(expect.any(String));
         expect(beforeSubmit.mock.calls[0][0].context.vue.componentHierarchy).toBeInstanceOf(Array);
+        expect(beforeSubmit.mock.calls[0][0].context.vue.componentHierarchyFrames).toBeInstanceOf(Array);
         expect(beforeSubmit.mock.calls[0][0].context.vue.componentName).toBe('ThrowingComponent');
     });
 

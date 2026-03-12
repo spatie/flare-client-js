@@ -20,10 +20,15 @@ function createMockApp(initialHandler?: (...args: unknown[]) => void) {
     };
 }
 
-function createMockInstance(name: string, parent: ComponentPublicInstance | null = null): ComponentPublicInstance {
+function createMockInstance(
+    name: string,
+    parent: ComponentPublicInstance | null = null,
+    props: Record<string, unknown> = {}
+): ComponentPublicInstance {
     return {
         $options: { __name: name },
         $parent: parent,
+        $props: props,
     } as unknown as ComponentPublicInstance;
 }
 
@@ -75,7 +80,7 @@ describe('flareVue', () => {
         expect(reportedError.message).toBe('string error');
     });
 
-    test('passes vue context with info, componentName, and componentHierarchy', () => {
+    test('passes vue context with info, componentName, componentHierarchy, and componentHierarchyFrames', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
@@ -89,6 +94,11 @@ describe('flareVue', () => {
         expect(context.vue.info).toBe('setup function');
         expect(context.vue.componentName).toBe('Button');
         expect(context.vue.componentHierarchy).toEqual(['Button', 'Layout', 'App']);
+        expect(context.vue.componentHierarchyFrames).toEqual([
+            { component: 'Button', file: null, props: {} },
+            { component: 'Layout', file: null, props: {} },
+            { component: 'App', file: null, props: {} },
+        ]);
     });
 
     test('passes instance and info as extra solution parameters', () => {
@@ -178,6 +188,7 @@ describe('flareVue', () => {
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.componentName).toBe('AnonymousComponent');
         expect(context.vue.componentHierarchy).toEqual([]);
+        expect(context.vue.componentHierarchyFrames).toEqual([]);
     });
 
     test('re-throws the converted error, not the raw value, when no initial handler exists', () => {
