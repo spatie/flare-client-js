@@ -212,5 +212,25 @@ describe('buildComponentHierarchyFrames', () => {
 
             expect(frames[0].props).toEqual({ onClick: '[Function]' });
         });
+
+        test('redacts denylisted keys using the default denylist', () => {
+            const instance = createMockInstance('X', { props: { token: 'secret', id: 1 } });
+
+            const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 });
+
+            expect(frames[0].props).toEqual({ token: '[Redacted]', id: 1 });
+        });
+
+        test('forwards a custom denylist to the serializer', () => {
+            const instance = createMockInstance('X', { props: { foo: 'x', bar: 'y' } });
+
+            const frames = buildComponentHierarchyFrames(instance, {
+                attachProps: true,
+                propsMaxDepth: 2,
+                propsDenylist: /^foo$/,
+            });
+
+            expect(frames[0].props).toEqual({ foo: '[Redacted]', bar: 'y' });
+        });
     });
 });

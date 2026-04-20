@@ -127,6 +127,75 @@ describe('serializeProps', () => {
         expect(serializeProps(input as Record<string, unknown>, 2)).toEqual({ a: 1 });
     });
 
+    describe('denylist', () => {
+        test('redacts default sensitive keys regardless of case', () => {
+            expect(
+                serializeProps(
+                    {
+                        password: 'hunter2',
+                        Token: 'abc',
+                        apiKey: 'xyz',
+                        api_key: 'xyz',
+                        authorization: 'Bearer ...',
+                        cookie: 'sid=1',
+                        sessionId: 'z',
+                        csrfToken: 't',
+                        xsrfToken: 't',
+                        credentials: { u: 'a' },
+                        auth: 'value',
+                    },
+                    5
+                )
+            ).toEqual({
+                password: '[Redacted]',
+                Token: '[Redacted]',
+                apiKey: '[Redacted]',
+                api_key: '[Redacted]',
+                authorization: '[Redacted]',
+                cookie: '[Redacted]',
+                sessionId: '[Redacted]',
+                csrfToken: '[Redacted]',
+                xsrfToken: '[Redacted]',
+                credentials: '[Redacted]',
+                auth: '[Redacted]',
+            });
+        });
+
+        test('redacts nested keys matched by the default denylist', () => {
+            expect(serializeProps({ user: { id: 1, password: 'p', nested: { token: 't' } } }, 5)).toEqual({
+                user: { id: 1, password: '[Redacted]', nested: { token: '[Redacted]' } },
+            });
+        });
+
+        test('passes non-denylisted keys through untouched', () => {
+            expect(serializeProps({ username: 'alice', authorName: 'bob' }, 2)).toEqual({
+                username: 'alice',
+                authorName: 'bob',
+            });
+        });
+
+        test('does not match "auth" as a substring of unrelated keys', () => {
+            expect(serializeProps({ author: 'x', authorship: 'y' }, 2)).toEqual({
+                author: 'x',
+                authorship: 'y',
+            });
+        });
+
+        test('accepts a custom denylist that replaces the default', () => {
+            expect(serializeProps({ password: 'p', foo: 'x', bar: 'y' }, 2, /^foo$/)).toEqual({
+                password: 'p',
+                foo: '[Redacted]',
+                bar: 'y',
+            });
+        });
+
+        test('applies a custom denylist at every depth', () => {
+            expect(serializeProps({ outer: { inner: { token: 't', safe: 'ok' } } }, 5, /token/i)).toEqual({
+                outer: { inner: { token: '[Redacted]', safe: 'ok' } },
+            });
+        });
+    });
+
     test('serializes a mixed tree correctly', () => {
         const obj = {
             user: { id: 1, name: 'x', meta: { createdAt: new Date(0), tags: ['a', 'b'] } },

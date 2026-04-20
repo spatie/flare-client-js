@@ -45,6 +45,10 @@ export const FlareErrorBoundary = defineComponent({
             type: Number,
             default: 2,
         },
+        propsDenylist: {
+            type: RegExp as PropType<RegExp>,
+            default: undefined,
+        },
     },
 
     setup(props, { slots }) {
@@ -88,6 +92,7 @@ export const FlareErrorBoundary = defineComponent({
             const hierarchyFrames = buildComponentHierarchyFrames(instance, {
                 attachProps: props.attachProps,
                 propsMaxDepth: props.propsMaxDepth,
+                propsDenylist: props.propsDenylist,
             });
             const componentName = getComponentName(instance);
 
@@ -95,7 +100,7 @@ export const FlareErrorBoundary = defineComponent({
 
             const instanceProps =
                 props.attachProps && instance?.$props
-                    ? serializeProps(instance.$props, props.propsMaxDepth)
+                    ? serializeProps(instance.$props, props.propsMaxDepth, props.propsDenylist)
                     : undefined;
 
             const errorOrigin = getErrorOrigin(info);

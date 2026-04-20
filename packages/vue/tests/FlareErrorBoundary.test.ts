@@ -982,6 +982,67 @@ describe('FlareErrorBoundary', () => {
             expect('componentProps' in (slotProps as Record<string, unknown>)).toBe(false);
         });
 
+        test('redacts default sensitive keys from componentProps', async () => {
+            const ThrowingWithSecrets = defineComponent({
+                name: 'ThrowingWithSecrets',
+                props: {
+                    id: { type: Number, required: true },
+                    password: { type: String, required: true },
+                    apiKey: { type: String, required: true },
+                },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            mount(FlareErrorBoundary, {
+                props: { attachProps: true },
+                slots: {
+                    default: () => h(ThrowingWithSecrets, { id: 1, password: 'hunter2', apiKey: 'abc' }),
+                },
+            });
+
+            await nextTick();
+
+            const context = mockReport.mock.calls[0][1];
+            expect(context.vue.componentProps).toEqual({
+                id: 1,
+                password: '[Redacted]',
+                apiKey: '[Redacted]',
+            });
+        });
+
+        test('forwards a custom propsDenylist to the serializer', async () => {
+            const ThrowingWithSsn = defineComponent({
+                name: 'ThrowingWithSsn',
+                props: {
+                    ssn: { type: String, required: true },
+                    password: { type: String, required: true },
+                },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            mount(FlareErrorBoundary, {
+                props: { attachProps: true, propsDenylist: /^ssn$/ },
+                slots: {
+                    default: () => h(ThrowingWithSsn, { ssn: '123', password: 'kept' }),
+                },
+            });
+
+            await nextTick();
+
+            const context = mockReport.mock.calls[0][1];
+            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'kept' });
+        });
+
         test('passes serialized componentProps into the fallback slot when attachProps is true', async () => {
             const ThrowingWithUserId = defineComponent({
                 name: 'ThrowingWithUserId',

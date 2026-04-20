@@ -1,5 +1,6 @@
 export { FlareErrorBoundary } from './FlareErrorBoundary';
 export { flareVue } from './flareVue';
+export { DEFAULT_PROPS_DENYLIST } from './constants';
 export type {
     ComponentHierarchyFrame,
     ErrorOrigin,

@@ -13,6 +13,7 @@ import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './type
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
     const attachProps = options?.attachProps ?? false;
     const propsMaxDepth = options?.propsMaxDepth ?? 2;
+    const propsDenylist = options?.propsDenylist;
 
     const initialErrorHandler = app.config.errorHandler;
 
@@ -24,9 +25,13 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         const errorOrigin = getErrorOrigin(info);
         const componentName = getComponentName(instance);
         const componentProps =
-            attachProps && instance?.$props ? serializeProps(instance.$props, propsMaxDepth) : undefined;
+            attachProps && instance?.$props ? serializeProps(instance.$props, propsMaxDepth, propsDenylist) : undefined;
         const componentHierarchy = buildComponentHierarchy(instance);
-        const componentHierarchyFrames = buildComponentHierarchyFrames(instance, { attachProps, propsMaxDepth });
+        const componentHierarchyFrames = buildComponentHierarchyFrames(instance, {
+            attachProps,
+            propsMaxDepth,
+            propsDenylist,
+        });
 
         const route = getRouteContext(app.config.globalProperties.$router);
 
