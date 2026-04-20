@@ -577,7 +577,14 @@ describe('flareVue captureWarnings', () => {
         expect(mockReportMessage).toHaveBeenCalledOnce();
         expect(mockReportMessage).toHaveBeenCalledWith(
             'Invalid prop type',
-            { vue: { message: 'Invalid prop type', componentName: 'Counter', trace: 'found in\n---> <Counter>' } },
+            {
+                vue: {
+                    type: 'warning',
+                    info: 'Invalid prop type',
+                    componentName: 'Counter',
+                    componentTrace: 'found in\n---> <Counter>',
+                },
+            },
             'VueWarning'
         );
     });
@@ -591,9 +598,10 @@ describe('flareVue captureWarnings', () => {
         app.config.warnHandler!('Missing required prop', instance, trace);
 
         const context = mockReportMessage.mock.calls[0][1];
+        expect(context.vue.type).toBe('warning');
         expect(context.vue.componentName).toBe('UserProfile');
-        expect(context.vue.trace).toBe(trace);
-        expect(context.vue.message).toBe('Missing required prop');
+        expect(context.vue.componentTrace).toBe(trace);
+        expect(context.vue.info).toBe('Missing required prop');
     });
 
     test('uses AnonymousComponent when instance is null', () => {

@@ -7,7 +7,7 @@ import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
-import { FlareVueContext, FlareVueOptions } from './types';
+import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
     const initialErrorHandler = app.config.errorHandler;
@@ -59,11 +59,17 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             const componentName = getComponentName(instance);
             const route = getRouteContext(app.config.globalProperties.$router);
 
-            flare.reportMessage(
-                msg,
-                { vue: { message: msg, componentName, trace, ...(route && { route }) } },
-                'VueWarning'
-            );
+            const context: FlareVueWarningContext = {
+                vue: {
+                    type: 'warning',
+                    info: msg,
+                    componentName,
+                    componentTrace: trace,
+                    ...(route && { route }),
+                },
+            };
+
+            flare.reportMessage(msg, context, 'VueWarning');
 
             if (typeof initialWarnHandler === 'function') {
                 initialWarnHandler(msg, instance, trace);
