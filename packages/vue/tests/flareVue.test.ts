@@ -606,6 +606,46 @@ describe('flareVue', () => {
                 { flag: true },
             ]);
         });
+
+        test('redacts default sensitive keys from componentProps', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
+
+            const instance = createMockInstance('MyComponent', null, { id: 1, password: 'hunter2', token: 'abc' });
+            callHandler(app, new Error('x'), instance, 'setup function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentProps).toEqual({ id: 1, password: '[Redacted]', token: '[Redacted]' });
+        });
+
+        test('redacts default sensitive keys from hierarchy frame props', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
+
+            const parent = createMockInstance('Parent', null, { apiKey: 'zzz', flag: true });
+            const child = createMockInstance('Child', parent, { id: 1 });
+            callHandler(app, new Error('x'), child, 'render function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentHierarchyFrames.map((frame) => frame.props)).toEqual([
+                { id: 1 },
+                { apiKey: '[Redacted]', flag: true },
+            ]);
+        });
+
+        test('forwards a custom propsDenylist to the serializer', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, {
+                attachProps: true,
+                propsDenylist: /^ssn$/,
+            } satisfies FlareVueOptions);
+
+            const instance = createMockInstance('MyComponent', null, { ssn: '123', password: 'kept' });
+            callHandler(app, new Error('x'), instance, 'setup function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'kept' });
+        });
     });
 });
 

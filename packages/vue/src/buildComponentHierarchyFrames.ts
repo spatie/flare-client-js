@@ -8,6 +8,7 @@ import { ComponentHierarchyFrame } from './types';
 type BuildComponentHierarchyFramesOptions = {
     attachProps: boolean;
     propsMaxDepth: number;
+    propsDenylist?: RegExp;
 };
 
 export function buildComponentHierarchyFrames(
@@ -25,7 +26,7 @@ export function buildComponentHierarchyFrames(
         };
 
         if (options.attachProps && current.$props) {
-            frame.props = serializeProps(current.$props, options.propsMaxDepth);
+            frame.props = serializeProps(current.$props, options.propsMaxDepth, options.propsDenylist);
         }
 
         frames.push(frame);

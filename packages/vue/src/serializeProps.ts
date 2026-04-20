@@ -1,10 +1,22 @@
-export function serializeProps(value: Record<string, unknown>, maxDepth: number): Record<string, unknown> {
+import { DEFAULT_PROPS_DENYLIST } from './constants';
+
+export function serializeProps(
+    value: Record<string, unknown>,
+    maxDepth: number,
+    denylist: RegExp = DEFAULT_PROPS_DENYLIST
+): Record<string, unknown> {
     const seen = new WeakSet<object>();
 
-    return serializeObject(value, 0, maxDepth, seen);
+    return serializeObject(value, 0, maxDepth, seen, denylist);
 }
 
-function serializeValue(value: unknown, depth: number, maxDepth: number, seen: WeakSet<object>): unknown {
+function serializeValue(
+    value: unknown,
+    depth: number,
+    maxDepth: number,
+    seen: WeakSet<object>,
+    denylist: RegExp
+): unknown {
     if (value === null) {
         return null;
     }
@@ -37,7 +49,9 @@ function serializeValue(value: unknown, depth: number, maxDepth: number, seen: W
         }
 
         seen.add(value);
-        const out = value.map((item) => serializeValue(item, depth + 1, maxDepth, seen));
+
+        const out = value.map((item) => serializeValue(item, depth + 1, maxDepth, seen, denylist));
+
         seen.delete(value);
 
         return out;
@@ -51,21 +65,27 @@ function serializeValue(value: unknown, depth: number, maxDepth: number, seen: W
         return '[Object]';
     }
 
-    return serializeObject(value as Record<string, unknown>, depth, maxDepth, seen);
+    return serializeObject(value as Record<string, unknown>, depth, maxDepth, seen, denylist);
 }
 
 function serializeObject(
     value: Record<string, unknown>,
     depth: number,
     maxDepth: number,
-    seen: WeakSet<object>
+    seen: WeakSet<object>,
+    denylist: RegExp
 ): Record<string, unknown> {
     seen.add(value);
 
     const out: Record<string, unknown> = {};
 
     for (const key of Object.keys(value)) {
-        out[key] = serializeValue(value[key], depth + 1, maxDepth, seen);
+        if (denylist.test(key)) {
+            out[key] = '[Redacted]';
+            continue;
+        }
+
+        out[key] = serializeValue(value[key], depth + 1, maxDepth, seen, denylist);
     }
 
     seen.delete(value);
