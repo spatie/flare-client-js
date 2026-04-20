@@ -12,7 +12,6 @@ describe('serializeProps', () => {
                     bool: true,
                     nul: null,
                     undef: undefined,
-                    big: 10n,
                 },
                 2
             )
@@ -22,7 +21,6 @@ describe('serializeProps', () => {
             bool: true,
             nul: null,
             undef: undefined,
-            big: 10n,
         });
     });
 
@@ -32,6 +30,13 @@ describe('serializeProps', () => {
 
     test('replaces symbols with "[Symbol]"', () => {
         expect(serializeProps({ sym: Symbol('x') }, 2)).toEqual({ sym: '[Symbol]' });
+    });
+
+    test('serializes bigint as a JSON-safe string', () => {
+        expect(serializeProps({ big: 10n, huge: 12345678901234567890n }, 2)).toEqual({
+            big: '10',
+            huge: '12345678901234567890',
+        });
     });
 
     test('recurses into plain objects up to maxDepth', () => {

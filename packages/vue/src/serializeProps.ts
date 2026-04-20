@@ -19,6 +19,10 @@ function serializeValue(value: unknown, depth: number, maxDepth: number, seen: W
         return '[Symbol]';
     }
 
+    if (type === 'bigint') {
+        return (value as bigint).toString();
+    }
+
     if (type !== 'object') {
         return value;
     }

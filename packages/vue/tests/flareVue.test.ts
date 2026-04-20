@@ -129,7 +129,7 @@ describe('flareVue', () => {
         expect(context.vue.errorOrigin).toBe('lifecycle');
     });
 
-    test('componentProps is a shallow copy of instance props', () => {
+    test('componentProps is a serialized copy of instance props, not the original reference', () => {
         const app = createMockApp();
         (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
 
