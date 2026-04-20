@@ -5,6 +5,12 @@ export const MAX_HIERARCHY_DEPTH = 200;
 export const DEFAULT_PROPS_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|credentials?|cookie|api[-_]?key|session|csrf|xsrf/i;
 
+export const MAX_PROP_STRING_LENGTH = 1000;
+
+export const MAX_PROP_ARRAY_LENGTH = 100;
+
+export const MAX_PROP_OBJECT_KEYS = 100;
+
 export const INFO_TO_ORIGIN: Record<string, ErrorOrigin> = {
     // Development strings
     'setup function': 'setup',
