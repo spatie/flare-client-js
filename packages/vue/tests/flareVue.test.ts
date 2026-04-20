@@ -755,6 +755,55 @@ describe('flareVue captureWarnings', () => {
         expect(mockReportMessage.mock.calls[0][0]).toBe('First warning');
         expect(mockReportMessage.mock.calls[1][0]).toBe('Second warning');
     });
+
+    test('deduplicates warnings with the same message and component', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        const instance = createMockInstance('Counter');
+        app.config.warnHandler!('Invalid prop', instance, 'trace');
+        app.config.warnHandler!('Invalid prop', instance, 'trace');
+        app.config.warnHandler!('Invalid prop', instance, 'trace');
+
+        expect(mockReportMessage).toHaveBeenCalledOnce();
+    });
+
+    test('treats the same message on different components as distinct warnings', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Invalid prop', createMockInstance('A'), 'trace');
+        app.config.warnHandler!('Invalid prop', createMockInstance('B'), 'trace');
+
+        expect(mockReportMessage).toHaveBeenCalledTimes(2);
+    });
+
+    test('still calls the initial warn handler on duplicates even if reporting is suppressed', () => {
+        const initialWarnHandler = vi.fn();
+        const app = createMockApp({ warnHandler: initialWarnHandler });
+        (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
+
+        const instance = createMockInstance('Counter');
+        app.config.warnHandler!('Invalid prop', instance, 'trace');
+        app.config.warnHandler!('Invalid prop', instance, 'trace');
+
+        expect(mockReportMessage).toHaveBeenCalledOnce();
+        expect(initialWarnHandler).toHaveBeenCalledTimes(2);
+    });
+
+    test('dedup state is per plugin install', () => {
+        const appA = createMockApp();
+        const appB = createMockApp();
+        (flareVue as Function)(appA, { captureWarnings: true } satisfies FlareVueOptions);
+        (flareVue as Function)(appB, { captureWarnings: true } satisfies FlareVueOptions);
+
+        const instance = createMockInstance('Counter');
+
+        appA.config.warnHandler!('Invalid prop', instance, 'trace');
+        appB.config.warnHandler!('Invalid prop', instance, 'trace');
+
+        expect(mockReportMessage).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe('flareVue route context', () => {

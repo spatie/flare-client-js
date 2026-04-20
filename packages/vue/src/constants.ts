@@ -11,6 +11,8 @@ export const MAX_PROP_ARRAY_LENGTH = 100;
 
 export const MAX_PROP_OBJECT_KEYS = 100;
 
+export const MAX_WARNING_DEDUP_ENTRIES = 500;
+
 export const INFO_TO_ORIGIN: Record<string, ErrorOrigin> = {
     // Development strings
     'setup function': 'setup',
