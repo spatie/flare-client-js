@@ -358,21 +358,80 @@ describe('FlareErrorBoundary', () => {
         expect(wrapper.html()).toBe('');
     });
 
-    test('error propagates when flare.report() throws', () => {
+    test('flare.report throwing is contained and fallback still renders', async () => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
         mockReport.mockImplementation(() => {
             throw new Error('report failed');
         });
 
-        // When flare.report() throws inside onErrorCaptured, the `return false` is never
-        // reached, so the error propagates instead of being contained by the boundary.
-        expect(() => {
-            mount(FlareErrorBoundary, {
-                slots: {
+        const wrapper = mount(FlareErrorBoundary, {
+            slots: {
+                default: () => h(ThrowingComponent),
+                fallback: () => h('div', 'Fallback'),
+            },
+        });
+
+        await nextTick();
+
+        expect(mockReport).toHaveBeenCalledOnce();
+        expect(wrapper.text()).toBe('Fallback');
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+            'FlareErrorBoundary: failed to report error to Flare',
+            expect.any(Error)
+        );
+
+        consoleErrorSpy.mockRestore();
+    });
+
+    test('flare.report throwing does not propagate to outer errorCaptured handlers', async () => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const outerHandler = vi.fn();
+
+        mockReport.mockImplementation(() => {
+            throw new Error('report failed');
+        });
+
+        const Parent = defineComponent({
+            errorCaptured: outerHandler,
+            render() {
+                return h(FlareErrorBoundary, null, {
                     default: () => h(ThrowingComponent),
                     fallback: () => h('div', 'Fallback'),
-                },
-            });
-        }).toThrow('report failed');
+                });
+            },
+        });
+
+        mount(Parent);
+
+        await nextTick();
+
+        expect(outerHandler).not.toHaveBeenCalled();
+
+        consoleErrorSpy.mockRestore();
+    });
+
+    test('afterSubmit still runs when flare.report throws', async () => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const afterSubmit = vi.fn();
+
+        mockReport.mockImplementation(() => {
+            throw new Error('report failed');
+        });
+
+        mount(FlareErrorBoundary, {
+            props: { afterSubmit },
+            slots: {
+                default: () => h(ThrowingComponent),
+                fallback: () => h('div', 'Fallback'),
+            },
+        });
+
+        await nextTick();
+
+        expect(afterSubmit).toHaveBeenCalledOnce();
+
+        consoleErrorSpy.mockRestore();
     });
 
     test('calls beforeEvaluate before reporting', async () => {
