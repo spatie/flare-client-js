@@ -28,13 +28,15 @@ function createMockInstance(
 
 describe('buildComponentHierarchyFrames', () => {
     test('returns an empty array for null instance', () => {
-        expect(buildComponentHierarchyFrames(null)).toEqual([]);
+        expect(buildComponentHierarchyFrames(null, { attachProps: true, propsMaxDepth: 2 })).toEqual([]);
     });
 
     test('returns a single frame for a root component', () => {
         const instance = createMockInstance('App');
 
-        expect(buildComponentHierarchyFrames(instance)).toEqual([{ component: 'App', file: null, props: {} }]);
+        expect(buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 })).toEqual([
+            { component: 'App', file: null, props: {} },
+        ]);
     });
 
     test('builds frames through $parent chain', () => {
@@ -42,7 +44,7 @@ describe('buildComponentHierarchyFrames', () => {
         const parent = createMockInstance('Layout', { parent: grandparent });
         const child = createMockInstance('Button', { parent });
 
-        const frames = buildComponentHierarchyFrames(child);
+        const frames = buildComponentHierarchyFrames(child, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames).toEqual([
             { component: 'Button', file: null, props: {} },
@@ -58,7 +60,7 @@ describe('buildComponentHierarchyFrames', () => {
             file: 'src/components/Button.vue',
         });
 
-        const frames = buildComponentHierarchyFrames(child);
+        const frames = buildComponentHierarchyFrames(child, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames[0].file).toBe('src/components/Button.vue');
         expect(frames[1].file).toBe('src/App.vue');
@@ -67,7 +69,7 @@ describe('buildComponentHierarchyFrames', () => {
     test('sets file to null when __file is not present', () => {
         const instance = createMockInstance('App');
 
-        const frames = buildComponentHierarchyFrames(instance);
+        const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames[0].file).toBeNull();
     });
@@ -79,7 +81,7 @@ describe('buildComponentHierarchyFrames', () => {
             props: { userId: 42, name: 'Alice' },
         });
 
-        const frames = buildComponentHierarchyFrames(child);
+        const frames = buildComponentHierarchyFrames(child, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames[0].props).toEqual({ userId: 42, name: 'Alice' });
         expect(frames[1].props).toEqual({});
@@ -89,22 +91,22 @@ describe('buildComponentHierarchyFrames', () => {
         const originalProps = { userId: 42 };
         const instance = createMockInstance('UserCard', { props: originalProps });
 
-        const frames = buildComponentHierarchyFrames(instance);
+        const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames[0].props).toEqual({ userId: 42 });
         expect(frames[0].props).not.toBe(originalProps);
     });
 
-    test('sets props to null when $props is null', () => {
+    test('omits props when $props is null and attachProps is true', () => {
         const instance = {
             $options: { __name: 'App' },
             $parent: null,
             $props: null,
         } as unknown as ComponentPublicInstance;
 
-        const frames = buildComponentHierarchyFrames(instance);
+        const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 });
 
-        expect(frames[0].props).toBeNull();
+        expect('props' in frames[0]).toBe(false);
     });
 
     test('uses AnonymousComponent for unnamed components in the chain', () => {
@@ -115,7 +117,7 @@ describe('buildComponentHierarchyFrames', () => {
             $props: {},
         } as unknown as ComponentPublicInstance;
 
-        const frames = buildComponentHierarchyFrames(child);
+        const frames = buildComponentHierarchyFrames(child, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames[0].component).toBe('AnonymousComponent');
         expect(frames[1].component).toBe('App');
@@ -128,7 +130,7 @@ describe('buildComponentHierarchyFrames', () => {
             current = createMockInstance(`Component${i}`, { parent: current });
         }
 
-        const frames = buildComponentHierarchyFrames(current);
+        const frames = buildComponentHierarchyFrames(current, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames).toHaveLength(MAX_HIERARCHY_DEPTH);
         expect(frames[0].component).toBe(`Component${MAX_HIERARCHY_DEPTH + 49}`);
@@ -148,7 +150,7 @@ describe('buildComponentHierarchyFrames', () => {
             props: { userId: 42, tab: 'settings' },
         });
 
-        const frames = buildComponentHierarchyFrames(page);
+        const frames = buildComponentHierarchyFrames(page, { attachProps: true, propsMaxDepth: 2 });
 
         expect(frames).toEqual([
             {
@@ -167,5 +169,48 @@ describe('buildComponentHierarchyFrames', () => {
                 props: {},
             },
         ]);
+    });
+
+    describe('attachProps', () => {
+        test('omits props on every frame when attachProps is false', () => {
+            const parent = createMockInstance('Parent', { props: { parentProp: 1 } });
+            const child = createMockInstance('Child', { parent, props: { childProp: 2 } });
+
+            const frames = buildComponentHierarchyFrames(child, { attachProps: false, propsMaxDepth: 2 });
+
+            expect(frames).toEqual([
+                { component: 'Child', file: null },
+                { component: 'Parent', file: null },
+            ]);
+            frames.forEach((frame) => expect('props' in frame).toBe(false));
+        });
+
+        test('includes serialized props on each frame when attachProps is true', () => {
+            const parent = createMockInstance('Parent', { props: { flag: true } });
+            const child = createMockInstance('Child', { parent, props: { count: 3 } });
+
+            const frames = buildComponentHierarchyFrames(child, { attachProps: true, propsMaxDepth: 2 });
+
+            expect(frames).toEqual([
+                { component: 'Child', file: null, props: { count: 3 } },
+                { component: 'Parent', file: null, props: { flag: true } },
+            ]);
+        });
+
+        test('forwards propsMaxDepth to serializer', () => {
+            const instance = createMockInstance('X', { props: { deep: { a: { b: 1 } } } });
+
+            const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 1 });
+
+            expect(frames[0].props).toEqual({ deep: { a: '[Object]' } });
+        });
+
+        test('replaces functions in props with "[Function]" sentinel', () => {
+            const instance = createMockInstance('X', { props: { onClick: () => 0 } });
+
+            const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 });
+
+            expect(frames[0].props).toEqual({ onClick: '[Function]' });
+        });
     });
 });

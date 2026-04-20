@@ -8,6 +8,7 @@ import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
+import { serializeProps } from './serializeProps';
 import { ComponentHierarchyFrame, FlareErrorBoundaryHookParams, FlareVueContext } from './types';
 
 export const FlareErrorBoundary = defineComponent({
@@ -36,12 +37,20 @@ export const FlareErrorBoundary = defineComponent({
             type: Array as PropType<unknown[]>,
             default: undefined,
         },
+        attachProps: {
+            type: Boolean,
+            default: false,
+        },
+        propsMaxDepth: {
+            type: Number,
+            default: 2,
+        },
     },
 
     setup(props, { slots }) {
         const currentInstance = getCurrentInstance();
         const error = ref<Error | null>(null);
-        const componentProps = ref<Record<string, unknown> | null>(null);
+        const componentProps = ref<Record<string, unknown> | undefined>(undefined);
         const componentHierarchy = ref<string[]>([]);
         const componentHierarchyFrames = ref<ComponentHierarchyFrame[]>([]);
 
@@ -49,7 +58,7 @@ export const FlareErrorBoundary = defineComponent({
             props.onReset?.(error.value);
 
             error.value = null;
-            componentProps.value = null;
+            componentProps.value = undefined;
             componentHierarchy.value = [];
             componentHierarchyFrames.value = [];
         };
@@ -76,12 +85,18 @@ export const FlareErrorBoundary = defineComponent({
             props.beforeEvaluate?.({ error: errorToReport, instance, info });
 
             const hierarchy = buildComponentHierarchy(instance);
-            const hierarchyFrames = buildComponentHierarchyFrames(instance);
+            const hierarchyFrames = buildComponentHierarchyFrames(instance, {
+                attachProps: props.attachProps,
+                propsMaxDepth: props.propsMaxDepth,
+            });
             const componentName = getComponentName(instance);
 
             error.value = errorToReport;
 
-            const instanceProps = instance?.$props ? { ...instance.$props } : null;
+            const instanceProps =
+                props.attachProps && instance?.$props
+                    ? serializeProps(instance.$props, props.propsMaxDepth)
+                    : undefined;
 
             const errorOrigin = getErrorOrigin(info);
 
@@ -92,7 +107,7 @@ export const FlareErrorBoundary = defineComponent({
                     info,
                     errorOrigin,
                     componentName,
-                    componentProps: instanceProps,
+                    ...(instanceProps && { componentProps: instanceProps }),
                     componentHierarchy: hierarchy,
                     componentHierarchyFrames: hierarchyFrames,
                     ...(route && { route }),
@@ -119,7 +134,7 @@ export const FlareErrorBoundary = defineComponent({
                 if (slots.fallback) {
                     return slots.fallback({
                         error: error.value,
-                        componentProps: componentProps.value,
+                        ...(componentProps.value !== undefined && { componentProps: componentProps.value }),
                         componentHierarchy: componentHierarchy.value,
                         componentHierarchyFrames: componentHierarchyFrames.value,
                         resetErrorBoundary,

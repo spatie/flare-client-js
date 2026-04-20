@@ -97,7 +97,7 @@ describe('flareVue', () => {
 
     test('passes vue context with info, errorOrigin, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', () => {
         const app = createMockApp();
-        (flareVue as Function)(app);
+        (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
 
         const grandparent = createMockInstance('App');
         const parent = createMockInstance('Layout', grandparent);
@@ -131,7 +131,7 @@ describe('flareVue', () => {
 
     test('componentProps is a shallow copy of instance props', () => {
         const app = createMockApp();
-        (flareVue as Function)(app);
+        (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
 
         const originalProps = { userId: 42 };
         const instance = createMockInstance('UserCard', null, originalProps);
@@ -229,7 +229,7 @@ describe('flareVue', () => {
 
         const context = mockReport.mock.calls[0][1];
         expect(context.vue.componentName).toBe('AnonymousComponent');
-        expect(context.vue.componentProps).toBeNull();
+        expect('componentProps' in context.vue).toBe(false);
         expect(context.vue.componentHierarchy).toEqual([]);
         expect(context.vue.componentHierarchyFrames).toEqual([]);
     });
@@ -542,6 +542,70 @@ describe('flareVue', () => {
         app.config.errorHandler!(new Error('test'), null, 'setup function');
 
         expect(callOrder).toEqual(['report', 'afterSubmit', 'initialHandler']);
+    });
+
+    describe('attachProps', () => {
+        test('omits componentProps from payload by default', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app);
+
+            const instance = createMockInstance('MyComponent', null, { userId: 1 });
+            callHandler(app, new Error('x'), instance, 'setup function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect('componentProps' in context.vue).toBe(false);
+        });
+
+        test('omits frame.props on every hierarchy frame by default', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app);
+
+            const parent = createMockInstance('Parent', null, { flag: true });
+            const child = createMockInstance('Child', parent, { id: 1 });
+            callHandler(app, new Error('x'), child, 'render function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            context.vue.componentHierarchyFrames.forEach((frame) => {
+                expect('props' in frame).toBe(false);
+            });
+        });
+
+        test('includes serialized componentProps when attachProps is true', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
+
+            const instance = createMockInstance('MyComponent', null, { userId: 42, onClick: () => 0 });
+            callHandler(app, new Error('x'), instance, 'setup function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentProps).toEqual({ userId: 42, onClick: '[Function]' });
+        });
+
+        test('forwards propsMaxDepth to the serializer for componentProps', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, { attachProps: true, propsMaxDepth: 1 } satisfies FlareVueOptions);
+
+            const instance = createMockInstance('MyComponent', null, { nested: { a: { b: 1 } } });
+            callHandler(app, new Error('x'), instance, 'setup function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentProps).toEqual({ nested: { a: '[Object]' } });
+        });
+
+        test('includes serialized props on each hierarchy frame when attachProps is true', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, { attachProps: true } satisfies FlareVueOptions);
+
+            const parent = createMockInstance('Parent', null, { flag: true });
+            const child = createMockInstance('Child', parent, { id: 1 });
+            callHandler(app, new Error('x'), child, 'render function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentHierarchyFrames.map((frame) => frame.props)).toEqual([
+                { id: 1 },
+                { flag: true },
+            ]);
+        });
     });
 });
 
