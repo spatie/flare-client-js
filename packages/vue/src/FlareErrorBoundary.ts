@@ -105,7 +105,9 @@ export const FlareErrorBoundary = defineComponent({
 
             const errorOrigin = getErrorOrigin(info);
 
-            const route = getRouteContext(currentInstance?.appContext.config.globalProperties.$router);
+            const route = getRouteContext(currentInstance?.appContext.config.globalProperties.$router, {
+                denylist: props.propsDenylist,
+            });
 
             const context: FlareVueContext = {
                 vue: {
