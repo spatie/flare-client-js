@@ -59,7 +59,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             return;
         }
 
-        throw errorToReport;
+        console.error(errorToReport);
     };
 
     if (options?.captureWarnings) {
