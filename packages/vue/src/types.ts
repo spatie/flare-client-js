@@ -30,6 +30,16 @@ export type FlareVueContext = {
     };
 };
 
+export type FlareVueWarningContext = {
+    vue: {
+        type: 'warning';
+        info: string;
+        componentName: string;
+        componentTrace: string;
+        route?: RouteContext;
+    };
+};
+
 export type FlareErrorBoundaryHookParams = {
     error: Error;
     instance: ComponentPublicInstance | null;
