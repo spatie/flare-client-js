@@ -1,6 +1,7 @@
 import { flare } from '@flareapp/js';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
+import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { MAX_WARNING_DEDUP_ENTRIES } from './constants';
 import { convertToError } from './convertToError';
@@ -26,12 +27,12 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         const componentName = getComponentName(instance);
         const componentProps =
             attachProps && instance?.$props ? serializeProps(instance.$props, propsMaxDepth, propsDenylist) : undefined;
+        const componentHierarchy = buildComponentHierarchy(instance);
         const componentHierarchyFrames = buildComponentHierarchyFrames(instance, {
             attachProps,
             propsMaxDepth,
             propsDenylist,
         });
-        const componentHierarchy = componentHierarchyFrames.map((frame) => frame.component);
 
         const route = getRouteContext(app.config.globalProperties.$router, { denylist: propsDenylist });
 
