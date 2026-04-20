@@ -3,7 +3,6 @@ import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
-import { MAX_WARNING_DEDUP_ENTRIES } from './constants';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
@@ -65,34 +64,22 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
     if (options?.captureWarnings) {
         const initialWarnHandler = app.config.warnHandler;
-        const seenWarnings = new Set<string>();
 
         app.config.warnHandler = (msg: string, instance: ComponentPublicInstance | null, trace: string) => {
             const componentName = getComponentName(instance);
-            const dedupKey = `${componentName}::${msg}`;
-            const isDuplicate = seenWarnings.has(dedupKey);
+            const route = getRouteContext(app.config.globalProperties.$router, { denylist: propsDenylist });
 
-            if (!isDuplicate) {
-                if (seenWarnings.size >= MAX_WARNING_DEDUP_ENTRIES) {
-                    seenWarnings.clear();
-                }
+            const context: FlareVueWarningContext = {
+                vue: {
+                    type: 'warning',
+                    info: msg,
+                    componentName,
+                    componentTrace: trace,
+                    ...(route && { route }),
+                },
+            };
 
-                seenWarnings.add(dedupKey);
-
-                const route = getRouteContext(app.config.globalProperties.$router, { denylist: propsDenylist });
-
-                const context: FlareVueWarningContext = {
-                    vue: {
-                        type: 'warning',
-                        info: msg,
-                        componentName,
-                        componentTrace: trace,
-                        ...(route && { route }),
-                    },
-                };
-
-                flare.reportMessage(msg, context, 'VueWarning');
-            }
+            flare.reportMessage(msg, context, 'VueWarning');
 
             if (typeof initialWarnHandler === 'function') {
                 initialWarnHandler(msg, instance, trace);
