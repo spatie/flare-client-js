@@ -5,6 +5,7 @@ import { ref } from 'vue';
 import { flare } from '../shared/initFlare';
 
 import AsyncErrorButton from './AsyncErrorButton.vue';
+import AttachPropsDemo from './AttachPropsDemo.vue';
 import BuggyComponent from './BuggyComponent.vue';
 import Button from './Button.vue';
 import ResetKeysTest from './ResetKeysTest.vue';
@@ -12,6 +13,7 @@ import WarnTrigger from './WarnTrigger.vue';
 
 const showBuggy = ref(false);
 const showWarnTrigger = ref(false);
+const showAttachProps = ref(false);
 </script>
 
 <template>
@@ -130,6 +132,45 @@ const showWarnTrigger = ref(false);
     </Button>
     <!-- @vue-ignore -->
     <WarnTrigger v-if="showWarnTrigger" count="not-a-number" />
+    <Button
+        @click="
+            () => {
+                console.log('Triggering attachProps demo');
+                showAttachProps = true;
+            }
+        "
+    >
+        Trigger attachProps demo
+    </Button>
+    <FlareErrorBoundary v-if="showAttachProps" :attach-props="true" :props-max-depth="2">
+        <AttachPropsDemo
+            :config="{
+                theme: 'dark',
+                nested: { layers: { a: 1, b: 2 } },
+                onClick: () => console.log('clicked'),
+            }"
+        />
+        <template #fallback="{ error, componentProps, resetErrorBoundary }">
+            <div class="space-y-1">
+                <p>attachProps demo caught: {{ error.message }}</p>
+                <details class="text-xs text-gray-500" open>
+                    <summary>Serialized componentProps</summary>
+                    <pre class="mt-1 overflow-auto text-xs">{{ JSON.stringify(componentProps, null, 2) }}</pre>
+                </details>
+                <button
+                    class="rounded-md bg-black px-2 py-1 text-sm font-medium text-white"
+                    @click="
+                        () => {
+                            showAttachProps = false;
+                            resetErrorBoundary();
+                        }
+                    "
+                >
+                    Reset
+                </button>
+            </div>
+        </template>
+    </FlareErrorBoundary>
     <Button
         @click="
             () => {
