@@ -134,7 +134,7 @@ export const FlareErrorBoundary = defineComponent({
                 if (slots.fallback) {
                     return slots.fallback({
                         error: error.value,
-                        ...(componentProps.value !== undefined && { componentProps: componentProps.value }),
+                        ...(componentProps.value && { componentProps: componentProps.value }),
                         componentHierarchy: componentHierarchy.value,
                         componentHierarchyFrames: componentHierarchyFrames.value,
                         resetErrorBoundary,

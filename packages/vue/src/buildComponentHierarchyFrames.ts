@@ -5,7 +5,7 @@ import { getComponentName } from './getComponentName';
 import { serializeProps } from './serializeProps';
 import { ComponentHierarchyFrame } from './types';
 
-export type BuildComponentHierarchyFramesOptions = {
+type BuildComponentHierarchyFramesOptions = {
     attachProps: boolean;
     propsMaxDepth: number;
 };
