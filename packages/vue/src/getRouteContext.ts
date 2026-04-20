@@ -1,6 +1,13 @@
+import { serializeProps } from './serializeProps';
 import type { RouteContext } from './types';
 
-export function getRouteContext(router: unknown): RouteContext | null {
+type GetRouteContextOptions = {
+    denylist?: RegExp;
+};
+
+const ROUTE_PARAMS_DEPTH = 2;
+
+export function getRouteContext(router: unknown, options: GetRouteContextOptions = {}): RouteContext | null {
     if (!router || typeof router !== 'object' || !('currentRoute' in router)) {
         return null;
     }
@@ -20,12 +27,15 @@ export function getRouteContext(router: unknown): RouteContext | null {
     const r = route as Record<string, unknown>;
     const name = r.name;
 
+    const params = r.params && typeof r.params === 'object' ? (r.params as Record<string, unknown>) : {};
+    const query = r.query && typeof r.query === 'object' ? (r.query as Record<string, unknown>) : {};
+
     return {
         name: typeof name === 'string' ? name : typeof name === 'symbol' ? name.toString() : null,
         path: typeof r.path === 'string' ? r.path : '',
         fullPath: typeof r.fullPath === 'string' ? r.fullPath : '',
-        params: (r.params && typeof r.params === 'object' ? r.params : {}) as Record<string, unknown>,
-        query: (r.query && typeof r.query === 'object' ? r.query : {}) as Record<string, unknown>,
+        params: serializeProps(params, ROUTE_PARAMS_DEPTH, options.denylist),
+        query: serializeProps(query, ROUTE_PARAMS_DEPTH, options.denylist),
         hash: typeof r.hash === 'string' ? r.hash : '',
         matched: Array.isArray(r.matched)
             ? r.matched.map((record: unknown) => {

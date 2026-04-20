@@ -33,7 +33,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             propsDenylist,
         });
 
-        const route = getRouteContext(app.config.globalProperties.$router);
+        const route = getRouteContext(app.config.globalProperties.$router, { denylist: propsDenylist });
 
         const context: FlareVueContext = {
             vue: {
@@ -67,7 +67,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         app.config.warnHandler = (msg: string, instance: ComponentPublicInstance | null, trace: string) => {
             const componentName = getComponentName(instance);
-            const route = getRouteContext(app.config.globalProperties.$router);
+            const route = getRouteContext(app.config.globalProperties.$router, { denylist: propsDenylist });
 
             const context: FlareVueWarningContext = {
                 vue: {

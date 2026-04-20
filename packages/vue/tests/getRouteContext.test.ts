@@ -142,4 +142,90 @@ describe('getRouteContext', () => {
         expect(result.query).toEqual({ version: '3' });
         expect(result.fullPath).toBe('/docs?version=3#api');
     });
+
+    describe('serialization of params and query', () => {
+        test('redacts access_token in query via the default denylist', () => {
+            const router = createMockRouter({
+                name: 'oauth',
+                path: '/oauth/callback',
+                fullPath: '/oauth/callback?access_token=xyz&state=abc',
+                params: {},
+                query: { access_token: 'xyz', state: 'abc' },
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.query).toEqual({
+                access_token: '[Redacted]',
+                state: 'abc',
+            });
+        });
+
+        test('redacts keys matching the denylist in query', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: {},
+                query: { token: 'xyz', safe: 'ok' },
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.query).toEqual({ token: '[Redacted]', safe: 'ok' });
+        });
+
+        test('redacts keys matching the denylist in params', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: { sessionId: 'z', id: '42' },
+                query: {},
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.params).toEqual({ sessionId: '[Redacted]', id: '42' });
+        });
+
+        test('accepts a custom denylist', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: {},
+                query: { ssn: '123', token: 'kept' },
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router, { denylist: /^ssn$/ })!.query).toEqual({
+                ssn: '[Redacted]',
+                token: 'kept',
+            });
+        });
+
+        test('caps huge query object key counts', () => {
+            const query: Record<string, string> = {};
+            for (let i = 0; i < 150; i++) {
+                query[`k${i}`] = String(i);
+            }
+
+            const result = getRouteContext(
+                createMockRouter({
+                    name: 'r',
+                    path: '/',
+                    fullPath: '/',
+                    params: {},
+                    query,
+                    hash: '',
+                    matched: [],
+                })
+            )!;
+
+            expect(Object.keys(result.query)).toHaveLength(101);
+            expect(result.query['…']).toBe('[50 more keys]');
+        });
+    });
 });
