@@ -78,6 +78,7 @@ describe('FlareErrorBoundary', () => {
 
     test('passes vue context with info, errorOrigin, componentName, componentProps, componentHierarchy, and componentHierarchyFrames', async () => {
         mount(FlareErrorBoundary, {
+            props: { attachProps: true },
             slots: {
                 default: () => h(ThrowingComponent),
                 fallback: () => h('div', 'Error'),
@@ -101,6 +102,7 @@ describe('FlareErrorBoundary', () => {
 
     test('captures componentProps from the erroring component', async () => {
         mount(FlareErrorBoundary, {
+            props: { attachProps: true },
             slots: {
                 default: () => h(ThrowingComponentWithProps, { userId: 42, name: 'Alice' }),
                 fallback: () => h('div', 'Error'),
@@ -114,12 +116,13 @@ describe('FlareErrorBoundary', () => {
     });
 
     test('fallback slot receives componentProps', async () => {
-        let receivedProps: Record<string, unknown> | null = null;
+        let receivedProps: Record<string, unknown> | undefined;
 
         mount(FlareErrorBoundary, {
+            props: { attachProps: true },
             slots: {
                 default: () => h(ThrowingComponentWithProps, { userId: 42, name: 'Alice' }),
-                fallback: (props: { componentProps: Record<string, unknown> | null }) => {
+                fallback: (props: { componentProps?: Record<string, unknown> }) => {
                     receivedProps = props.componentProps;
                     return h('div', 'Error');
                 },
@@ -193,6 +196,7 @@ describe('FlareErrorBoundary', () => {
         let receivedFrames: ComponentHierarchyFrame[] = [];
 
         mount(FlareErrorBoundary, {
+            props: { attachProps: true },
             slots: {
                 default: () => h(ThrowingComponent),
                 fallback: (props: { componentHierarchyFrames: ComponentHierarchyFrame[] }) => {
@@ -877,5 +881,135 @@ describe('FlareErrorBoundary', () => {
         expect(beforeEvaluate).toHaveBeenCalledTimes(2);
         expect(beforeSubmit).toHaveBeenCalledTimes(2);
         expect(afterSubmit).toHaveBeenCalledTimes(2);
+    });
+
+    describe('attachProps', () => {
+        test('omits componentProps from the reported context by default', async () => {
+            const ThrowingWithUserId = defineComponent({
+                name: 'ThrowingWithUserId',
+                props: { userId: { type: Number, required: true } },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            mount(FlareErrorBoundary, {
+                slots: { default: () => h(ThrowingWithUserId, { userId: 7 }) },
+            });
+
+            await nextTick();
+
+            const context = mockReport.mock.calls[0][1];
+            expect('componentProps' in context.vue).toBe(false);
+        });
+
+        test('includes serialized componentProps when attachProps is true', async () => {
+            const ThrowingWithUserId = defineComponent({
+                name: 'ThrowingWithUserId',
+                props: { userId: { type: Number, required: true } },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            mount(FlareErrorBoundary, {
+                props: { attachProps: true },
+                slots: { default: () => h(ThrowingWithUserId, { userId: 7 }) },
+            });
+
+            await nextTick();
+
+            const context = mockReport.mock.calls[0][1];
+            expect(context.vue.componentProps).toEqual({ userId: 7 });
+        });
+
+        test('forwards propsMaxDepth to the serializer', async () => {
+            const ThrowingWithData = defineComponent({
+                name: 'ThrowingWithData',
+                props: { data: { type: Object, required: true } },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            mount(FlareErrorBoundary, {
+                props: { attachProps: true, propsMaxDepth: 1 },
+                slots: { default: () => h(ThrowingWithData, { data: { nested: { deep: 1 } } }) },
+            });
+
+            await nextTick();
+
+            const context = mockReport.mock.calls[0][1];
+            expect(context.vue.componentProps).toEqual({ data: { nested: '[Object]' } });
+        });
+
+        test('omits componentProps from fallback slot by default', async () => {
+            const ThrowingWithUserId = defineComponent({
+                name: 'ThrowingWithUserId',
+                props: { userId: { type: Number, required: true } },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            let slotProps: Record<string, unknown> | undefined;
+
+            mount(FlareErrorBoundary, {
+                slots: {
+                    default: () => h(ThrowingWithUserId, { userId: 7 }),
+                    fallback: (props: Record<string, unknown>) => {
+                        slotProps = props;
+                        return h('div', 'fallback');
+                    },
+                },
+            });
+
+            await nextTick();
+
+            expect(slotProps).toBeDefined();
+            expect('componentProps' in (slotProps as Record<string, unknown>)).toBe(false);
+        });
+
+        test('passes serialized componentProps into the fallback slot when attachProps is true', async () => {
+            const ThrowingWithUserId = defineComponent({
+                name: 'ThrowingWithUserId',
+                props: { userId: { type: Number, required: true } },
+                setup() {
+                    throw new Error('boom');
+                },
+                render() {
+                    return h('div');
+                },
+            });
+
+            let slotProps: { componentProps?: Record<string, unknown> } | undefined;
+
+            mount(FlareErrorBoundary, {
+                props: { attachProps: true },
+                slots: {
+                    default: () => h(ThrowingWithUserId, { userId: 7 }),
+                    fallback: (props: { componentProps?: Record<string, unknown> }) => {
+                        slotProps = props;
+                        return h('div', 'fallback');
+                    },
+                },
+            });
+
+            await nextTick();
+
+            expect(slotProps?.componentProps).toEqual({ userId: 7 });
+        });
     });
 });

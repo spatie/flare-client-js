@@ -7,9 +7,13 @@ import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
+import { serializeProps } from './serializeProps';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
+    const attachProps = options?.attachProps ?? false;
+    const propsMaxDepth = options?.propsMaxDepth ?? 2;
+
     const initialErrorHandler = app.config.errorHandler;
 
     app.config.errorHandler = (error: unknown, instance: ComponentPublicInstance | null, info: string) => {
@@ -19,9 +23,10 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const errorOrigin = getErrorOrigin(info);
         const componentName = getComponentName(instance);
-        const componentProps = instance?.$props ? { ...instance.$props } : null;
+        const componentProps =
+            attachProps && instance?.$props ? serializeProps(instance.$props, propsMaxDepth) : undefined;
         const componentHierarchy = buildComponentHierarchy(instance);
-        const componentHierarchyFrames = buildComponentHierarchyFrames(instance);
+        const componentHierarchyFrames = buildComponentHierarchyFrames(instance, { attachProps, propsMaxDepth });
 
         const route = getRouteContext(app.config.globalProperties.$router);
 
@@ -30,7 +35,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
                 info,
                 errorOrigin,
                 componentName,
-                componentProps,
+                ...(componentProps && { componentProps }),
                 componentHierarchy,
                 componentHierarchyFrames,
                 ...(route && { route }),
