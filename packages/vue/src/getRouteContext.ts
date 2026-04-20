@@ -1,5 +1,5 @@
 import { serializeProps } from './serializeProps';
-import type { RouteContext } from './types';
+import type { RouteContext, RouteParamValue, RouteQueryValue } from './types';
 
 type GetRouteContextOptions = {
     denylist?: RegExp;
@@ -34,8 +34,11 @@ export function getRouteContext(router: unknown, options: GetRouteContextOptions
         name: typeof name === 'string' ? name : typeof name === 'symbol' ? name.toString() : null,
         path: typeof r.path === 'string' ? r.path : '',
         fullPath: typeof r.fullPath === 'string' ? r.fullPath : '',
-        params: serializeProps(params, ROUTE_PARAMS_DEPTH, options.denylist),
-        query: serializeProps(query, ROUTE_PARAMS_DEPTH, options.denylist),
+        params: serializeProps(params, ROUTE_PARAMS_DEPTH, options.denylist) as Record<string, RouteParamValue>,
+        query: serializeProps(query, ROUTE_PARAMS_DEPTH, options.denylist) as Record<
+            string,
+            RouteQueryValue | RouteQueryValue[]
+        >,
         hash: typeof r.hash === 'string' ? r.hash : '',
         matched: Array.isArray(r.matched)
             ? r.matched.map((record: unknown) => {

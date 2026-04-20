@@ -8,12 +8,16 @@ export type ComponentHierarchyFrame = {
     props?: Record<string, unknown>;
 };
 
+export type RouteParamValue = string | string[];
+
+export type RouteQueryValue = string | null;
+
 export type RouteContext = {
     name: string | null;
     path: string;
     fullPath: string;
-    params: Record<string, unknown>;
-    query: Record<string, unknown>;
+    params: Record<string, RouteParamValue>;
+    query: Record<string, RouteQueryValue | RouteQueryValue[]>;
     hash: string;
     matched: string[];
 };
