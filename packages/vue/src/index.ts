@@ -10,4 +10,6 @@ export type {
     FlareVueOptions,
     FlareVueWarningContext,
     RouteContext,
+    RouteParamValue,
+    RouteQueryValue,
 } from './types';
