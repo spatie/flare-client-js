@@ -2,7 +2,6 @@ import { flare } from '@flareapp/js';
 import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from 'vue';
 
-import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
@@ -88,12 +87,12 @@ export const FlareErrorBoundary = defineComponent({
 
             props.beforeEvaluate?.({ error: errorToReport, instance, info });
 
-            const hierarchy = buildComponentHierarchy(instance);
             const hierarchyFrames = buildComponentHierarchyFrames(instance, {
                 attachProps: props.attachProps,
                 propsMaxDepth: props.propsMaxDepth,
                 propsDenylist: props.propsDenylist,
             });
+            const hierarchy = hierarchyFrames.map((frame) => frame.component);
             const componentName = getComponentName(instance);
 
             error.value = errorToReport;
