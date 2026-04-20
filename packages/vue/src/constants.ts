@@ -1,6 +1,6 @@
 import { ErrorOrigin } from './types';
 
-export const MAX_HIERARCHY_DEPTH = 200;
+export const MAX_HIERARCHY_DEPTH = 50;
 
 export const DEFAULT_PROPS_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|credentials?|cookie|api[-_]?key|session|csrf|xsrf/i;
