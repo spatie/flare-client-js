@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ComponentPublicInstance } from 'vue';
 
 import { flareVue } from '../src/flareVue';
@@ -50,19 +50,16 @@ function callHandler(
     app: ReturnType<typeof createMockApp>,
     ...args: Parameters<NonNullable<typeof app.config.errorHandler>>
 ) {
-    app.config.errorHandler!(...args);
+    try {
+        app.config.errorHandler!(...args);
+    } catch {
+        // Handler re-throws when no initial error handler exists
+    }
 }
-
-let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
     mockReport.mockReset();
     mockReportMessage.mockReset();
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-});
-
-afterEach(() => {
-    consoleErrorSpy.mockRestore();
 });
 
 describe('flareVue', () => {
@@ -193,36 +190,16 @@ describe('flareVue', () => {
         }).not.toThrow();
     });
 
-    test('does not throw when no initial error handler exists', () => {
+    test('throws when no initial error handler exists', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
         expect(() => {
             app.config.errorHandler!(new Error('test error'), null, 'setup function');
-        }).not.toThrow();
+        }).toThrow('test error');
     });
 
-    test('logs the error to console when no initial error handler exists', () => {
-        const app = createMockApp();
-        (flareVue as Function)(app);
-
-        const error = new Error('test error');
-        app.config.errorHandler!(error, null, 'setup function');
-
-        expect(consoleErrorSpy).toHaveBeenCalledWith(error);
-    });
-
-    test('does not log to console when an initial error handler exists', () => {
-        const initialHandler = vi.fn();
-        const app = createMockApp({ errorHandler: initialHandler });
-        (flareVue as Function)(app);
-
-        app.config.errorHandler!(new Error('test'), null, 'setup function');
-
-        expect(consoleErrorSpy).not.toHaveBeenCalled();
-    });
-
-    test('reports to flare when no initial handler exists', () => {
+    test('reports to flare before throwing when no initial handler exists', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
@@ -257,15 +234,19 @@ describe('flareVue', () => {
         expect(context.vue.componentHierarchyFrames).toEqual([]);
     });
 
-    test('logs the converted error (not the raw value) when no initial handler exists', () => {
+    test('re-throws the converted error, not the raw value, when no initial handler exists', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
-        app.config.errorHandler!('raw string', null, 'setup function');
+        let thrown: unknown;
+        try {
+            app.config.errorHandler!('raw string', null, 'setup function');
+        } catch (e) {
+            thrown = e;
+        }
 
-        const logged = consoleErrorSpy.mock.calls[0][0];
-        expect(logged).toBeInstanceOf(Error);
-        expect((logged as Error).message).toBe('raw string');
+        expect(thrown).toBeInstanceOf(Error);
+        expect((thrown as Error).message).toBe('raw string');
     });
 
     test('reports each error independently when called multiple times', () => {
