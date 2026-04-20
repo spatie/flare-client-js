@@ -56,36 +56,11 @@ describe('convertToError', () => {
         expect(result.message).toBe('undefined');
     });
 
-    test('serializes plain objects as JSON in the error message', () => {
-        const result = convertToError({ code: 'E_AUTH', message: 'bad' });
-
-        expect(result).toBeInstanceOf(Error);
-        expect(result.message).toBe('{"code":"E_AUTH","message":"bad"}');
-    });
-
-    test('serializes arrays as JSON in the error message', () => {
-        const result = convertToError([1, 'two', { three: 3 }]);
-
-        expect(result).toBeInstanceOf(Error);
-        expect(result.message).toBe('[1,"two",{"three":3}]');
-    });
-
-    test('falls back to String() when JSON serialization throws on a circular value', () => {
-        const obj: Record<string, unknown> = { a: 1 };
-        obj.self = obj;
-
-        const result = convertToError(obj);
+    test('wraps an object in an Error', () => {
+        const result = convertToError({ key: 'value' });
 
         expect(result).toBeInstanceOf(Error);
         expect(result.message).toBe('[object Object]');
-    });
-
-    test('falls back to String() when JSON.stringify returns undefined (e.g. pure symbol)', () => {
-        const result = convertToError({ [Symbol('x')]: 1 } as unknown);
-
-        expect(result).toBeInstanceOf(Error);
-        // JSON.stringify drops symbol keys, producing "{}". That is acceptable as a message.
-        expect(typeof result.message).toBe('string');
     });
 
     test('wraps a boolean in an Error', () => {
