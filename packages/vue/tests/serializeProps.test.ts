@@ -242,6 +242,45 @@ describe('serializeProps', () => {
             });
         });
 
+        test('redacts additional financial and credential keys', () => {
+            expect(
+                serializeProps(
+                    {
+                        bearer: 'xyz',
+                        bearerToken: 'xyz',
+                        oauthCode: 'abc',
+                        privateKey: '-----BEGIN',
+                        private_key: '-----BEGIN',
+                        pin: '1234',
+                        ssn: '123-45-6789',
+                        cardNumber: '4111111111111111',
+                        card_number: '4111111111111111',
+                        cvv: '123',
+                    },
+                    5
+                )
+            ).toEqual({
+                bearer: '[Redacted]',
+                bearerToken: '[Redacted]',
+                oauthCode: '[Redacted]',
+                privateKey: '[Redacted]',
+                private_key: '[Redacted]',
+                pin: '[Redacted]',
+                ssn: '[Redacted]',
+                cardNumber: '[Redacted]',
+                card_number: '[Redacted]',
+                cvv: '[Redacted]',
+            });
+        });
+
+        test('does not match "pin" or "ssn" as substrings of unrelated keys', () => {
+            expect(serializeProps({ spinner: 'x', lesson: 'y', pinboard: 'z' }, 2)).toEqual({
+                spinner: 'x',
+                lesson: 'y',
+                pinboard: 'z',
+            });
+        });
+
         test('accepts a custom denylist that replaces the default', () => {
             expect(serializeProps({ password: 'p', foo: 'x', bar: 'y' }, 2, /^foo$/)).toEqual({
                 password: 'p',
