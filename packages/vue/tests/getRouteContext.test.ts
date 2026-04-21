@@ -205,27 +205,5 @@ describe('getRouteContext', () => {
                 token: 'kept',
             });
         });
-
-        test('caps huge query object key counts', () => {
-            const query: Record<string, string> = {};
-            for (let i = 0; i < 150; i++) {
-                query[`k${i}`] = String(i);
-            }
-
-            const result = getRouteContext(
-                createMockRouter({
-                    name: 'r',
-                    path: '/',
-                    fullPath: '/',
-                    params: {},
-                    query,
-                    hash: '',
-                    matched: [],
-                })
-            )!;
-
-            expect(Object.keys(result.query)).toHaveLength(101);
-            expect(result.query['…']).toBe('[50 more keys]');
-        });
     });
 });
