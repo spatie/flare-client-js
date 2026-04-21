@@ -43,7 +43,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        flare.report(errorObject, finalContext, { react: { errorInfo } });
+        Promise.resolve(flare.report(errorObject, finalContext, { react: { errorInfo } })).catch(() => {});
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });
     };
