@@ -37,9 +37,10 @@ descendant components and can prevent them from propagating, which is enough to 
 The component uses `onErrorCaptured` to catch errors from its slot children, stores the error in reactive state, and
 switches rendering from the default slot to a `fallback` scoped slot.
 
-The `fallback` slot is a scoped slot. It receives `error`, `componentHierarchy` (see "Structured component hierarchy
-parsing" below), and a `resetErrorBoundary` function. For simple cases, a static fallback can be provided via the
-default content of the `fallback` slot.
+The `fallback` slot is a scoped slot. It receives `error`, `componentHierarchy`, `componentHierarchyFrames` (see
+"Structured component hierarchy parsing" below), `componentProps` (only when `attachProps` is enabled and the
+erroring component had props), and a `resetErrorBoundary` function. For simple cases, a static fallback can be
+provided via the default content of the `fallback` slot.
 
 ```vue
 <!-- Static fallback -->
@@ -355,22 +356,37 @@ directly. This is something React fundamentally cannot do: React's `componentDid
 component stack string, not the component instance or its props.
 
 Props capture is opt-in via an `attachProps` option (default `false`) because props may contain sensitive data. When
-enabled, the props of the erroring component are included in the report context.
+enabled, the props of the erroring component are attached both as `componentProps` on the top level of the report
+context *and* per-frame on `componentHierarchyFrames` (each frame gets its own `props`, serialized with the same
+settings).
 
 ```ts
 // In FlareErrorBoundary
-<FlareErrorBoundary
-:
-attach - props = "true" >
-    <App / >
-    </FlareErrorBoundary>
+<FlareErrorBoundary :attach-props="true">
+    <App />
+</FlareErrorBoundary>
 
 // In flareVue()
 flareVue(app, { attachProps: true });
 ```
 
-Props are serialized with a depth limit to prevent circular references and excessive payload size. Functions and
-symbols are excluded. A configurable `propsMaxDepth` option (default 2) controls how deep nested objects are serialized.
+Props are serialized with a depth limit to prevent circular references and excessive payload size. Functions are
+replaced with `"[Function]"`, symbols with `"[Symbol]"`, bigints with their string form, circular references with
+`"[Circular]"`, and non-plain objects (class instances, `Date`, `RegExp`, `Map`, `Set`, etc.) with `"[Object]"`.
+Symbol-keyed properties are dropped.
+
+- `propsMaxDepth` (default `2`): how deep nested objects and arrays are serialized before collapsing to
+  `"[Object]"` / `"[Array]"`.
+- `propsDenylist` (default `DEFAULT_PROPS_DENYLIST`): a `RegExp` used to decide which keys are redacted to
+  `"[Redacted]"`. Applied at every depth. A custom value *replaces* the default rather than extending it.
+- `DEFAULT_PROPS_DENYLIST` is exported from `@flareapp/vue` so consumers can compose it with their own terms
+  (e.g. `new RegExp(`${DEFAULT_PROPS_DENYLIST.source}|internalId`, 'i')`).
+
+### Component hierarchy depth cap
+
+Parent-chain traversal is bounded by a `MAX_HIERARCHY_DEPTH = 50` constant in `constants.ts`. Both
+`componentHierarchy` and `componentHierarchyFrames` stop at 50 entries regardless of the actual tree size. This is
+also a safety net against pathological `$parent` cycles.
 
 #### Report context structure
 
@@ -519,32 +535,52 @@ flareVue(app);
 ## Types
 
 ```ts
+export type ErrorOrigin = 'setup' | 'render' | 'lifecycle' | 'event' | 'watcher' | 'unknown';
+
 export type ComponentHierarchyFrame = {
     component: string;
     file: string | null;
-    props: Record<string, unknown> | null;
+    props?: Record<string, unknown>;
+};
+
+export type RouteParamValue = string | string[];
+
+export type RouteQueryValue = string | null;
+
+export type RouteContext = {
+    name: string | null;
+    path: string;
+    fullPath: string;
+    params: Record<string, RouteParamValue>;
+    query: Record<string, RouteQueryValue | RouteQueryValue[]>;
+    hash: string;
+    matched: string[];
 };
 
 export type FlareVueContext = {
     vue: {
         info: string;
-        errorOrigin: string;
+        errorOrigin: ErrorOrigin;
         componentName: string;
+        componentProps?: Record<string, unknown>;
         componentHierarchy: string[];
         componentHierarchyFrames: ComponentHierarchyFrame[];
-        componentProps?: Record<string, unknown>;
-        route?: {
-            name: string | null;
-            path: string;
-            fullPath: string;
-            params: Record<string, string>;
-            query: Record<string, string>;
-            hash: string;
-            matched: string[];
-        };
+        route?: RouteContext;
     };
 };
+
+export type FlareErrorBoundaryFallbackProps = {
+    error: Error;
+    componentProps?: Record<string, unknown>;
+    componentHierarchy: string[];
+    componentHierarchyFrames: ComponentHierarchyFrame[];
+    resetErrorBoundary: () => void;
+};
 ```
+
+The `params` / `query` types mirror Vue Router's `LocationQuery` / route param shape, where a single key can carry
+either a single value or an array (e.g. `?tab=a&tab=b`). `query` values can additionally be `null` to represent
+keys without a value (`?flag`).
 
 ## Backend requirements
 
