@@ -5,18 +5,10 @@ export function serializeProps(
     maxDepth: number,
     denylist: RegExp = DEFAULT_PROPS_DENYLIST
 ): Record<string, unknown> {
-    const seen = new WeakSet<object>();
-
-    return serializeObject(value, 0, maxDepth, seen, denylist);
+    return serialize(value, 0, maxDepth, new WeakSet(), denylist) as Record<string, unknown>;
 }
 
-function serializeValue(
-    value: unknown,
-    depth: number,
-    maxDepth: number,
-    seen: WeakSet<object>,
-    denylist: RegExp
-): unknown {
+function serialize(value: unknown, depth: number, maxDepth: number, seen: WeakSet<object>, denylist: RegExp): unknown {
     if (value === null) {
         return null;
     }
@@ -50,7 +42,7 @@ function serializeValue(
 
         seen.add(value);
 
-        const out = value.map((item) => serializeValue(item, depth + 1, maxDepth, seen, denylist));
+        const out = value.map((item) => serialize(item, depth + 1, maxDepth, seen, denylist));
 
         seen.delete(value);
 
@@ -65,16 +57,6 @@ function serializeValue(
         return '[Object]';
     }
 
-    return serializeObject(value as Record<string, unknown>, depth, maxDepth, seen, denylist);
-}
-
-function serializeObject(
-    value: Record<string, unknown>,
-    depth: number,
-    maxDepth: number,
-    seen: WeakSet<object>,
-    denylist: RegExp
-): Record<string, unknown> {
     seen.add(value);
 
     const out: Record<string, unknown> = {};
@@ -85,7 +67,7 @@ function serializeObject(
             continue;
         }
 
-        out[key] = serializeValue(value[key], depth + 1, maxDepth, seen, denylist);
+        out[key] = serialize(value[key], depth + 1, maxDepth, seen, denylist);
     }
 
     seen.delete(value);
