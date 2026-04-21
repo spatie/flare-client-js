@@ -3,7 +3,7 @@ import { ErrorOrigin } from './types';
 export const MAX_HIERARCHY_DEPTH = 50;
 
 export const DEFAULT_PROPS_DENYLIST =
-    /password|passwd|pwd|token|secret|authorization|\bauth\b|credentials?|cookie|api[-_]?key|session|csrf|xsrf/i;
+    /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
 export const MAX_PROP_STRING_LENGTH = 1000;
 
