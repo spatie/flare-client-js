@@ -8,12 +8,17 @@ import AsyncErrorButton from './AsyncErrorButton.vue';
 import AttachPropsDemo from './AttachPropsDemo.vue';
 import BuggyComponent from './BuggyComponent.vue';
 import Button from './Button.vue';
+import DenylistPropsDemo from './DenylistPropsDemo.vue';
+import LifecycleErrorButton from './LifecycleErrorButton.vue';
+import NestedBoundariesDemo from './NestedBoundariesDemo.vue';
 import ResetKeysTest from './ResetKeysTest.vue';
 import WarnTrigger from './WarnTrigger.vue';
+import WatcherErrorButton from './WatcherErrorButton.vue';
 
 const showBuggy = ref(false);
 const showWarnTrigger = ref(false);
 const showAttachProps = ref(false);
+const showDenylistDemo = ref(false);
 </script>
 
 <template>
@@ -100,6 +105,19 @@ const showAttachProps = ref(false);
         Throw in @click
     </Button>
     <AsyncErrorButton />
+    <LifecycleErrorButton />
+    <WatcherErrorButton />
+    <Button
+        @click="
+            () => {
+                console.log('Throwing a plain string (not an Error instance)');
+                // eslint-disable-next-line @typescript-eslint/no-throw-literal
+                throw 'plain string thrown from Vue @click (not an Error instance)';
+            }
+        "
+    >
+        Throw non-Error value (convertToError)
+    </Button>
     <Button
         @click="
             () => {
@@ -171,6 +189,47 @@ const showAttachProps = ref(false);
             </div>
         </template>
     </FlareErrorBoundary>
+    <Button
+        @click="
+            () => {
+                console.log('Triggering default denylist props demo');
+                showDenylistDemo = true;
+            }
+        "
+    >
+        Trigger default denylist demo
+    </Button>
+    <FlareErrorBoundary v-if="showDenylistDemo" :attach-props="true" :props-max-depth="3">
+        <DenylistPropsDemo
+            :username="'alice'"
+            :password="'super-secret-pw'"
+            :auth-token="'bearer-abc-123'"
+            :api-key="'sk_live_abcdef'"
+            :session-id="'sess_xyz'"
+            :config="{ theme: 'dark', pin: '1234', cvv: '987', regular: 'visible' }"
+        />
+        <template #fallback="{ error, componentProps, resetErrorBoundary }">
+            <div class="space-y-1">
+                <p>Denylist demo caught: {{ error.message }}</p>
+                <details class="text-xs text-gray-500" open>
+                    <summary>Serialized componentProps (sensitive fields should be [Redacted])</summary>
+                    <pre class="mt-1 overflow-auto text-xs">{{ JSON.stringify(componentProps, null, 2) }}</pre>
+                </details>
+                <button
+                    class="rounded-md bg-black px-2 py-1 text-sm font-medium text-white"
+                    @click="
+                        () => {
+                            showDenylistDemo = false;
+                            resetErrorBoundary();
+                        }
+                    "
+                >
+                    Reset
+                </button>
+            </div>
+        </template>
+    </FlareErrorBoundary>
+    <NestedBoundariesDemo />
     <Button
         @click="
             () => {
