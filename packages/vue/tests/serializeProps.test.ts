@@ -127,6 +127,67 @@ describe('serializeProps', () => {
         expect(serializeProps(input as Record<string, unknown>, 2)).toEqual({ a: 1 });
     });
 
+    describe('size caps', () => {
+        test('truncates strings longer than the cap', () => {
+            const long = 'a'.repeat(1500);
+
+            const result = serializeProps({ body: long }, 2) as { body: string };
+
+            expect(result.body.startsWith('a'.repeat(1000))).toBe(true);
+            expect(result.body.endsWith('…[truncated 500 chars]')).toBe(true);
+        });
+
+        test('leaves strings at the cap untouched', () => {
+            const atLimit = 'a'.repeat(1000);
+
+            expect(serializeProps({ body: atLimit }, 2)).toEqual({ body: atLimit });
+        });
+
+        test('caps array length and appends a summary indicator', () => {
+            const arr = Array.from({ length: 150 }, (_, i) => i);
+
+            const result = serializeProps({ items: arr }, 3) as { items: unknown[] };
+
+            expect(result.items).toHaveLength(101);
+            expect(result.items.slice(0, 100)).toEqual(Array.from({ length: 100 }, (_, i) => i));
+            expect(result.items[100]).toBe('[… 50 more items]');
+        });
+
+        test('does not append an indicator for arrays at or below the cap', () => {
+            const arr = Array.from({ length: 100 }, (_, i) => i);
+
+            const result = serializeProps({ items: arr }, 3) as { items: unknown[] };
+
+            expect(result.items).toHaveLength(100);
+        });
+
+        test('caps object key count and adds a summary entry', () => {
+            const big: Record<string, number> = {};
+            for (let i = 0; i < 150; i++) {
+                big[`k${i}`] = i;
+            }
+
+            const result = serializeProps({ data: big }, 3) as { data: Record<string, unknown> };
+            const keys = Object.keys(result.data);
+
+            expect(keys).toHaveLength(101);
+            expect(keys.slice(0, 100)).toEqual(Array.from({ length: 100 }, (_, i) => `k${i}`));
+            expect(result.data['…']).toBe('[50 more keys]');
+        });
+
+        test('does not add a summary for objects at or below the cap', () => {
+            const exact: Record<string, number> = {};
+            for (let i = 0; i < 100; i++) {
+                exact[`k${i}`] = i;
+            }
+
+            const result = serializeProps(exact, 3) as Record<string, unknown>;
+
+            expect(Object.keys(result)).toHaveLength(100);
+            expect('…' in result).toBe(false);
+        });
+    });
+
     describe('denylist', () => {
         test('redacts default sensitive keys regardless of case', () => {
             expect(
