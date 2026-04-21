@@ -49,7 +49,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
-        flare.report(errorToReport, finalContext, { vue: { instance, info } });
+        Promise.resolve(flare.report(errorToReport, finalContext, { vue: { instance, info } })).catch(() => {});
 
         options?.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 
@@ -79,7 +79,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
                 },
             };
 
-            flare.reportMessage(msg, context, 'VueWarning');
+            Promise.resolve(flare.reportMessage(msg, context, 'VueWarning')).catch(() => {});
 
             if (typeof initialWarnHandler === 'function') {
                 initialWarnHandler(msg, instance, trace);
