@@ -3,8 +3,7 @@ type Params = {
     onClick: () => void;
 };
 
-export function createButton({ text, onClick }: Params) {
-    const el = document.querySelector('[data-slot="tests"]');
+export function createButton({ text, onClick }: Params): HTMLButtonElement {
     const button = document.createElement('button');
 
     button.className =
@@ -12,5 +11,5 @@ export function createButton({ text, onClick }: Params) {
     button.textContent = text;
     button.addEventListener('click', onClick);
 
-    el?.appendChild(button);
+    return button;
 }
