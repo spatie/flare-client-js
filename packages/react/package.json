@@ -29,7 +29,8 @@
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
         "test": "vitest run",
-        "typescript": "tsc --noEmit"
+        "typescript": "tsc --noEmit",
+        "release": "release-it"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
