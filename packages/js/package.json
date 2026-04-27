@@ -31,7 +31,8 @@
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=\\\"$(node -p \"require('./package.json').version\")\\\" --clean",
         "test": "vitest run",
-        "typescript": "tsc"
+        "typescript": "tsc",
+        "release": "release-it"
     },
     "dependencies": {
         "error-stack-parser": "^2.0.2"
