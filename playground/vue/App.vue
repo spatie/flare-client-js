@@ -1,72 +1,22 @@
 <script lang="ts" setup>
-import { ref } from 'vue';
-import Button from './Button.vue';
-import BuggyComponent from './BuggyComponent.vue';
-import { flare } from '../shared/initFlare';
-
-const showBuggy = ref(false);
+import { RouterLink, RouterView } from 'vue-router';
 </script>
 
 <template>
-    <Button
-        @click="
-            () => {
-                console.log('Triggering render error via BuggyComponent');
-                showBuggy = true;
-            }
-        "
-    >
-        Trigger render error
-    </Button>
-    <Button
-        @click="
-            () => {
-                showBuggy = false;
-                console.log('Reset BuggyComponent state');
-            }
-        "
-    >
-        Reset render error
-    </Button>
-    <BuggyComponent v-if="showBuggy" />
-    <Button
-        @click="
-            () => {
-                console.log('Throwing error in @click handler');
-                throw new Error('Error in Vue @click handler');
-            }
-        "
-    >
-        Throw in @click
-    </Button>
-    <Button
-        @click="
-            () => {
-                console.log('Triggering async error');
-                Promise.reject(new Error('Async error in Vue component'));
-            }
-        "
-    >
-        Async error (unhandled rejection)
-    </Button>
-    <Button
-        @click="
-            () => {
-                console.log('Calling flare.report() from Vue component');
-                flare.report(new Error('Manually reported from Vue'));
-            }
-        "
-    >
-        flare.report() from component
-    </Button>
-    <Button
-        @click="
-            () => {
-                console.log('Triggering named component render error');
-                showBuggy = true;
-            }
-        "
-    >
-        Trigger named component error
-    </Button>
+    <div class="space-y-4">
+        <nav class="flex flex-wrap items-center gap-3 text-sm">
+            <RouterLink to="/" class="rounded-md bg-gray-200 px-3 py-1 hover:bg-gray-300">Home</RouterLink>
+            <RouterLink to="/users/42?tab=settings" class="rounded-md bg-gray-200 px-3 py-1 hover:bg-gray-300">
+                User 42
+            </RouterLink>
+            <RouterLink to="/users/99" class="rounded-md bg-gray-200 px-3 py-1 hover:bg-gray-300">User 99</RouterLink>
+            <RouterLink
+                to="/users/77?token=sk_secret_123&session_id=sess_abc&tab=public&tag=a&tag=b"
+                class="rounded-md bg-gray-200 px-3 py-1 hover:bg-gray-300"
+            >
+                User 77 (denylisted query)
+            </RouterLink>
+        </nav>
+        <RouterView />
+    </div>
 </template>

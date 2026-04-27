@@ -56,7 +56,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         this.setState({ componentStack: finalContext.react.componentStack });
 
-        flare.report(error, finalContext, { react: { errorInfo } });
+        Promise.resolve(flare.report(error, finalContext, { react: { errorInfo } })).catch(() => {});
 
         this.props.afterSubmit?.({
             error,

@@ -28,17 +28,27 @@
     "scripts": {
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
+        "test": "vitest run",
         "typescript": "tsc --noEmit"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
+        "@vue/test-utils": "^2.4.0",
+        "jsdom": "^26.1.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
+        "vitest": "^3.2.1",
         "vue": "^3.0.0"
     },
     "peerDependencies": {
         "@flareapp/js": "^1.0.0",
-        "vue": "^2.0.0||^3.0.0"
+        "vue": "^3.0.0",
+        "vue-router": "^4.0.0"
+    },
+    "peerDependenciesMeta": {
+        "vue-router": {
+            "optional": true
+        }
     },
     "publishConfig": {
         "access": "public"

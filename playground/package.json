@@ -9,7 +9,8 @@
     "dependencies": {
         "@flareapp/js": "*",
         "@flareapp/react": "*",
-        "@flareapp/vue": "*"
+        "@flareapp/vue": "*",
+        "vue-router": "^4.6.4"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

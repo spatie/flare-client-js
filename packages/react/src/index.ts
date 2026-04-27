@@ -10,3 +10,5 @@ export {
     type FlareReactErrorHandlerCallback,
     type FlareReactErrorHandlerOptions,
 } from './flareReactErrorHandler';
+
+export type { ComponentStackFrame, FlareReactContext } from './types';
