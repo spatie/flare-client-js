@@ -89,37 +89,37 @@ GitHub Actions runs on every push:
 
 ## Versioning and releasing
 
-Each package is versioned and published independently.
+Each package is versioned and published independently using [release-it](https://github.com/release-it/release-it).
 
-### Bumping a version
+### Releasing a package
 
-1. Update the `version` field in the package's `package.json`
-2. Commit the version bump
-3. Tag the commit using the format `<package-name>@<version>` (e.g. `@flareapp/js@1.2.0`)
-4. Push the commit and tag
-
-```bash
-# Example: releasing @flareapp/js v1.2.0
-cd packages/js
-# Update version in package.json to 1.2.0, then:
-cd ../..
-git add packages/js/package.json
-git commit -m "Release @flareapp/js v1.2.0"
-git tag @flareapp/js@1.2.0
-git push origin main --tags
-```
-
-### Publishing to npm
-
-Run `npm publish` from the individual package directory. The `prepublishOnly` script in each package automatically runs
-a build before publishing.
+From the package directory you want to release, run:
 
 ```bash
 cd packages/js
-npm publish
+npm run release
 ```
 
-All packages have `"publishConfig": { "access": "public" }` so they are published as public scoped packages.
+This will:
+
+1. Verify your working directory is clean and you are on the `main` branch.
+2. Prompt you for the next version (patch, minor, major, or custom).
+3. Bump the `version` in the package's `package.json`.
+4. Run the package's tests (if it has a `test` script).
+5. Commit the bump with message `chore: release @flareapp/<pkg>@<version>`.
+6. Tag the commit as `@flareapp/<pkg>@<version>`.
+7. Push the commit and tag to `origin`.
+8. Build the package (via `prepublishOnly`) and publish it to npm.
+
+You must be authenticated to npm before running this. Run `npm login` once, or set the `NPM_TOKEN` environment variable. If 2FA is enabled, release-it will prompt for the OTP.
+
+To preview without making any changes, add `--dry-run`:
+
+```bash
+npm run release -- --dry-run
+```
+
+> **Note:** `release-it` v20 requires Node.js 20+. If you are on Node 18 (the repo's minimum), upgrade your local Node before running a release.
 
 ### Publishing multiple packages
 
