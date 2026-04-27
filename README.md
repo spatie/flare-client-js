@@ -104,8 +104,8 @@ This will:
 
 1. Verify your working directory is clean and you are on the `main` branch.
 2. Prompt you for the next version (patch, minor, major, or custom).
-3. Run the package's tests (if it has a `test` script).
-4. Bump the `version` in the package's `package.json`.
+3. Bump the `version` in the package's `package.json`.
+4. Run the package's tests (if it has a `test` script).
 5. Commit the bump with message `chore: release @flareapp/<pkg>@<version>`.
 6. Tag the commit as `@flareapp/<pkg>@<version>`.
 7. Push the commit and tag to `origin`.
