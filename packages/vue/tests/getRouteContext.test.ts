@@ -206,4 +206,83 @@ describe('getRouteContext', () => {
             });
         });
     });
+
+    describe('redaction of fullPath query string', () => {
+        test('redacts denylisted keys in fullPath while keeping safe keys intact', () => {
+            const router = createMockRouter({
+                name: 'user-profile',
+                path: '/users/77',
+                fullPath: '/users/77?token=sk_secret_123&session_id=sess_abc&tab=public&tag=a&tag=b',
+                params: { id: '77' },
+                query: {
+                    token: 'sk_secret_123',
+                    session_id: 'sess_abc',
+                    tab: 'public',
+                    tag: ['a', 'b'],
+                },
+                hash: '',
+                matched: [{ name: 'user-profile' }],
+            });
+
+            expect(getRouteContext(router)!.fullPath).toBe(
+                '/users/77?token=[Redacted]&session_id=[Redacted]&tab=public&tag=a&tag=b'
+            );
+        });
+
+        test('preserves hash when redacting fullPath', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/secure',
+                fullPath: '/secure?token=abc&page=2#section',
+                params: {},
+                query: { token: 'abc', page: '2' },
+                hash: '#section',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.fullPath).toBe('/secure?token=[Redacted]&page=2#section');
+        });
+
+        test('leaves fullPath untouched when there is no query string', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/about',
+                fullPath: '/about#team',
+                params: {},
+                query: {},
+                hash: '#team',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.fullPath).toBe('/about#team');
+        });
+
+        test('redacts fullPath using a custom denylist', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/?ssn=123&token=kept',
+                params: {},
+                query: { ssn: '123', token: 'kept' },
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router, { denylist: /^ssn$/ })!.fullPath).toBe('/?ssn=[Redacted]&token=kept');
+        });
+
+        test('handles keyless query entries without a value', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/?token&page=1',
+                params: {},
+                query: { token: null, page: '1' },
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.fullPath).toBe('/?token&page=1');
+        });
+    });
 });
