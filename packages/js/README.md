@@ -1,9 +1,30 @@
-# The JavaScript client for Flare to catch frontend errors
+# @flareapp/js
 
-Read the JavaScript error tracking section in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/installation) for more information.
+The core JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking. Captures frontend errors, parses
+stack traces, collects browser context, and reports everything to the Flare backend.
 
-React plugin: https://www.npmjs.com/package/@flareapp/react
+## Installation
 
-Vue plugin: https://www.npmjs.com/package/@flareapp/vue
+```bash
+npm install @flareapp/js
+```
 
-Webpack plugin: https://www.npmjs.com/package/@flareapp/flare-webpack-plugin-sourcemap
+## Quick start
+
+```js
+import { flare } from '@flareapp/js';
+
+flare.light('YOUR_FLARE_API_KEY');
+```
+
+That is all you need. The client automatically listens for uncaught exceptions and unhandled promise rejections,
+collects browser context, and sends error reports to Flare.
+
+## Documentation
+
+Full documentation on configuration, hooks, context, breadcrumbs, solution providers, and more is available
+at [flareapp.io/docs/javascript/general/installation](https://flareapp.io/docs/javascript/general/installation).
+
+## License
+
+The MIT License (MIT). Please see [License File](../../LICENSE.md) for more information.

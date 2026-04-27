@@ -1,7 +1,6 @@
 import glob from 'fast-glob';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { resolve } from 'path';
-import { OutputOptions } from 'rollup';
 import { Plugin, ResolvedConfig, UserConfig } from 'vite';
 
 import FlareApi from './flareApi';
@@ -66,7 +65,7 @@ export default function flareSourcemapUploader({
             base += base.endsWith('/') ? '' : '/';
         },
 
-        async writeBundle(outputConfig: OutputOptions) {
+        async writeBundle(outputConfig: { dir?: string }) {
             if (!enableUploadingSourcemaps) {
                 return;
             }
