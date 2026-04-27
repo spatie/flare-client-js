@@ -1,0 +1,19 @@
+{
+    "git": {
+        "tagName": "@flareapp/vite@${version}",
+        "tagAnnotation": "Release @flareapp/vite@${version}",
+        "commitMessage": "chore: release @flareapp/vite@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": {
+        "publish": true
+    },
+    "github": {
+        "release": false
+    },
+    "hooks": {
+        "before:release": "npm test --if-present"
+    }
+}
