@@ -4,6 +4,7 @@ import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
+import { resolveDenylist } from './constants';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
@@ -49,6 +50,10 @@ export const FlareErrorBoundary = defineComponent({
             type: RegExp as PropType<RegExp>,
             default: undefined,
         },
+        replaceDefaultDenylist: {
+            type: Boolean,
+            default: false,
+        },
     },
 
     setup(props, { slots }) {
@@ -88,11 +93,13 @@ export const FlareErrorBoundary = defineComponent({
 
             props.beforeEvaluate?.({ error: errorToReport, instance, info });
 
+            const resolvedDenylist = resolveDenylist(props.propsDenylist, props.replaceDefaultDenylist);
+
             const hierarchy = buildComponentHierarchy(instance);
             const hierarchyFrames = buildComponentHierarchyFrames(instance, {
                 attachProps: props.attachProps,
                 propsMaxDepth: props.propsMaxDepth,
-                propsDenylist: props.propsDenylist,
+                propsDenylist: resolvedDenylist,
             });
             const componentName = getComponentName(instance);
 
@@ -100,13 +107,13 @@ export const FlareErrorBoundary = defineComponent({
 
             const instanceProps =
                 props.attachProps && instance?.$props
-                    ? serializeProps(instance.$props, props.propsMaxDepth, props.propsDenylist)
+                    ? serializeProps(instance.$props, props.propsMaxDepth, resolvedDenylist)
                     : undefined;
 
             const errorOrigin = getErrorOrigin(info);
 
             const route = getRouteContext(currentInstance?.appContext.config.globalProperties.$router, {
-                denylist: props.propsDenylist,
+                denylist: resolvedDenylist,
             });
 
             const context: FlareVueContext = {

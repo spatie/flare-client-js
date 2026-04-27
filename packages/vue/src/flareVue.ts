@@ -3,6 +3,7 @@ import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
+import { resolveDenylist } from './constants';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
@@ -13,7 +14,7 @@ import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './type
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
     const attachProps = options?.attachProps ?? false;
     const propsMaxDepth = options?.propsMaxDepth ?? 2;
-    const propsDenylist = options?.propsDenylist;
+    const propsDenylist = resolveDenylist(options?.propsDenylist, options?.replaceDefaultDenylist);
 
     const initialErrorHandler = app.config.errorHandler;
 

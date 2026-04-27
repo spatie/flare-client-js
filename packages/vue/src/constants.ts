@@ -5,6 +5,35 @@ export const MAX_HIERARCHY_DEPTH = 50;
 export const DEFAULT_PROPS_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
+export function resolveDenylist(custom?: RegExp, replaceDefault: boolean = false): RegExp {
+    if (!custom) {
+        return DEFAULT_PROPS_DENYLIST;
+    }
+
+    if (replaceDefault) {
+        return custom;
+    }
+
+    const flags = unionFlags(DEFAULT_PROPS_DENYLIST.flags, custom.flags);
+
+    return new RegExp(`(?:${DEFAULT_PROPS_DENYLIST.source})|(?:${custom.source})`, flags);
+}
+
+function unionFlags(a: string, b: string): string {
+    const merged = new Set<string>();
+
+    for (const flag of a + b) {
+        // 'g' and 'y' do not affect .test() of unanchored regex on a single key,
+        // and combining them across user/default RegExps would change semantics.
+        if (flag === 'g' || flag === 'y') {
+            continue;
+        }
+        merged.add(flag);
+    }
+
+    return [...merged].join('');
+}
+
 export const MAX_PROP_STRING_LENGTH = 1000;
 
 export const MAX_PROP_ARRAY_LENGTH = 100;

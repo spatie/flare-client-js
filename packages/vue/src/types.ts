@@ -55,6 +55,7 @@ export type FlareVueOptions = {
     attachProps?: boolean;
     propsMaxDepth?: number;
     propsDenylist?: RegExp;
+    replaceDefaultDenylist?: boolean;
     beforeEvaluate?: (params: FlareErrorBoundaryHookParams) => void;
     beforeSubmit?: (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => FlareVueContext;
     afterSubmit?: (params: FlareErrorBoundaryHookParams & { context: FlareVueContext }) => void;

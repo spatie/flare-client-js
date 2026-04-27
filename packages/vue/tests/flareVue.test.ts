@@ -633,18 +633,37 @@ describe('flareVue', () => {
             ]);
         });
 
-        test('forwards a custom propsDenylist to the serializer', () => {
+        test('merges a custom propsDenylist with the default by default', () => {
             const app = createMockApp();
             (flareVue as Function)(app, {
                 attachProps: true,
                 propsDenylist: /^ssn$/,
             } satisfies FlareVueOptions);
 
-            const instance = createMockInstance('MyComponent', null, { ssn: '123', password: 'kept' });
+            const instance = createMockInstance('MyComponent', null, { ssn: '123', password: 'still-redacted', id: 1 });
             callHandler(app, new Error('x'), instance, 'setup function');
 
             const context = mockReport.mock.calls[0][1] as FlareVueContext;
-            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'kept' });
+            expect(context.vue.componentProps).toEqual({
+                ssn: '[Redacted]',
+                password: '[Redacted]',
+                id: 1,
+            });
+        });
+
+        test('replaces the default denylist when replaceDefaultDenylist is true', () => {
+            const app = createMockApp();
+            (flareVue as Function)(app, {
+                attachProps: true,
+                propsDenylist: /^ssn$/,
+                replaceDefaultDenylist: true,
+            } satisfies FlareVueOptions);
+
+            const instance = createMockInstance('MyComponent', null, { ssn: '123', password: 'now-leaked', id: 1 });
+            callHandler(app, new Error('x'), instance, 'setup function');
+
+            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'now-leaked', id: 1 });
         });
     });
 });
