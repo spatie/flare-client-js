@@ -1,10 +1,10 @@
-export default function request() {
+import { Attributes } from '../types';
+
+export default function request(): Attributes {
     return {
-        request: {
-            url: window.document.location.href,
-            useragent: window.navigator.userAgent,
-            referrer: window.document.referrer,
-            readyState: window.document.readyState,
-        },
+        'url.full': window.location.href,
+        'user_agent.original': window.navigator.userAgent,
+        'http.request.referrer': window.document.referrer,
+        'document.ready_state': window.document.readyState,
     };
 }
