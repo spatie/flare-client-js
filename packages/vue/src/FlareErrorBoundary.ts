@@ -6,6 +6,7 @@ import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { resolveDenylist } from './constants';
 import { convertToError } from './convertToError';
+import { vueContextToAttributes } from './flareVue';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
@@ -135,7 +136,7 @@ export const FlareErrorBoundary = defineComponent({
             componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
             try {
-                Promise.resolve(flare.report(errorToReport, finalContext, { vue: { instance, info } })).catch(() => {});
+                Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
             } catch (reportError) {
                 console.error('FlareErrorBoundary: failed to report error to Flare', reportError);
             }

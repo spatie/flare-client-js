@@ -210,6 +210,25 @@ export class Flare {
             ...input.extraAttributes,
         };
 
+        // Merge `context.custom` from extraAttributes into pendingAttributes' value
+        // instead of overwriting, so framework adapters can attach custom context
+        // without clobbering user-set context from addContext().
+        const pendingCustom = this.pendingAttributes['context.custom'];
+        const extraCustom = input.extraAttributes['context.custom'];
+        if (
+            pendingCustom &&
+            extraCustom &&
+            typeof pendingCustom === 'object' &&
+            typeof extraCustom === 'object' &&
+            !Array.isArray(pendingCustom) &&
+            !Array.isArray(extraCustom)
+        ) {
+            attributes['context.custom'] = {
+                ...(pendingCustom as Record<string, AttributeValue>),
+                ...(extraCustom as Record<string, AttributeValue>),
+            };
+        }
+
         // seenAtUnixNano: real nanoseconds. Date.now() * 1_000_000 exceeds Number.MAX_SAFE_INTEGER
         // by ~3 bits (~256 ns of drift), but browser clocks are millisecond-precision so the lost
         // bits are below source resolution. PHP's json_decode reads the resulting 19-digit literal

@@ -19,13 +19,19 @@ vi.mock('@flareapp/js', () => ({
 }));
 
 function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
-    return ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.vue'] as FlareVueContext['vue'];
+    const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
+        string,
+        unknown
+    >;
+    return custom?.vue as FlareVueContext['vue'];
 }
 
 function getReportedWarningVue(callIndex = 0): FlareVueWarningContext['vue'] {
-    return ((mockReportMessage.mock.calls[callIndex] ?? [])[2] as Attributes)[
-        'context.vue'
-    ] as FlareVueWarningContext['vue'];
+    const custom = ((mockReportMessage.mock.calls[callIndex] ?? [])[2] as Attributes)['context.custom'] as Record<
+        string,
+        unknown
+    >;
+    return custom?.vue as FlareVueWarningContext['vue'];
 }
 
 function createMockRouter(route: Record<string, unknown>) {
@@ -700,14 +706,20 @@ describe('flareVue captureWarnings', () => {
         app.config.warnHandler!('Invalid prop type', instance, 'found in\n---> <Counter>');
 
         expect(mockReportMessage).toHaveBeenCalledOnce();
-        expect(mockReportMessage).toHaveBeenCalledWith('Invalid prop type', 'warning', {
-            'context.vue': {
-                type: 'warning',
-                info: 'Invalid prop type',
-                componentName: 'Counter',
-                componentTrace: 'found in\n---> <Counter>',
-            },
-        });
+        expect(mockReportMessage).toHaveBeenCalledWith(
+            'Invalid prop type',
+            'warning',
+            expect.objectContaining({
+                'context.custom': {
+                    vue: {
+                        type: 'warning',
+                        info: 'Invalid prop type',
+                        componentName: 'Counter',
+                        componentTrace: 'found in\n---> <Counter>',
+                    },
+                },
+            })
+        );
     });
 
     test('context includes component name and trace', () => {

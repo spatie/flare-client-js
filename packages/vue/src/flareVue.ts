@@ -3,13 +3,34 @@ import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
-import { PACKAGE_VERSION, resolveDenylist } from './constants';
+import { DEFAULT_PROPS_DENYLIST, PACKAGE_VERSION, resolveDenylist } from './constants';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
-import { getRouteContext } from './getRouteContext';
+import { getRouteContext, redactFullPath } from './getRouteContext';
 import { serializeProps } from './serializeProps';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
+
+export function vueContextToAttributes(context: FlareVueContext): Attributes {
+    return { 'context.custom': { vue: context.vue as never } };
+}
+
+export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
+    return { 'context.custom': { vue: context.vue as never } };
+}
+
+function urlAttributesWithScrubbedQuery(denylist: RegExp): Attributes {
+    if (typeof window === 'undefined' || !window.location) {
+        return {};
+    }
+    const href = window.location.href;
+    const search = window.location.search;
+    const attrs: Attributes = { 'url.full': redactFullPath(href, denylist) };
+    if (search) {
+        attrs['url.query'] = redactFullPath(search, denylist).replace(/^\?/, '');
+    }
+    return attrs;
+}
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
     flare.setSdkInfo({ name: '@flareapp/vue', version: PACKAGE_VERSION });
@@ -54,7 +75,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
         const attributes: Attributes = {
-            'context.vue': finalContext.vue as never,
+            ...urlAttributesWithScrubbedQuery(propsDenylist ?? DEFAULT_PROPS_DENYLIST),
+            ...vueContextToAttributes(finalContext),
         };
 
         Promise.resolve(flare.report(errorToReport, attributes)).catch(() => {});
@@ -88,7 +110,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             };
 
             const warnAttributes: Attributes = {
-                'context.vue': context.vue as never,
+                ...urlAttributesWithScrubbedQuery(propsDenylist ?? DEFAULT_PROPS_DENYLIST),
+                ...vueWarningContextToAttributes(context),
             };
 
             Promise.resolve(flare.reportMessage(msg, 'warning', warnAttributes)).catch(() => {});
