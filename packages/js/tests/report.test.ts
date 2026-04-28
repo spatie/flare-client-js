@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
 
@@ -110,4 +110,30 @@ test('per-call attributes win over collected attributes', async () => {
 test('events is always an array — never undefined', async () => {
     await client.report(new Error('x'));
     expect(Array.isArray(fakeApi.lastReport!.events)).toBe(true);
+});
+
+test('seenAtUnixNano reflects report() entry time, not post-stacktrace time', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-28T12:00:00.000Z'));
+    const entryNs = Date.now() * 1_000_000;
+
+    client.configure({
+        beforeEvaluate: (e) => {
+            vi.advanceTimersByTime(5000);
+            return e;
+        },
+    });
+
+    await client.report(new Error('x'));
+
+    expect(fakeApi.lastReport!.seenAtUnixNano).toBe(entryNs);
+
+    vi.useRealTimers();
+});
+
+test('coerces non-Error inputs to a string message and Error class', async () => {
+    await client.report('plain string boom' as unknown as Error);
+
+    expect(fakeApi.lastReport!.message).toBe('plain string boom');
+    expect(fakeApi.lastReport!.exceptionClass).toBe('Error');
 });

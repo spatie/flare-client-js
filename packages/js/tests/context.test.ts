@@ -79,6 +79,15 @@ test('emits http.request.cookies as parsed object', () => {
     });
 });
 
+test('preserves = characters inside cookie values (e.g. base64)', () => {
+    clearCookies();
+    (window.document as any).cookie = 'token=abc==';
+
+    const attributes = collectAttributes();
+
+    expect((attributes['http.request.cookies'] as Record<string, string>).token).toBe('abc==');
+});
+
 test('returns empty object when no window present (SSR)', () => {
     const realWindow = globalThis.window;
     // @ts-expect-error
