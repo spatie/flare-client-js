@@ -8,7 +8,7 @@ export class Api {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'x-api-token': key ?? '',
+                'X-Api-Token': key ?? '',
                 'X-Report-Browser-Extension-Errors': JSON.stringify(reportBrowserExtensionErrors),
                 'X-Flare-Client-Version': '2',
             },
