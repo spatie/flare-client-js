@@ -7,7 +7,7 @@
   - `Report` uses camelCase top-level fields (`exceptionClass`, `seenAtUnixNano`, `sourcemapVersionId`, `isLog`, `level`, `attributes`, `events`).
   - `StackFrame` uses camelCase (`lineNumber`, `columnNumber`, `codeSnippet`, `isApplicationFrame`).
   - `Context` is gone. User context is set via `addContext(name, value)` and `addContextGroup(group, value)`; both write into the flat `attributes` map under `context.custom` and `context.<group>`.
-  - Glows ride along as `js_glow`-typed entries in `events[]`.
+  - Glows ride along as `php_glow`-typed entries in `events[]`.
 - **Config keys renamed:** `reportingUrl` → `ingestUrl`, `sourcemapVersion` → `sourcemapVersionId`. No aliases.
 - **Deprecated trailing setters removed:** `flare.beforeEvaluate = …`, `flare.beforeSubmit = …`, `flare.stage = …`. Use `flare.configure({ … })`.
 - **`reportMessage` signature changed:** `reportMessage(message, level?, attributes?)`. The old `'Log INFO'` regex is gone — pass `level` directly.

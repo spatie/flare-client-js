@@ -14,7 +14,7 @@
     ],
     "events": [
         {
-            "type": "js_glow",
+            "type": "php_glow",
             "startTimeUnixNano": 1777377600000000000,
             "endTimeUnixNano": null,
             "attributes": {

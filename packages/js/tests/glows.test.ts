@@ -13,13 +13,13 @@ beforeEach(() => {
     client = new Flare(fakeApi).configure({ key: 'key', debug: true });
 });
 
-test('glows are serialized into js_glow span events on report', async () => {
+test('glows are serialized into php_glow span events on report', async () => {
     client.glow('rendering checkout', 'info', { cartId: 7 });
 
     await client.reportMessage('hello');
 
     const event = fakeApi.lastReport!.events[0];
-    expect(event.type).toBe('js_glow');
+    expect(event.type).toBe('php_glow');
     expect(event.endTimeUnixNano).toBeNull();
     expect(typeof event.startTimeUnixNano).toBe('number');
     expect(event.attributes['glow.name']).toBe('rendering checkout');
