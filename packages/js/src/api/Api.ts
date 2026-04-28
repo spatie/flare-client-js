@@ -6,18 +6,17 @@ export class Api {
         return fetch(url, {
             method: 'POST',
             headers: {
+                'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'X-Api-Token': key ?? '',
+                'x-api-token': key ?? '',
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-Report-Browser-Extension-Errors': JSON.stringify(reportBrowserExtensionErrors),
+                'X-Flare-Client-Version': '2',
             },
-            body: flatJsonStringify({
-                ...report,
-                key: key,
-            }),
+            body: flatJsonStringify(report),
         }).then(
             (response) => {
-                if (response.status !== 204) {
+                if (response.status !== 201) {
                     console.error(`Received response with status ${response.status} from Flare`);
                 }
             },

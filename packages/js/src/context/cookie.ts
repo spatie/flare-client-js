@@ -1,17 +1,18 @@
-export default function cookie() {
+import { Attributes } from '../types';
+
+export default function cookie(): Attributes {
     if (!window.document.cookie) {
         return {};
     }
 
-    return {
-        cookies: window.document.cookie.split('; ').reduce(
-            (cookies, cookie) => {
-                const [cookieName, cookieValue] = cookie.split(/=/);
-                cookies[cookieName] = cookieValue;
+    const cookies: { [key: string]: string } = {};
 
-                return cookies;
-            },
-            {} as { [key: string]: string }
-        ),
+    window.document.cookie.split('; ').forEach((rawCookie) => {
+        const [name, value] = rawCookie.split(/=/);
+        cookies[name] = value;
+    });
+
+    return {
+        'http.request.cookies': cookies,
     };
 }

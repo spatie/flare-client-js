@@ -1,13 +1,11 @@
-export default function requestData() {
+import { Attributes } from '../types';
+
+export default function requestData(): Attributes {
     if (!window.location.search) {
         return {};
     }
 
-    const queryString: { [key: string]: string } = {};
-
-    new URLSearchParams(window.location.search).forEach((value, key) => {
-        queryString[key] = value;
-    });
-
-    return { request_data: { queryString } };
+    return {
+        'url.query': window.location.search.replace(/^\?/, ''),
+    };
 }

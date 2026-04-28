@@ -16,14 +16,13 @@ export function createStackTrace(error: Error, debug: boolean): Promise<Array<St
 
             return resolve([
                 {
-                    line_number: 0,
-                    column_number: 0,
+                    lineNumber: 0,
+                    columnNumber: 0,
                     method: 'unknown',
                     file: 'unknown',
-                    code_snippet: {
+                    codeSnippet: {
                         0: 'Could not read from file: stacktrace missing',
                     },
-                    trimmed_column_number: null,
                     class: 'unknown',
                 },
             ]);
@@ -34,13 +33,13 @@ export function createStackTrace(error: Error, debug: boolean): Promise<Array<St
                 return new Promise<StackFrame>((resolve) => {
                     getCodeSnippet(frame.fileName, frame.lineNumber, frame.columnNumber).then((snippet) => {
                         resolve({
-                            line_number: frame.lineNumber || 1,
-                            column_number: frame.columnNumber || 1,
+                            lineNumber: frame.lineNumber || 1,
+                            columnNumber: frame.columnNumber || 1,
                             method: frame.functionName || 'Anonymous or unknown function',
                             file: frame.fileName || 'Unknown file',
-                            code_snippet: snippet.codeSnippet,
-                            trimmed_column_number: snippet.trimmedColumnNumber,
+                            codeSnippet: snippet.codeSnippet,
                             class: '',
+                            isApplicationFrame: true,
                         });
                     });
                 });
