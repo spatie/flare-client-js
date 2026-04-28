@@ -163,10 +163,10 @@ export class Flare {
         code: string | undefined;
     }): Report {
         const baseAttributes: Attributes = {
-            'telemetry.sdk.language': 'JavaScript',
+            'telemetry.sdk.language': 'javascript',
             'telemetry.sdk.name': this.sdkInfo.name,
             'telemetry.sdk.version': this.sdkInfo.version,
-            'flare.language.name': 'JavaScript',
+            'flare.language.name': 'javascript',
             'flare.entry_point.type': 'web',
         };
 
