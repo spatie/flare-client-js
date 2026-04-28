@@ -8,7 +8,13 @@ export default function cookie(): Attributes {
     const cookies: { [key: string]: string } = {};
 
     window.document.cookie.split('; ').forEach((rawCookie) => {
-        const [name, value] = rawCookie.split(/=/);
+        const idx = rawCookie.indexOf('=');
+        if (idx === -1) {
+            cookies[rawCookie] = '';
+            return;
+        }
+        const name = rawCookie.slice(0, idx);
+        const value = rawCookie.slice(idx + 1);
         cookies[name] = value;
     });
 

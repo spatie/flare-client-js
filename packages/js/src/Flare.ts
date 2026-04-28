@@ -40,9 +40,11 @@ export class Flare {
 
     constructor(public api: Api = new Api()) {}
 
-    light(key: string = KEY, debug: boolean = false): Flare {
+    light(key: string = KEY, debug?: boolean): Flare {
         this.config.key = key;
-        this.config.debug = debug;
+        if (debug !== undefined) {
+            this.config.debug = debug;
+        }
         return this;
     }
 
@@ -105,16 +107,21 @@ export class Flare {
     }
 
     async report(error: Error, attributes: Attributes = {}): Promise<void> {
-        const errorToReport = await this.config.beforeEvaluate(error);
+        const seenAtUnixNano = Date.now() * 1_000_000;
+
+        const coerced = error instanceof Error ? error : new Error(typeof error === 'string' ? error : String(error));
+
+        const errorToReport = await this.config.beforeEvaluate(coerced);
         if (!errorToReport) return;
 
-        const report = await this.createReportFromError(errorToReport, attributes);
+        const report = await this.createReportFromError(errorToReport, attributes, seenAtUnixNano);
         if (!report) return;
 
         return this.sendReport(report);
     }
 
     async reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
+        const seenAtUnixNano = Date.now() * 1_000_000;
         const stackTrace = await createStackTrace(Error(), this.config.debug);
         stackTrace.shift();
 
@@ -126,12 +133,17 @@ export class Flare {
             level,
             extraAttributes: attributes,
             code: undefined,
+            seenAtUnixNano,
         });
 
         return this.sendReport(report);
     }
 
-    async createReportFromError(error: Error, attributes: Attributes = {}): Promise<Report | false> {
+    async createReportFromError(
+        error: Error,
+        attributes: Attributes = {},
+        seenAtUnixNano: number = Date.now() * 1_000_000
+    ): Promise<Report | false> {
         if (!assert(error, 'No error provided.', this.config.debug)) {
             return false;
         }
@@ -150,6 +162,7 @@ export class Flare {
             level: undefined,
             extraAttributes: attributes,
             code: extractCode(error),
+            seenAtUnixNano,
         });
     }
 
@@ -161,6 +174,7 @@ export class Flare {
         level: MessageLevel | undefined;
         extraAttributes: Attributes;
         code: string | undefined;
+        seenAtUnixNano: number;
     }): Report {
         const baseAttributes: Attributes = {
             'telemetry.sdk.language': 'javascript',
@@ -233,12 +247,10 @@ export class Flare {
         // by ~3 bits (~256 ns of drift), but browser clocks are millisecond-precision so the lost
         // bits are below source resolution. PHP's json_decode reads the resulting 19-digit literal
         // as a 64-bit int (PHP_INT_MAX ~ 9.22e18 vs our value ~ 1.78e18).
-        const seenAtUnixNano = Date.now() * 1_000_000;
-
         const report: Report = {
             exceptionClass: input.exceptionClass,
             message: input.message,
-            seenAtUnixNano,
+            seenAtUnixNano: input.seenAtUnixNano,
             stacktrace: input.stacktrace,
             events: glowsToEvents(this.glows),
             attributes,
