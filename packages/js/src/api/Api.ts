@@ -9,7 +9,6 @@ export class Api {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'x-api-token': key ?? '',
-                'X-Requested-With': 'XMLHttpRequest',
                 'X-Report-Browser-Extension-Errors': JSON.stringify(reportBrowserExtensionErrors),
                 'X-Flare-Client-Version': '2',
             },

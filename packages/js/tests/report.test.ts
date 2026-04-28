@@ -19,7 +19,7 @@ test('report() emits new-format payload with required attributes', async () => {
     const r = fakeApi.lastReport!;
     expect(r.message).toBe('boom');
     expect(r.exceptionClass).toBe('Error');
-    expect(r.isLog).toBe(false);
+    expect(r.isLog).toBeUndefined();
     expect(r.attributes['telemetry.sdk.language']).toBe('JavaScript');
     expect(r.attributes['telemetry.sdk.name']).toBe('@flareapp/js');
     expect(r.attributes['flare.language.name']).toBe('JavaScript');

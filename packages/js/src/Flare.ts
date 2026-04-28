@@ -20,7 +20,7 @@ const DEFAULT_SDK_NAME = '@flareapp/js';
 export class Flare {
     config: Config = {
         key: null,
-        version: CLIENT_VERSION,
+        version: '',
         sourcemapVersionId: SOURCEMAP_VERSION,
         stage: '',
         maxGlowsPerReport: 30,
@@ -32,7 +32,7 @@ export class Flare {
     };
 
     glows: Glow[] = [];
-    pendingAttributes: Attributes = {};
+    private pendingAttributes: Attributes = {};
 
     private entryPoint: EntryPointHandler | null = null;
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
@@ -108,7 +108,7 @@ export class Flare {
         const errorToReport = await this.config.beforeEvaluate(error);
         if (!errorToReport) return;
 
-        const report = await this.createReportFromError(error, attributes);
+        const report = await this.createReportFromError(errorToReport, attributes);
         if (!report) return;
 
         return this.sendReport(report);
@@ -220,11 +220,14 @@ export class Flare {
             exceptionClass: input.exceptionClass,
             message: input.message,
             seenAtUnixNano,
-            isLog: input.isLog,
             stacktrace: input.stacktrace,
             events: glowsToEvents(this.glows),
             attributes,
         };
+
+        if (input.isLog) {
+            report.isLog = true;
+        }
 
         if (input.level !== undefined) {
             report.level = input.level;

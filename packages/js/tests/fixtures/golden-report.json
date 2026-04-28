@@ -2,7 +2,6 @@
     "exceptionClass": "Error",
     "message": "boom",
     "seenAtUnixNano": 1777377600000000000,
-    "isLog": false,
     "stacktrace": [
         {
             "lineNumber": 10,

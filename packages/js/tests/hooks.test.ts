@@ -70,6 +70,14 @@ test('beforeSubmit can mutate the report (camelCase fields)', async () => {
     expect(fakeApi.lastReport?.message).toBe('rewritten');
 });
 
+test('beforeEvaluate can replace the error with a new Error', async () => {
+    client.configure({
+        beforeEvaluate: () => new Error('replaced'),
+    });
+    await client.report(new Error('original'));
+    expect(fakeApi.lastReport?.message).toBe('replaced');
+});
+
 test('beforeSubmit can mutate attributes', async () => {
     client.configure({
         beforeSubmit: (report) => {
