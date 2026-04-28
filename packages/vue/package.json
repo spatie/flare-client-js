@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/vue",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "description": "Vue client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -39,10 +39,11 @@
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vitest": "^3.2.1",
-        "vue": "^3.0.0"
+        "vue": "^3.0.0",
+        "vue-router": "^4.6.4"
     },
     "peerDependencies": {
-        "@flareapp/js": "^1.0.0",
+        "@flareapp/js": "^2.0.0",
         "vue": "^3.0.0",
         "vue-router": "^4.0.0"
     },
