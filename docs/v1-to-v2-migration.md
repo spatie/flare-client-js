@@ -53,6 +53,8 @@ If your `beforeSubmit` callback inspects or mutates the report, update field acc
 | `report.seen_at` | `report.seenAtUnixNano` (nanoseconds) |
 | `report.context` | `report.attributes` |
 | `report.glows` | `report.events.filter(e => e.type === 'js_glow')` |
+| `report.message_level` | `report.level` |
+| `report.notifier` | gone (use `report.attributes['telemetry.sdk.name']`) |
 | `report.stacktrace[i].line_number` | `report.stacktrace[i].lineNumber` |
 | `report.stacktrace[i].column_number` | `report.stacktrace[i].columnNumber` |
 | `report.stacktrace[i].code_snippet` | `report.stacktrace[i].codeSnippet` |

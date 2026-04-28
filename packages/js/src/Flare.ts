@@ -85,7 +85,7 @@ export class Flare {
     }
 
     addContextGroup(groupName: string, value: object): Flare {
-        this.pendingAttributes[`context.${groupName}`] = value as never;
+        this.pendingAttributes[`context.${groupName}`] = value as AttributeValue;
         return this;
     }
 
