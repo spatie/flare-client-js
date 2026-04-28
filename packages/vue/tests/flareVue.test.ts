@@ -1,8 +1,9 @@
+import type { Attributes } from '@flareapp/js';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ComponentPublicInstance } from 'vue';
 
 import { flareVue } from '../src/flareVue';
-import type { FlareVueContext, FlareVueOptions } from '../src/types';
+import type { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from '../src/types';
 
 const mockReport = vi.fn();
 const mockReportMessage = vi.fn();
@@ -11,8 +12,21 @@ vi.mock('@flareapp/js', () => ({
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         reportMessage: (...args: unknown[]) => mockReportMessage(...args),
+        setSdkInfo: vi.fn(),
+        setFramework: vi.fn(),
+        setEntryPoint: vi.fn(),
     },
 }));
+
+function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
+    return ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.vue'] as FlareVueContext['vue'];
+}
+
+function getReportedWarningVue(callIndex = 0): FlareVueWarningContext['vue'] {
+    return ((mockReportMessage.mock.calls[callIndex] ?? [])[2] as Attributes)[
+        'context.vue'
+    ] as FlareVueWarningContext['vue'];
+}
 
 function createMockRouter(route: Record<string, unknown>) {
     return { currentRoute: { value: route } };
@@ -105,7 +119,7 @@ describe('flareVue', () => {
 
         callHandler(app, new Error('test'), instance, 'setup function');
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.info).toBe('setup function');
         expect(context.vue.errorOrigin).toBe('setup');
         expect(context.vue.componentName).toBe('Button');
@@ -124,7 +138,7 @@ describe('flareVue', () => {
 
         callHandler(app, new Error('test'), createMockInstance('MyComponent'), 'mounted hook');
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.info).toBe('mounted hook');
         expect(context.vue.errorOrigin).toBe('lifecycle');
     });
@@ -138,22 +152,9 @@ describe('flareVue', () => {
 
         callHandler(app, new Error('test'), instance, 'setup function');
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.componentProps).toEqual({ userId: 42 });
         expect(context.vue.componentProps).not.toBe(originalProps);
-    });
-
-    test('passes instance and info as extra solution parameters', () => {
-        const app = createMockApp();
-        (flareVue as Function)(app);
-
-        const instance = createMockInstance('MyComponent');
-
-        callHandler(app, new Error('test'), instance, 'render function');
-
-        const extraParams = mockReport.mock.calls[0][2];
-        expect(extraParams.vue.instance).toBe(instance);
-        expect(extraParams.vue.info).toBe('render function');
     });
 
     test('calls initial error handler if one exists', () => {
@@ -227,7 +228,7 @@ describe('flareVue', () => {
 
         callHandler(app, new Error('test'), null, 'setup function');
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.componentName).toBe('AnonymousComponent');
         expect('componentProps' in context.vue).toBe(false);
         expect(context.vue.componentHierarchy).toEqual([]);
@@ -401,7 +402,7 @@ describe('flareVue', () => {
 
         callHandler(app, new Error('test'), createMockInstance('MyComponent'), 'setup function');
 
-        const reportedContext = mockReport.mock.calls[0][1];
+        const reportedContext = { vue: getReportedVue(0) };
         expect(reportedContext.vue.componentHierarchy).toBe(customHierarchy);
     });
 
@@ -411,13 +412,12 @@ describe('flareVue', () => {
         });
 
         const app = createMockApp();
-        // @ts-expect-error - intentionally testing a user mistake where beforeSubmit does not return
         (flareVue as Function)(app, { beforeSubmit });
 
         callHandler(app, new Error('test'), createMockInstance('MyComponent'), 'setup function');
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
-        const reportedContext = mockReport.mock.calls[0][1];
+        const reportedContext = { vue: getReportedVue(0) };
         expect(reportedContext.vue.componentName).toBe('MyComponent');
     });
 
@@ -425,9 +425,11 @@ describe('flareVue', () => {
         const callOrder: string[] = [];
 
         mockReport.mockImplementation(() => callOrder.push('report'));
-        const afterSubmit = vi.fn(() => {
-            callOrder.push('afterSubmit');
-        });
+        const afterSubmit = vi.fn(
+            (_params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => {
+                callOrder.push('afterSubmit');
+            }
+        );
 
         const app = createMockApp();
         (flareVue as Function)(app, { afterSubmit } satisfies FlareVueOptions);
@@ -552,7 +554,7 @@ describe('flareVue', () => {
             const instance = createMockInstance('MyComponent', null, { userId: 1 });
             callHandler(app, new Error('x'), instance, 'setup function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect('componentProps' in context.vue).toBe(false);
         });
 
@@ -564,7 +566,7 @@ describe('flareVue', () => {
             const child = createMockInstance('Child', parent, { id: 1 });
             callHandler(app, new Error('x'), child, 'render function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             context.vue.componentHierarchyFrames.forEach((frame) => {
                 expect('props' in frame).toBe(false);
             });
@@ -577,7 +579,7 @@ describe('flareVue', () => {
             const instance = createMockInstance('MyComponent', null, { userId: 42, onClick: () => 0 });
             callHandler(app, new Error('x'), instance, 'setup function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ userId: 42, onClick: '[Function]' });
         });
 
@@ -588,7 +590,7 @@ describe('flareVue', () => {
             const instance = createMockInstance('MyComponent', null, { nested: { a: { b: 1 } } });
             callHandler(app, new Error('x'), instance, 'setup function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ nested: { a: '[Object]' } });
         });
 
@@ -600,7 +602,7 @@ describe('flareVue', () => {
             const child = createMockInstance('Child', parent, { id: 1 });
             callHandler(app, new Error('x'), child, 'render function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentHierarchyFrames.map((frame) => frame.props)).toEqual([
                 { id: 1 },
                 { flag: true },
@@ -614,7 +616,7 @@ describe('flareVue', () => {
             const instance = createMockInstance('MyComponent', null, { id: 1, password: 'hunter2', token: 'abc' });
             callHandler(app, new Error('x'), instance, 'setup function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ id: 1, password: '[Redacted]', token: '[Redacted]' });
         });
 
@@ -626,7 +628,7 @@ describe('flareVue', () => {
             const child = createMockInstance('Child', parent, { id: 1 });
             callHandler(app, new Error('x'), child, 'render function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentHierarchyFrames.map((frame) => frame.props)).toEqual([
                 { id: 1 },
                 { apiKey: '[Redacted]', flag: true },
@@ -643,7 +645,7 @@ describe('flareVue', () => {
             const instance = createMockInstance('MyComponent', null, { ssn: '123', password: 'kept' });
             callHandler(app, new Error('x'), instance, 'setup function');
 
-            const context = mockReport.mock.calls[0][1] as FlareVueContext;
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'kept' });
         });
     });
@@ -671,7 +673,7 @@ describe('flareVue captureWarnings', () => {
         expect(typeof app.config.warnHandler).toBe('function');
     });
 
-    test('reports warning via flare.reportMessage with message, context, and VueWarning exception class', () => {
+    test('reports warning via flare.reportMessage with level and context attributes', () => {
         const app = createMockApp();
         (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
 
@@ -679,18 +681,14 @@ describe('flareVue captureWarnings', () => {
         app.config.warnHandler!('Invalid prop type', instance, 'found in\n---> <Counter>');
 
         expect(mockReportMessage).toHaveBeenCalledOnce();
-        expect(mockReportMessage).toHaveBeenCalledWith(
-            'Invalid prop type',
-            {
-                vue: {
-                    type: 'warning',
-                    info: 'Invalid prop type',
-                    componentName: 'Counter',
-                    componentTrace: 'found in\n---> <Counter>',
-                },
+        expect(mockReportMessage).toHaveBeenCalledWith('Invalid prop type', 'warning', {
+            'context.vue': {
+                type: 'warning',
+                info: 'Invalid prop type',
+                componentName: 'Counter',
+                componentTrace: 'found in\n---> <Counter>',
             },
-            'VueWarning'
-        );
+        });
     });
 
     test('context includes component name and trace', () => {
@@ -701,7 +699,7 @@ describe('flareVue captureWarnings', () => {
         const trace = 'found in\n---> <UserProfile> at src/UserProfile.vue\n       <App> at src/App.vue';
         app.config.warnHandler!('Missing required prop', instance, trace);
 
-        const context = mockReportMessage.mock.calls[0][1];
+        const context = { vue: getReportedWarningVue(0) };
         expect(context.vue.type).toBe('warning');
         expect(context.vue.componentName).toBe('UserProfile');
         expect(context.vue.componentTrace).toBe(trace);
@@ -714,7 +712,7 @@ describe('flareVue captureWarnings', () => {
 
         app.config.warnHandler!('Some warning', null, '');
 
-        const context = mockReportMessage.mock.calls[0][1];
+        const context = { vue: getReportedWarningVue(0) };
         expect(context.vue.componentName).toBe('AnonymousComponent');
     });
 
@@ -774,7 +772,7 @@ describe('flareVue route context', () => {
 
         callHandler(app, new Error('test'), null, 'setup function');
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.route).toEqual({
             name: 'user-profile',
             path: '/users/42',
@@ -792,7 +790,7 @@ describe('flareVue route context', () => {
 
         callHandler(app, new Error('test'), null, 'setup function');
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.route).toBeUndefined();
     });
 
@@ -802,7 +800,7 @@ describe('flareVue route context', () => {
 
         app.config.warnHandler!('Invalid prop', null, 'trace');
 
-        const context = mockReportMessage.mock.calls[0][1];
+        const context = { vue: getReportedWarningVue(0) };
         expect(context.vue.route).toEqual({
             name: 'user-profile',
             path: '/users/42',
@@ -820,7 +818,7 @@ describe('flareVue route context', () => {
 
         app.config.warnHandler!('Warning', null, '');
 
-        const context = mockReportMessage.mock.calls[0][1];
+        const context = { vue: getReportedWarningVue(0) };
         expect(context.vue.route).toBeUndefined();
     });
 
