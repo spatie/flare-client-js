@@ -59,38 +59,28 @@ describe('FlareErrorBoundary', () => {
         expect(mockReport.mock.calls[0][0]).toBe(testError);
     });
 
-    test('passes react context with componentStack and componentStackFrames', () => {
+    test('passes react context with componentStack and componentStackFrames as attributes', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>}>
                 <ThrowingComponent />
             </FlareErrorBoundary>
         );
 
-        const context = mockReport.mock.calls[0][1];
+        const attributes = mockReport.mock.calls[0][1];
 
-        expect(context.react.componentStack).toBeInstanceOf(Array);
-        expect(context.react.componentStack.length).toBeGreaterThan(0);
-        expect(context.react.componentStack.some((entry: string) => entry.includes('ThrowingComponent'))).toBe(true);
-
-        expect(context.react.componentStackFrames).toBeInstanceOf(Array);
-        expect(context.react.componentStackFrames.length).toBeGreaterThan(0);
+        expect(attributes['react.component_stack']).toBeInstanceOf(Array);
+        expect((attributes['react.component_stack'] as string[]).length).toBeGreaterThan(0);
         expect(
-            context.react.componentStackFrames.some(
-                (frame: { component: string }) => frame.component === 'ThrowingComponent'
+            (attributes['react.component_stack'] as string[]).some((entry) => entry.includes('ThrowingComponent'))
+        ).toBe(true);
+
+        expect(attributes['react.component_stack_frames']).toBeInstanceOf(Array);
+        expect((attributes['react.component_stack_frames'] as unknown[]).length).toBeGreaterThan(0);
+        expect(
+            (attributes['react.component_stack_frames'] as { component: string }[]).some(
+                (frame) => frame.component === 'ThrowingComponent'
             )
         ).toBe(true);
-    });
-
-    test('passes errorInfo as extra solution parameters', () => {
-        render(
-            <FlareErrorBoundary fallback={<div>Error</div>}>
-                <ThrowingComponent />
-            </FlareErrorBoundary>
-        );
-
-        const extraParams = mockReport.mock.calls[0][2];
-        expect(extraParams.react.errorInfo).toBeDefined();
-        expect(extraParams.react.errorInfo.componentStack).toEqual(expect.any(String));
     });
 
     test('renders nothing when no fallback is provided', () => {
@@ -215,8 +205,8 @@ describe('FlareErrorBoundary', () => {
             </FlareErrorBoundary>
         );
 
-        const reportedContext = mockReport.mock.calls[0][1];
-        expect(reportedContext.react.componentStack).toBe(customStack);
+        const reportedAttributes = mockReport.mock.calls[0][1];
+        expect(reportedAttributes['react.component_stack']).toBe(customStack);
     });
 
     test('beforeSubmit modified context is passed to afterSubmit', () => {
@@ -444,9 +434,9 @@ describe('FlareErrorBoundary', () => {
         );
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
-        const reportedContext = mockReport.mock.calls[0][1];
-        expect(reportedContext.react.componentStack).toBeInstanceOf(Array);
-        expect(reportedContext.react.componentStackFrames).toBeInstanceOf(Array);
+        const reportedAttributes = mockReport.mock.calls[0][1];
+        expect(reportedAttributes['react.component_stack']).toBeInstanceOf(Array);
+        expect(reportedAttributes['react.component_stack_frames']).toBeInstanceOf(Array);
     });
 
     test('beforeSubmit modified componentStack is reflected in the fallback render', () => {

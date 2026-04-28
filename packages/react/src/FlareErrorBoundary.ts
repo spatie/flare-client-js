@@ -1,4 +1,4 @@
-import { flare } from '@flareapp/js';
+import { type Attributes, flare } from '@flareapp/js';
 import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 
 import { formatComponentStack } from './formatComponentStack';
@@ -56,7 +56,12 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         this.setState({ componentStack: finalContext.react.componentStack });
 
-        Promise.resolve(flare.report(error, finalContext, { react: { errorInfo } })).catch(() => {});
+        const attributes: Attributes = {
+            'react.component_stack': finalContext.react.componentStack as never,
+            'react.component_stack_frames': finalContext.react.componentStackFrames as never,
+        };
+
+        Promise.resolve(flare.report(error, attributes)).catch(() => {});
 
         this.props.afterSubmit?.({
             error,

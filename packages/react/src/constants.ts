@@ -7,3 +7,5 @@ export const CHROMIUM_STACK_REGEX = /^at\s+(\S+)(?:\s+\((.+):(\d+):(\d+)\))?$/;
 // "ComponentName@http://localhost:5173/src/App.tsx:12:9"
 // (no source): "div"
 export const FIREFOX_SAFARI_STACK_REGEX = /^(\S+?)@(.+):(\d+):(\d+)$/;
+
+export const PACKAGE_VERSION = '2.0.0';

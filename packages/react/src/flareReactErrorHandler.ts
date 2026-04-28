@@ -1,4 +1,4 @@
-import { flare } from '@flareapp/js';
+import { type Attributes, flare } from '@flareapp/js';
 
 import { convertToError } from './convertToError';
 import { formatComponentStack } from './formatComponentStack';
@@ -20,6 +20,13 @@ export type FlareReactErrorHandlerOptions = {
         context: FlareReactContext;
     }) => void;
 };
+
+function contextToAttributes(context: FlareReactContext): Attributes {
+    return {
+        'react.component_stack': context.react.componentStack as never,
+        'react.component_stack_frames': context.react.componentStackFrames as never,
+    };
+}
 
 export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions): FlareReactErrorHandlerCallback {
     return (error: unknown, errorInfo: { componentStack?: string }) => {
@@ -43,7 +50,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        Promise.resolve(flare.report(errorObject, finalContext, { react: { errorInfo } })).catch(() => {});
+        Promise.resolve(flare.report(errorObject, contextToAttributes(finalContext))).catch(() => {});
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });
     };
