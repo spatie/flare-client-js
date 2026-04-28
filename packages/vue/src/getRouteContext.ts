@@ -56,7 +56,7 @@ export function getRouteContext(router: unknown, options: GetRouteContextOptions
     };
 }
 
-function redactFullPath(fullPath: string, denylist: RegExp): string {
+export function redactFullPath(fullPath: string, denylist: RegExp): string {
     const queryStart = fullPath.indexOf('?');
 
     if (queryStart === -1) {

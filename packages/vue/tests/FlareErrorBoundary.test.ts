@@ -18,7 +18,11 @@ vi.mock('@flareapp/js', () => ({
 }));
 
 function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
-    return ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.vue'] as FlareVueContext['vue'];
+    const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
+        string,
+        unknown
+    >;
+    return custom?.vue as FlareVueContext['vue'];
 }
 
 let testError: Error;
