@@ -1,3 +1,4 @@
+import type { Attributes } from '@flareapp/js';
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
@@ -10,8 +11,15 @@ const mockReport = vi.fn();
 vi.mock('@flareapp/js', () => ({
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
+        setSdkInfo: vi.fn(),
+        setFramework: vi.fn(),
+        setEntryPoint: vi.fn(),
     },
 }));
+
+function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
+    return ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.vue'] as FlareVueContext['vue'];
+}
 
 let testError: Error;
 
@@ -87,7 +95,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.info).toEqual(expect.any(String));
         expect(context.vue.errorOrigin).toEqual(expect.any(String));
         expect(context.vue.componentName).toBe('ThrowingComponent');
@@ -111,7 +119,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        const context = mockReport.mock.calls[0][1];
+        const context = { vue: getReportedVue(0) };
         expect(context.vue.componentProps).toEqual({ userId: 42, name: 'Alice' });
     });
 
@@ -132,21 +140,6 @@ describe('FlareErrorBoundary', () => {
         await nextTick();
 
         expect(receivedProps).toEqual({ userId: 42, name: 'Alice' });
-    });
-
-    test('passes instance and info as extra solution parameters', async () => {
-        mount(FlareErrorBoundary, {
-            slots: {
-                default: () => h(ThrowingComponent),
-                fallback: () => h('div', 'Error'),
-            },
-        });
-
-        await nextTick();
-
-        const extraParams = mockReport.mock.calls[0][2];
-        expect(extraParams.vue.instance).toBeDefined();
-        expect(extraParams.vue.info).toEqual(expect.any(String));
     });
 
     test('renders nothing when no fallback is provided on error', async () => {
@@ -539,7 +532,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        const reportedContext = mockReport.mock.calls[0][1];
+        const reportedContext = { vue: getReportedVue(0) };
         expect(reportedContext.vue.componentHierarchy).toBe(customHierarchy);
     });
 
@@ -571,9 +564,11 @@ describe('FlareErrorBoundary', () => {
         const callOrder: string[] = [];
 
         mockReport.mockImplementationOnce(() => callOrder.push('report'));
-        const afterSubmit = vi.fn(() => {
-            callOrder.push('afterSubmit');
-        });
+        const afterSubmit = vi.fn(
+            (_params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => {
+                callOrder.push('afterSubmit');
+            }
+        );
 
         mount(FlareErrorBoundary, {
             props: { afterSubmit },
@@ -610,7 +605,7 @@ describe('FlareErrorBoundary', () => {
         await nextTick();
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
-        const reportedContext = mockReport.mock.calls[0][1];
+        const reportedContext = { vue: getReportedVue(0) };
         expect(reportedContext.vue.componentName).toBe('ThrowingComponent');
         expect(reportedContext.vue.componentHierarchy).toBeInstanceOf(Array);
     });
@@ -961,7 +956,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = mockReport.mock.calls[0][1];
+            const context = { vue: getReportedVue(0) };
             expect('componentProps' in context.vue).toBe(false);
         });
 
@@ -984,7 +979,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = mockReport.mock.calls[0][1];
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ userId: 7 });
         });
 
@@ -1007,7 +1002,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = mockReport.mock.calls[0][1];
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ data: { nested: '[Object]' } });
         });
 
@@ -1066,7 +1061,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = mockReport.mock.calls[0][1];
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({
                 id: 1,
                 password: '[Redacted]',
@@ -1098,7 +1093,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = mockReport.mock.calls[0][1];
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: '[Redacted]' });
         });
 
@@ -1126,7 +1121,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = mockReport.mock.calls[0][1];
+            const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'now-leaked' });
         });
 
