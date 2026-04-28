@@ -1,5 +1,6 @@
-import { type Attributes, flare } from '@flareapp/js';
+import { flare } from '@flareapp/js';
 
+import { contextToAttributes } from './contextToAttributes';
 import { convertToError } from './convertToError';
 import { formatComponentStack } from './formatComponentStack';
 import { parseComponentStack } from './parseComponentStack';
@@ -20,13 +21,6 @@ export type FlareReactErrorHandlerOptions = {
         context: FlareReactContext;
     }) => void;
 };
-
-function contextToAttributes(context: FlareReactContext): Attributes {
-    return {
-        'react.component_stack': context.react.componentStack as never,
-        'react.component_stack_frames': context.react.componentStackFrames as never,
-    };
-}
 
 export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions): FlareReactErrorHandlerCallback {
     return (error: unknown, errorInfo: { componentStack?: string }) => {
