@@ -27,10 +27,10 @@
         }
     ],
     "attributes": {
-        "telemetry.sdk.language": "JavaScript",
+        "telemetry.sdk.language": "javascript",
         "telemetry.sdk.name": "@flareapp/js",
         "telemetry.sdk.version": "golden",
-        "flare.language.name": "JavaScript",
+        "flare.language.name": "javascript",
         "flare.entry_point.type": "web",
         "flare.entry_point.value": "https://app.test/users/42",
         "flare.entry_point.handler.identifier": "/users/:id",
