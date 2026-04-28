@@ -68,16 +68,20 @@ describe('FlareErrorBoundary', () => {
 
         const attributes = mockReport.mock.calls[0][1];
 
-        expect(attributes['react.component_stack']).toBeInstanceOf(Array);
-        expect((attributes['react.component_stack'] as string[]).length).toBeGreaterThan(0);
+        expect((attributes['context.custom'] as any).react.componentStack).toBeInstanceOf(Array);
+        expect(((attributes['context.custom'] as any).react.componentStack as string[]).length).toBeGreaterThan(0);
         expect(
-            (attributes['react.component_stack'] as string[]).some((entry) => entry.includes('ThrowingComponent'))
+            ((attributes['context.custom'] as any).react.componentStack as string[]).some((entry) =>
+                entry.includes('ThrowingComponent')
+            )
         ).toBe(true);
 
-        expect(attributes['react.component_stack_frames']).toBeInstanceOf(Array);
-        expect((attributes['react.component_stack_frames'] as unknown[]).length).toBeGreaterThan(0);
+        expect((attributes['context.custom'] as any).react.componentStackFrames).toBeInstanceOf(Array);
+        expect(((attributes['context.custom'] as any).react.componentStackFrames as unknown[]).length).toBeGreaterThan(
+            0
+        );
         expect(
-            (attributes['react.component_stack_frames'] as { component: string }[]).some(
+            ((attributes['context.custom'] as any).react.componentStackFrames as { component: string }[]).some(
                 (frame) => frame.component === 'ThrowingComponent'
             )
         ).toBe(true);
@@ -206,7 +210,7 @@ describe('FlareErrorBoundary', () => {
         );
 
         const reportedAttributes = mockReport.mock.calls[0][1];
-        expect(reportedAttributes['react.component_stack']).toBe(customStack);
+        expect((reportedAttributes['context.custom'] as any).react.componentStack).toBe(customStack);
     });
 
     test('beforeSubmit modified context is passed to afterSubmit', () => {
@@ -435,8 +439,8 @@ describe('FlareErrorBoundary', () => {
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
         const reportedAttributes = mockReport.mock.calls[0][1];
-        expect(reportedAttributes['react.component_stack']).toBeInstanceOf(Array);
-        expect(reportedAttributes['react.component_stack_frames']).toBeInstanceOf(Array);
+        expect((reportedAttributes['context.custom'] as any).react.componentStack).toBeInstanceOf(Array);
+        expect((reportedAttributes['context.custom'] as any).react.componentStackFrames).toBeInstanceOf(Array);
     });
 
     test('beforeSubmit modified componentStack is reflected in the fallback render', () => {
