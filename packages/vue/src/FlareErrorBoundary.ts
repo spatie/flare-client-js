@@ -72,12 +72,12 @@ export const FlareErrorBoundary = defineComponent({
         watch(
             () => props.resetKeys,
             (nextKeys, prevKeys) => {
-                if (error.value === null || !nextKeys) {
+                if (error.value === null || !nextKeys || !prevKeys) {
                     return;
                 }
 
-                const lengthChanged = prevKeys?.length !== nextKeys.length;
-                const valuesChanged = nextKeys.some((key, i) => !Object.is(key, prevKeys?.[i]));
+                const lengthChanged = prevKeys.length !== nextKeys.length;
+                const valuesChanged = nextKeys.some((key, i) => !Object.is(key, prevKeys[i]));
 
                 if (lengthChanged || valuesChanged) {
                     resetErrorBoundary();

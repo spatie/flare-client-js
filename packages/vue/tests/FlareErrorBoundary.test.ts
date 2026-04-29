@@ -849,6 +849,27 @@ describe('FlareErrorBoundary', () => {
         expect(wrapper.text()).toBe('Recovered');
     });
 
+    test('does not reset on the first transition from undefined to a resetKeys array', async () => {
+        const onReset = vi.fn();
+
+        const wrapper = mount(FlareErrorBoundary, {
+            slots: {
+                default: () => h(ThrowingComponent),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('Error');
+
+        await wrapper.setProps({ onReset, resetKeys: ['a'] as unknown[] });
+        await nextTick();
+
+        expect(onReset).not.toHaveBeenCalled();
+        expect(wrapper.text()).toBe('Error');
+    });
+
     test('resetKeys uses Object.is for comparison', async () => {
         let shouldThrow = true;
         const onReset = vi.fn();
