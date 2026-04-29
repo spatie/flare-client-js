@@ -355,12 +355,8 @@ describe('FlareErrorBoundary', () => {
         expect(wrapper.html()).toBe('');
     });
 
-    test('flare.report throwing is contained and fallback still renders', async () => {
-        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-        mockReport.mockImplementation(() => {
-            throw new Error('report failed');
-        });
+    test('flare.report rejection is silenced and fallback still renders', async () => {
+        mockReport.mockRejectedValueOnce(new Error('report failed'));
 
         const wrapper = mount(FlareErrorBoundary, {
             slots: {
@@ -370,24 +366,15 @@ describe('FlareErrorBoundary', () => {
         });
 
         await nextTick();
+        await nextTick();
 
         expect(mockReport).toHaveBeenCalledOnce();
         expect(wrapper.text()).toBe('Fallback');
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-            'FlareErrorBoundary: failed to report error to Flare',
-            expect.any(Error)
-        );
-
-        consoleErrorSpy.mockRestore();
     });
 
-    test('flare.report throwing does not propagate to outer errorCaptured handlers', async () => {
-        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    test('flare.report rejection does not propagate to outer errorCaptured handlers', async () => {
+        mockReport.mockRejectedValueOnce(new Error('report failed'));
         const outerHandler = vi.fn();
-
-        mockReport.mockImplementation(() => {
-            throw new Error('report failed');
-        });
 
         const Parent = defineComponent({
             errorCaptured: outerHandler,
@@ -402,19 +389,14 @@ describe('FlareErrorBoundary', () => {
         mount(Parent);
 
         await nextTick();
+        await nextTick();
 
         expect(outerHandler).not.toHaveBeenCalled();
-
-        consoleErrorSpy.mockRestore();
     });
 
-    test('afterSubmit still runs when flare.report throws', async () => {
-        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    test('afterSubmit still runs when flare.report rejects', async () => {
+        mockReport.mockRejectedValueOnce(new Error('report failed'));
         const afterSubmit = vi.fn();
-
-        mockReport.mockImplementation(() => {
-            throw new Error('report failed');
-        });
 
         mount(FlareErrorBoundary, {
             props: { afterSubmit },
@@ -425,10 +407,9 @@ describe('FlareErrorBoundary', () => {
         });
 
         await nextTick();
+        await nextTick();
 
         expect(afterSubmit).toHaveBeenCalledOnce();
-
-        consoleErrorSpy.mockRestore();
     });
 
     test('calls beforeEvaluate before reporting', async () => {

@@ -134,11 +134,7 @@ export const FlareErrorBoundary = defineComponent({
                 ...vueContextToAttributes(finalContext),
             };
 
-            try {
-                Promise.resolve(flare.report(errorToReport, attributes)).catch(() => {});
-            } catch (reportError) {
-                console.error('FlareErrorBoundary: failed to report error to Flare', reportError);
-            }
+            Promise.resolve(flare.report(errorToReport, attributes)).catch(() => {});
 
             props.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 
