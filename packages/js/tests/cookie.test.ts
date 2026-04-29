@@ -12,6 +12,14 @@ afterEach(() => {
     });
 });
 
+test('parses a simple cookie', () => {
+    document.cookie = 'simple=value; path=/';
+
+    const result = cookie();
+
+    expect(result.cookies?.simple).toBe('value');
+});
+
 test('preserves = inside cookie values', () => {
     document.cookie = 'session=YWJjZGVm==; path=/';
 
@@ -20,12 +28,13 @@ test('preserves = inside cookie values', () => {
     expect(result.cookies?.session).toBe('YWJjZGVm==');
 });
 
-test('skips cookies without =', () => {
+test('skips cookies without = while keeping valid ones', () => {
+    document.cookie = 'good=1; path=/';
     document.cookie = 'noequals; path=/';
 
     const result = cookie();
 
-    expect(result.cookies?.noequals).toBeUndefined();
+    expect(result.cookies).toEqual({ good: '1' });
 });
 
 test('returns empty object when no cookies present', () => {
