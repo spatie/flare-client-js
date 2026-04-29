@@ -241,7 +241,7 @@ describe('flareVue', () => {
         expect(context.vue.componentHierarchyFrames).toEqual([]);
     });
 
-    test('re-throws the converted error, not the raw value, when no initial handler exists', () => {
+    test('re-throws the original raw value when no initial handler exists', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
@@ -252,8 +252,22 @@ describe('flareVue', () => {
             thrown = e;
         }
 
-        expect(thrown).toBeInstanceOf(Error);
-        expect((thrown as Error).message).toBe('raw string');
+        expect(thrown).toBe('raw string');
+    });
+
+    test('re-throws the original Error reference when no initial handler exists', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        const error = new Error('boom');
+        let thrown: unknown;
+        try {
+            app.config.errorHandler!(error, null, 'setup function');
+        } catch (e) {
+            thrown = e;
+        }
+
+        expect(thrown).toBe(error);
     });
 
     test('reports each error independently when called multiple times', () => {
