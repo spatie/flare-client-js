@@ -19,7 +19,7 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
     return { 'context.custom': { vue: context.vue as never } };
 }
 
-function urlAttributesWithScrubbedQuery(denylist: RegExp): Attributes {
+export function urlAttributesWithScrubbedQuery(denylist: RegExp = DEFAULT_PROPS_DENYLIST): Attributes {
     if (typeof window === 'undefined' || !window.location) {
         return {};
     }
@@ -32,7 +32,14 @@ function urlAttributesWithScrubbedQuery(denylist: RegExp): Attributes {
     return attrs;
 }
 
+const installedApps = new WeakSet<App>();
+
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
+    if (installedApps.has(app)) {
+        return;
+    }
+    installedApps.add(app);
+
     flare.setSdkInfo({ name: '@flareapp/vue', version: PACKAGE_VERSION });
     flare.setFramework({ name: 'Vue', version: app.version });
 
@@ -89,7 +96,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             return;
         }
 
-        throw errorToReport;
+        throw error;
     };
 
     if (options?.captureWarnings) {

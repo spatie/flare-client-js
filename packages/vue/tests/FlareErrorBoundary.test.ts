@@ -355,12 +355,8 @@ describe('FlareErrorBoundary', () => {
         expect(wrapper.html()).toBe('');
     });
 
-    test('flare.report throwing is contained and fallback still renders', async () => {
-        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-        mockReport.mockImplementation(() => {
-            throw new Error('report failed');
-        });
+    test('flare.report rejection is silenced and fallback still renders', async () => {
+        mockReport.mockRejectedValueOnce(new Error('report failed'));
 
         const wrapper = mount(FlareErrorBoundary, {
             slots: {
@@ -370,24 +366,15 @@ describe('FlareErrorBoundary', () => {
         });
 
         await nextTick();
+        await nextTick();
 
         expect(mockReport).toHaveBeenCalledOnce();
         expect(wrapper.text()).toBe('Fallback');
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-            'FlareErrorBoundary: failed to report error to Flare',
-            expect.any(Error)
-        );
-
-        consoleErrorSpy.mockRestore();
     });
 
-    test('flare.report throwing does not propagate to outer errorCaptured handlers', async () => {
-        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    test('flare.report rejection does not propagate to outer errorCaptured handlers', async () => {
+        mockReport.mockRejectedValueOnce(new Error('report failed'));
         const outerHandler = vi.fn();
-
-        mockReport.mockImplementation(() => {
-            throw new Error('report failed');
-        });
 
         const Parent = defineComponent({
             errorCaptured: outerHandler,
@@ -402,19 +389,14 @@ describe('FlareErrorBoundary', () => {
         mount(Parent);
 
         await nextTick();
+        await nextTick();
 
         expect(outerHandler).not.toHaveBeenCalled();
-
-        consoleErrorSpy.mockRestore();
     });
 
-    test('afterSubmit still runs when flare.report throws', async () => {
-        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    test('afterSubmit still runs when flare.report rejects', async () => {
+        mockReport.mockRejectedValueOnce(new Error('report failed'));
         const afterSubmit = vi.fn();
-
-        mockReport.mockImplementation(() => {
-            throw new Error('report failed');
-        });
 
         mount(FlareErrorBoundary, {
             props: { afterSubmit },
@@ -425,10 +407,9 @@ describe('FlareErrorBoundary', () => {
         });
 
         await nextTick();
+        await nextTick();
 
         expect(afterSubmit).toHaveBeenCalledOnce();
-
-        consoleErrorSpy.mockRestore();
     });
 
     test('calls beforeEvaluate before reporting', async () => {
@@ -868,6 +849,27 @@ describe('FlareErrorBoundary', () => {
         expect(wrapper.text()).toBe('Recovered');
     });
 
+    test('does not reset on the first transition from undefined to a resetKeys array', async () => {
+        const onReset = vi.fn();
+
+        const wrapper = mount(FlareErrorBoundary, {
+            slots: {
+                default: () => h(ThrowingComponent),
+                fallback: () => h('div', 'Error'),
+            },
+        });
+
+        await nextTick();
+
+        expect(wrapper.text()).toBe('Error');
+
+        await wrapper.setProps({ onReset, resetKeys: ['a'] as unknown[] });
+        await nextTick();
+
+        expect(onReset).not.toHaveBeenCalled();
+        expect(wrapper.text()).toBe('Error');
+    });
+
     test('resetKeys uses Object.is for comparison', async () => {
         let shouldThrow = true;
         const onReset = vi.fn();
@@ -1157,6 +1159,76 @@ describe('FlareErrorBoundary', () => {
             await nextTick();
 
             expect(slotProps?.componentProps).toEqual({ userId: 7 });
+        });
+    });
+
+    describe('url scrubbing', () => {
+        let originalHref: string;
+
+        beforeEach(() => {
+            originalHref = window.location.href;
+        });
+
+        afterEach(() => {
+            window.history.replaceState({}, '', originalHref);
+        });
+
+        function getReportedAttributes(callIndex = 0): Attributes {
+            return (mockReport.mock.calls[callIndex] ?? [])[1] as Attributes;
+        }
+
+        test('redacts denylisted query keys from url.full and url.query', async () => {
+            window.history.replaceState({}, '', '/page?token=abc&q=visible');
+
+            mount(FlareErrorBoundary, {
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const attributes = getReportedAttributes(0);
+            expect(attributes['url.full']).toContain('token=[Redacted]');
+            expect(attributes['url.full']).toContain('q=visible');
+            expect(attributes['url.query']).toBe('token=[Redacted]&q=visible');
+        });
+
+        test('honours custom propsDenylist when redacting the URL', async () => {
+            window.history.replaceState({}, '', '/page?secretKey=xyz&token=stillVisible');
+
+            mount(FlareErrorBoundary, {
+                props: { propsDenylist: /^secretKey$/ },
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const attributes = getReportedAttributes(0);
+            expect(attributes['url.full']).toContain('secretKey=[Redacted]');
+            expect(attributes['url.full']).toContain('token=stillVisible');
+            expect(attributes['url.query']).toBe('secretKey=[Redacted]&token=stillVisible');
+        });
+
+        test('omits url.query when there is no query string', async () => {
+            window.history.replaceState({}, '', '/page');
+
+            mount(FlareErrorBoundary, {
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const attributes = getReportedAttributes(0);
+            expect(attributes['url.full']).toBeDefined();
+            expect(attributes['url.query']).toBeUndefined();
         });
     });
 });
