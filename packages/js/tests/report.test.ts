@@ -41,7 +41,7 @@ test('report the test message', async () => {
 test('does not report browser extension errors by default', async () => {
     await client.test();
 
-    expect(fakeApi.lastReportBrowserExtensionErrors).toBe(false);
+    expect(fakeApi.lastConfig?.reportBrowserExtensionErrors).toBe(false);
 });
 
 test('can be configured to report browser extension errors', async () => {
@@ -49,5 +49,5 @@ test('can be configured to report browser extension errors', async () => {
 
     await client.test();
 
-    expect(fakeApi.lastReportBrowserExtensionErrors).toBe(true);
+    expect(fakeApi.lastConfig?.reportBrowserExtensionErrors).toBe(true);
 });

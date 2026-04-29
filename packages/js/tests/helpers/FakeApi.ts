@@ -1,21 +1,16 @@
 import { Api } from '../../src/api';
-import { Report } from '../../src/types';
+import { Config, Report } from '../../src/types';
 
 export class FakeApi extends Api {
     reports: Report[] = [];
 
     lastReport?: Report;
-    lastUrl?: string;
-    lastKey?: string;
-    lastReportBrowserExtensionErrors?: boolean;
+    lastConfig?: Config;
 
-    report(report: Report, url: string, key: string | null, reportBrowserExtensionErrors: boolean): Promise<void> {
+    report(report: Report, config: Config): Promise<void> {
         this.reports.push(report);
-
-        this.lastUrl = url;
-        this.lastKey = key;
-        this.lastReportBrowserExtensionErrors = reportBrowserExtensionErrors;
         this.lastReport = report;
+        this.lastConfig = config;
 
         return Promise.resolve();
     }

@@ -1,0 +1,58 @@
+{
+    "exceptionClass": "Error",
+    "message": "boom",
+    "seenAtUnixNano": 1777377600000000000,
+    "sourcemapVersionId": "sourcemap-abc",
+    "stacktrace": [
+        {
+            "file": "https://app.test/golden.js",
+            "lineNumber": 10,
+            "columnNumber": 20,
+            "method": "golden",
+            "class": "",
+            "codeSnippet": { "10": "throw new Error('boom')" },
+            "isApplicationFrame": true
+        },
+        {
+            "file": "https://app.test/node_modules/lib/index.js",
+            "lineNumber": 1,
+            "columnNumber": 1,
+            "method": "external",
+            "class": "",
+            "codeSnippet": { "1": "module.exports = ..." },
+            "isApplicationFrame": false
+        }
+    ],
+    "events": [
+        {
+            "type": "php_glow",
+            "startTimeUnixNano": 1777377600000000000,
+            "endTimeUnixNano": null,
+            "attributes": {
+                "glow.name": "rendering",
+                "glow.level": "info",
+                "glow.context": { "step": 1 }
+            }
+        }
+    ],
+    "attributes": {
+        "telemetry.sdk.language": "javascript",
+        "telemetry.sdk.name": "@flareapp/js",
+        "telemetry.sdk.version": "1.2.0",
+        "flare.language.name": "javascript",
+        "flare.entry_point.type": "web",
+        "flare.entry_point.value": "https://app.test/users/42",
+        "service.stage": "production",
+        "service.version": "1.0.0",
+        "url.full": "https://app.test/users/42",
+        "user_agent.original": "GoldenAgent/1.0",
+        "http.request.referrer": "https://example.com/from",
+        "document.ready_state": "complete",
+        "url.query": { "id": "42" },
+        "http.request.cookies": { "session": "abc" },
+        "context.custom": {
+            "userId": 7,
+            "vue": { "info": "render" }
+        }
+    }
+}
