@@ -325,6 +325,20 @@ describe('flareVue', () => {
         expect(mockReport).toHaveBeenCalledOnce();
     });
 
+    test('is idempotent when installed twice on the same app', () => {
+        const app = createMockApp();
+        (flareVue as Function)(app);
+        const firstHandler = app.config.errorHandler;
+
+        (flareVue as Function)(app);
+
+        expect(app.config.errorHandler).toBe(firstHandler);
+
+        callHandler(app, new Error('test'), null, 'setup function');
+
+        expect(mockReport).toHaveBeenCalledOnce();
+    });
+
     test('calls beforeEvaluate before building context and reporting', () => {
         const callOrder: string[] = [];
 

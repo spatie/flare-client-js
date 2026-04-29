@@ -32,7 +32,14 @@ export function urlAttributesWithScrubbedQuery(denylist: RegExp = DEFAULT_PROPS_
     return attrs;
 }
 
+const installedApps = new WeakSet<App>();
+
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
+    if (installedApps.has(app)) {
+        return;
+    }
+    installedApps.add(app);
+
     flare.setSdkInfo({ name: '@flareapp/vue', version: PACKAGE_VERSION });
     flare.setFramework({ name: 'Vue', version: app.version });
 
