@@ -198,3 +198,32 @@ test('omits absent optional fields rather than emitting undefined', () => {
     expect('message' in wire).toBe(false);
     expect('service.stage' in wire.attributes).toBe(false);
 });
+
+test('emits class when present, omits when empty', () => {
+    const r = fullReport();
+    r.stacktrace = [
+        {
+            line_number: 1,
+            column_number: 1,
+            method: 'm',
+            file: 'https://app.test/x.js',
+            code_snippet: {},
+            trimmed_column_number: null,
+            class: 'MyClass',
+        },
+        {
+            line_number: 2,
+            column_number: 2,
+            method: 'n',
+            file: 'https://app.test/y.js',
+            code_snippet: {},
+            trimmed_column_number: null,
+            class: '',
+        },
+    ];
+
+    const wire = mapToV2Wire(r, baseConfig());
+
+    expect(wire.stacktrace[0].class).toBe('MyClass');
+    expect('class' in wire.stacktrace[1]).toBe(false);
+});

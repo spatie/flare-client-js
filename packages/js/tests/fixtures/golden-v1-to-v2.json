@@ -9,7 +9,6 @@
             "lineNumber": 10,
             "columnNumber": 20,
             "method": "golden",
-            "class": "",
             "codeSnippet": { "10": "throw new Error('boom')" },
             "isApplicationFrame": true
         },
@@ -18,7 +17,6 @@
             "lineNumber": 1,
             "columnNumber": 1,
             "method": "external",
-            "class": "",
             "codeSnippet": { "1": "module.exports = ..." },
             "isApplicationFrame": false
         }

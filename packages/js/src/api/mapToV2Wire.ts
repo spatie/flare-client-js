@@ -42,7 +42,7 @@ function mapStackFrame(frame: StackFrame): V2StackFrame {
     if (frame.method) {
         out.method = frame.method;
     }
-    if (frame.class != null) {
+    if (frame.class) {
         out.class = frame.class;
     }
     if (frame.code_snippet) {
@@ -103,8 +103,12 @@ function buildCustomContext(context: Context): { [k: string]: V2AttributeValue }
         custom[key] = context[key] as V2AttributeValue;
     }
 
-    // addContext bucket: context.context.* — flattened into custom siblings.
-    // addContext wins on collision (matches the spread precedence in Flare.report).
+    // addContext('foo', value) populates context.context.foo. Flatten its
+    // children into siblings under context.custom. We process this AFTER the
+    // passed-context loop above so that on a collision (e.g. user calls both
+    // addContext('vue', X) and flare.report(err, {vue: Y})), the addContext
+    // value wins — same outcome as the {...passed, ...this.context} merge in
+    // Flare.report's createReportFromError.
     const added = (context as any).context;
     if (added && typeof added === 'object') {
         for (const key of Object.keys(added)) {
