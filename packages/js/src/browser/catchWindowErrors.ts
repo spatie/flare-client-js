@@ -10,27 +10,29 @@ export function catchWindowErrors() {
         return;
     }
 
-    const originalOnerrorHandler = window.onerror;
-    const originalOnunhandledrejectionHandler = window.onunhandledrejection;
+    window.addEventListener('error', (event: ErrorEvent) => {
+        if (event.error) {
+            flare.report(event.error);
+        }
+    });
 
-    window.onerror = (_1, _2, _3, _4, error) => {
-        if (error) {
-            flare.report(error);
+    window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+        const reason = event.reason;
+
+        if (reason instanceof Error) {
+            flare.report(reason);
+            return;
         }
 
-        if (typeof originalOnerrorHandler === 'function') {
-            originalOnerrorHandler(_1, _2, _3, _4, error);
-        }
-    };
+        const message = typeof reason === 'string' ? reason : safeStringify(reason);
+        flare.report(new Error(message));
+    });
+}
 
-    window.onunhandledrejection = (error: PromiseRejectionEvent) => {
-        if (error.reason instanceof Error) {
-            flare.report(error.reason);
-        }
-
-        if (typeof originalOnunhandledrejectionHandler === 'function') {
-            // @ts-ignore
-            originalOnunhandledrejectionHandler(error);
-        }
-    };
+function safeStringify(value: unknown): string {
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
 }
