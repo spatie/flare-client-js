@@ -19,7 +19,7 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
     return { 'context.custom': { vue: context.vue as never } };
 }
 
-function urlAttributesWithScrubbedQuery(denylist: RegExp): Attributes {
+export function urlAttributesWithScrubbedQuery(denylist: RegExp = DEFAULT_PROPS_DENYLIST): Attributes {
     if (typeof window === 'undefined' || !window.location) {
         return {};
     }

@@ -1131,4 +1131,74 @@ describe('FlareErrorBoundary', () => {
             expect(slotProps?.componentProps).toEqual({ userId: 7 });
         });
     });
+
+    describe('url scrubbing', () => {
+        let originalHref: string;
+
+        beforeEach(() => {
+            originalHref = window.location.href;
+        });
+
+        afterEach(() => {
+            window.history.replaceState({}, '', originalHref);
+        });
+
+        function getReportedAttributes(callIndex = 0): Attributes {
+            return (mockReport.mock.calls[callIndex] ?? [])[1] as Attributes;
+        }
+
+        test('redacts denylisted query keys from url.full and url.query', async () => {
+            window.history.replaceState({}, '', '/page?token=abc&q=visible');
+
+            mount(FlareErrorBoundary, {
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const attributes = getReportedAttributes(0);
+            expect(attributes['url.full']).toContain('token=[Redacted]');
+            expect(attributes['url.full']).toContain('q=visible');
+            expect(attributes['url.query']).toBe('token=[Redacted]&q=visible');
+        });
+
+        test('honours custom propsDenylist when redacting the URL', async () => {
+            window.history.replaceState({}, '', '/page?secretKey=xyz&token=stillVisible');
+
+            mount(FlareErrorBoundary, {
+                props: { propsDenylist: /^secretKey$/ },
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const attributes = getReportedAttributes(0);
+            expect(attributes['url.full']).toContain('secretKey=[Redacted]');
+            expect(attributes['url.full']).toContain('token=stillVisible');
+            expect(attributes['url.query']).toBe('secretKey=[Redacted]&token=stillVisible');
+        });
+
+        test('omits url.query when there is no query string', async () => {
+            window.history.replaceState({}, '', '/page');
+
+            mount(FlareErrorBoundary, {
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const attributes = getReportedAttributes(0);
+            expect(attributes['url.full']).toBeDefined();
+            expect(attributes['url.query']).toBeUndefined();
+        });
+    });
 });

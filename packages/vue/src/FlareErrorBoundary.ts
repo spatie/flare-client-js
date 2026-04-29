@@ -1,11 +1,12 @@
-import { flare } from '@flareapp/js';
+import { type Attributes, flare } from '@flareapp/js';
 import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
+import { DEFAULT_PROPS_DENYLIST } from './constants';
 import { convertToError } from './convertToError';
-import { vueContextToAttributes } from './flareVue';
+import { urlAttributesWithScrubbedQuery, vueContextToAttributes } from './flareVue';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
@@ -128,8 +129,13 @@ export const FlareErrorBoundary = defineComponent({
             componentHierarchy.value = finalContext.vue.componentHierarchy;
             componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
+            const attributes: Attributes = {
+                ...urlAttributesWithScrubbedQuery(props.propsDenylist ?? DEFAULT_PROPS_DENYLIST),
+                ...vueContextToAttributes(finalContext),
+            };
+
             try {
-                Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
+                Promise.resolve(flare.report(errorToReport, attributes)).catch(() => {});
             } catch (reportError) {
                 console.error('FlareErrorBoundary: failed to report error to Flare', reportError);
             }
