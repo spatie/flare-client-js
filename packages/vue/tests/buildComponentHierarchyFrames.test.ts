@@ -218,7 +218,7 @@ describe('buildComponentHierarchyFrames', () => {
 
             const frames = buildComponentHierarchyFrames(instance, { attachProps: true, propsMaxDepth: 2 });
 
-            expect(frames[0].props).toEqual({ token: '[Redacted]', id: 1 });
+            expect(frames[0].props).toEqual({ token: '[redacted]', id: 1 });
         });
 
         test('forwards a custom denylist to the serializer', () => {
@@ -230,7 +230,7 @@ describe('buildComponentHierarchyFrames', () => {
                 propsDenylist: /^foo$/,
             });
 
-            expect(frames[0].props).toEqual({ foo: '[Redacted]', bar: 'y' });
+            expect(frames[0].props).toEqual({ foo: '[redacted]', bar: 'y' });
         });
     });
 });

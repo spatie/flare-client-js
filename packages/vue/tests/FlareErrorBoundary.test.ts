@@ -8,14 +8,18 @@ import { ComponentHierarchyFrame, FlareVueContext } from '../src/types';
 
 const mockReport = vi.fn();
 
-vi.mock('@flareapp/js', () => ({
-    flare: {
-        report: (...args: unknown[]) => mockReport(...args),
-        setSdkInfo: vi.fn(),
-        setFramework: vi.fn(),
-        setEntryPoint: vi.fn(),
-    },
-}));
+vi.mock('@flareapp/js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@flareapp/js')>();
+    return {
+        ...actual,
+        flare: {
+            report: (...args: unknown[]) => mockReport(...args),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+            setEntryPoint: vi.fn(),
+        },
+    };
+});
 
 function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
     const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
@@ -1070,8 +1074,8 @@ describe('FlareErrorBoundary', () => {
             const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({
                 id: 1,
-                password: '[Redacted]',
-                apiKey: '[Redacted]',
+                password: '[redacted]',
+                apiKey: '[redacted]',
             });
         });
 
@@ -1100,7 +1104,7 @@ describe('FlareErrorBoundary', () => {
             await nextTick();
 
             const context = { vue: getReportedVue(0) };
-            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: '[Redacted]' });
+            expect(context.vue.componentProps).toEqual({ ssn: '[redacted]', password: '[redacted]' });
         });
 
         test('replaces the default denylist when replaceDefaultDenylist is true', async () => {
@@ -1128,7 +1132,7 @@ describe('FlareErrorBoundary', () => {
             await nextTick();
 
             const context = { vue: getReportedVue(0) };
-            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'now-leaked' });
+            expect(context.vue.componentProps).toEqual({ ssn: '[redacted]', password: 'now-leaked' });
         });
 
         test('passes serialized componentProps into the fallback slot when attachProps is true', async () => {
@@ -1159,76 +1163,6 @@ describe('FlareErrorBoundary', () => {
             await nextTick();
 
             expect(slotProps?.componentProps).toEqual({ userId: 7 });
-        });
-    });
-
-    describe('url scrubbing', () => {
-        let originalHref: string;
-
-        beforeEach(() => {
-            originalHref = window.location.href;
-        });
-
-        afterEach(() => {
-            window.history.replaceState({}, '', originalHref);
-        });
-
-        function getReportedAttributes(callIndex = 0): Attributes {
-            return (mockReport.mock.calls[callIndex] ?? [])[1] as Attributes;
-        }
-
-        test('redacts denylisted query keys from url.full and url.query', async () => {
-            window.history.replaceState({}, '', '/page?token=abc&q=visible');
-
-            mount(FlareErrorBoundary, {
-                slots: {
-                    default: () => h(ThrowingComponent),
-                    fallback: () => h('div', 'Error'),
-                },
-            });
-
-            await nextTick();
-
-            const attributes = getReportedAttributes(0);
-            expect(attributes['url.full']).toContain('token=[Redacted]');
-            expect(attributes['url.full']).toContain('q=visible');
-            expect(attributes['url.query']).toBe('token=[Redacted]&q=visible');
-        });
-
-        test('honours custom propsDenylist when redacting the URL', async () => {
-            window.history.replaceState({}, '', '/page?secretKey=xyz&token=stillVisible');
-
-            mount(FlareErrorBoundary, {
-                props: { propsDenylist: /^secretKey$/ },
-                slots: {
-                    default: () => h(ThrowingComponent),
-                    fallback: () => h('div', 'Error'),
-                },
-            });
-
-            await nextTick();
-
-            const attributes = getReportedAttributes(0);
-            expect(attributes['url.full']).toContain('secretKey=[Redacted]');
-            expect(attributes['url.full']).toContain('token=stillVisible');
-            expect(attributes['url.query']).toBe('secretKey=[Redacted]&token=stillVisible');
-        });
-
-        test('omits url.query when there is no query string', async () => {
-            window.history.replaceState({}, '', '/page');
-
-            mount(FlareErrorBoundary, {
-                slots: {
-                    default: () => h(ThrowingComponent),
-                    fallback: () => h('div', 'Error'),
-                },
-            });
-
-            await nextTick();
-
-            const attributes = getReportedAttributes(0);
-            expect(attributes['url.full']).toBeDefined();
-            expect(attributes['url.query']).toBeUndefined();
         });
     });
 });

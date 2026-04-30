@@ -13,7 +13,7 @@ import {
     Report,
     SdkInfo,
 } from './types';
-import { assert, assertKey, extractCode, glowsToEvents, now } from './util';
+import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, redactFullPath } from './util';
 
 const DEFAULT_SDK_NAME = '@flareapp/js';
 
@@ -27,6 +27,7 @@ export class Flare {
         ingestUrl: 'https://ingress.flareapp.io/v1/errors',
         reportBrowserExtensionErrors: false,
         debug: false,
+        urlDenylist: DEFAULT_URL_DENYLIST,
         beforeEvaluate: (error) => error,
         beforeSubmit: (report) => report,
     };
@@ -185,7 +186,7 @@ export class Flare {
         };
 
         if (typeof window !== 'undefined' && window?.location?.href) {
-            baseAttributes['flare.entry_point.value'] = window.location.href;
+            baseAttributes['flare.entry_point.value'] = redactFullPath(window.location.href, this.config.urlDenylist);
         }
 
         const handlerIdentifier =
@@ -219,7 +220,7 @@ export class Flare {
 
         const attributes: Attributes = {
             ...baseAttributes,
-            ...collectAttributes(),
+            ...collectAttributes(this.config.urlDenylist),
             ...this.pendingAttributes,
             ...input.extraAttributes,
         };

@@ -208,23 +208,23 @@ describe('serializeProps', () => {
                     5
                 )
             ).toEqual({
-                password: '[Redacted]',
-                Token: '[Redacted]',
-                apiKey: '[Redacted]',
-                api_key: '[Redacted]',
-                authorization: '[Redacted]',
-                cookie: '[Redacted]',
-                sessionId: '[Redacted]',
-                csrfToken: '[Redacted]',
-                xsrfToken: '[Redacted]',
-                credentials: '[Redacted]',
-                auth: '[Redacted]',
+                password: '[redacted]',
+                Token: '[redacted]',
+                apiKey: '[redacted]',
+                api_key: '[redacted]',
+                authorization: '[redacted]',
+                cookie: '[redacted]',
+                sessionId: '[redacted]',
+                csrfToken: '[redacted]',
+                xsrfToken: '[redacted]',
+                credentials: '[redacted]',
+                auth: '[redacted]',
             });
         });
 
         test('redacts nested keys matched by the default denylist', () => {
             expect(serializeProps({ user: { id: 1, password: 'p', nested: { token: 't' } } }, 5)).toEqual({
-                user: { id: 1, password: '[Redacted]', nested: { token: '[Redacted]' } },
+                user: { id: 1, password: '[redacted]', nested: { token: '[redacted]' } },
             });
         });
 
@@ -260,16 +260,16 @@ describe('serializeProps', () => {
                     5
                 )
             ).toEqual({
-                bearer: '[Redacted]',
-                bearerToken: '[Redacted]',
-                oauthCode: '[Redacted]',
-                privateKey: '[Redacted]',
-                private_key: '[Redacted]',
-                pin: '[Redacted]',
-                ssn: '[Redacted]',
-                cardNumber: '[Redacted]',
-                card_number: '[Redacted]',
-                cvv: '[Redacted]',
+                bearer: '[redacted]',
+                bearerToken: '[redacted]',
+                oauthCode: '[redacted]',
+                privateKey: '[redacted]',
+                private_key: '[redacted]',
+                pin: '[redacted]',
+                ssn: '[redacted]',
+                cardNumber: '[redacted]',
+                card_number: '[redacted]',
+                cvv: '[redacted]',
             });
         });
 
@@ -284,14 +284,14 @@ describe('serializeProps', () => {
         test('accepts a custom denylist that replaces the default', () => {
             expect(serializeProps({ password: 'p', foo: 'x', bar: 'y' }, 2, /^foo$/)).toEqual({
                 password: 'p',
-                foo: '[Redacted]',
+                foo: '[redacted]',
                 bar: 'y',
             });
         });
 
         test('applies a custom denylist at every depth', () => {
             expect(serializeProps({ outer: { inner: { token: 't', safe: 'ok' } } }, 5, /token/i)).toEqual({
-                outer: { inner: { token: '[Redacted]', safe: 'ok' } },
+                outer: { inner: { token: '[redacted]', safe: 'ok' } },
             });
         });
     });

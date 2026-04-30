@@ -13,6 +13,7 @@ export type Config = {
     reportBrowserExtensionErrors: boolean;
     ingestUrl: string;
     debug: boolean;
+    urlDenylist: RegExp;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };

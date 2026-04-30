@@ -8,15 +8,19 @@ import type { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from '.
 const mockReport = vi.fn();
 const mockReportMessage = vi.fn();
 
-vi.mock('@flareapp/js', () => ({
-    flare: {
-        report: (...args: unknown[]) => mockReport(...args),
-        reportMessage: (...args: unknown[]) => mockReportMessage(...args),
-        setSdkInfo: vi.fn(),
-        setFramework: vi.fn(),
-        setEntryPoint: vi.fn(),
-    },
-}));
+vi.mock('@flareapp/js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@flareapp/js')>();
+    return {
+        ...actual,
+        flare: {
+            report: (...args: unknown[]) => mockReport(...args),
+            reportMessage: (...args: unknown[]) => mockReportMessage(...args),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+            setEntryPoint: vi.fn(),
+        },
+    };
+});
 
 function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
     const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
@@ -651,7 +655,7 @@ describe('flareVue', () => {
             callHandler(app, new Error('x'), instance, 'setup function');
 
             const context = { vue: getReportedVue(0) };
-            expect(context.vue.componentProps).toEqual({ id: 1, password: '[Redacted]', token: '[Redacted]' });
+            expect(context.vue.componentProps).toEqual({ id: 1, password: '[redacted]', token: '[redacted]' });
         });
 
         test('redacts default sensitive keys from hierarchy frame props', () => {
@@ -665,7 +669,7 @@ describe('flareVue', () => {
             const context = { vue: getReportedVue(0) };
             expect(context.vue.componentHierarchyFrames.map((frame) => frame.props)).toEqual([
                 { id: 1 },
-                { apiKey: '[Redacted]', flag: true },
+                { apiKey: '[redacted]', flag: true },
             ]);
         });
 
@@ -681,8 +685,8 @@ describe('flareVue', () => {
 
             const context = { vue: getReportedVue(0) };
             expect(context.vue.componentProps).toEqual({
-                ssn: '[Redacted]',
-                password: '[Redacted]',
+                ssn: '[redacted]',
+                password: '[redacted]',
                 id: 1,
             });
         });
@@ -699,7 +703,7 @@ describe('flareVue', () => {
             callHandler(app, new Error('x'), instance, 'setup function');
 
             const context = { vue: getReportedVue(0) };
-            expect(context.vue.componentProps).toEqual({ ssn: '[Redacted]', password: 'now-leaked', id: 1 });
+            expect(context.vue.componentProps).toEqual({ ssn: '[redacted]', password: 'now-leaked', id: 1 });
         });
     });
 });
@@ -739,6 +743,7 @@ describe('flareVue captureWarnings', () => {
             'warning',
             expect.objectContaining({
                 'context.custom': {
+                    framework: 'vue',
                     vue: {
                         type: 'warning',
                         info: 'Invalid prop type',

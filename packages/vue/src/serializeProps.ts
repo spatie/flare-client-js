@@ -79,7 +79,7 @@ function serialize(value: unknown, depth: number, maxDepth: number, seen: WeakSe
 
     for (const key of limitedKeys) {
         if (denylist.test(key)) {
-            out[key] = '[Redacted]';
+            out[key] = '[redacted]';
             continue;
         }
 

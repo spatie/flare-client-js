@@ -156,7 +156,7 @@ describe('getRouteContext', () => {
             });
 
             expect(getRouteContext(router)!.query).toEqual({
-                access_token: '[Redacted]',
+                access_token: '[redacted]',
                 state: 'abc',
             });
         });
@@ -172,7 +172,7 @@ describe('getRouteContext', () => {
                 matched: [],
             });
 
-            expect(getRouteContext(router)!.query).toEqual({ token: '[Redacted]', safe: 'ok' });
+            expect(getRouteContext(router)!.query).toEqual({ token: '[redacted]', safe: 'ok' });
         });
 
         test('redacts keys matching the denylist in params', () => {
@@ -186,7 +186,7 @@ describe('getRouteContext', () => {
                 matched: [],
             });
 
-            expect(getRouteContext(router)!.params).toEqual({ sessionId: '[Redacted]', id: '42' });
+            expect(getRouteContext(router)!.params).toEqual({ sessionId: '[redacted]', id: '42' });
         });
 
         test('accepts a custom denylist', () => {
@@ -201,7 +201,7 @@ describe('getRouteContext', () => {
             });
 
             expect(getRouteContext(router, { denylist: /^ssn$/ })!.query).toEqual({
-                ssn: '[Redacted]',
+                ssn: '[redacted]',
                 token: 'kept',
             });
         });
@@ -225,7 +225,7 @@ describe('getRouteContext', () => {
             });
 
             expect(getRouteContext(router)!.fullPath).toBe(
-                '/users/77?token=[Redacted]&session_id=[Redacted]&tab=public&tag=a&tag=b'
+                '/users/77?token=[redacted]&session_id=[redacted]&tab=public&tag=a&tag=b'
             );
         });
 
@@ -240,7 +240,7 @@ describe('getRouteContext', () => {
                 matched: [],
             });
 
-            expect(getRouteContext(router)!.fullPath).toBe('/secure?token=[Redacted]&page=2#section');
+            expect(getRouteContext(router)!.fullPath).toBe('/secure?token=[redacted]&page=2#section');
         });
 
         test('leaves fullPath untouched when there is no query string', () => {
@@ -268,7 +268,7 @@ describe('getRouteContext', () => {
                 matched: [],
             });
 
-            expect(getRouteContext(router, { denylist: /^ssn$/ })!.fullPath).toBe('/?ssn=[Redacted]&token=kept');
+            expect(getRouteContext(router, { denylist: /^ssn$/ })!.fullPath).toBe('/?ssn=[redacted]&token=kept');
         });
 
         test('handles keyless query entries without a value', () => {

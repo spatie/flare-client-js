@@ -12,7 +12,7 @@ const show = ref(false);
 <template>
     <TestSection
         title="Default prop denylist"
-        description="attachProps=true with default denylist: password, authToken, apiKey, sessionId, pin, cvv, etc. should appear as [Redacted] in the serialized componentProps. Non-sensitive fields pass through."
+        description="attachProps=true with default denylist: password, authToken, apiKey, sessionId, pin, cvv, etc. should appear as [redacted] in the serialized componentProps. Non-sensitive fields pass through."
     >
         <Button
             @click="
@@ -38,7 +38,7 @@ const show = ref(false);
                     <div class="space-y-1">
                         <p>Denylist demo caught: {{ error.message }}</p>
                         <details class="text-xs text-gray-500" open>
-                            <summary>Serialized componentProps (sensitive fields should be [Redacted])</summary>
+                            <summary>Serialized componentProps (sensitive fields should be [redacted])</summary>
                             <pre class="mt-1 overflow-auto text-xs">{{ JSON.stringify(componentProps, null, 2) }}</pre>
                         </details>
                         <button

@@ -3,33 +3,20 @@ import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
-import { DEFAULT_PROPS_DENYLIST, PACKAGE_VERSION, resolveDenylist } from './constants';
+import { PACKAGE_VERSION, resolveDenylist } from './constants';
 import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
-import { getRouteContext, redactFullPath } from './getRouteContext';
+import { getRouteContext } from './getRouteContext';
 import { serializeProps } from './serializeProps';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export function vueContextToAttributes(context: FlareVueContext): Attributes {
-    return { 'context.custom': { vue: context.vue as never } };
+    return { 'context.custom': { framework: 'vue', vue: context.vue as never } };
 }
 
 export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
-    return { 'context.custom': { vue: context.vue as never } };
-}
-
-export function urlAttributesWithScrubbedQuery(denylist: RegExp = DEFAULT_PROPS_DENYLIST): Attributes {
-    if (typeof window === 'undefined' || !window.location) {
-        return {};
-    }
-    const href = window.location.href;
-    const search = window.location.search;
-    const attrs: Attributes = { 'url.full': redactFullPath(href, denylist) };
-    if (search) {
-        attrs['url.query'] = redactFullPath(search, denylist).replace(/^\?/, '');
-    }
-    return attrs;
+    return { 'context.custom': { framework: 'vue', vue: context.vue as never } };
 }
 
 const installedApps = new WeakSet<App>();
@@ -81,12 +68,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
-        const attributes: Attributes = {
-            ...urlAttributesWithScrubbedQuery(propsDenylist ?? DEFAULT_PROPS_DENYLIST),
-            ...vueContextToAttributes(finalContext),
-        };
-
-        Promise.resolve(flare.report(errorToReport, attributes)).catch(() => {});
+        Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
 
         options?.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 
@@ -116,12 +98,9 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
                 },
             };
 
-            const warnAttributes: Attributes = {
-                ...urlAttributesWithScrubbedQuery(propsDenylist ?? DEFAULT_PROPS_DENYLIST),
-                ...vueWarningContextToAttributes(context),
-            };
-
-            Promise.resolve(flare.reportMessage(msg, 'warning', warnAttributes)).catch(() => {});
+            Promise.resolve(flare.reportMessage(msg, 'warning', vueWarningContextToAttributes(context))).catch(
+                () => {}
+            );
 
             if (typeof initialWarnHandler === 'function') {
                 initialWarnHandler(msg, instance, trace);
