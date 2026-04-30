@@ -96,5 +96,78 @@ promise rejections, async errors, component errors, etc.).
 
 ## Publishing
 
-- Update `version` in the package's `package.json`
-- Run `npm publish` from the individual package directory
+Each published package (`@flareapp/js`, `@flareapp/react`, `@flareapp/vue`, `@flareapp/vite`) is released
+independently with [`release-it`](https://github.com/release-it/release-it). `release-it` is installed once at the
+repo root as a devDependency and shared across workspaces. Per-package configuration lives in
+`packages/<pkg>/.release-it.json` and a `release` script in each `packages/<pkg>/package.json`.
+
+### Release a single package
+
+From the package directory you want to release:
+
+```bash
+cd packages/<pkg>            # js, react, vue, or vite
+npm run release              # interactive: prompts for the next version
+```
+
+To pre-select a bump non-interactively:
+
+```bash
+npm run release -- patch     # or minor / major / 1.2.3
+npm run release -- --dry-run # preview without changing anything
+```
+
+`release-it` will, in order:
+
+1. Check the working tree is clean and the current branch is `main` (`requireBranch: "main"`,
+   `requireCleanWorkingDir: true`).
+2. Prompt for the next version (or accept the increment passed on the CLI).
+3. Bump `version` in that package's `package.json`.
+4. Run the `before:release` hook: `npm test --if-present`. `@flareapp/js` and `@flareapp/react` have a
+   `test` script today and run their vitest suites. `@flareapp/vue` will once PR #31 lands (adds the
+   `test` script + a vitest suite). `@flareapp/vite` has no tests, so the hook is a no-op for it.
+5. Commit the version bump as `chore: release @flareapp/<pkg>@<version>`.
+6. Create an annotated tag `@flareapp/<pkg>@<version>`.
+7. Push the commit and tag to `origin`.
+8. Run `npm publish` from the package directory. The package's `prepublishOnly` script builds the package first
+   (`npm run build`).
+
+### Pre-flight before running `release-it`
+
+`release-it` only verifies a clean tree and the branch. It does not run type-checks, builds, or cross-package tests.
+Before running `npm run release`, do these from the repo root:
+
+```bash
+npm run typescript           # type-check all packages
+npm run test                 # vitest across workspaces
+npm run build                # confirm tsdown builds clean
+```
+
+If any of those fail, fix first; do not release.
+
+### Versioning rules
+
+- Each package versions independently, no lockstep across the monorepo.
+- Use semver: bug fix only -> `patch`, additive non-breaking -> `minor`, breaking change -> `major`.
+- If you bump `@flareapp/js` to a major version, audit the `peerDependencies` ranges in `@flareapp/react`,
+  `@flareapp/vue`, and `@flareapp/vite`. The peer-dep ranges are not auto-updated by `release-it`. The
+  `sync-versions` skill checks this.
+- After releasing, update the version column in the "Monorepo structure" table at the top of this file.
+
+### Authentication
+
+- Local-only flow. You must be logged in to npm (`npm whoami`) or have `NPM_TOKEN` exported.
+- Packages are scoped + public via `"publishConfig": { "access": "public" }` in each `package.json`.
+- If npm requires a 2FA OTP, `release-it` prompts for it interactively.
+
+### Out of scope
+
+- No CI/GitHub Actions publishing. GitHub releases are disabled (`github.release: false`).
+- No `CHANGELOG.md` generation, no conventional-commit-driven version inference.
+- No coordinated multi-package release. Release each package separately.
+
+### Skill
+
+For an automated walkthrough use the `release` skill: `/release <package> <version>` (e.g.
+`/release js 1.2.0`). It runs the pre-flight checks, invokes `release-it`, and updates the CLAUDE.md version
+table.
