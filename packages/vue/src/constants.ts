@@ -1,5 +1,7 @@
 import { ErrorOrigin } from './types';
 
+export const PACKAGE_VERSION = '2.0.0';
+
 export const MAX_HIERARCHY_DEPTH = 50;
 
 export const DEFAULT_PROPS_DENYLIST =

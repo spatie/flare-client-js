@@ -12,6 +12,7 @@
         "test": "npm run test --workspaces --if-present",
         "typescript": "npm run typescript --workspaces --if-present",
         "playground": "npm run build --workspaces --if-present && npm run dev --workspace=playground",
+        "playground:preview": "npm run build --workspaces --if-present && npm run preview --workspace=playground",
         "format": "prettier --write \"**/*.{js,json,vue,ts,tsx}\"",
         "prepare": "husky"
     },

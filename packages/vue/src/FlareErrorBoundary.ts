@@ -1,11 +1,12 @@
-import { flare } from '@flareapp/js';
+import { type Attributes, flare } from '@flareapp/js';
 import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
-import { resolveDenylist } from './constants';
+import { DEFAULT_PROPS_DENYLIST, resolveDenylist } from './constants';
 import { convertToError } from './convertToError';
+import { urlAttributesWithScrubbedQuery, vueContextToAttributes } from './flareVue';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
@@ -75,12 +76,12 @@ export const FlareErrorBoundary = defineComponent({
         watch(
             () => props.resetKeys,
             (nextKeys, prevKeys) => {
-                if (error.value === null || !nextKeys) {
+                if (error.value === null || !nextKeys || !prevKeys) {
                     return;
                 }
 
-                const lengthChanged = prevKeys?.length !== nextKeys.length;
-                const valuesChanged = nextKeys.some((key, i) => !Object.is(key, prevKeys?.[i]));
+                const lengthChanged = prevKeys.length !== nextKeys.length;
+                const valuesChanged = nextKeys.some((key, i) => !Object.is(key, prevKeys[i]));
 
                 if (lengthChanged || valuesChanged) {
                     resetErrorBoundary();
@@ -134,11 +135,12 @@ export const FlareErrorBoundary = defineComponent({
             componentHierarchy.value = finalContext.vue.componentHierarchy;
             componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
-            try {
-                Promise.resolve(flare.report(errorToReport, finalContext, { vue: { instance, info } })).catch(() => {});
-            } catch (reportError) {
-                console.error('FlareErrorBoundary: failed to report error to Flare', reportError);
-            }
+            const attributes: Attributes = {
+                ...urlAttributesWithScrubbedQuery(props.propsDenylist ?? DEFAULT_PROPS_DENYLIST),
+                ...vueContextToAttributes(finalContext),
+            };
+
+            Promise.resolve(flare.report(errorToReport, attributes)).catch(() => {});
 
             props.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 

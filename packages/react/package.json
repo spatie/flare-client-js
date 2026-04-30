@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/react",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "description": "React client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -46,7 +46,7 @@
         "vitest": "^4.0.0"
     },
     "peerDependencies": {
-        "@flareapp/js": "^1.0.0",
+        "@flareapp/js": "^2.0.0",
         "react": "^16.0.0||^17.0.0||^18.0.0||^19.0.0"
     },
     "publishConfig": {

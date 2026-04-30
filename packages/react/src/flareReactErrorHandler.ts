@@ -1,5 +1,6 @@
 import { flare } from '@flareapp/js';
 
+import { contextToAttributes } from './contextToAttributes';
 import { convertToError } from './convertToError';
 import { formatComponentStack } from './formatComponentStack';
 import { parseComponentStack } from './parseComponentStack';
@@ -43,7 +44,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        Promise.resolve(flare.report(errorObject, finalContext, { react: { errorInfo } })).catch(() => {});
+        Promise.resolve(flare.report(errorObject, contextToAttributes(finalContext))).catch(() => {});
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });
     };

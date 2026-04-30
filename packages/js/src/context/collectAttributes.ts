@@ -1,18 +1,17 @@
-import { Context } from '../types';
+import { Attributes } from '../types';
 
 import cookie from './cookie';
 import request from './request';
 import requestData from './requestData';
 
-export function collectContext(additionalContext: object): Context {
+export function collectAttributes(): Attributes {
     if (typeof window === 'undefined') {
-        return additionalContext;
+        return {};
     }
 
     return {
-        ...cookie(),
         ...request(),
         ...requestData(),
-        ...additionalContext,
+        ...cookie(),
     };
 }

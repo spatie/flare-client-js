@@ -1,3 +1,7 @@
+import { registerReactSdkIdentity } from './identify';
+
+registerReactSdkIdentity();
+
 export {
     FlareErrorBoundary,
     type FlareErrorBoundaryProps,
