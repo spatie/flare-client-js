@@ -121,11 +121,11 @@ export const FlareErrorBoundary = defineComponent({
                 vue: {
                     info,
                     errorOrigin,
+                    ...(route && { route }),
                     componentName,
                     ...(instanceProps && { componentProps: instanceProps }),
                     componentHierarchy: hierarchy,
                     componentHierarchyFrames: hierarchyFrames,
-                    ...(route && { route }),
                 },
             };
 
