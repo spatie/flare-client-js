@@ -11,12 +11,13 @@ export class Api {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'X-Api-Token': config.key ?? '',
-                'X-Flare-Client-Version': '2',
+                'X-Report-Browser-Extension-Errors': JSON.stringify(config.reportBrowserExtensionErrors),
+                'X-Flare-Client-Version': '1',
             },
             body: flatJsonStringify(mapToV2Wire(report, config)),
         }).then(
             (response) => {
-                if (response.status !== 201) {
+                if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
                     console.error(`Received response with status ${response.status} from Flare`);
                 }
             },

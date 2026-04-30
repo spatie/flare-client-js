@@ -9,9 +9,8 @@ This is the **final v1 release**. Subsequent work ships under v2.
 
 ### Changed
 - Default `reportingUrl` now points to the new ingestion endpoint: `https://ingress.flareapp.io/v1/errors`. Consumers with allowlist firewall rules on outbound HTTP must add this host to their allowlist. Consumers passing a custom `reportingUrl` to `flare.configure({...})` are unaffected.
-- HTTP success status changed from `204` to `201`.
-- Headers updated: `Accept: application/json` and `X-Flare-Client-Version: 2` added; `X-Requested-With` and `X-Report-Browser-Extension-Errors` removed.
-- `Config.reportBrowserExtensionErrors` is now a no-op. The v2 ingestion endpoint does not consume the corresponding header. The field is preserved on `Config` for backward compatibility.
+- HTTP response is now treated as success on status `200`, `201`, or `204` (previously only `204`).
+- Headers updated: `Accept: application/json` and `X-Flare-Client-Version: 1` added; `X-Requested-With` removed. `X-Api-Token` and `X-Report-Browser-Extension-Errors` retained.
 - Stack frames omit the `class` field when empty (previously emitted as `""`). The field is still emitted when populated.
 
 ### Fixed

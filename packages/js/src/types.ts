@@ -4,11 +4,6 @@ export type Config = {
     sourcemapVersion: string;
     stage: string;
     maxGlowsPerReport: number;
-    /**
-     * No-op since v1.2.0. The v2 ingestion endpoint does not consume the
-     * X-Report-Browser-Extension-Errors header. The field is preserved
-     * on `Config` for backward compatibility with v1.x consumers.
-     */
     reportBrowserExtensionErrors: boolean;
     reportingUrl: string;
     debug: boolean;

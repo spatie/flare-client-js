@@ -60,16 +60,23 @@ test('sends the v2 headers', async () => {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'X-Api-Token': 'secret-key',
-        'X-Flare-Client-Version': '2',
+        'X-Report-Browser-Extension-Errors': 'false',
+        'X-Flare-Client-Version': '1',
     });
 });
 
-test('does not send legacy headers', async () => {
+test('does not send X-Requested-With', async () => {
     await new Api().report(minimalReport(), config);
 
     const init = fetchMock.mock.calls[0][1];
     expect(init.headers).not.toHaveProperty('X-Requested-With');
-    expect(init.headers).not.toHaveProperty('X-Report-Browser-Extension-Errors');
+});
+
+test('forwards reportBrowserExtensionErrors as JSON-encoded header', async () => {
+    await new Api().report(minimalReport(), { ...config, reportBrowserExtensionErrors: true });
+
+    const init = fetchMock.mock.calls[0][1];
+    expect((init.headers as any)['X-Report-Browser-Extension-Errors']).toBe('true');
 });
 
 test('body is the v2 wire payload from mapToV2Wire', async () => {
@@ -89,7 +96,7 @@ test('uses POST', async () => {
     expect(init.method).toBe('POST');
 });
 
-test('logs error on non-201 response', async () => {
+test('logs error on unexpected response status', async () => {
     fetchMock.mockResolvedValueOnce({ status: 500 });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -99,7 +106,8 @@ test('logs error on non-201 response', async () => {
     consoleError.mockRestore();
 });
 
-test('does not log on 201', async () => {
+test.each([200, 201, 204])('does not log on %i', async (status) => {
+    fetchMock.mockResolvedValueOnce({ status });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await new Api().report(minimalReport(), config);
