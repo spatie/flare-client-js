@@ -1,0 +1,19 @@
+{
+    "git": {
+        "tagName": "@flareapp/js@${version}",
+        "tagAnnotation": "Release @flareapp/js@${version}",
+        "commitMessage": "chore: release @flareapp/js@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": {
+        "publish": true
+    },
+    "github": {
+        "release": false
+    },
+    "hooks": {
+        "before:release": "npm test --if-present"
+    }
+}

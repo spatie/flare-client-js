@@ -20,6 +20,10 @@
         "@types/node": "^25.3.0",
         "husky": "^9.0.0",
         "lint-staged": "^16.2.7",
-        "prettier": "^3.3.3"
+        "prettier": "^3.3.3",
+        "release-it": "^20.0.1"
+    },
+    "optionalDependencies": {
+        "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.3"
     }
 }

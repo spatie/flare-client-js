@@ -29,7 +29,8 @@
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
         "test": "vitest run",
-        "typescript": "tsc --noEmit"
+        "typescript": "tsc --noEmit",
+        "release": "release-it"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
@@ -42,7 +43,7 @@
         "react-dom": "^19.0.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
-        "vitest": "^3.2.1"
+        "vitest": "^4.0.0"
     },
     "peerDependencies": {
         "@flareapp/js": "^1.0.0",

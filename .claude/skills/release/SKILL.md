@@ -1,46 +1,101 @@
 ---
 name: release
-description: Guide through releasing a specific package to npm. Bumps version, builds, tests, commits, tags, and publishes.
+description: Release a single @flareapp/* package to npm using release-it. Runs cross-workspace pre-flight checks, invokes release-it from the package directory, and updates the CLAUDE.md version table.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Edit
-argument-hint: <package-name> <version>
+argument-hint: <package-name> [version]
 ---
 
 # Release Package
 
-Release the `@flareapp/$0` package with version `$1`.
+Release the `@flareapp/$0` package using `release-it`. Optional `$1` is a version string (`patch`, `minor`,
+`major`, or an explicit `x.y.z`). If `$1` is omitted, ask the user which bump is appropriate based on recent
+commits before running, then pass it to `release-it`.
 
-If no version is provided, ask which version bump is appropriate (patch, minor, or major) based on recent changes.
+Valid `$0` values: `js`, `react`, `vue`, `vite`.
 
-## Pre-flight checks
+## How publishing works in this repo
 
-1. Verify you're on the `main` branch with a clean working tree (`git status`)
-2. Read `packages/$0/package.json` to confirm the current version
-3. Verify the package exists in the monorepo
+- `release-it` is installed once at the repo root, configured per package in `packages/$0/.release-it.json`.
+- Each package has `"release": "release-it"` in its `package.json` scripts.
+- `release-it` enforces clean working tree + `main` branch, bumps version, commits, tags, pushes, then publishes.
+- `prepublishOnly` runs the build, so the published artifact is always fresh.
+- `before:release` hook runs `npm test --if-present`. `@flareapp/js` and `@flareapp/react` have test
+  scripts today; `@flareapp/vue` will once PR #31 lands; `@flareapp/vite` has no tests.
 
-## Validation
+The `release-it` flow does not type-check, does not build other packages, and does not run cross-workspace tests.
+This skill performs those checks before invoking `release-it`.
 
-4. Run `npm run typescript` from the repo root — abort if type-checking fails
-5. Run `npm run test` from the repo root — abort if any test fails
-6. Run `npm run build` from the repo root — abort if the build fails
+## Pre-flight (repo root)
 
-## Version bump
+1. Confirm the working tree is clean and the branch is `main`:
 
-7. Update `version` in `packages/$0/package.json` to `$1`
-8. If other packages in the monorepo have a peer dependency on `@flareapp/$0`, check if their peer dependency range already covers the new version. If not, warn the user but do NOT update them automatically.
+   ```bash
+   git status
+   git rev-parse --abbrev-ref HEAD
+   ```
 
-## Commit and tag
+   If not on `main` or there are uncommitted changes, abort and tell the user.
 
-9. Stage only the changed `package.json` file(s)
-10. Commit with message: `Bump @flareapp/$0 from <old-version> to $1`
-11. Create a git tag: `@flareapp/$0@$1`
+2. Confirm the package exists by reading `packages/$0/package.json`. Note the current `version`.
 
-## Publish
+3. Run cross-workspace validation from the repo root. Abort on any failure:
 
-12. Ask the user for confirmation before publishing
-13. Run `npm publish` from `packages/$0/`
-14. Push the commit and tag to origin
+   ```bash
+   npm run typescript
+   npm run test
+   npm run build
+   ```
+
+## Decide the version
+
+4. If `$1` is set, use it as-is.
+5. If `$1` is empty, summarize the commits since the last `@flareapp/$0@*` tag (`git log @flareapp/$0@<last>..HEAD -- packages/$0`)
+   and propose a bump (`patch` / `minor` / `major`). Ask the user to confirm before continuing.
+
+## Cross-package peer dependency check
+
+6. If `$0` is `js` and the bump is a major bump, read `packages/react/package.json`, `packages/vue/package.json`,
+   and `packages/vite/package.json`. For each, check the `peerDependencies["@flareapp/js"]` range. If the new
+   version falls outside the range, warn the user. Do not edit those files automatically.
+
+## Confirm
+
+7. Show a summary to the user: package, current version, target bump, what `release-it` will do
+   (commit message, tag name, push, npm publish). Ask for explicit confirmation before continuing.
+
+## Run release-it
+
+8. Run from the package directory:
+
+   ```bash
+   cd packages/$0 && npm run release -- $1
+   ```
+
+   If the user wants a dry run first, add `--dry-run`:
+
+   ```bash
+   cd packages/$0 && npm run release -- $1 --dry-run
+   ```
+
+   `release-it` is interactive. It will prompt for npm OTP if 2FA is on. Pass through any prompts to the user.
+
+   If `release-it` fails:
+
+   - Pre-condition failure (dirty tree, wrong branch): fix and retry.
+   - `before:release` hook failure (test failed): fix the test, do not retry the release until tests pass.
+   - `npm publish` failure: the git commit and tag may have already been pushed. Investigate before retrying.
+     Do not blindly re-run `npm run release` because the version bump commit already exists.
 
 ## Post-release
 
-15. Show a summary: package name, old version, new version, npm URL, git tag
+9. Update the version column in the "Monorepo structure" table in `.claude/CLAUDE.md` to reflect the new version
+   of `@flareapp/$0`.
+
+10. Print a summary:
+    - Package: `@flareapp/$0`
+    - Old version -> new version
+    - Tag: `@flareapp/$0@<new-version>`
+    - npm: `https://www.npmjs.com/package/@flareapp/$0`
+
+11. Remind the user to run the `sync-versions` skill if `@flareapp/js` was bumped to a new major version.
