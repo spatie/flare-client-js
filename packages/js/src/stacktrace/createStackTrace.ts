@@ -14,23 +14,21 @@ export function createStackTrace(error: Error, debug: boolean): Promise<Array<St
                 console.error(error);
             }
 
-            return resolve([
-                {
-                    line_number: 0,
-                    column_number: 0,
-                    method: 'unknown',
-                    file: 'unknown',
-                    code_snippet: {
-                        0: 'Could not read from file: stacktrace missing',
-                    },
-                    trimmed_column_number: null,
-                    class: 'unknown',
-                },
-            ]);
+            return resolve([fallbackFrame('stacktrace missing')]);
+        }
+
+        let parsed: ReturnType<typeof ErrorStackParser.parse>;
+        try {
+            parsed = ErrorStackParser.parse(error);
+        } catch (parseError) {
+            if (debug) {
+                console.error('Flare: failed to parse stacktrace', parseError);
+            }
+            return resolve([fallbackFrame('Could not parse stacktrace')]);
         }
 
         Promise.all(
-            ErrorStackParser.parse(error).map((frame) => {
+            parsed.map((frame) => {
                 return new Promise<StackFrame>((resolve) => {
                     getCodeSnippet(frame.fileName, frame.lineNumber, frame.columnNumber).then((snippet) => {
                         resolve({
@@ -47,6 +45,18 @@ export function createStackTrace(error: Error, debug: boolean): Promise<Array<St
             })
         ).then(resolve);
     });
+}
+
+function fallbackFrame(message: string): StackFrame {
+    return {
+        line_number: 0,
+        column_number: 0,
+        method: 'unknown',
+        file: 'unknown',
+        code_snippet: { 0: message },
+        trimmed_column_number: null,
+        class: 'unknown',
+    };
 }
 
 function hasStack(err: any): boolean {

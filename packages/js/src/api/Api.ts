@@ -1,23 +1,23 @@
-import { Report } from '../types';
+import { Config, Report } from '../types';
 import { flatJsonStringify } from '../util';
 
+import { mapToV2Wire } from './mapToV2Wire';
+
 export class Api {
-    report(report: Report, url: string, key: string | null, reportBrowserExtensionErrors: boolean): Promise<void> {
-        return fetch(url, {
+    report(report: Report, config: Config): Promise<void> {
+        return fetch(config.reportingUrl, {
             method: 'POST',
             headers: {
+                'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'X-Api-Token': key ?? '',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Report-Browser-Extension-Errors': JSON.stringify(reportBrowserExtensionErrors),
+                'X-Api-Token': config.key ?? '',
+                'X-Report-Browser-Extension-Errors': JSON.stringify(config.reportBrowserExtensionErrors),
+                'X-Flare-Client-Version': '1',
             },
-            body: flatJsonStringify({
-                ...report,
-                key: key,
-            }),
+            body: flatJsonStringify(mapToV2Wire(report, config)),
         }).then(
             (response) => {
-                if (response.status !== 204) {
+                if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
                     console.error(`Received response with status ${response.status} from Flare`);
                 }
             },

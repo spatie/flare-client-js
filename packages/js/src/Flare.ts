@@ -21,7 +21,7 @@ export class Flare {
         sourcemapVersion: SOURCEMAP_VERSION,
         stage: '',
         maxGlowsPerReport: 30,
-        reportingUrl: 'https://reporting.flareapp.io/api/reports',
+        reportingUrl: 'https://ingress.flareapp.io/v1/errors',
         reportBrowserExtensionErrors: false,
         debug: false,
         beforeEvaluate: (error) => error,
@@ -184,12 +184,7 @@ export class Flare {
             return;
         }
 
-        return this.api.report(
-            reportToSubmit,
-            this.config.reportingUrl,
-            this.config.key,
-            this.config.reportBrowserExtensionErrors
-        );
+        return this.api.report(reportToSubmit, this.config);
     }
 
     // Deprecated, the following methods exist for backwards compatibility.
