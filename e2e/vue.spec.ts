@@ -41,6 +41,25 @@ test.describe('Vue playground', () => {
             await page.getByRole('button', { name: 'Reset render error' }).click();
             await expect(page.getByText('Something went wrong:')).not.toBeVisible();
         });
+
+        test('onReset callback fires with previous error on manual reset', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('BuggyComponent render error in Vue') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger render error' }).click();
+            await reportPromise;
+
+            await expect(page.getByText('Something went wrong:')).toBeVisible();
+
+            const consolePromise = page.waitForEvent('console', {
+                predicate: (msg) => msg.text().includes('FlareErrorBoundary onReset:'),
+            });
+
+            await page.getByText('Try again').click();
+            const consoleMsg = await consolePromise;
+
+            expect(consoleMsg.text()).toContain('BuggyComponent render error in Vue');
+        });
     });
 
     test.describe('ResetKeys section', () => {
@@ -55,6 +74,25 @@ test.describe('Vue playground', () => {
 
             await page.getByRole('button', { name: /Increment reset key/ }).click();
             await expect(page.getByText('Error caught:')).not.toBeVisible();
+        });
+
+        test('onReset callback fires with previous error on resetKey change', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('BuggyComponent render error in Vue') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger error' }).click();
+            await reportPromise;
+
+            await expect(page.getByText('Error caught:')).toBeVisible();
+
+            const consolePromise = page.waitForEvent('console', {
+                predicate: (msg) => msg.text().includes('resetKeys onReset called, previous error:'),
+            });
+
+            await page.getByRole('button', { name: /Increment reset key/ }).click();
+            const consoleMsg = await consolePromise;
+
+            expect(consoleMsg.text()).toContain('BuggyComponent render error in Vue');
         });
     });
 
@@ -135,6 +173,30 @@ test.describe('Vue playground', () => {
             });
             await page.getByRole('button', { name: 'Trigger Vue warning' }).click();
             const report = await reportPromise;
+
+            const vue = vueContext(report);
+            expect(vue).toBeDefined();
+            expect(vue!.type).toBe('warning');
+        });
+
+        test('pre-existing warnHandler is still called alongside flareVue', async ({ page, flare }) => {
+            const consolePromise = page.waitForEvent('console', {
+                predicate: (msg) => msg.text().includes('[pre-existing-warnHandler]'),
+            });
+
+            const reportPromise = flare.waitForReport({
+                filter: (r) => {
+                    const custom = r.attributes['context.custom'] as Record<string, unknown> | undefined;
+                    const vue = custom?.vue as Record<string, unknown> | undefined;
+                    return vue?.type === 'warning';
+                },
+            });
+
+            await page.getByRole('button', { name: 'Trigger Vue warning' }).click();
+
+            const [consoleMsg, report] = await Promise.all([consolePromise, reportPromise]);
+
+            expect(consoleMsg.text()).toContain('[pre-existing-warnHandler]');
 
             const vue = vueContext(report);
             expect(vue).toBeDefined();

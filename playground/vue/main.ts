@@ -15,6 +15,10 @@ const app = createApp(App);
 
 app.use(router);
 
+app.config.warnHandler = (msg, _instance, _trace) => {
+    console.log(`[pre-existing-warnHandler] ${msg}`);
+};
+
 app.use(flareVue, {
     captureWarnings: true,
     beforeEvaluate: ({ error, info }) => {

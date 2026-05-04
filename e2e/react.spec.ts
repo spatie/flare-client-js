@@ -51,6 +51,24 @@ test.describe('React playground', () => {
 
             await expect(page.getByText('ConditionallyBuggyComponent rendered successfully!')).toBeVisible();
         });
+
+        test('onReset callback fires with previous error on resetKey change', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('ConditionallyBuggyComponent') ?? false,
+            });
+
+            await page.getByRole('button', { name: 'Trigger error' }).click();
+            await reportPromise;
+
+            const consolePromise = page.waitForEvent('console', {
+                predicate: (msg) => msg.text().includes('onReset via resetKeys, error was:'),
+            });
+
+            await page.getByRole('button', { name: 'Increment resetKey (auto-reset)' }).click();
+            const consoleMsg = await consolePromise;
+
+            expect(consoleMsg.text()).toContain('ConditionallyBuggyComponent render error');
+        });
     });
 
     test.describe('OnClick section', () => {
