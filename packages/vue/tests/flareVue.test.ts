@@ -77,7 +77,7 @@ function callHandler(
     try {
         app.config.errorHandler!(...args);
     } catch {
-        // Handler re-throws when no initial error handler exists
+        // Hook callbacks or flare.report() may throw
     }
 }
 
@@ -201,22 +201,41 @@ describe('flareVue', () => {
         }).not.toThrow();
     });
 
-    test('throws when no initial error handler exists', () => {
+    test('does not throw when no initial error handler exists', () => {
         const app = createMockApp();
         (flareVue as Function)(app);
 
         expect(() => {
             app.config.errorHandler!(new Error('test error'), null, 'setup function');
-        }).toThrow('test error');
+        }).not.toThrow();
     });
 
-    test('reports to flare before throwing when no initial handler exists', () => {
+    test('logs error to console when no initial handler exists', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const app = createMockApp();
         (flareVue as Function)(app);
 
-        callHandler(app, new Error('test'), null, 'setup function');
+        const error = new Error('test error');
+        app.config.errorHandler!(error, null, 'setup function');
+
+        expect(spy).toHaveBeenCalledOnce();
+        expect(spy).toHaveBeenCalledWith(error);
+        spy.mockRestore();
+    });
+
+    test('reports to flare before logging when no initial handler exists', () => {
+        const callOrder: string[] = [];
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => callOrder.push('console.error'));
+        mockReport.mockImplementation(() => callOrder.push('report'));
+
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        app.config.errorHandler!(new Error('test'), null, 'setup function');
 
         expect(mockReport).toHaveBeenCalledOnce();
+        expect(callOrder).toEqual(['report', 'console.error']);
+        spy.mockRestore();
     });
 
     test('still reports to flare before calling initial handler', () => {
@@ -245,33 +264,27 @@ describe('flareVue', () => {
         expect(context.vue.componentHierarchyFrames).toEqual([]);
     });
 
-    test('re-throws the original raw value when no initial handler exists', () => {
+    test('console.error receives the original raw value when no initial handler exists', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const app = createMockApp();
         (flareVue as Function)(app);
 
-        let thrown: unknown;
-        try {
-            app.config.errorHandler!('raw string', null, 'setup function');
-        } catch (e) {
-            thrown = e;
-        }
+        app.config.errorHandler!('raw string', null, 'setup function');
 
-        expect(thrown).toBe('raw string');
+        expect(spy).toHaveBeenCalledWith('raw string');
+        spy.mockRestore();
     });
 
-    test('re-throws the original Error reference when no initial handler exists', () => {
+    test('console.error receives the original Error reference when no initial handler exists', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const app = createMockApp();
         (flareVue as Function)(app);
 
         const error = new Error('boom');
-        let thrown: unknown;
-        try {
-            app.config.errorHandler!(error, null, 'setup function');
-        } catch (e) {
-            thrown = e;
-        }
+        app.config.errorHandler!(error, null, 'setup function');
 
-        expect(thrown).toBe(error);
+        expect(spy).toHaveBeenCalledWith(error);
+        spy.mockRestore();
     });
 
     test('reports each error independently when called multiple times', () => {
@@ -318,6 +331,25 @@ describe('flareVue', () => {
         expect(() => {
             app.config.errorHandler!(new Error('original'), null, 'setup function');
         }).toThrow('report failed');
+    });
+
+    test('does not console.error when flare.report() throws and no initial handler', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const app = createMockApp();
+        (flareVue as Function)(app);
+
+        mockReport.mockImplementation(() => {
+            throw new Error('report failed');
+        });
+
+        try {
+            app.config.errorHandler!(new Error('original'), null, 'setup function');
+        } catch {
+            // report() throwing is expected to propagate
+        }
+
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
     });
 
     test('works without options', () => {

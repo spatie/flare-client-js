@@ -85,9 +85,10 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             return;
         }
 
-        // No prior handler: re-throw to preserve Vue's default behaviour of logging the error to the
-        // console. Suppressing this would make local development much harder to debug.
-        throw error;
+        // No prior handler: log so the error is visible during development without re-throwing.
+        // Re-throwing would trigger window.onerror and produce a duplicate report (one with Vue
+        // context from this handler, one without from the global catchWindowErrors listener).
+        console.error(error);
     };
 
     if (options?.captureWarnings) {
