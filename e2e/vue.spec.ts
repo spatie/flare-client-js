@@ -202,4 +202,98 @@ test.describe('Vue playground', () => {
             expect(nestedReports).toHaveLength(1);
         });
     });
+
+    test.describe('ManualReporting section', () => {
+        test('flare.report() sends report', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('Manually reported from Vue') ?? false,
+            });
+            await page.getByRole('button', { name: 'flare.report() from component' }).click();
+            const report = await reportPromise;
+
+            expect(report.message).toContain('Manually reported from Vue');
+        });
+
+        test('flare.reportMessage() sends log report', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.isLog === true,
+            });
+            await page.getByRole('button', { name: 'flare.reportMessage()' }).click();
+            const report = await reportPromise;
+
+            expect(report.isLog).toBe(true);
+            expect(report.message).toContain('manually reported message from Vue');
+        });
+
+        test('flare.test() sends synthetic report', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('Flare client is set up correctly') ?? false,
+            });
+            await page.getByRole('button', { name: 'flare.test()' }).click();
+            const report = await reportPromise;
+
+            expect(report.message).toContain('Flare client is set up correctly');
+        });
+    });
+
+    test.describe('Enrichment section', () => {
+        test('glows are included as events', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('Payment processing failed') ?? false,
+            });
+            await page.getByRole('button', { name: 'Error with glows' }).click();
+            const report = await reportPromise;
+
+            expect(report.events.length).toBeGreaterThanOrEqual(3);
+        });
+
+        test('custom context is included in attributes', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('Error with custom context attached') ?? false,
+            });
+            await page.getByRole('button', { name: 'Error with custom context' }).click();
+            const report = await reportPromise;
+
+            const custom = report.attributes['context.custom'] as Record<string, unknown>;
+            expect(custom).toBeDefined();
+            expect(custom.user_id).toBe('usr_12345');
+            expect(custom.plan).toBe('pro');
+
+            const flags = report.attributes['context.feature_flags'] as Record<string, unknown>;
+            expect(flags).toBeDefined();
+            expect(flags.new_checkout).toBe(true);
+            expect(flags.dark_mode).toBe(false);
+        });
+    });
+
+    test.describe('Hooks section', () => {
+        test('beforeEvaluate suppresses report', async ({ page, flare }) => {
+            const initialCount = flare.reports.length;
+
+            const consolePromise = page.waitForEvent('console', {
+                predicate: (msg) => msg.text().includes('Error was suppressed by beforeEvaluate'),
+            });
+            await page.getByRole('button', { name: 'beforeEvaluate (suppress)' }).click();
+            await consolePromise;
+
+            // Wait briefly to ensure no report arrives
+            await page.waitForTimeout(500);
+            expect(flare.reports.length).toBe(initialCount);
+        });
+
+        test('beforeSubmit mutates report', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('Error modified by beforeSubmit') ?? false,
+            });
+            await page.getByRole('button', { name: 'beforeSubmit (modify)' }).click();
+            const report = await reportPromise;
+
+            const context = report.context as Record<string, unknown> | undefined;
+            expect(context).toBeDefined();
+            const hook = context!.custom_hook as Record<string, unknown>;
+            expect(hook).toBeDefined();
+            expect(hook.injected_by).toBe('beforeSubmit hook');
+            expect(hook.timestamp).toBeGreaterThan(0);
+        });
+    });
 });

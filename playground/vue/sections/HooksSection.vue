@@ -31,7 +31,7 @@ import TestSection from '../components/TestSection.vue';
         </Button>
         <Button
             @click="
-                () => {
+                async () => {
                     const original = flare.config.beforeSubmit;
                     flare.configure({
                         beforeSubmit: (report) => {
@@ -43,7 +43,7 @@ import TestSection from '../components/TestSection.vue';
                             return report;
                         },
                     });
-                    flare.report(new Error('Error modified by beforeSubmit'));
+                    await flare.report(new Error('Error modified by beforeSubmit'));
                     flare.configure({ beforeSubmit: original });
                 }
             "
