@@ -111,4 +111,95 @@ test.describe('Vue playground', () => {
             expect(report.message).toContain('Async error in Vue watch');
         });
     });
+
+    test.describe('NonErrorThrow section', () => {
+        test('string throw is converted and reported', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('plain string thrown') ?? false,
+            });
+            await page.getByRole('button', { name: 'Throw non-Error value' }).click();
+            const report = await reportPromise;
+
+            expect(report.message).toContain('plain string thrown from Vue @click');
+        });
+    });
+
+    test.describe('VueWarning section', () => {
+        test('vue warning sends report with type warning', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => {
+                    const custom = r.attributes['context.custom'] as Record<string, unknown> | undefined;
+                    const vue = custom?.vue as Record<string, unknown> | undefined;
+                    return vue?.type === 'warning';
+                },
+            });
+            await page.getByRole('button', { name: 'Trigger Vue warning' }).click();
+            const report = await reportPromise;
+
+            const vue = vueContext(report);
+            expect(vue).toBeDefined();
+            expect(vue!.type).toBe('warning');
+        });
+    });
+
+    test.describe('AttachProps section', () => {
+        test('report includes serialized componentProps', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('attachProps demo error') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger attachProps demo' }).click();
+            const report = await reportPromise;
+
+            const vue = vueContext(report);
+            expect(vue).toBeDefined();
+            expect(vue!.componentProps).toBeDefined();
+            const props = vue!.componentProps as Record<string, unknown>;
+            const config = props.config as Record<string, unknown>;
+            expect(config.theme).toBe('dark');
+        });
+    });
+
+    test.describe('DenylistProps section', () => {
+        test('sensitive props are redacted', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('DenylistPropsDemo threw') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger default denylist demo' }).click();
+            const report = await reportPromise;
+
+            const vue = vueContext(report);
+            expect(vue).toBeDefined();
+            const props = vue!.componentProps as Record<string, unknown>;
+            expect(props.username).toBe('alice');
+            expect(props.password).toBe('[redacted]');
+            expect(props.authToken).toBe('[redacted]');
+            expect(props.apiKey).toBe('[redacted]');
+            expect(props.sessionId).toBe('[redacted]');
+            const config = props.config as Record<string, unknown>;
+            expect(config.pin).toBe('[redacted]');
+            expect(config.cvv).toBe('[redacted]');
+            expect(config.theme).toBe('dark');
+            expect(config.regular).toBe('visible');
+        });
+    });
+
+    test.describe('NestedBoundaries section', () => {
+        test('only inner boundary catches, one report sent', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('nested boundary test') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger nested boundaries' }).click();
+            const report = await reportPromise;
+
+            await expect(page.getByText('Inner boundary caught:')).toBeVisible();
+            await expect(page.getByText('OUTER boundary rendered')).not.toBeVisible();
+
+            expect(report.message).toContain('Error thrown inside nested boundary test');
+
+            // Wait briefly then verify no second report arrived
+            await page.waitForTimeout(500);
+            const nestedReports = flare.reports.filter((r) => r.message?.includes('nested boundary test') ?? false);
+            expect(nestedReports).toHaveLength(1);
+        });
+    });
 });
