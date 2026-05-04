@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { resolveDenylist } from '../src/constants';
 import { getRouteContext } from '../src/getRouteContext';
 
 function createMockRouter(route: Record<string, unknown>) {
@@ -283,6 +284,82 @@ describe('getRouteContext', () => {
             });
 
             expect(getRouteContext(router)!.fullPath).toBe('/?token&page=1');
+        });
+    });
+
+    describe('extended denylist (resolveDenylist)', () => {
+        test('redacts both default and custom keys in query', () => {
+            const denylist = resolveDenylist(/userId/i);
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: {},
+                query: { token: 'secret', userId: '42', page: '1' },
+                hash: '',
+                matched: [],
+            });
+
+            const result = getRouteContext(router, { denylist })!;
+            expect(result.query).toEqual({ token: '[redacted]', userId: '[redacted]', page: '1' });
+        });
+
+        test('redacts both default and custom keys in params', () => {
+            const denylist = resolveDenylist(/socialSecurityNumber/i);
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: { password: 'abc', socialSecurityNumber: '123-45-6789', slug: 'hello' },
+                query: {},
+                hash: '',
+                matched: [],
+            });
+
+            const result = getRouteContext(router, { denylist })!;
+            expect(result.params).toEqual({
+                password: '[redacted]',
+                socialSecurityNumber: '[redacted]',
+                slug: 'hello',
+            });
+        });
+
+        test('redacts both default and custom keys in fullPath', () => {
+            const denylist = resolveDenylist(/internalId/i);
+            const router = createMockRouter({
+                name: 'r',
+                path: '/page',
+                fullPath: '/page?token=x&internalId=999&view=list',
+                params: {},
+                query: { token: 'x', internalId: '999', view: 'list' },
+                hash: '',
+                matched: [],
+            });
+
+            const result = getRouteContext(router, { denylist })!;
+            expect(result.fullPath).toBe('/page?token=[redacted]&internalId=[redacted]&view=list');
+        });
+
+        test('custom pattern does not suppress default denylist entries', () => {
+            const denylist = resolveDenylist(/customSecret/);
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/?password=pw&csrf=tok&customSecret=val&safe=ok',
+                params: {},
+                query: { password: 'pw', csrf: 'tok', customSecret: 'val', safe: 'ok' },
+                hash: '',
+                matched: [],
+            });
+
+            const result = getRouteContext(router, { denylist })!;
+            expect(result.query).toEqual({
+                password: '[redacted]',
+                csrf: '[redacted]',
+                customSecret: '[redacted]',
+                safe: 'ok',
+            });
+            expect(result.fullPath).toBe('/?password=[redacted]&csrf=[redacted]&customSecret=[redacted]&safe=ok');
         });
     });
 });
