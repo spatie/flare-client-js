@@ -2,6 +2,10 @@ import { Attributes } from '../types';
 import { redactFullPath } from '../util';
 
 export default function request(urlDenylist: RegExp): Attributes {
+    if (typeof window === 'undefined') {
+        return {};
+    }
+
     return {
         'url.full': redactFullPath(window.location.href, urlDenylist),
         'user_agent.original': window.navigator.userAgent,

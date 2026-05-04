@@ -97,3 +97,36 @@ test('returns empty object when no window present (SSR)', () => {
 
     globalThis.window = realWindow;
 });
+
+test('request() returns empty defaults when window is undefined', async () => {
+    const realWindow = globalThis.window;
+    // @ts-expect-error
+    delete globalThis.window;
+
+    const { default: request } = await import('../src/context/request');
+    expect(request(/.*/)).toEqual({});
+
+    globalThis.window = realWindow;
+});
+
+test('requestData() returns empty object when window is undefined', async () => {
+    const realWindow = globalThis.window;
+    // @ts-expect-error
+    delete globalThis.window;
+
+    const { default: requestData } = await import('../src/context/requestData');
+    expect(requestData(/.*/)).toEqual({});
+
+    globalThis.window = realWindow;
+});
+
+test('cookie() returns empty object when window is undefined', async () => {
+    const realWindow = globalThis.window;
+    // @ts-expect-error
+    delete globalThis.window;
+
+    const { default: cookie } = await import('../src/context/cookie');
+    expect(cookie()).toEqual({});
+
+    globalThis.window = realWindow;
+});

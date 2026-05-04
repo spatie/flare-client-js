@@ -1,7 +1,7 @@
 import { Attributes } from '../types';
 
 export default function cookie(): Attributes {
-    if (!window.document.cookie) {
+    if (typeof window === 'undefined' || !window.document.cookie) {
         return {};
     }
 
