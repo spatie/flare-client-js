@@ -31,7 +31,7 @@ export function renderHooksSection(parent: HTMLElement) {
     body.appendChild(
         createButton({
             text: 'beforeSubmit (modify)',
-            onClick() {
+            async onClick() {
                 const original = flare.config.beforeSubmit;
                 flare.configure({
                     beforeSubmit: (report) => {
@@ -43,7 +43,7 @@ export function renderHooksSection(parent: HTMLElement) {
                         return report;
                     },
                 });
-                flare.report(new Error('Error modified by beforeSubmit'));
+                await flare.report(new Error('Error modified by beforeSubmit'));
                 flare.configure({ beforeSubmit: original });
             },
         })
