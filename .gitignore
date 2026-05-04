@@ -3,3 +3,7 @@ node_modules
 .idea/
 playground/.env
 .DS_Store
+
+# Playwright
+test-results/
+playwright-report/

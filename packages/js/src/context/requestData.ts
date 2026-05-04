@@ -1,13 +1,12 @@
-export default function requestData() {
+import { Attributes } from '../types';
+import { redactFullPath } from '../util';
+
+export default function requestData(urlDenylist: RegExp): Attributes {
     if (!window.location.search) {
         return {};
     }
 
-    const queryString: { [key: string]: string } = {};
-
-    new URLSearchParams(window.location.search).forEach((value, key) => {
-        queryString[key] = value;
-    });
-
-    return { request_data: { queryString } };
+    return {
+        'url.query': redactFullPath(window.location.search, urlDenylist).replace(/^\?/, ''),
+    };
 }

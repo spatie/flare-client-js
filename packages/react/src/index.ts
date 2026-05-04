@@ -1,3 +1,7 @@
+import { registerReactSdkIdentity } from './identify';
+
+registerReactSdkIdentity();
+
 export {
     FlareErrorBoundary,
     type FlareErrorBoundaryProps,
@@ -10,3 +14,5 @@ export {
     type FlareReactErrorHandlerCallback,
     type FlareReactErrorHandlerOptions,
 } from './flareReactErrorHandler';
+
+export type { ComponentStackFrame, FlareReactContext } from './types';

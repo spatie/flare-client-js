@@ -1,36 +1,44 @@
+// Wires up global `error` and `unhandledrejection` listeners. Reports are routed through
+// `window.flare`, which the host app must assign (see Flare.light()/configure()). If the global
+// is not present (e.g. flare not initialised yet), events are silently dropped rather than queued.
 export function catchWindowErrors() {
     if (typeof window === 'undefined') {
         return;
     }
 
-    // @ts-ignore
-    const flare = window.flare;
+    window.addEventListener('error', (event: ErrorEvent) => {
+        const flare = (window as unknown as { flare?: { report: (e: Error) => unknown } }).flare;
+        if (!flare) return;
+        // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
+        if (event.error instanceof Error) {
+            flare.report(event.error);
+        }
+    });
 
-    if (!window || !flare) {
-        return;
+    window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+        const flare = (window as unknown as { flare?: { report: (e: Error) => unknown } }).flare;
+        if (!flare) return;
+
+        const reason = event.reason;
+        if (reason instanceof Error) {
+            flare.report(reason);
+            return;
+        }
+
+        flare.report(new Error(describeRejectionReason(reason)));
+    });
+}
+
+function describeRejectionReason(reason: unknown): string {
+    if (typeof reason === 'string') return reason;
+    if (reason && typeof reason === 'object') {
+        const message = (reason as { message?: unknown }).message;
+        if (typeof message === 'string') return message;
+        try {
+            return JSON.stringify(reason);
+        } catch {
+            return 'Unhandled promise rejection (non-serializable reason)';
+        }
     }
-
-    const originalOnerrorHandler = window.onerror;
-    const originalOnunhandledrejectionHandler = window.onunhandledrejection;
-
-    window.onerror = (_1, _2, _3, _4, error) => {
-        if (error) {
-            flare.report(error);
-        }
-
-        if (typeof originalOnerrorHandler === 'function') {
-            originalOnerrorHandler(_1, _2, _3, _4, error);
-        }
-    };
-
-    window.onunhandledrejection = (error: PromiseRejectionEvent) => {
-        if (error.reason instanceof Error) {
-            flare.report(error.reason);
-        }
-
-        if (typeof originalOnunhandledrejectionHandler === 'function') {
-            // @ts-ignore
-            originalOnunhandledrejectionHandler(error);
-        }
-    };
+    return String(reason);
 }

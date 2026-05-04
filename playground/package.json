@@ -9,7 +9,8 @@
     "dependencies": {
         "@flareapp/js": "*",
         "@flareapp/react": "*",
-        "@flareapp/vue": "*"
+        "@flareapp/vue": "*",
+        "vue-router": "^4.6.4"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
@@ -21,6 +22,7 @@
         "tailwindcss": "^4.0.0",
         "typescript": "^5.7.0",
         "vite": "^6.0.0",
-        "vue": "^3.5.0"
+        "vue": "^3.5.0",
+        "vue-router": "^4.0.0"
     }
 }

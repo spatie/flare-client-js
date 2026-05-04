@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/vue",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "description": "Vue client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -9,7 +9,18 @@
         "url": "git+https://github.com/spatie/flare-client-js.git"
     },
     "license": "MIT",
-    "author": "adriaan@spatie.be",
+    "author": {
+        "name": "Spatie",
+        "email": "info@spatie.be"
+    },
+    "contributors": [
+        "Adriaan Marain <adriaan@spatie.be>",
+        "Alex Vanderbist <alex@spatie.be>",
+        "Dries Heyninck <dries@spatie.be>",
+        "Freek Van der Herten <freek@spatie.be>",
+        "Sebastian De Deyne <sebastian@spatie.be>",
+        "Sébastien Henau <seba@spatie.be>"
+    ],
     "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.cts",
@@ -27,19 +38,30 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
+        "build": "tsdown src/index.ts --format cjs,esm --dts --env.PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\" --clean",
         "typescript": "tsc --noEmit",
-        "release": "release-it"
+        "release": "release-it",
+        "test": "vitest run"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
+        "@vue/test-utils": "^2.4.0",
+        "jsdom": "^26.1.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
-        "vue": "^3.0.0"
+        "vitest": "^3.2.1",
+        "vue": "^3.0.0",
+        "vue-router": "^4.6.4"
     },
     "peerDependencies": {
-        "@flareapp/js": "^1.0.0",
-        "vue": "^2.0.0||^3.0.0"
+        "@flareapp/js": "^2.0.0",
+        "vue": "^3.0.0",
+        "vue-router": "^4.0.0"
+    },
+    "peerDependenciesMeta": {
+        "vue-router": {
+            "optional": true
+        }
     },
     "publishConfig": {
         "access": "public"
