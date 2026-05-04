@@ -10,6 +10,10 @@ type GetRouteContextOptions = {
 
 const ROUTE_PARAMS_DEPTH = 2;
 
+// `router` is typed `unknown` because vue-router is an optional peer: we don't want to import it
+// (would force every consumer to install it) and the runtime shape may differ between v4.x patch
+// versions. The chained type-guards here read defensively so a missing or shimmed router yields
+// `null` rather than throwing inside an error handler.
 export function getRouteContext(router: unknown, options: GetRouteContextOptions = {}): RouteContext | null {
     if (!router || typeof router !== 'object' || !('currentRoute' in router)) {
         return null;

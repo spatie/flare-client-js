@@ -14,12 +14,17 @@ export default class FlareApi {
         this.endpoint = endpoint;
         this.key = key;
         this.version = version;
+        // keepAlive disabled: this client is used only inside `vite build`, which is short-lived.
+        // Pooled connections would survive past the upload loop and prevent the process from exiting
+        // promptly, leading to CI jobs that appear to hang for ~30s after sourcemaps finish.
         this.client = axios.create({
             httpsAgent: new https.Agent({ keepAlive: false }),
         });
     }
 
     uploadSourcemap(sourcemap: Sourcemap): Promise<unknown> {
+        // raw deflate + base64 to keep payloads under the Flare API request size limit; sourcemaps
+        // for modern bundlers can easily exceed several MB uncompressed.
         const base64GzipSourcemap = deflateRawSync(sourcemap.content).toString('base64');
 
         return this.postWithRetry({
@@ -30,6 +35,9 @@ export default class FlareApi {
         });
     }
 
+    // Retry only transient transport failures (DNS hiccups, dropped sockets). HTTP 4xx/5xx and
+    // non-axios setup errors are surfaced immediately because retrying won't change the outcome
+    // and would just slow the build.
     private async postWithRetry(data: Record<string, string>, retries = 3): Promise<unknown> {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {

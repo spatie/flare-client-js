@@ -7,6 +7,9 @@ export const MAX_HIERARCHY_DEPTH = 50;
 export const DEFAULT_PROPS_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
+// Default behaviour is to *extend* the built-in denylist rather than replace it, so a consumer
+// adding `userId` doesn't accidentally lose redaction for `password`/`token`/etc. Pass
+// replaceDefault=true to opt out (useful for tests or when the built-in matches too aggressively).
 export function resolveDenylist(custom?: RegExp, replaceDefault: boolean = false): RegExp {
     if (!custom) {
         return DEFAULT_PROPS_DENYLIST;

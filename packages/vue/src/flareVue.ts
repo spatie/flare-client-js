@@ -19,6 +19,9 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
     return { 'context.custom': { framework: 'vue', vue: context.vue as never } };
 }
 
+// Tracks installed apps so calling app.use(flareVue) twice on the same app is a no-op. WeakSet so
+// we don't keep apps alive in memory after they're disposed (notably matters for SSR test harnesses
+// that spin up an app per request).
 const installedApps = new WeakSet<App>();
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
@@ -34,6 +37,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     const propsMaxDepth = options?.propsMaxDepth ?? 2;
     const propsDenylist = resolveDenylist(options?.propsDenylist, options?.replaceDefaultDenylist);
 
+    // Capture any errorHandler the app already set so we can chain it. If we replaced it blindly we'd
+    // silently disable user-defined handlers (e.g. one provided by a higher-level framework like Nuxt).
     const initialErrorHandler = app.config.errorHandler;
 
     app.config.errorHandler = (error: unknown, instance: ComponentPublicInstance | null, info: string) => {
@@ -68,6 +73,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
+        // Swallow rejection: a transport failure must not interfere with the user's errorHandler
+        // chain or Vue's render pipeline.
         Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
 
         options?.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
@@ -78,6 +85,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             return;
         }
 
+        // No prior handler: re-throw to preserve Vue's default behaviour of logging the error to the
+        // console. Suppressing this would make local development much harder to debug.
         throw error;
     };
 

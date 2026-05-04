@@ -5,6 +5,9 @@ import {
     MAX_PROP_STRING_LENGTH,
 } from './constants';
 
+// Produces a JSON-safe, redacted, size-bounded copy of a Vue component's props for the report
+// payload. Goals: (1) never crash on cycles or exotic values, (2) never include secrets matched
+// by `denylist`, (3) keep the payload small even when components hold large or deep state trees.
 export function serializeProps(
     value: Record<string, unknown>,
     maxDepth: number,
@@ -63,6 +66,9 @@ function serialize(value: unknown, depth: number, maxDepth: number, seen: WeakSe
         return out;
     }
 
+    // Class instances (Date, Map, custom classes, Vue refs/proxies) are deliberately not walked:
+    // their internals can be huge, contain getters with side effects, or include reactive
+    // dependencies we don't want to trigger from inside an error handler.
     if (!isPlainObject(value)) {
         return '[Object]';
     }

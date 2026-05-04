@@ -57,6 +57,8 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         this.setState({ componentStack: finalContext.react.componentStack });
 
+        // Swallow rejection from the report call. A network/transport failure in the error reporter
+        // must not bubble up and cause a second render error inside the boundary itself.
         Promise.resolve(flare.report(error, contextToAttributes(finalContext))).catch(() => {});
 
         this.props.afterSubmit?.({
@@ -66,6 +68,9 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
         });
     }
 
+    // resetKeys mirrors react-error-boundary's contract: when any element of the array changes by
+    // Object.is, the boundary auto-resets. Use this to recover from an error after a route change
+    // or a retry button toggling a counter, without the consumer wiring up resetErrorBoundary().
     componentDidUpdate(prevProps: FlareErrorBoundaryProps) {
         if (this.state.error === null || !this.props.resetKeys) {
             return;

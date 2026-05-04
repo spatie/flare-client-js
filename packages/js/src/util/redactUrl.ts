@@ -1,3 +1,6 @@
+// Matched against query-string keys. Values for matching keys are replaced with [redacted] before
+// the URL is sent to Flare so credentials/PII don't leak in error reports. Path and hash are left
+// untouched. Override per-instance via Config.urlDenylist.
 export const DEFAULT_URL_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
@@ -37,6 +40,8 @@ export function redactFullPath(fullPath: string, denylist: RegExp = DEFAULT_URL_
     return `${prefix}${redacted}${suffix}`;
 }
 
+// decodeURIComponent throws on malformed escape sequences (`%E0`, lone `%`, etc). Match against the
+// raw key in that case rather than aborting the whole redaction pass.
 function safeDecode(value: string): string {
     try {
         return decodeURIComponent(value);

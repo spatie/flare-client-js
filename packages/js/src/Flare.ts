@@ -69,6 +69,7 @@ export class Flare {
             microtime: time,
         });
 
+        // Cap at maxGlowsPerReport: drop oldest entries so the most recent N remain.
         if (this.glows.length > this.config.maxGlowsPerReport) {
             this.glows = this.glows.slice(this.glows.length - this.config.maxGlowsPerReport);
         }
@@ -110,6 +111,8 @@ export class Flare {
     async report(error: Error, attributes: Attributes = {}): Promise<void> {
         const seenAtUnixNano = Date.now() * 1_000_000;
 
+        // Coerce non-Error values (strings, rejected promises, etc) so we always have a real Error
+        // to walk a stack from. Typed as Error for ergonomics, but consumers may pass anything.
         const coerced = error instanceof Error ? error : new Error(typeof error === 'string' ? error : String(error));
 
         const errorToReport = await this.config.beforeEvaluate(coerced);
@@ -124,6 +127,7 @@ export class Flare {
     async reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
         const seenAtUnixNano = Date.now() * 1_000_000;
         const stackTrace = await createStackTrace(Error(), this.config.debug);
+        // Drop the top frame so reportMessage itself doesn't appear as the call site.
         stackTrace.shift();
 
         const report = this.buildReport({

@@ -1,3 +1,4 @@
+// Module-level cache: bundles fetched once per page load are reused across every frame in the trace.
 const cachedFiles: { [key: string]: string } = {};
 
 type CodeSnippet = {
@@ -20,6 +21,9 @@ export function getCodeSnippet(url?: string, lineNumber?: number, columnNumber?:
             });
         }
 
+        // Reject non-http(s) URLs (e.g. chrome-extension://, file://) to avoid leaking errors from
+        // browser extensions or local files into the report. catchWindowErrors has a runtime opt-in
+        // for extensions; this is the secondary gate at fetch time.
         if (!isFetchableUrl(url)) {
             return resolve({
                 codeSnippet: {
@@ -94,6 +98,10 @@ export function readLinesFromFile(
         const displayLine = currentLineIndex + 1;
         const line = lines[currentLineIndex];
 
+        // Long lines (typically minified bundles): center a window around the error column so the
+        // relevant code stays in the snippet. For ordinary lines we just take the leading slice.
+        // trimmedColumnNumber is reported back so the UI can highlight the correct offset within the
+        // sliced view rather than the now-meaningless original column number.
         if (line.length > maxSnippetLineLength) {
             if (columnNumber && columnNumber > maxSnippetLineLength / 2) {
                 const start = columnNumber - Math.round(maxSnippetLineLength / 2);

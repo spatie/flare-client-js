@@ -1,3 +1,6 @@
+// Wires up global `error` and `unhandledrejection` listeners. Reports are routed through
+// `window.flare`, which the host app must assign (see Flare.light()/configure()). If the global
+// is not present (e.g. flare not initialised yet), events are silently dropped rather than queued.
 export function catchWindowErrors() {
     if (typeof window === 'undefined') {
         return;
@@ -6,6 +9,7 @@ export function catchWindowErrors() {
     window.addEventListener('error', (event: ErrorEvent) => {
         const flare = (window as unknown as { flare?: { report: (e: Error) => unknown } }).flare;
         if (!flare) return;
+        // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
         if (event.error instanceof Error) {
             flare.report(event.error);
         }
