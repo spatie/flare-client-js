@@ -3,6 +3,18 @@
     "engines": {
         "node": ">=18"
     },
+    "author": {
+        "name": "Spatie",
+        "email": "info@spatie.be"
+    },
+    "contributors": [
+        "Adriaan Marain <adriaan@spatie.be>",
+        "Alex Vanderbist <alex@spatie.be>",
+        "Dries Heyninck <dries@spatie.be>",
+        "Freek Van der Herten <freek@spatie.be>",
+        "Sebastian De Deyne <sebastian@spatie.be>",
+        "Sébastien Henau <seba@spatie.be>"
+    ],
     "workspaces": [
         "packages/*",
         "playground"
