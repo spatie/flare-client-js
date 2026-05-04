@@ -7,3 +7,8 @@ playground/.env
 # Playwright
 test-results/
 playwright-report/
+
+# Nuxt
+playground-nuxt/.output/
+playground-nuxt/.nuxt/
+playground-nuxt/.env

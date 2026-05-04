@@ -14,7 +14,8 @@
     ],
     "workspaces": [
         "packages/*",
-        "playground"
+        "playground",
+        "playground-nuxt"
     ],
     "scripts": {
         "build": "npm run build --workspaces --if-present",
@@ -22,6 +23,9 @@
         "typescript": "npm run typescript --workspaces --if-present",
         "playground": "npm run build --workspaces --if-present && npm run dev --workspace=playground",
         "playground:preview": "npm run build --workspaces --if-present && npm run preview --workspace=playground",
+        "playground:nuxt": "npm run build --workspaces --if-present && npm run dev --workspace=playground-nuxt",
+        "playground:nuxt:build": "npm run build --workspaces --if-present && npm run build --workspace=playground-nuxt",
+        "playground:nuxt:preview": "npm run preview --workspace=playground-nuxt",
         "format": "prettier --write \"**/*.{js,json,vue,ts,tsx}\"",
         "prepare": "husky",
         "test:e2e": "playwright test"
