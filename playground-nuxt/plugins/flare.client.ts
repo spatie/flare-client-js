@@ -3,7 +3,7 @@ import { flareVue } from '@flareapp/vue';
 
 export default defineNuxtPlugin({
     name: 'flare',
-    enforce: 'pre',
+    enforce: 'post',
     setup(nuxtApp) {
         const config = useRuntimeConfig();
 
