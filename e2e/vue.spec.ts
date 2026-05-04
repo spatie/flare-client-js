@@ -297,3 +297,48 @@ test.describe('Vue playground', () => {
         });
     });
 });
+
+test.describe('Vue route context', () => {
+    test('report includes route path, params, and query', async ({ page, flare }) => {
+        await page.goto('/vue/');
+        await page.getByRole('link', { name: 'User 42' }).click();
+        await page.waitForURL('**/users/42**');
+
+        const reportPromise = flare.waitForReport({
+            filter: (r) => r.message?.includes('Error on user profile') ?? false,
+        });
+        await page.getByRole('button', { name: 'Throw error on this route' }).click();
+        const report = await reportPromise;
+
+        const vue = vueContext(report);
+        expect(vue).toBeDefined();
+        const route = vue!.route as Record<string, unknown>;
+        expect(route).toBeDefined();
+        expect(route.path).toBe('/users/42');
+        expect((route.params as Record<string, unknown>).id).toBe('42');
+        expect((route.query as Record<string, unknown>).tab).toBe('settings');
+    });
+});
+
+test.describe('Vue route denylist', () => {
+    test('sensitive query params are redacted', async ({ page, flare }) => {
+        await page.goto('/vue/');
+        await page.getByRole('link', { name: 'User 77 (denylisted query)' }).click();
+        await page.waitForURL('**/users/77**');
+
+        const reportPromise = flare.waitForReport({
+            filter: (r) => r.message?.includes('Route denylist demo error') ?? false,
+        });
+        await page.getByRole('button', { name: /Route denylist demo/ }).click();
+        const report = await reportPromise;
+
+        const vue = vueContext(report);
+        expect(vue).toBeDefined();
+        const route = vue!.route as Record<string, unknown>;
+        expect(route).toBeDefined();
+        const query = route.query as Record<string, unknown>;
+        expect(query.token).toBe('[redacted]');
+        expect(query.session_id).toBe('[redacted]');
+        expect(query.tab).toBe('public');
+    });
+});
