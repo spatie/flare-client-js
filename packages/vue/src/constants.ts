@@ -1,6 +1,12 @@
 import { ErrorOrigin } from './types';
 
-export const PACKAGE_VERSION = '2.0.0';
+declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
+
+// Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version).
+export const PACKAGE_VERSION =
+    typeof process !== 'undefined' && typeof process.env?.PACKAGE_VERSION !== 'undefined'
+        ? process.env.PACKAGE_VERSION
+        : '?';
 
 export const MAX_HIERARCHY_DEPTH = 50;
 

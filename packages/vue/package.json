@@ -27,7 +27,7 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
+        "build": "tsdown src/index.ts --format cjs,esm --dts --env.PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\" --clean",
         "typescript": "tsc --noEmit",
         "release": "release-it",
         "test": "vitest run"
