@@ -13,9 +13,5 @@ export default defineNuxtPlugin({
             captureWarnings: true,
             attachProps: true,
         });
-
-        nuxtApp.hook('app:error', (error) => {
-            flare.report(error as Error);
-        });
     },
 });

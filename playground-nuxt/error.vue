@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app';
-import { flare } from '@flareapp/js';
 
 const props = defineProps<{ error: NuxtError }>();
-
-if (props.error) {
-    flare.reportMessage(props.error.message || 'Unknown fatal error', 'error');
-}
 
 const handleClear = () => clearError({ redirect: '/' });
 </script>
@@ -16,7 +11,9 @@ const handleClear = () => clearError({ redirect: '/' });
         <h1>Nuxt Error Page</h1>
         <p>Status: {{ error.statusCode }}</p>
         <p>Message: {{ error.message }}</p>
-        <p style="color: #666; font-size: 0.875rem">This error was reported to Flare via flare.reportMessage().</p>
+        <p style="color: #666; font-size: 0.875rem">
+            This error was already reported to Flare by the flareVue error handler.
+        </p>
         <button @click="handleClear" style="margin-top: 1rem; padding: 0.5rem 1rem; cursor: pointer">
             Clear error and go home
         </button>
