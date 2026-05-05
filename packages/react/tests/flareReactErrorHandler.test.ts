@@ -52,13 +52,13 @@ describe('flareReactErrorHandler', () => {
 
         handler(new Error('test'), { componentStack: stack });
 
-        const context = mockReport.mock.calls[0][1];
-        expect(context.react.componentStack).toEqual([
+        const attributes = mockReport.mock.calls[0][1];
+        expect((attributes['context.custom'] as any).react.componentStack).toEqual([
             'at ErrorComponent (http://localhost:5173/src/App.tsx:12:9)',
             'at div',
             'at App (http://localhost:5173/src/App.tsx:5:3)',
         ]);
-        expect(context.react.componentStackFrames).toEqual([
+        expect((attributes['context.custom'] as any).react.componentStackFrames).toEqual([
             { component: 'ErrorComponent', file: 'http://localhost:5173/src/App.tsx', line: 12, column: 9 },
             { component: 'div', file: null, line: null, column: null },
             { component: 'App', file: 'http://localhost:5173/src/App.tsx', line: 5, column: 3 },
@@ -74,8 +74,8 @@ describe('flareReactErrorHandler', () => {
 
         handler(new Error('test'), { componentStack: stack });
 
-        const context = mockReport.mock.calls[0][1];
-        expect(context.react.componentStackFrames).toEqual([
+        const attributes = mockReport.mock.calls[0][1];
+        expect((attributes['context.custom'] as any).react.componentStackFrames).toEqual([
             {
                 component: 'BuggyComponent',
                 file: 'http://localhost:5173/react/BuggyComponent.tsx',
@@ -91,9 +91,9 @@ describe('flareReactErrorHandler', () => {
 
         handler(new Error('test'), {});
 
-        const context = mockReport.mock.calls[0][1];
-        expect(context.react.componentStack).toEqual([]);
-        expect(context.react.componentStackFrames).toEqual([]);
+        const attributes = mockReport.mock.calls[0][1];
+        expect((attributes['context.custom'] as any).react.componentStack).toEqual([]);
+        expect((attributes['context.custom'] as any).react.componentStackFrames).toEqual([]);
     });
 
     test('works without options', () => {
@@ -185,8 +185,8 @@ describe('flareReactErrorHandler', () => {
 
             handler(new Error('test'), { componentStack: '    at App' });
 
-            const reportedContext = mockReport.mock.calls[0][1];
-            expect(reportedContext.react.componentStack).toEqual(['modified']);
+            const reportedAttributes = mockReport.mock.calls[0][1];
+            expect((reportedAttributes['context.custom'] as any).react.componentStack).toEqual(['modified']);
         });
 
         test('is called after beforeEvaluate and before flare.report', () => {
@@ -325,9 +325,9 @@ describe('flareReactErrorHandler', () => {
 
             handler(new Error('test'), { componentStack: '\n    at App\n' });
 
-            const reportedContext = mockReport.mock.calls[0][1];
-            expect(reportedContext.react.componentStack).toEqual(['at App']);
-            expect(reportedContext.react.componentStackFrames).toBeInstanceOf(Array);
+            const reportedAttributes = mockReport.mock.calls[0][1];
+            expect((reportedAttributes['context.custom'] as any).react.componentStack).toEqual(['at App']);
+            expect((reportedAttributes['context.custom'] as any).react.componentStackFrames).toBeInstanceOf(Array);
         });
 
         test('afterSubmit receives original context when beforeSubmit does not return', () => {
@@ -342,6 +342,7 @@ describe('flareReactErrorHandler', () => {
 
             handler(new Error('test'), { componentStack: '\n    at App\n' });
 
+            // afterSubmit still receives the FlareReactContext (not attributes), so the shape is unchanged
             expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toEqual(['at App']);
         });
     });

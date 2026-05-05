@@ -1,76 +1,79 @@
+export type MessageLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
+
+export type AttributeValue = string | number | boolean | null | AttributeValue[] | { [key: string]: AttributeValue };
+
+export type Attributes = Record<string, AttributeValue>;
+
 export type Config = {
     key: string | null;
     version: string;
-    sourcemapVersion: string;
+    sourcemapVersionId: string;
     stage: string;
     maxGlowsPerReport: number;
     reportBrowserExtensionErrors: boolean;
-    reportingUrl: string;
+    ingestUrl: string;
     debug: boolean;
+    urlDenylist: RegExp;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };
 
-export type Report = {
-    notifier: string;
-    exception_class: string;
-    seen_at: number;
-    message: string;
-    language: 'javascript';
-    glows: Glow[];
-    context: Context;
-    stacktrace: StackFrame[];
-    sourcemap_version_id: string;
-    solutions: Solution[];
-    stage?: string;
-};
-
-export interface SolutionProviderExtraParameters {}
-
-export type SolutionProvider = {
-    canSolve: (error: Error, extraParameters?: SolutionProviderExtraParameters) => boolean | Promise<boolean>;
-    getSolutions: (error: Error, extraParameters?: SolutionProviderExtraParameters) => Solution[] | Promise<Solution[]>;
-};
-
-export type Solution = {
-    class: string;
-    title: string;
-    description: string;
-    links: { [label: string]: string };
-    action_description?: string;
-    is_runnable?: boolean;
-};
-
-export type Context = {
-    request?: {
-        url?: String;
-        useragent?: String;
-        referrer?: String; // TODO: Flare doesn't catch this yet
-        readyState?: String; // TODO: Flare doesn't catch this yet
-    };
-    request_data?: {
-        queryString: { [key: string]: string };
-    };
-    cookies?: { [key: string]: string };
-    [key: string]: any;
-};
-
 export type StackFrame = {
-    line_number: number;
-    column_number: number; // TODO: Flare doesn't catch this yet
-    method: string;
     file: string;
-    code_snippet: { [key: number]: string };
-    trimmed_column_number: number | null;
-    class: string;
+    lineNumber: number;
+    columnNumber?: number;
+    method?: string;
+    class?: string;
+    codeSnippet?: { [line: number]: string };
+    isApplicationFrame?: boolean;
+    arguments?: unknown[];
+};
+
+export type SpanEvent = {
+    type: string;
+    startTimeUnixNano: number;
+    endTimeUnixNano: number | null;
+    attributes: Attributes;
+};
+
+export type OverriddenGrouping =
+    | 'exception_class'
+    | 'exception_message'
+    | 'exception_message_and_class'
+    | 'full_stacktrace_and_exception_class_and_code';
+
+export type Report = {
+    exceptionClass?: string | null;
+    message?: string | null;
+    code?: string;
+    seenAtUnixNano: number;
+    isLog?: boolean;
+    level?: MessageLevel;
+    sourcemapVersionId?: string;
+    trackingUuid?: string;
+    handled?: boolean;
+    openFrameIndex?: number;
+    applicationPath?: string;
+    overriddenGrouping?: OverriddenGrouping | null;
+    stacktrace: StackFrame[];
+    events: SpanEvent[];
+    attributes: Attributes;
 };
 
 export type Glow = {
     time: number;
     microtime: number;
-    name: String;
+    name: string;
     message_level: MessageLevel;
     meta_data: object | object[];
 };
 
-export type MessageLevel = 'info' | 'debug' | 'warning' | 'error' | 'critical';
+export type EntryPointHandler = {
+    identifier?: string;
+    name?: string;
+    type?: string;
+};
+
+export type SdkInfo = { name: string; version: string };
+
+export type Framework = { name: string; version?: string };

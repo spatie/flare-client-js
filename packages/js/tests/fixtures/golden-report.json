@@ -1,0 +1,54 @@
+{
+    "exceptionClass": "Error",
+    "message": "boom",
+    "seenAtUnixNano": 1777377600000000000,
+    "stacktrace": [
+        {
+            "lineNumber": 10,
+            "columnNumber": 20,
+            "method": "golden",
+            "file": "https://app.test/golden.js",
+            "class": "",
+            "isApplicationFrame": true
+        }
+    ],
+    "events": [
+        {
+            "type": "php_glow",
+            "startTimeUnixNano": 1777377600000000000,
+            "endTimeUnixNano": null,
+            "attributes": {
+                "glow.name": "rendering",
+                "glow.level": "info",
+                "glow.context": {
+                    "step": 1
+                }
+            }
+        }
+    ],
+    "attributes": {
+        "telemetry.sdk.language": "javascript",
+        "telemetry.sdk.name": "@flareapp/js",
+        "telemetry.sdk.version": "golden",
+        "flare.language.name": "javascript",
+        "flare.entry_point.type": "web",
+        "flare.entry_point.value": "https://app.test/users/42",
+        "flare.entry_point.handler.identifier": "/users/:id",
+        "flare.entry_point.handler.type": "browser",
+        "flare.entry_point.handler.name": "UserShow",
+        "service.stage": "production",
+        "service.version": "1.0.0",
+        "url.full": "https://app.test/users/42",
+        "user_agent.original": "GoldenAgent/1.0",
+        "http.request.referrer": "https://example.com/from",
+        "document.ready_state": "complete",
+        "context.custom": {
+            "userId": 7
+        },
+        "context.tenant": {
+            "id": 9
+        }
+    },
+    "sourcemapVersionId": "sourcemap-abc",
+    "code": "ENOTFOUND"
+}

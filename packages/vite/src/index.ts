@@ -35,6 +35,9 @@ export default function flareSourcemapUploader({
 
     const flare = new FlareApi(apiEndpoint, key, version);
 
+    // Three opt-outs: missing key disables everything silently; dev builds are skipped unless
+    // explicitly enabled; SKIP_SOURCEMAPS=true is an env-level kill switch (handy for CI matrix
+    // jobs that should build but not burn API quota).
     const enableUploadingSourcemaps =
         key && (process.env.NODE_ENV !== 'development' || runInDevelopment) && process.env.SKIP_SOURCEMAPS !== 'true';
 
@@ -50,6 +53,9 @@ export default function flareSourcemapUploader({
                     FLARE_JS_KEY: `'${key}'`,
                 },
                 build: {
+                    // Respect any pre-set sourcemap config; otherwise enable 'hidden' sourcemaps when
+                    // we're going to upload them. 'hidden' generates the .map files but omits the
+                    // sourceMappingURL comment, so production bundles don't expose the maps publicly.
                     sourcemap: (() => {
                         if (build?.sourcemap !== undefined) return build.sourcemap;
                         const enableSourcemaps = enableUploadingSourcemaps && mode !== 'development';
@@ -61,6 +67,9 @@ export default function flareSourcemapUploader({
         },
 
         configResolved(config: ResolvedConfig) {
+            // Resolve the public base URL after Vite finishes its own config merge. We need a trailing
+            // slash so prepending it to a relative output path yields a valid URL the Flare backend
+            // can match against the script tag in the browser.
             base = base || config.base;
             base += base.endsWith('/') ? '' : '/';
         },

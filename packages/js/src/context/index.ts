@@ -1,1 +1,1 @@
-export * from './collectContext';
+export * from './collectAttributes';

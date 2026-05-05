@@ -1,6 +1,9 @@
 import { CHROMIUM_STACK_REGEX, FIREFOX_SAFARI_STACK_REGEX } from './constants';
 import { ComponentStackFrame } from './types';
 
+// React's `errorInfo.componentStack` is a newline-separated, browser-formatted string. We parse it
+// into structured frames here so the Flare UI can render proper file/line links instead of a blob.
+// Falls back to component-name-only when the format is unrecognised (rather than dropping the line).
 export function parseComponentStack(stack: string): ComponentStackFrame[] {
     return stack
         .split(/\s*\n\s*/g)
