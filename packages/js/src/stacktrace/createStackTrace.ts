@@ -64,8 +64,8 @@ function hasStack(err: any): boolean {
 
 function isApplicationFrame(fileName: string | undefined): boolean {
     if (!fileName) return true;
-    // node_modules and webpack-style vendor chunks should not count as application code
     if (/[/\\]node_modules[/\\]/.test(fileName)) return false;
     if (/(^|[/\\])(vendor|vendors)[.~-][^/\\]*\.js/i.test(fileName)) return false;
+    if (/^(async )?node:/.test(fileName)) return false;
     return true;
 }

@@ -10,6 +10,8 @@ type ReaderResponse = {
     trimmedColumnNumber: number | null;
 };
 
+const isNode = typeof process !== 'undefined' && !!process.versions?.node;
+
 export function getCodeSnippet(url?: string, lineNumber?: number, columnNumber?: number): Promise<ReaderResponse> {
     return new Promise((resolve) => {
         if (!url || !lineNumber) {
@@ -21,10 +23,7 @@ export function getCodeSnippet(url?: string, lineNumber?: number, columnNumber?:
             });
         }
 
-        // Reject non-http(s) URLs (e.g. chrome-extension://, file://) to avoid leaking errors from
-        // browser extensions or local files into the report. catchWindowErrors has a runtime opt-in
-        // for extensions; this is the secondary gate at fetch time.
-        if (!isFetchableUrl(url)) {
+        if (!isReadableSource(url)) {
             return resolve({
                 codeSnippet: {
                     0: `Could not read from file: unsupported URL scheme. URL: ${url}`,
@@ -48,8 +47,30 @@ export function getCodeSnippet(url?: string, lineNumber?: number, columnNumber?:
     });
 }
 
-function isFetchableUrl(url: string): boolean {
-    return /^https?:\/\//i.test(url);
+function isReadableSource(url: string): boolean {
+    if (/^https?:\/\//i.test(url)) return true;
+    if (isNode) {
+        const cleaned = stripAsyncPrefix(url);
+        if (cleaned.startsWith('file://') || cleaned.startsWith('/')) return true;
+    }
+    return false;
+}
+
+// V8 prefixes async frames with "async " (e.g. "async file:///path/to/file.mjs").
+function stripAsyncPrefix(url: string): string {
+    return url.startsWith('async ') ? url.slice(6) : url;
+}
+
+function toFilePath(url: string): string {
+    const cleaned = stripAsyncPrefix(url);
+    if (cleaned.startsWith('file://')) {
+        try {
+            return new URL(cleaned).pathname;
+        } catch {
+            return cleaned.replace(/^file:\/\//, '');
+        }
+    }
+    return cleaned;
 }
 
 function readFile(url: string): Promise<string | null> {
@@ -57,6 +78,27 @@ function readFile(url: string): Promise<string | null> {
         return Promise.resolve(cachedFiles[url]);
     }
 
+    const cleaned = stripAsyncPrefix(url);
+    if (isNode && (cleaned.startsWith('file://') || cleaned.startsWith('/'))) {
+        return readFileFromDisk(cleaned);
+    }
+
+    return fetchFile(url);
+}
+
+async function readFileFromDisk(url: string): Promise<string | null> {
+    const filePath = toFilePath(url);
+    try {
+        const { readFileSync } = await import(/* @vite-ignore */ 'node:fs');
+        const text = readFileSync(filePath, 'utf-8');
+        cachedFiles[url] = text;
+        return text;
+    } catch {
+        return null;
+    }
+}
+
+function fetchFile(url: string): Promise<string | null> {
     return fetch(url)
         .then((response) => {
             if (response.status !== 200) {
