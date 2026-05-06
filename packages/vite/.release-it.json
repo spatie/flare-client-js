@@ -1,0 +1,16 @@
+{
+    "git": {
+        "commitMessage": "Release @flareapp/vite v${version}",
+        "tagName": "@flareapp/vite@${version}",
+        "tagAnnotation": "Release @flareapp/vite v${version}"
+    },
+    "github": {
+        "release": false
+    },
+    "npm": {
+        "publish": true
+    },
+    "hooks": {
+        "after:bump": "npm run build"
+    }
+}

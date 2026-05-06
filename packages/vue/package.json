@@ -21,7 +21,8 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsup src/index.js --format cjs,esm --dts --clean"
+        "build": "tsup src/index.js --format cjs,esm --dts --clean",
+        "release": "release-it"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",

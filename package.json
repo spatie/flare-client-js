@@ -8,7 +8,11 @@
         "test": "npm run test --workspaces --if-present",
         "typescript": "npm run typescript --workspaces --if-present",
         "format": "prettier --write \"**/*.{js,json,vue,ts,tsx}\"",
-        "prepare": "husky install"
+        "prepare": "husky install",
+        "release:js": "npm run release --workspace=packages/js",
+        "release:react": "npm run release --workspace=packages/react",
+        "release:vue": "npm run release --workspace=packages/vue",
+        "release:vite": "npm run release --workspace=packages/vite"
     },
     "devDependencies": {
         "husky": "^8.0.3",
