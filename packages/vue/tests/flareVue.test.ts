@@ -1,5 +1,5 @@
 import type { Attributes } from '@flareapp/js';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ComponentPublicInstance } from 'vue';
 
 import { flareVue } from '../src/flareVue';
@@ -84,6 +84,12 @@ function callHandler(
 beforeEach(() => {
     mockReport.mockReset();
     mockReportMessage.mockReset();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
 });
 
 describe('flareVue', () => {
