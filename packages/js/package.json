@@ -23,7 +23,7 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsup src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=\\\"$(node -p \"require('./package.json').version\")\\\" --clean",
+        "build": "tsup src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=$(node -p \"require('./package.json').version\") --clean",
         "test": "vitest run",
         "typescript": "tsc"
     },
