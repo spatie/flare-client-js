@@ -23,7 +23,7 @@
         "prepublishOnly": "npm run build",
         "build": "tsup src/index.ts --format cjs,esm --dts --clean",
         "typescript": "tsc",
-        "release": "release-it"
+        "release": "npx release-it"
     },
     "dependencies": {
         "axios": "^1.2.1",
