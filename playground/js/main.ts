@@ -9,6 +9,7 @@ import { renderPromiseRejectionSection } from './sections/promiseRejectionSectio
 import { renderRapidFireSection } from './sections/rapidFireSection';
 import { renderTimeoutErrorSection } from './sections/timeoutErrorSection';
 import { renderTypeErrorSection } from './sections/typeErrorSection';
+import { renderUrlRedactionSection } from './sections/urlRedactionSection';
 
 initFlare(import.meta.env.VITE_FLARE_JS_KEY);
 
@@ -23,4 +24,5 @@ renderPromiseRejectionSection(root);
 renderManualReportingSection(root);
 renderEnrichmentSection(root);
 renderHooksSection(root);
+renderUrlRedactionSection(root);
 renderRapidFireSection(root);

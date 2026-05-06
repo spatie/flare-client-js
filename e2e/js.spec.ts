@@ -153,6 +153,28 @@ test.describe('JS playground', () => {
         });
     });
 
+    test.describe('UrlRedaction section', () => {
+        test('sensitive query params are redacted in report attributes', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('URL redaction test error') ?? false,
+            });
+            await page.getByRole('button', { name: 'Error with sensitive URL params' }).click();
+            const report = await reportPromise;
+
+            const attributes = report.attributes;
+            const urlFull = attributes['url.full'] as string;
+            const urlQuery = attributes['url.query'] as string;
+
+            expect(urlFull).toContain('token=[redacted]');
+            expect(urlFull).toContain('session_id=[redacted]');
+            expect(urlFull).toContain('visible=keep');
+
+            expect(urlQuery).toContain('token=[redacted]');
+            expect(urlQuery).toContain('session_id=[redacted]');
+            expect(urlQuery).toContain('visible=keep');
+        });
+    });
+
     test.describe('RapidFire section', () => {
         test('multiple reports sent from rapid-fire errors', async ({ page, flare }) => {
             const consolePromise = page.waitForEvent('console', {
