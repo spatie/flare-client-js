@@ -1,0 +1,14 @@
+{
+    "name": "playground-js",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build"
+    },
+    "dependencies": {
+        "@flareapp/js": "file:../../packages/js"
+    },
+    "devDependencies": {
+        "vite": "^6.0.0"
+    }
+}

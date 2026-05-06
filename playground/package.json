@@ -1,0 +1,15 @@
+{
+    "name": "playground",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "playwright test",
+        "dev:js": "npm run dev --prefix js",
+        "dev:react": "npm run dev --prefix react",
+        "dev:vue": "npm run dev --prefix vue"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.59.1",
+        "release-it": "^20.0.1"
+    }
+}
