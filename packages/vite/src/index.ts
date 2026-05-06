@@ -74,12 +74,12 @@ export default function flareSourcemapUploader({
             base += base.endsWith('/') ? '' : '/';
         },
 
-        async writeBundle(outputConfig: { dir?: string }) {
+        async writeBundle(outputOptions) {
             if (!enableUploadingSourcemaps) {
                 return;
             }
 
-            const outputDir = outputConfig.dir || '';
+            const outputDir = outputOptions.dir || '';
 
             const files = await glob('./**/*.map', { cwd: outputDir });
             const sourcemaps = files

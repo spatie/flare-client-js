@@ -1,8 +1,5 @@
 {
     "private": true,
-    "engines": {
-        "node": ">=18"
-    },
     "author": {
         "name": "Spatie",
         "email": "info@spatie.be"
