@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import { Flare } from '../src/Flare';
-import { DEFAULT_URL_DENYLIST, redactFullPath } from '../src/util';
+import { DEFAULT_URL_DENYLIST, redactFullPath, resolveDenylist } from '../src/util';
 
 import { FakeApi } from './helpers/FakeApi';
 
@@ -43,6 +43,24 @@ describe('redactFullPath', () => {
     });
 });
 
+describe('resolveDenylist', () => {
+    test('returns default when no custom pattern given', () => {
+        expect(resolveDenylist()).toBe(DEFAULT_URL_DENYLIST);
+    });
+
+    test('merges custom pattern with default', () => {
+        const merged = resolveDenylist(/myParam/i);
+        expect(merged.test('password')).toBe(true);
+        expect(merged.test('myParam')).toBe(true);
+    });
+
+    test('replaces default when replaceDefault is true', () => {
+        const replaced = resolveDenylist(/myParam/i, true);
+        expect(replaced.test('password')).toBe(false);
+        expect(replaced.test('myParam')).toBe(true);
+    });
+});
+
 describe('Flare URL scrubbing', () => {
     let flare: Flare;
     let api: FakeApi;
@@ -71,16 +89,27 @@ describe('Flare URL scrubbing', () => {
         expect(attributes['url.query']).toBe('token=[redacted]&q=visible');
     });
 
-    test('honours configured custom urlDenylist', async () => {
-        window.history.replaceState({}, '', '/page?secretKey=xyz&token=stillVisible');
+    test('merges custom urlDenylist with default', async () => {
+        window.history.replaceState({}, '', '/page?secretKey=xyz&token=abc&q=visible');
         flare.configure({ urlDenylist: /^secretKey$/ });
 
         await flare.report(new Error('boom'));
 
         const attributes = api.lastReport!.attributes;
         expect(attributes['url.full']).toContain('secretKey=[redacted]');
+        expect(attributes['url.full']).toContain('token=[redacted]');
+        expect(attributes['url.full']).toContain('q=visible');
+    });
+
+    test('replaces default urlDenylist when replaceDefaultUrlDenylist is true', async () => {
+        window.history.replaceState({}, '', '/page?secretKey=xyz&token=stillVisible');
+        flare.configure({ urlDenylist: /^secretKey$/, replaceDefaultUrlDenylist: true });
+
+        await flare.report(new Error('boom'));
+
+        const attributes = api.lastReport!.attributes;
+        expect(attributes['url.full']).toContain('secretKey=[redacted]');
         expect(attributes['url.full']).toContain('token=stillVisible');
-        expect(attributes['url.query']).toBe('secretKey=[redacted]&token=stillVisible');
     });
 
     test('omits url.query when no query string', async () => {

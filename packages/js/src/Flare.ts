@@ -13,7 +13,16 @@ import {
     Report,
     SdkInfo,
 } from './types';
-import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, redactFullPath } from './util';
+import {
+    DEFAULT_URL_DENYLIST,
+    assert,
+    assertKey,
+    extractCode,
+    glowsToEvents,
+    now,
+    redactFullPath,
+    resolveDenylist,
+} from './util';
 
 const DEFAULT_SDK_NAME = '@flareapp/js';
 
@@ -28,6 +37,7 @@ export class Flare {
         reportBrowserExtensionErrors: false,
         debug: false,
         urlDenylist: DEFAULT_URL_DENYLIST,
+        replaceDefaultUrlDenylist: false,
         beforeEvaluate: (error) => error,
         beforeSubmit: (report) => report,
     };
@@ -51,6 +61,12 @@ export class Flare {
 
     configure(config: Partial<Config>): Flare {
         this.config = { ...this.config, ...config };
+
+        this.config.urlDenylist = resolveDenylist(
+            config.urlDenylist,
+            config.replaceDefaultUrlDenylist ?? this.config.replaceDefaultUrlDenylist
+        );
+
         return this;
     }
 

@@ -1,8 +1,39 @@
-// Matched against query-string keys. Values for matching keys are replaced with [redacted] before
-// the URL is sent to Flare so credentials/PII don't leak in error reports. Path and hash are left
-// untouched. Override per-instance via Config.urlDenylist.
+// Matched against query-string keys (and, in framework SDKs, against prop/route-param keys).
+// Values for matching keys are replaced with [redacted] before the data is sent to Flare so
+// credentials/PII don't leak in error reports.
 export const DEFAULT_URL_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
+
+export function resolveDenylist(
+    custom?: RegExp,
+    replaceDefault: boolean = false,
+    defaultDenylist: RegExp = DEFAULT_URL_DENYLIST
+): RegExp {
+    if (!custom) {
+        return defaultDenylist;
+    }
+
+    if (replaceDefault) {
+        return custom;
+    }
+
+    const flags = unionFlags(defaultDenylist.flags, custom.flags);
+
+    return new RegExp(`(?:${defaultDenylist.source})|(?:${custom.source})`, flags);
+}
+
+function unionFlags(a: string, b: string): string {
+    const merged = new Set<string>();
+
+    for (const flag of a + b) {
+        if (flag === 'g' || flag === 'y') {
+            continue;
+        }
+        merged.add(flag);
+    }
+
+    return [...merged].join('');
+}
 
 export function redactFullPath(fullPath: string, denylist: RegExp = DEFAULT_URL_DENYLIST): string {
     const queryStart = fullPath.indexOf('?');

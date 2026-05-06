@@ -14,6 +14,7 @@ export type Config = {
     ingestUrl: string;
     debug: boolean;
     urlDenylist: RegExp;
+    replaceDefaultUrlDenylist: boolean;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };

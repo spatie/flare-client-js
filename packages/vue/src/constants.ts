@@ -1,3 +1,5 @@
+import { DEFAULT_URL_DENYLIST, resolveDenylist as baseResolveDenylist } from '@flareapp/js';
+
 import { ErrorOrigin } from './types';
 
 declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
@@ -10,39 +12,10 @@ export const PACKAGE_VERSION =
 
 export const MAX_HIERARCHY_DEPTH = 50;
 
-export const DEFAULT_PROPS_DENYLIST =
-    /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
+export const DEFAULT_PROPS_DENYLIST = DEFAULT_URL_DENYLIST;
 
-// Default behaviour is to *extend* the built-in denylist rather than replace it, so a consumer
-// adding `userId` doesn't accidentally lose redaction for `password`/`token`/etc. Pass
-// replaceDefault=true to opt out (useful for tests or when the built-in matches too aggressively).
 export function resolveDenylist(custom?: RegExp, replaceDefault: boolean = false): RegExp {
-    if (!custom) {
-        return DEFAULT_PROPS_DENYLIST;
-    }
-
-    if (replaceDefault) {
-        return custom;
-    }
-
-    const flags = unionFlags(DEFAULT_PROPS_DENYLIST.flags, custom.flags);
-
-    return new RegExp(`(?:${DEFAULT_PROPS_DENYLIST.source})|(?:${custom.source})`, flags);
-}
-
-function unionFlags(a: string, b: string): string {
-    const merged = new Set<string>();
-
-    for (const flag of a + b) {
-        // 'g' and 'y' do not affect .test() of unanchored regex on a single key,
-        // and combining them across user/default RegExps would change semantics.
-        if (flag === 'g' || flag === 'y') {
-            continue;
-        }
-        merged.add(flag);
-    }
-
-    return [...merged].join('');
+    return baseResolveDenylist(custom, replaceDefault, DEFAULT_PROPS_DENYLIST);
 }
 
 export const MAX_PROP_STRING_LENGTH = 1000;
