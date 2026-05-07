@@ -9,7 +9,7 @@ projects. Each project gets a release and an announcement post.
 ## Industry-standard features we're missing
 
 | Feature                                                          | Industry standard | Flare                                    |
-|------------------------------------------------------------------|-------------------|------------------------------------------|
+| ---------------------------------------------------------------- | ----------------- | ---------------------------------------- |
 | **Automatic breadcrumbs** (console, clicks, navigation, network) | Yes               | Manual "glows" only                      |
 | **User identification API** (`setUser()`)                        | Yes               | None                                     |
 | **Device/browser/OS context** (parsed from UA)                   | Yes               | Raw UA string only                       |
@@ -26,7 +26,7 @@ projects. Each project gets a release and an announcement post.
 ## Advanced features to consider
 
 | Feature                             | Notes                                          |
-|-------------------------------------|------------------------------------------------|
+| ----------------------------------- | ---------------------------------------------- |
 | Session replay linked to errors     | Watch what user did before crash               |
 | Backend trace correlation           | Link frontend error to backend span            |
 | Stability/crash-free scores         | Session-based release health tracking          |
@@ -91,14 +91,14 @@ rate limiting, fragile error capture, etc.). Should be the next sprint priority.
 Make `@flareapp/js` robust and feature-complete. This is the foundation everything else builds on.
 
 - [ ] Switch from `window.onerror =` to `addEventListener('error')` / `addEventListener('unhandledrejection')` for
-  robustness
+      robustness
 - [ ] Automatic breadcrumbs: console output interception (`console.log/warn/error/info/debug`)
 - [ ] Automatic breadcrumbs: DOM click tracking (element tag, CSS selector)
 - [ ] Automatic breadcrumbs: Navigation / History API changes (`pushState`, `replaceState`, `popstate`)
 - [ ] Automatic breadcrumbs: XHR and Fetch request tracking (method, URL, status, duration)
 - [ ] User identification API: `flare.setUser({ id, name, email, ...custom })` with a `flare.clearUser()`
 - [ ] Device/browser/OS context: parse user agent into structured data (browser name + version, OS name + version,
-  device type)
+      device type)
 - [ ] Screen/viewport context: `window.screen.width/height`, `window.innerWidth/innerHeight`
 - [ ] Additional context: `navigator.language`, timezone, `navigator.onLine`
 - [ ] Error cause chain traversal: follow `error.cause` to capture linked errors
@@ -122,7 +122,7 @@ Sprint target: fallback UI, callbacks, and component name. Defer React Router in
 
 - [ ] Fallback UI: implement `getDerivedStateFromError` so the boundary can render a fallback component
 - [ ] Configurable fallback: `<FlareErrorBoundary fallback={<ErrorPage />}>` or render prop
-  `fallback={(error, reset) => ...}`
+      `fallback={(error, reset) => ...}`
 - [ ] `afterSubmit` callback prop: let developers hook into error events
 - [ ] `onReset` callback prop: for error recovery flows
 - [ ] Capture component props from the error boundary's child tree

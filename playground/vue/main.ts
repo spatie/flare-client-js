@@ -3,7 +3,6 @@ import { createApp } from 'vue';
 
 import { createSidebar } from '../shared/createSidebar';
 import { initFlare } from '../shared/initFlare';
-
 import App from './App.vue';
 import { router } from './router';
 

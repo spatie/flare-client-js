@@ -1,6 +1,5 @@
 import { createSidebar } from '../shared/createSidebar';
 import { initFlare } from '../shared/initFlare';
-
 import { renderCauseChainSection } from './sections/causeChainSection';
 import { renderEnrichmentSection } from './sections/enrichmentSection';
 import { renderHooksSection } from './sections/hooksSection';

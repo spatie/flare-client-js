@@ -2,7 +2,6 @@ import ErrorStackParser from 'error-stack-parser';
 
 import { StackFrame } from '../types';
 import { assert } from '../util';
-
 import { getCodeSnippet } from './fileReader';
 
 export function createStackTrace(error: Error, debug: boolean): Promise<Array<StackFrame>> {
@@ -53,12 +52,13 @@ function fallbackFrame(reason: string): StackFrame {
 // Some engines populate `err.stack` with just `"<Name>: <message>"` (no frames) when an Error is
 // constructed but never thrown. Treat that as "no stack" so we fall back instead of parsing garbage.
 // Also accepts the legacy `stacktrace` and Opera `opera#sourceloc` properties.
-function hasStack(err: any): boolean {
+function hasStack(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    const e = err as Record<string, unknown>;
+    const stack = e.stack ?? e.stacktrace ?? e['opera#sourceloc'];
     return (
-        !!err &&
-        (!!err.stack || !!err.stacktrace || !!err['opera#sourceloc']) &&
-        typeof (err.stack || err.stacktrace || err['opera#sourceloc']) === 'string' &&
-        err.stack !== `${err.name}: ${err.message}`
+        typeof stack === 'string' &&
+        stack !== `${(e as { name?: string }).name}: ${(e as { message?: string }).message}`
     );
 }
 

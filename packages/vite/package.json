@@ -36,19 +36,21 @@
             }
         }
     },
+    "engines": {
+        "node": ">=18"
+    },
     "scripts": {
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
+        "test": "vitest run",
         "typescript": "tsc",
         "release": "release-it"
-    },
-    "dependencies": {
-        "fast-glob": "^3.2.12"
     },
     "devDependencies": {
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
-        "vite": "^5.0.0||^6.0.0||^7.0.0||^8.0.0"
+        "vite": "^5.0.0||^6.0.0||^7.0.0||^8.0.0",
+        "vitest": "^4.0.0"
     },
     "peerDependencies": {
         "vite": "^5.0.0||^6.0.0||^7.0.0||^8.0.0"

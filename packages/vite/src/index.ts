@@ -1,153 +1,140 @@
-import glob from 'fast-glob';
-import { existsSync, readFileSync, unlinkSync } from 'fs';
-import { resolve } from 'path';
-import { Plugin, ResolvedConfig, UserConfig } from 'vite';
+import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-import FlareApi from './flareApi';
-import { uuid } from './util';
+import { type Plugin, type ResolvedConfig } from 'vite';
 
-export type PluginConfig = {
-    key: string;
-    base?: string;
-    apiEndpoint?: string;
-    runInDevelopment?: boolean;
-    version?: string;
-    removeSourcemaps?: boolean;
-};
+import { FlareApi } from './flareApi';
+import { FlareVitePluginOptions, Sourcemap } from './types';
 
-export type Sourcemap = {
-    original_file: string;
-    content: string;
-    sourcemap_url: string;
-};
+export type { FlareVitePluginOptions, Sourcemap } from './types';
 
-export default function flareSourcemapUploader({
-    key,
+export default function flareSourcemaps({
+    apiKey,
     base,
     apiEndpoint = 'https://flareapp.io/api/sourcemaps',
     runInDevelopment = false,
-    version = uuid(),
+    version = randomUUID(),
     removeSourcemaps = false,
-}: PluginConfig): Plugin {
-    if (!key) {
-        flareLog('No Flare API key was provided, not uploading sourcemaps to Flare.');
+}: FlareVitePluginOptions): Plugin {
+    let logger: ResolvedConfig['logger'] | null = null;
+    let resolvedBase = base ?? '/';
+    let enableUpload = false;
+
+    const flare = new FlareApi(apiEndpoint, apiKey, version);
+
+    function log(message: string, isError = false) {
+        const formatted = `@flareapp/vite: ${message}`;
+        if (isError) {
+            if (logger) logger.error(formatted);
+            else console.error(formatted);
+        } else {
+            if (logger) logger.info(formatted);
+            else console.log(formatted);
+        }
     }
 
-    const flare = new FlareApi(apiEndpoint, key, version);
-
-    // Three opt-outs: missing key disables everything silently; dev builds are skipped unless
-    // explicitly enabled; SKIP_SOURCEMAPS=true is an env-level kill switch (handy for CI matrix
-    // jobs that should build but not burn API quota).
-    const enableUploadingSourcemaps =
-        key && (process.env.NODE_ENV !== 'development' || runInDevelopment) && process.env.SKIP_SOURCEMAPS !== 'true';
+    if (!apiKey) {
+        console.warn('@flareapp/vite: No Flare API key provided, sourcemap upload disabled.');
+    }
 
     return {
         name: 'flare-vite-plugin',
         apply: 'build',
+        enforce: 'post',
 
-        config({ build }: UserConfig, { mode }: { mode: string }) {
+        config(_userConfig, { mode }) {
+            enableUpload =
+                !!apiKey && (mode !== 'development' || runInDevelopment) && process.env.SKIP_SOURCEMAPS !== 'true';
+
             return {
-                // Set FLARE_SOURCEMAP_VERSION and API key so the Flare JS client can read it
                 define: {
-                    FLARE_SOURCEMAP_VERSION: `'${version}'`,
-                    FLARE_JS_KEY: `'${key}'`,
+                    FLARE_SOURCEMAP_VERSION: JSON.stringify(version),
+                    FLARE_JS_KEY: JSON.stringify(apiKey),
                 },
                 build: {
-                    // Respect any pre-set sourcemap config; otherwise enable 'hidden' sourcemaps when
-                    // we're going to upload them. 'hidden' generates the .map files but omits the
-                    // sourceMappingURL comment, so production bundles don't expose the maps publicly.
-                    sourcemap: (() => {
-                        if (build?.sourcemap !== undefined) return build.sourcemap;
-                        const enableSourcemaps = enableUploadingSourcemaps && mode !== 'development';
-                        if (enableSourcemaps) return 'hidden';
-                        return false;
-                    })(),
+                    sourcemap: enableUpload ? 'hidden' : undefined,
                 },
             };
         },
 
-        configResolved(config: ResolvedConfig) {
-            // Resolve the public base URL after Vite finishes its own config merge. We need a trailing
-            // slash so prepending it to a relative output path yields a valid URL the Flare backend
-            // can match against the script tag in the browser.
-            base = base || config.base;
-            base += base.endsWith('/') ? '' : '/';
+        configResolved(config) {
+            logger = config.logger;
+
+            if (!base) {
+                resolvedBase = config.base;
+            }
+            if (!resolvedBase.endsWith('/')) {
+                resolvedBase += '/';
+            }
         },
 
-        async writeBundle(outputOptions) {
-            if (!enableUploadingSourcemaps) {
+        async writeBundle(outputOptions, bundle) {
+            if (!enableUpload) {
                 return;
             }
 
             const outputDir = outputOptions.dir || '';
 
-            const files = await glob('./**/*.map', { cwd: outputDir });
-            const sourcemaps = files
-                .map((file): Sourcemap | null => {
-                    const sourcePath = file.replace(/\.map$/, '');
-                    const sourceFilename = resolve(outputDir, sourcePath);
+            const sourcemaps: Sourcemap[] = [];
 
-                    if (!existsSync(sourceFilename)) {
-                        flareLog(`no corresponding source found for "${file}"`, true);
-                        return null;
-                    }
+            for (const fileName of Object.keys(bundle)) {
+                if (!fileName.endsWith('.map')) {
+                    continue;
+                }
 
-                    const sourcemapLocation = resolve(outputDir, file);
+                const sourceFileName = fileName.replace(/\.map$/, '');
+                const sourceFilePath = resolve(outputDir, sourceFileName);
 
-                    try {
-                        return {
-                            content: readFileSync(sourcemapLocation, 'utf8'),
-                            sourcemap_url: sourcemapLocation,
-                            original_file: `${base}${sourcePath}`,
-                        };
-                    } catch (error) {
-                        flareLog('Error reading sourcemap file ' + sourcemapLocation + ': ' + error, true);
-                        return null;
-                    }
-                })
-                .filter((sourcemap) => sourcemap !== null) as Sourcemap[];
+                if (!existsSync(sourceFilePath)) {
+                    log(`No corresponding source found for "${fileName}"`, true);
+                    continue;
+                }
+
+                const sourcemapPath = resolve(outputDir, fileName);
+
+                try {
+                    sourcemaps.push({
+                        content: readFileSync(sourcemapPath, 'utf8'),
+                        sourcemapPath,
+                        originalFile: `${resolvedBase}${sourceFileName}`,
+                    });
+                } catch (error) {
+                    log(`Error reading sourcemap ${sourcemapPath}: ${error}`, true);
+                }
+            }
 
             if (!sourcemaps.length) {
                 return;
             }
 
-            flareLog(`Uploading ${sourcemaps.length} sourcemap files to Flare.`);
+            log(`Uploading ${sourcemaps.length} sourcemap(s) to Flare.`);
 
-            const pendingUploads = sourcemaps.map((sourcemap) => () => flare.uploadSourcemap(sourcemap));
+            const results = await Promise.allSettled(sourcemaps.map((sourcemap) => flare.uploadSourcemap(sourcemap)));
 
-            try {
-                while (pendingUploads.length) {
-                    // Maximum 10 at once https://stackoverflow.com/a/58686835
-                    await Promise.all(pendingUploads.splice(0, 10).map((f) => f()));
+            const failed = results.filter((r) => r.status === 'rejected');
+            if (failed.length > 0) {
+                for (const result of failed) {
+                    log(`Upload failed: ${(result as PromiseRejectedResult).reason}`, true);
                 }
-
-                flareLog('Successfully uploaded sourcemaps to Flare.');
-            } catch (error) {
-                flareLog(`Something went wrong while uploading the sourcemaps to Flare: ${error}`, true);
+                log(`${failed.length}/${sourcemaps.length} sourcemap upload(s) failed.`, true);
+            } else {
+                log('Successfully uploaded all sourcemaps to Flare.');
             }
 
             if (removeSourcemaps) {
-                sourcemaps.forEach(({ sourcemap_url }) => {
-                    try {
-                        unlinkSync(sourcemap_url);
-                    } catch (error) {
-                        console.error('Error removing sourcemap file', sourcemap_url, ': ', error);
+                for (let i = 0; i < sourcemaps.length; i++) {
+                    if (results[i].status === 'rejected') {
+                        continue;
                     }
-                });
-
-                flareLog('Successfully removed sourcemaps.');
+                    try {
+                        unlinkSync(sourcemaps[i].sourcemapPath);
+                    } catch (error) {
+                        log(`Error removing ${sourcemaps[i].sourcemapPath}: ${error}`, true);
+                    }
+                }
+                log('Removed sourcemap files from build output.');
             }
         },
     };
-}
-
-function flareLog(message: string, isError = false) {
-    const formattedMessage = '@flareapp/vite: ' + message;
-
-    if (isError) {
-        console.error(formattedMessage);
-        return;
-    }
-
-    console.log(formattedMessage);
 }

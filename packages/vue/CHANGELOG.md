@@ -8,5 +8,5 @@
 
 ### New
 
-- `flareVue(app, { router })` — when a `vue-router` instance is provided, the plugin registers `router.afterEach` and pushes the current route metadata into `flare.setEntryPoint`. `vue-router` is now an optional peer dep.
+- Route context is automatically captured from `app.config.globalProperties.$router` when an error occurs. No explicit router option needed. `vue-router` is now an optional peer dep.
 - The package self-identifies via `flare.setSdkInfo({ name: '@flareapp/vue', version })` and `flare.setFramework({ name: 'Vue', version: app.version })` on install.

@@ -1,9 +1,3 @@
-// Local `process` declaration because tsconfig.json sets "types": ["@testing-library/jest-dom"]
-// which excludes @types/node. Removing that field would break jest-dom matcher typings
-// (.toBeInTheDocument() etc.) in test files. tsdown replaces process.env.PACKAGE_VERSION with a
-// string literal at build time, so this declaration is only needed for type-checking.
-declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
-
 // Chrome:
 // "at ComponentName (http://localhost:5173/src/App.tsx:12:9)"
 // (no source): "at div"

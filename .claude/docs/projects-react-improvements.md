@@ -52,7 +52,7 @@ The `fallback` prop accepts either a static `ReactNode` or a render function. Th
 
 ### Why
 
-Fires *before* the component stack context is built, giving developers a chance to attach custom context, tags, or
+Fires _before_ the component stack context is built, giving developers a chance to attach custom context, tags, or
 user information to the Flare report. This is the pragmatic answer to "how do we capture component props/state" -- let
 the developer decide what to include rather than trying to automatically serialize React internals.
 
@@ -71,7 +71,7 @@ the developer decide what to include rather than trying to automatically seriali
 
 ### Why
 
-Fires after the component stack context is built but *before* the error is reported to Flare. The callback receives
+Fires after the component stack context is built but _before_ the error is reported to Flare. The callback receives
 the `context` and must return a (possibly modified) context object. Use this to filter or enrich the report context.
 
 ```tsx
@@ -81,9 +81,7 @@ the `context` and must return a (possibly modified) context object. Use this to 
             ...context,
             react: {
                 ...context.react,
-                componentStack: context.react.componentStack.filter(
-                    (line) => !line.includes('ThirdPartyWrapper'),
-                ),
+                componentStack: context.react.componentStack.filter((line) => !line.includes('ThirdPartyWrapper')),
             },
         };
     }}
@@ -97,7 +95,7 @@ the `context` and must return a (possibly modified) context object. Use this to 
 ### Why
 
 Developers need a hook to perform side effects when an error is caught -- logging to a secondary service,
-showing a toast, updating app state, etc. This fires *after* the error has been reported to Flare. The callback
+showing a toast, updating app state, etc. This fires _after_ the error has been reported to Flare. The callback
 receives the final context that was submitted.
 
 ```tsx
@@ -126,9 +124,7 @@ error allows conditional cleanup based on what went wrong.
         console.log('Recovering from:', error?.message);
         queryClient.invalidateQueries();
     }}
-    fallback={({ resetErrorBoundary }) => (
-        <button onClick={resetErrorBoundary}>Retry</button>
-    )}
+    fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Retry</button>}
 >
     <App />
 </FlareErrorBoundary>
@@ -168,7 +164,7 @@ function App() {
 ### Why
 
 React 19 introduced `onCaughtError`, `onUncaughtError`, and `onRecoverableError` callbacks on `createRoot`.
-These are root-level error handlers that catch errors *without* requiring an ErrorBoundary wrapper.
+These are root-level error handlers that catch errors _without_ requiring an ErrorBoundary wrapper.
 
 `flareReactErrorHandler` is a wrapper function that accepts an optional options object with `beforeEvaluate`,
 `beforeSubmit`, and `afterSubmit` callbacks -- the same callback pattern used by `FlareErrorBoundary`. It also handles
@@ -231,35 +227,35 @@ report context for backwards compatibility. The backend can adopt the structured
 
 ```json
 {
-  "context": {
-    "react": {
-      "componentStack": [
-        "at ErrorComponent (http://localhost:5173/src/App.tsx:12:9)",
-        "at div",
-        "at App (http://localhost:5173/src/App.tsx:5:3)"
-      ],
-      "componentStackFrames": [
-        {
-          "component": "ErrorComponent",
-          "file": "http://localhost:5173/src/App.tsx",
-          "line": 12,
-          "column": 9
-        },
-        {
-          "component": "div",
-          "file": null,
-          "line": null,
-          "column": null
-        },
-        {
-          "component": "App",
-          "file": "http://localhost:5173/src/App.tsx",
-          "line": 5,
-          "column": 3
+    "context": {
+        "react": {
+            "componentStack": [
+                "at ErrorComponent (http://localhost:5173/src/App.tsx:12:9)",
+                "at div",
+                "at App (http://localhost:5173/src/App.tsx:5:3)"
+            ],
+            "componentStackFrames": [
+                {
+                    "component": "ErrorComponent",
+                    "file": "http://localhost:5173/src/App.tsx",
+                    "line": 12,
+                    "column": 9
+                },
+                {
+                    "component": "div",
+                    "file": null,
+                    "line": null,
+                    "column": null
+                },
+                {
+                    "component": "App",
+                    "file": "http://localhost:5173/src/App.tsx",
+                    "line": 5,
+                    "column": 3
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 

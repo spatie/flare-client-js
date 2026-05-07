@@ -2,7 +2,6 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
-
 import { FakeApi } from './helpers';
 
 let fakeApi: FakeApi;

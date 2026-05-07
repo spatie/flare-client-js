@@ -27,7 +27,7 @@ import {
 const DEFAULT_SDK_NAME = '@flareapp/js';
 
 export class Flare {
-    config: Config = {
+    private _config: Config = {
         key: null,
         version: '',
         sourcemapVersionId: SOURCEMAP_VERSION,
@@ -42,7 +42,7 @@ export class Flare {
         beforeSubmit: (report) => report,
     };
 
-    glows: Glow[] = [];
+    private _glows: Glow[] = [];
     private pendingAttributes: Attributes = {};
 
     private entryPoint: EntryPointHandler | null = null;
@@ -51,20 +51,28 @@ export class Flare {
 
     constructor(public api: Api = new Api()) {}
 
+    get config(): Readonly<Config> {
+        return this._config;
+    }
+
+    get glows(): readonly Glow[] {
+        return this._glows;
+    }
+
     light(key: string = KEY, debug?: boolean): Flare {
-        this.config.key = key;
+        this._config.key = key;
         if (debug !== undefined) {
-            this.config.debug = debug;
+            this._config.debug = debug;
         }
         return this;
     }
 
     configure(config: Partial<Config>): Flare {
-        this.config = { ...this.config, ...config };
+        this._config = { ...this._config, ...config };
 
-        this.config.urlDenylist = resolveDenylist(
+        this._config.urlDenylist = resolveDenylist(
             config.urlDenylist,
-            config.replaceDefaultUrlDenylist ?? this.config.replaceDefaultUrlDenylist
+            config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist
         );
 
         return this;
@@ -74,38 +82,42 @@ export class Flare {
         return this.report(new Error('The Flare client is set up correctly!'));
     }
 
-    glow(name: string, level: MessageLevel = 'info', data: object | object[] = []): Flare {
+    glow(
+        name: string,
+        level: MessageLevel = 'info',
+        data: Record<string, unknown> | Record<string, unknown>[] = []
+    ): Flare {
         const time = now();
 
-        this.glows.push({
+        this._glows.push({
             name,
-            message_level: level,
-            meta_data: data,
+            messageLevel: level,
+            metaData: data,
             time,
             microtime: time,
         });
 
         // Cap at maxGlowsPerReport: drop oldest entries so the most recent N remain.
-        if (this.glows.length > this.config.maxGlowsPerReport) {
-            this.glows = this.glows.slice(this.glows.length - this.config.maxGlowsPerReport);
+        if (this._glows.length > this._config.maxGlowsPerReport) {
+            this._glows = this._glows.slice(this._glows.length - this._config.maxGlowsPerReport);
         }
 
         return this;
     }
 
     clearGlows(): Flare {
-        this.glows = [];
+        this._glows = [];
         return this;
     }
 
-    addContext(name: string, value: unknown): Flare {
+    addContext(name: string, value: AttributeValue): Flare {
         const existing = (this.pendingAttributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
-        this.pendingAttributes['context.custom'] = { ...existing, [name]: value as AttributeValue };
+        this.pendingAttributes['context.custom'] = { ...existing, [name]: value };
         return this;
     }
 
-    addContextGroup(groupName: string, value: object): Flare {
-        this.pendingAttributes[`context.${groupName}`] = value as AttributeValue;
+    addContextGroup(groupName: string, value: Record<string, AttributeValue>): Flare {
+        this.pendingAttributes[`context.${groupName}`] = value;
         return this;
     }
 
@@ -131,7 +143,7 @@ export class Flare {
         // to walk a stack from. Typed as Error for ergonomics, but consumers may pass anything.
         const coerced = error instanceof Error ? error : new Error(typeof error === 'string' ? error : String(error));
 
-        const errorToReport = await this.config.beforeEvaluate(coerced);
+        const errorToReport = await this._config.beforeEvaluate(coerced);
         if (!errorToReport) return;
 
         const report = await this.createReportFromError(errorToReport, attributes, seenAtUnixNano);
@@ -142,7 +154,7 @@ export class Flare {
 
     async reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
         const seenAtUnixNano = Date.now() * 1_000_000;
-        const stackTrace = await createStackTrace(Error(), this.config.debug);
+        const stackTrace = await createStackTrace(new Error(), this._config.debug);
         // Drop the top frame so reportMessage itself doesn't appear as the call site.
         stackTrace.shift();
 
@@ -165,13 +177,13 @@ export class Flare {
         attributes: Attributes = {},
         seenAtUnixNano: number = Date.now() * 1_000_000
     ): Promise<Report | false> {
-        if (!assert(error, 'No error provided.', this.config.debug)) {
+        if (!assert(error, 'No error provided.', this._config.debug)) {
             return false;
         }
 
-        const stacktrace = await createStackTrace(error, this.config.debug);
+        const stacktrace = await createStackTrace(error, this._config.debug);
 
-        assert(stacktrace.length, "Couldn't generate stacktrace of this error: " + error, this.config.debug);
+        assert(stacktrace.length, "Couldn't generate stacktrace of this error: " + error, this._config.debug);
 
         const exceptionClass = error.constructor && error.constructor.name ? error.constructor.name : 'undefined';
 
@@ -206,7 +218,7 @@ export class Flare {
         };
 
         if (typeof window !== 'undefined' && window?.location?.href) {
-            baseAttributes['flare.entry_point.value'] = redactFullPath(window.location.href, this.config.urlDenylist);
+            baseAttributes['flare.entry_point.value'] = redactFullPath(window.location.href, this._config.urlDenylist);
         }
 
         const handlerIdentifier =
@@ -231,16 +243,16 @@ export class Flare {
             baseAttributes['flare.framework.version'] = this.framework.version;
         }
 
-        if (this.config.stage) {
-            baseAttributes['service.stage'] = this.config.stage;
+        if (this._config.stage) {
+            baseAttributes['service.stage'] = this._config.stage;
         }
-        if (this.config.version) {
-            baseAttributes['service.version'] = this.config.version;
+        if (this._config.version) {
+            baseAttributes['service.version'] = this._config.version;
         }
 
         const attributes: Attributes = {
             ...baseAttributes,
-            ...collectAttributes(this.config.urlDenylist),
+            ...collectAttributes(this._config.urlDenylist),
             ...this.pendingAttributes,
             ...input.extraAttributes,
         };
@@ -273,7 +285,7 @@ export class Flare {
             message: input.message,
             seenAtUnixNano: input.seenAtUnixNano,
             stacktrace: input.stacktrace,
-            events: glowsToEvents(this.glows),
+            events: glowsToEvents(this._glows),
             attributes,
         };
 
@@ -284,8 +296,8 @@ export class Flare {
         if (input.level !== undefined) {
             report.level = input.level;
         }
-        if (this.config.sourcemapVersionId) {
-            report.sourcemapVersionId = this.config.sourcemapVersionId;
+        if (this._config.sourcemapVersionId) {
+            report.sourcemapVersionId = this._config.sourcemapVersionId;
         }
         if (input.code !== undefined) {
             report.code = input.code;
@@ -295,18 +307,19 @@ export class Flare {
     }
 
     async sendReport(report: Report): Promise<void> {
-        if (!assertKey(this.config.key, this.config.debug)) {
+        if (!assertKey(this._config.key, this._config.debug)) {
             return;
         }
 
-        const reportToSubmit = await this.config.beforeSubmit(report);
+        const reportToSubmit = await this._config.beforeSubmit(report);
         if (!reportToSubmit) return;
 
         return this.api.report(
             reportToSubmit,
-            this.config.ingestUrl,
-            this.config.key,
-            this.config.reportBrowserExtensionErrors
+            this._config.ingestUrl,
+            this._config.key,
+            this._config.reportBrowserExtensionErrors,
+            this._config.debug
         );
     }
 }

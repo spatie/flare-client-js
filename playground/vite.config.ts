@@ -1,8 +1,9 @@
+import { resolve } from 'path';
+
 import flareSourcemapUploader from '@flareapp/vite';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import vue from '@vitejs/plugin-vue';
-import { resolve } from 'path';
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
@@ -21,13 +22,13 @@ export default defineConfig(({ mode }) => {
             react(),
             vue(),
             flareSourcemapUploader({
-                key: env.VITE_FLARE_JS_KEY,
+                apiKey: env.VITE_FLARE_JS_KEY,
             }),
             flareSourcemapUploader({
-                key: env.VITE_FLARE_REACT_KEY,
+                apiKey: env.VITE_FLARE_REACT_KEY,
             }),
             flareSourcemapUploader({
-                key: env.VITE_FLARE_VUE_KEY,
+                apiKey: env.VITE_FLARE_VUE_KEY,
             }),
         ],
         build: {

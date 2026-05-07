@@ -11,7 +11,7 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [x] `@types/node` — consolidate: root has ^24.3.0, vite package still has ^18.11.17. Remove from vite, use root's.
 - [x] `tsup` — Migrate tsup to tsdown as it's maintained and considered the successor.
 - [ ] `@trivago/prettier-plugin-sort-imports` — update
-  once [minimatch fix PR](https://github.com/trivago/prettier-plugin-sort-imports/pull/401) is released
+      once [minimatch fix PR](https://github.com/trivago/prettier-plugin-sort-imports/pull/401) is released
 
 ### Clean up tsconfig.json
 
@@ -19,14 +19,14 @@ Before building new features, clean up the repo to make it a solid foundation. K
 - [x] Add `moduleResolution: "bundler"` (modern resolution, matches tsdown/rolldown)
 - [x] Add `isolatedModules: true` (tsdown uses rolldown which transpiles per-file, this catches issues early)
 - [x] Bump target to `es2022` (adds `error.cause` support which we'll need) — also changed `module` to `esnext` to match
-  bundler workflow
+      bundler workflow
 
 ### Package.json fixes
 
 - [x] Root: move `@trivago/prettier-plugin-sort-imports` from `dependencies` to `devDependencies` (it's a dev tool, not
-  a runtime dep) — was already in devDependencies
+      a runtime dep) — was already in devDependencies
 - [x] All packages: add `types` condition to exports map for better TS resolution (done as part of tsdown migration —
-  exports now use conditional `types` with `.d.cts`/`.d.mts`)
+      exports now use conditional `types` with `.d.cts`/`.d.mts`)
 - [x] Add `engines` field to root package.json (`"node": ">=18"`) — documents minimum Node version
 - [x] Add `.node-version` file for consistent dev environments (using fnm)
 
@@ -44,11 +44,11 @@ Before building new features, clean up the repo to make it a solid foundation. K
 ### Local dev/test app
 
 - [x] Add a simple test app inside the repo (e.g. `playground/` directory) that imports `@flareapp/js`,
-  `@flareapp/react`, `@flareapp/vue` etc. from the local packages
+      `@flareapp/react`, `@flareapp/vue` etc. from the local packages
 - [x] Should be a basic Vite app with a few buttons that trigger different error types (uncaught exception, unhandled
-  promise rejection, console.error, manual report, etc.)
+      promise rejection, console.error, manual report, etc.)
 - [x] Makes it easy to iterate without setting up an external project — just `npm run dev` in the playground and click
-  around
+      around
 - [x] Wire it up as an npm workspace so it picks up local package changes automatically
 - [x] Add a `playground` script to root package.json for quick access
 - [x] Gitignore the playground's Flare API key (use `.env.local` or similar)

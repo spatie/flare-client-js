@@ -18,7 +18,7 @@
 
 - [x] Capture component props from the erroring component instance
 - [x] Capture lifecycle hook / origin info (where the error occurred) — `info` string is sent as `context.vue.info`,
-  normalized `errorOrigin` category maps info to `setup`, `render`, `lifecycle`, `event`, `watcher`, or `unknown`
+      normalized `errorOrigin` category maps info to `setup`, `render`, `lifecycle`, `event`, `watcher`, or `unknown`
 - [x] Component hierarchy traversal via `$parent` chain
 - [x] `app.config.warnHandler` integration for capturing Vue warnings
 - [x] Vue Router integration: capture current route as context
@@ -90,12 +90,13 @@ context,
 tags, or user information to the Flare report before the error is evaluated.
 
 ```vue
-
 <FlareErrorBoundary
-    :before-evaluate="({ error, instance, info }) => {
-        flare.addContext('user', { id: currentUser.id });
-        flare.addContext('feature-flags', getActiveFlags());
-    }"
+    :before-evaluate="
+        ({ error, instance, info }) => {
+            flare.addContext('user', { id: currentUser.id });
+            flare.addContext('feature-flags', getActiveFlags());
+        }
+    "
 >
     <App />
 </FlareErrorBoundary>
@@ -115,19 +116,20 @@ Fires after the component hierarchy context is built but before the error is rep
 the `context` and must return a (possibly modified) context object. Use this to filter or enrich the report context.
 
 ```vue
-
 <FlareErrorBoundary
-    :before-submit="({ error, instance, info, context }) => {
-        return {
-            ...context,
-            vue: {
-                ...context.vue,
-                componentHierarchy: context.vue.componentHierarchy.filter(
-                    (entry) => !entry.includes('ThirdPartyWrapper'),
-                ),
-            },
-        };
-    }"
+    :before-submit="
+        ({ error, instance, info, context }) => {
+            return {
+                ...context,
+                vue: {
+                    ...context.vue,
+                    componentHierarchy: context.vue.componentHierarchy.filter(
+                        (entry) => !entry.includes('ThirdPartyWrapper')
+                    ),
+                },
+            };
+        }
+    "
 >
     <App />
 </FlareErrorBoundary>
@@ -141,13 +143,14 @@ Developers need a hook to perform side effects after an error is reported. This 
 reported to Flare.
 
 ```vue
-
 <FlareErrorBoundary
-    :after-submit="({ error, instance, info, context }) => {
-        console.error('Caught by FlareErrorBoundary:', error);
-        console.error('Lifecycle info:', info);
-        console.error('Reported context:', context);
-    }"
+    :after-submit="
+        ({ error, instance, info, context }) => {
+            console.error('Caught by FlareErrorBoundary:', error);
+            console.error('Lifecycle info:', info);
+            console.error('Reported context:', context);
+        }
+    "
 >
     <App />
 </FlareErrorBoundary>
@@ -161,12 +164,13 @@ Same rationale as React. When the error boundary resets, developers often need t
 allows conditional cleanup based on what went wrong.
 
 ```vue
-
 <FlareErrorBoundary
-    :on-reset="(error) => {
-        console.log('Recovering from:', error?.message);
-        queryClient.invalidateQueries();
-    }"
+    :on-reset="
+        (error) => {
+            console.log('Recovering from:', error?.message);
+            queryClient.invalidateQueries();
+        }
+    "
 >
     <App />
     <template #fallback="{ resetErrorBoundary }">
@@ -186,19 +190,20 @@ and next key arrays. Vue's version uses a `watch` on the `resetKeys` prop with `
 `Object.is` the same way React does.
 
 ```vue
-
 <script setup>
-    import { useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
 
-    const route = useRoute();
+const route = useRoute();
 </script>
 
 <template>
     <FlareErrorBoundary
         :reset-keys="[route.path]"
-        :on-reset="(error) => {
-            console.log('Navigated away from error, previous error:', error?.message);
-        }"
+        :on-reset="
+            (error) => {
+                console.log('Navigated away from error, previous error:', error?.message);
+            }
+        "
     >
         <RouterView />
         <template #fallback>
@@ -294,42 +299,37 @@ structured data.
 
 ```json
 {
-  "context": {
-    "vue": {
-      "info": "setup function",
-      "componentName": "BuggyComponent",
-      "componentHierarchy": [
-        "BuggyComponent",
-        "ParentPage",
-        "AppLayout",
-        "App"
-      ],
-      "componentHierarchyFrames": [
-        {
-          "component": "BuggyComponent",
-          "file": "src/components/BuggyComponent.vue",
-          "props": {
-            "userId": 42
-          }
-        },
-        {
-          "component": "ParentPage",
-          "file": "src/pages/ParentPage.vue",
-          "props": {}
-        },
-        {
-          "component": "AppLayout",
-          "file": "src/layouts/AppLayout.vue",
-          "props": {}
-        },
-        {
-          "component": "App",
-          "file": "src/App.vue",
-          "props": {}
+    "context": {
+        "vue": {
+            "info": "setup function",
+            "componentName": "BuggyComponent",
+            "componentHierarchy": ["BuggyComponent", "ParentPage", "AppLayout", "App"],
+            "componentHierarchyFrames": [
+                {
+                    "component": "BuggyComponent",
+                    "file": "src/components/BuggyComponent.vue",
+                    "props": {
+                        "userId": 42
+                    }
+                },
+                {
+                    "component": "ParentPage",
+                    "file": "src/pages/ParentPage.vue",
+                    "props": {}
+                },
+                {
+                    "component": "AppLayout",
+                    "file": "src/layouts/AppLayout.vue",
+                    "props": {}
+                },
+                {
+                    "component": "App",
+                    "file": "src/App.vue",
+                    "props": {}
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 
@@ -357,7 +357,7 @@ component stack string, not the component instance or its props.
 
 Props capture is opt-in via an `attachProps` option (default `false`) because props may contain sensitive data. When
 enabled, the props of the erroring component are attached both as `componentProps` on the top level of the report
-context *and* per-frame on `componentHierarchyFrames` (each frame gets its own `props`, serialized with the same
+context _and_ per-frame on `componentHierarchyFrames` (each frame gets its own `props`, serialized with the same
 settings).
 
 ```ts
@@ -378,7 +378,7 @@ Symbol-keyed properties are dropped.
 - `propsMaxDepth` (default `2`): how deep nested objects and arrays are serialized before collapsing to
   `"[Object]"` / `"[Array]"`.
 - `propsDenylist` (default `DEFAULT_PROPS_DENYLIST`): a `RegExp` used to decide which keys are redacted to
-  `"[Redacted]"`. Applied at every depth. A custom value *replaces* the default rather than extending it.
+  `"[Redacted]"`. Applied at every depth. A custom value _replaces_ the default rather than extending it.
 - `DEFAULT_PROPS_DENYLIST` is exported from `@flareapp/vue` so consumers can compose it with their own terms
   (e.g. `new RegExp(`${DEFAULT_PROPS_DENYLIST.source}|internalId`, 'i')`).
 
@@ -392,18 +392,18 @@ also a safety net against pathological `$parent` cycles.
 
 ```json
 {
-  "context": {
-    "vue": {
-      "info": "render function",
-      "componentName": "UserProfile",
-      "componentProps": {
-        "userId": 42,
-        "settings": {
-          "theme": "dark"
+    "context": {
+        "vue": {
+            "info": "render function",
+            "componentName": "UserProfile",
+            "componentProps": {
+                "userId": 42,
+                "settings": {
+                    "theme": "dark"
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -432,12 +432,12 @@ map it to a structured `errorOrigin` field with a normalized category (e.g. `"li
 
 ```json
 {
-  "context": {
-    "vue": {
-      "info": "mounted hook",
-      "errorOrigin": "lifecycle"
+    "context": {
+        "vue": {
+            "info": "mounted hook",
+            "errorOrigin": "lifecycle"
+        }
     }
-  }
 }
 ```
 
@@ -473,14 +473,14 @@ feature is primarily useful during development and staging, not production.
 
 ```json
 {
-  "context": {
-    "vue": {
-      "type": "warning",
-      "info": "Invalid prop: type check failed for prop \"count\". Expected Number, got String.",
-      "componentName": "Counter",
-      "componentTrace": "found in\n---> <Counter> at src/Counter.vue\n       <App> at src/App.vue"
+    "context": {
+        "vue": {
+            "type": "warning",
+            "info": "Invalid prop: type check failed for prop \"count\". Expected Number, got String.",
+            "componentName": "Counter",
+            "componentTrace": "found in\n---> <Counter> at src/Counter.vue\n       <App> at src/App.vue"
+        }
     }
-  }
 }
 ```
 
@@ -507,26 +507,23 @@ flareVue(app);
 
 ```json
 {
-  "context": {
-    "vue": {
-      "route": {
-        "name": "user-profile",
-        "path": "/users/42",
-        "fullPath": "/users/42?tab=settings",
-        "params": {
-          "id": "42"
-        },
-        "query": {
-          "tab": "settings"
-        },
-        "hash": "",
-        "matched": [
-          "AppLayout",
-          "UserProfile"
-        ]
-      }
+    "context": {
+        "vue": {
+            "route": {
+                "name": "user-profile",
+                "path": "/users/42",
+                "fullPath": "/users/42?tab=settings",
+                "params": {
+                    "id": "42"
+                },
+                "query": {
+                    "tab": "settings"
+                },
+                "hash": "",
+                "matched": ["AppLayout", "UserProfile"]
+            }
+        }
     }
-  }
 }
 ```
 

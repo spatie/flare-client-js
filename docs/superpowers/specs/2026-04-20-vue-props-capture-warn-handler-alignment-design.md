@@ -45,8 +45,8 @@ type FlareVueOptions = {
         context: FlareVueContext;
     }) => void;
     captureWarnings?: boolean;
-    attachProps?: boolean;      // default: false
-    propsMaxDepth?: number;     // default: 2
+    attachProps?: boolean; // default: false
+    propsMaxDepth?: number; // default: 2
 };
 ```
 
@@ -57,8 +57,8 @@ Two new props, same semantics:
 ```ts
 type FlareErrorBoundaryProps = {
     // ...existing props (beforeEvaluate, beforeSubmit, afterSubmit, onReset, resetKeys)
-    attachProps?: boolean;      // default: false
-    propsMaxDepth?: number;     // default: 2
+    attachProps?: boolean; // default: false
+    propsMaxDepth?: number; // default: 2
 };
 ```
 
@@ -98,16 +98,16 @@ Only ever called with `instance.$props` (a plain record). Internal recursion han
 
 ### Sentinel table
 
-| Input                                                        | Output          |
-|--------------------------------------------------------------|-----------------|
-| primitive (`string`, `number`, `boolean`, `null`, `undefined`, `bigint`) | as-is |
-| `function`                                                   | `"[Function]"`  |
-| `symbol`                                                     | `"[Symbol]"`    |
-| object or array already seen in the current ancestor chain   | `"[Circular]"`  |
-| plain `Array` at depth `< maxDepth`                          | recurse         |
-| plain object at depth `< maxDepth`                           | recurse         |
-| plain `Array` at depth `>= maxDepth`                         | `"[Array]"`     |
-| plain object at depth `>= maxDepth`                          | `"[Object]"`    |
+| Input                                                                                             | Output                    |
+| ------------------------------------------------------------------------------------------------- | ------------------------- |
+| primitive (`string`, `number`, `boolean`, `null`, `undefined`, `bigint`)                          | as-is                     |
+| `function`                                                                                        | `"[Function]"`            |
+| `symbol`                                                                                          | `"[Symbol]"`              |
+| object or array already seen in the current ancestor chain                                        | `"[Circular]"`            |
+| plain `Array` at depth `< maxDepth`                                                               | recurse                   |
+| plain object at depth `< maxDepth`                                                                | recurse                   |
+| plain `Array` at depth `>= maxDepth`                                                              | `"[Array]"`               |
+| plain object at depth `>= maxDepth`                                                               | `"[Object]"`              |
 | any non-plain object (Date, RegExp, Map, Set, class instance, DOM node, Vue reactive proxy, etc.) | `"[Object]"` at any depth |
 
 ### Depth counting
@@ -152,9 +152,7 @@ Three call sites, all gated on `attachProps`:
 ```ts
 const { attachProps = false, propsMaxDepth = 2 } = options ?? {};
 
-const componentProps = attachProps && instance?.$props
-    ? serializeProps(instance.$props, propsMaxDepth)
-    : undefined;
+const componentProps = attachProps && instance?.$props ? serializeProps(instance.$props, propsMaxDepth) : undefined;
 
 const componentHierarchyFrames = buildComponentHierarchyFrames(instance, { attachProps, propsMaxDepth });
 
@@ -182,7 +180,7 @@ New second parameter:
 ```ts
 export function buildComponentHierarchyFrames(
     instance: ComponentPublicInstance | null,
-    options: { attachProps: boolean; propsMaxDepth: number },
+    options: { attachProps: boolean; propsMaxDepth: number }
 ): ComponentHierarchyFrame[];
 ```
 
@@ -223,7 +221,7 @@ app.config.warnHandler = (msg: string, instance: ComponentPublicInstance | null,
                 ...(route && { route }),
             },
         },
-        'VueWarning',
+        'VueWarning'
     );
 
     if (typeof initialWarnHandler === 'function') {
@@ -259,40 +257,40 @@ No version bump in this change set.
 Per `superpowers:test-driven-development`, tests come first.
 
 1. **`packages/vue/tests/serializeProps.test.ts`** (new file, pure unit tests):
-   - Primitives pass through untouched
-   - Functions → `"[Function]"`
-   - Symbols → `"[Symbol]"`
-   - Plain nested objects recurse up to `maxDepth`
-   - Plain nested arrays recurse up to `maxDepth`
-   - Object at `maxDepth` → `"[Object]"`
-   - Array at `maxDepth` → `"[Array]"`
-   - Direct self-reference → `"[Circular]"`
-   - Indirect self-reference through two hops → `"[Circular]"`
-   - Diamond shape (same object in two siblings, no cycle) → serialized twice, not marked circular
-   - Date / RegExp / Map / Set → `"[Object]"`
-   - `Object.create(null)` → recurses (prototype is `null`, treated as plain)
-   - Class instance → `"[Object]"`
-   - `maxDepth: 0` → every value at depth 1 is a sentinel
-   - Mixed tree combining the above cases
+    - Primitives pass through untouched
+    - Functions → `"[Function]"`
+    - Symbols → `"[Symbol]"`
+    - Plain nested objects recurse up to `maxDepth`
+    - Plain nested arrays recurse up to `maxDepth`
+    - Object at `maxDepth` → `"[Object]"`
+    - Array at `maxDepth` → `"[Array]"`
+    - Direct self-reference → `"[Circular]"`
+    - Indirect self-reference through two hops → `"[Circular]"`
+    - Diamond shape (same object in two siblings, no cycle) → serialized twice, not marked circular
+    - Date / RegExp / Map / Set → `"[Object]"`
+    - `Object.create(null)` → recurses (prototype is `null`, treated as plain)
+    - Class instance → `"[Object]"`
+    - `maxDepth: 0` → every value at depth 1 is a sentinel
+    - Mixed tree combining the above cases
 
 2. **`packages/vue/tests/flareVue.test.ts`** additions:
-   - Default (`attachProps` not set) → payload has no `componentProps` and every `frame.props` is absent
-   - `attachProps: true` → `componentProps` present and serialized
-   - `attachProps: true` with nested object exceeding `propsMaxDepth: 1` → deep values sentinelized
-   - `attachProps: true` with `propsMaxDepth: 0` → all prop values become sentinels
-   - Warn handler emits new schema: `type: 'warning'`, `info`, `componentName`, `componentTrace`
-   - Warn handler includes `route` when router is present
+    - Default (`attachProps` not set) → payload has no `componentProps` and every `frame.props` is absent
+    - `attachProps: true` → `componentProps` present and serialized
+    - `attachProps: true` with nested object exceeding `propsMaxDepth: 1` → deep values sentinelized
+    - `attachProps: true` with `propsMaxDepth: 0` → all prop values become sentinels
+    - Warn handler emits new schema: `type: 'warning'`, `info`, `componentName`, `componentTrace`
+    - Warn handler includes `route` when router is present
 
 3. **`packages/vue/tests/FlareErrorBoundary.test.ts`** additions (via `@vue/test-utils`):
-   - `attachProps` prop default omits props from payload and from fallback slot
-   - `attachProps: true` passes serialized props into fallback slot
-   - `propsMaxDepth` prop overrides the default
+    - `attachProps` prop default omits props from payload and from fallback slot
+    - `attachProps: true` passes serialized props into fallback slot
+    - `propsMaxDepth` prop overrides the default
 
 4. **`packages/vue/tests/buildComponentHierarchyFrames.test.ts`** additions:
-   - Options required (compile-time — caught by TS)
-   - `attachProps: false` → no frame has a `props` field
-   - `attachProps: true` → every frame with `$props` has a serialized `props` field
-   - `propsMaxDepth` is forwarded to the serializer
+    - Options required (compile-time — caught by TS)
+    - `attachProps: false` → no frame has a `props` field
+    - `attachProps: true` → every frame with `$props` has a serialized `props` field
+    - `propsMaxDepth` is forwarded to the serializer
 
 5. **Playground** (`playground/src/vue/`): add a toggle / example exercising `attachProps: true` with a deeply nested prop so the behavior is visible in the dev UI. Not required for correctness but good to have for manual verification.
 
@@ -301,6 +299,7 @@ Per `superpowers:test-driven-development`, tests come first.
 After implementation, invoke `superpowers:requesting-code-review` against the diff. The reviewer's job: confirm (a) the original findings were real, (b) the implementation matches this spec, (c) nothing adjacent was missed. This is the "let superpowers validate what you say" step from the user's request.
 
 Additional verification before claiming done (per `superpowers:verification-before-completion`):
+
 - `npm run test` passes from repo root
 - `npm run typescript` passes from repo root
 - `npm run format` leaves a clean tree

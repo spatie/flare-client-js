@@ -5,7 +5,7 @@ import { glowsToEvents } from '../src/util/glowsToEvents';
 describe('glowsToEvents', () => {
     test('produces a php_glow span event per glow', () => {
         const events = glowsToEvents([
-            { name: 'rendering checkout', message_level: 'info', meta_data: { cartId: 7 }, time: 1, microtime: 1 },
+            { name: 'rendering checkout', messageLevel: 'info', metaData: { cartId: 7 }, time: 1, microtime: 1 },
         ]);
 
         expect(events).toHaveLength(1);
@@ -21,9 +21,15 @@ describe('glowsToEvents', () => {
         });
     });
 
-    test('defaults missing meta_data to empty object', () => {
+    test('defaults missing metaData to empty object', () => {
         const events = glowsToEvents([
-            { name: 'x', message_level: 'warning', meta_data: undefined as unknown as object, time: 2, microtime: 2 },
+            {
+                name: 'x',
+                messageLevel: 'warning',
+                metaData: undefined as unknown as Record<string, unknown>,
+                time: 2,
+                microtime: 2,
+            },
         ]);
 
         expect(events[0].attributes['glow.context']).toEqual({});

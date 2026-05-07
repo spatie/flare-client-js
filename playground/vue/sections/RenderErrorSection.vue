@@ -3,7 +3,6 @@ import { FlareErrorBoundary } from '@flareapp/vue';
 import { ref } from 'vue';
 
 import { flare } from '../../shared/initFlare';
-
 import BuggyComponent from '../components/BuggyComponent.vue';
 import Button from '../components/Button.vue';
 import TestSection from '../components/TestSection.vue';

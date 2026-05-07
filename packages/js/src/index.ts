@@ -1,5 +1,5 @@
-import { Flare } from './Flare';
 import { catchWindowErrors } from './browser';
+import { Flare } from './Flare';
 
 export const flare = new Flare();
 

@@ -1,6 +1,6 @@
-import { DEFAULT_URL_DENYLIST, resolveDenylist as baseResolveDenylist } from '@flareapp/js';
+import { resolveDenylist as baseResolveDenylist } from '@flareapp/js';
 
-import { ErrorOrigin } from './types';
+import type { ErrorOrigin } from './types';
 
 declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
 
@@ -12,7 +12,8 @@ export const PACKAGE_VERSION =
 
 export const MAX_HIERARCHY_DEPTH = 50;
 
-export const DEFAULT_PROPS_DENYLIST = DEFAULT_URL_DENYLIST;
+export const DEFAULT_PROPS_DENYLIST =
+    /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
 export function resolveDenylist(custom?: RegExp, replaceDefault: boolean = false): RegExp {
     return baseResolveDenylist(custom, replaceDefault, DEFAULT_PROPS_DENYLIST);

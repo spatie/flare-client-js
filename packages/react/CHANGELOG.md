@@ -4,7 +4,7 @@
 
 - Bumps peer dependency `@flareapp/js` to `^2.0.0`. See its CHANGELOG for wire format changes.
 - `flareReactErrorHandler` no longer passes a third `extraSolutionParameters` arg to `flare.report` (solutions API removed in `@flareapp/js` v2).
-- The React component stack now lands on the report as `attributes['react.component_stack']` and `attributes['react.component_stack_frames']` (was nested under `context.react.*`). The `beforeSubmit` callback shape is unchanged.
+- The React component stack now lands on the report as `attributes['context.custom'].react.componentStack` and `attributes['context.custom'].react.componentStackFrames` (was nested under `context.react.*`). The `beforeSubmit` callback shape is unchanged.
 
 ### New
 
