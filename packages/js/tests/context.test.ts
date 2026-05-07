@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { collectAttributes } from '../src/context';
+import { DEFAULT_URL_DENYLIST } from '../src/util';
 
 const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
 const originalReferrer = Object.getOwnPropertyDescriptor(Document.prototype, 'referrer');
@@ -48,7 +49,7 @@ afterEach(() => {
 });
 
 test('emits flat OTel-style request attributes', () => {
-    const attributes = collectAttributes();
+    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
 
     expect(attributes['url.full']).toBe('https://app.test/some/path?utm=foo&q=bar');
     expect(attributes['user_agent.original']).toBe('TestAgent/1.0');
@@ -57,7 +58,7 @@ test('emits flat OTel-style request attributes', () => {
 });
 
 test('emits url.query as raw query string without leading ?', () => {
-    const attributes = collectAttributes();
+    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
 
     expect(attributes['url.query']).toBe('utm=foo&q=bar');
 });
@@ -65,13 +66,13 @@ test('emits url.query as raw query string without leading ?', () => {
 test('omits url.query when no search string is present', () => {
     setLocation('https://app.test/some/path');
 
-    const attributes = collectAttributes();
+    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
 
     expect('url.query' in attributes).toBe(false);
 });
 
 test('emits http.request.cookies as parsed object', () => {
-    const attributes = collectAttributes();
+    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
 
     expect(attributes['http.request.cookies']).toEqual({
         session: 'abc',
@@ -83,7 +84,7 @@ test('preserves = characters inside cookie values (e.g. base64)', () => {
     clearCookies();
     (window.document as any).cookie = 'token=abc==';
 
-    const attributes = collectAttributes();
+    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
 
     expect((attributes['http.request.cookies'] as Record<string, string>).token).toBe('abc==');
 });
@@ -93,7 +94,7 @@ test('returns empty object when no window present (SSR)', () => {
     // @ts-expect-error
     delete globalThis.window;
 
-    expect(collectAttributes()).toEqual({});
+    expect(collectAttributes(DEFAULT_URL_DENYLIST)).toEqual({});
 
     globalThis.window = realWindow;
 });
