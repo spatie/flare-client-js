@@ -24,7 +24,7 @@ integrations for React and Vue, and a Vite plugin for sourcemap uploads.
 npm workspaces monorepo with 4 packages + a playground app:
 
 | Package          | npm name          | Version | Purpose                                                           |
-|------------------|-------------------|---------|-------------------------------------------------------------------|
+| ---------------- | ----------------- | ------- | ----------------------------------------------------------------- |
 | `packages/js`    | `@flareapp/js`    | 1.1.0   | Core client — error capture, stack traces, context, API reporting |
 | `packages/react` | `@flareapp/react` | 1.0.1   | React `FlareErrorBoundary` error boundary component               |
 | `packages/vue`   | `@flareapp/vue`   | 1.0.1   | Vue error handler plugin (`flareVue()`)                           |
@@ -36,8 +36,9 @@ npm workspaces monorepo with 4 packages + a playground app:
 - **Language:** TypeScript 5.7, target ES2022, strict mode
 - **Build:** tsdown (outputs CJS + ESM + .d.ts declarations)
 - **Test:** Vitest (tests only in `packages/js/tests/`)
-- **Formatting:** Prettier with `@trivago/prettier-plugin-sort-imports`
-- **Git hooks:** Husky + lint-staged (pre-commit runs Prettier)
+- **Linting:** oxlint (per-package configs extending root `.oxlintrc.json`)
+- **Formatting:** oxfmt (config in `.oxfmtrc.json`, replaces Prettier)
+- **Git hooks:** Husky + lint-staged (pre-commit runs oxlint --fix + oxfmt)
 - **Package manager:** npm workspaces
 
 ## Commands (run from repo root)
@@ -46,7 +47,8 @@ npm workspaces monorepo with 4 packages + a playground app:
 npm run build        # Build all packages
 npm run test         # Run tests (vitest) across all workspaces
 npm run typescript   # Type-check all packages
-npm run format       # Run Prettier on all files
+npm run format       # Run oxfmt on all files
+npm run lint         # Run oxlint across all packages
 npm run playground   # Build packages, then start playground dev server
 ```
 
@@ -92,7 +94,8 @@ promise rejections, async errors, component errors, etc.).
 
 ## Code style
 
-- Prettier: read from `.prettierrc`
+- Formatting: oxfmt, config in `.oxfmtrc.json`
+- Linting: oxlint, root config in `.oxlintrc.json`, per-package configs in `packages/<pkg>/.oxlintrc.json`
 
 ## Publishing
 

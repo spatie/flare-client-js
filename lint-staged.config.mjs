@@ -1,3 +1,4 @@
 export default {
-    '*.{js,json,vue,ts,tsx}': 'prettier --write',
+    '*.{js,ts,tsx,vue}': ['oxlint --fix', 'oxfmt'],
+    '*.{json,md,css,html}': 'oxfmt',
 };
