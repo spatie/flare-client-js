@@ -310,7 +310,8 @@ export class Flare {
             reportToSubmit,
             this.config.ingestUrl,
             this.config.key,
-            this.config.reportBrowserExtensionErrors
+            this.config.reportBrowserExtensionErrors,
+            this.config.debug
         );
     }
 }
