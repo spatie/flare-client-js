@@ -57,7 +57,9 @@ export class FlareApi {
 
                 if (attempt === maxRetries) {
                     const message = error instanceof Error ? error.message : String(error);
-                    throw new Error(`Network error after ${maxRetries} attempts: ${message}`);
+                    throw new Error(`Network error after ${maxRetries} attempts: ${message}`, {
+                        cause: error,
+                    });
                 }
             }
 

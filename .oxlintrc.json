@@ -7,8 +7,19 @@
     },
     "rules": {
         "no-console": "off",
+        "no-underscore-dangle": "off",
         "typescript/no-explicit-any": "warn",
-        "unicorn/no-null": "off"
+        "unicorn/no-null": "off",
+        "unicorn/consistent-function-scoping": "off"
     },
+    "overrides": [
+        {
+            "files": ["**/tests/**", "**/*.test.*", "**/e2e/**"],
+            "rules": {
+                "typescript/no-explicit-any": "off",
+                "unicorn/prefer-add-event-listener": "off"
+            }
+        }
+    ],
     "ignorePatterns": ["dist", "node_modules", "*.config.*", "playground"]
 }
