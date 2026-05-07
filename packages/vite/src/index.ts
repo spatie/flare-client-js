@@ -120,11 +120,14 @@ export default function flareSourcemaps({
             }
 
             if (removeSourcemaps) {
-                for (const { sourcemapPath } of sourcemaps) {
+                for (let i = 0; i < sourcemaps.length; i++) {
+                    if (results[i].status === 'rejected') {
+                        continue;
+                    }
                     try {
-                        unlinkSync(sourcemapPath);
+                        unlinkSync(sourcemaps[i].sourcemapPath);
                     } catch (error) {
-                        log(`Error removing ${sourcemapPath}: ${error}`, true);
+                        log(`Error removing ${sourcemaps[i].sourcemapPath}: ${error}`, true);
                     }
                 }
                 log('Removed sourcemap files from build output.');

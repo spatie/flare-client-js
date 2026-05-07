@@ -2,6 +2,13 @@ import { deflateRawSync } from 'node:zlib';
 
 import { Sourcemap } from './types';
 
+class FlareApiError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'FlareApiError';
+    }
+}
+
 const RETRIABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
 
 export class FlareApi {
@@ -37,14 +44,14 @@ export class FlareApi {
 
                 if (!RETRIABLE_STATUS_CODES.has(response.status)) {
                     const body = await response.text();
-                    throw new Error(`Flare API returned ${response.status}: ${body}`);
+                    throw new FlareApiError(`Flare API returned ${response.status}: ${body}`);
                 }
 
                 if (attempt === maxRetries) {
-                    throw new Error(`Flare API returned ${response.status} after ${maxRetries} attempts`);
+                    throw new FlareApiError(`Flare API returned ${response.status} after ${maxRetries} attempts`);
                 }
             } catch (error: unknown) {
-                if (error instanceof Error && error.message.startsWith('Flare API returned')) {
+                if (error instanceof FlareApiError) {
                     throw error;
                 }
 
