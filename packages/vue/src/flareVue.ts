@@ -1,4 +1,4 @@
-import { type Attributes, flare } from '@flareapp/js';
+import { type AttributeValue, type Attributes, flare } from '@flareapp/js';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
@@ -12,11 +12,37 @@ import { serializeProps } from './serializeProps';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export function vueContextToAttributes(context: FlareVueContext): Attributes {
-    return { 'context.custom': { framework: 'vue', vue: context.vue as never } };
+    const vue: Record<string, AttributeValue> = {
+        info: context.vue.info,
+        errorOrigin: context.vue.errorOrigin,
+        componentName: context.vue.componentName,
+        componentHierarchy: context.vue.componentHierarchy,
+        componentHierarchyFrames: context.vue.componentHierarchyFrames as AttributeValue,
+    };
+
+    if (context.vue.componentProps) {
+        vue.componentProps = context.vue.componentProps as AttributeValue;
+    }
+    if (context.vue.route) {
+        vue.route = context.vue.route as AttributeValue;
+    }
+
+    return { 'context.custom': { framework: 'vue', vue } };
 }
 
 export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
-    return { 'context.custom': { framework: 'vue', vue: context.vue as never } };
+    const vue: Record<string, AttributeValue> = {
+        type: context.vue.type,
+        info: context.vue.info,
+        componentName: context.vue.componentName,
+        componentTrace: context.vue.componentTrace,
+    };
+
+    if (context.vue.route) {
+        vue.route = context.vue.route as AttributeValue;
+    }
+
+    return { 'context.custom': { framework: 'vue', vue } };
 }
 
 // Tracks installed apps so calling app.use(flareVue) twice on the same app is a no-op. WeakSet so
