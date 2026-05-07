@@ -2,3 +2,6 @@
 node_modules
 package-lock.json
 tests
+src
+.release-it.json
+.oxlintrc.json

@@ -16,12 +16,12 @@ Add the plugin to your `vite.config.ts`:
 
 ```ts
 import { defineConfig } from 'vite';
-import flareSourcemapUploader from '@flareapp/vite';
+import flareSourcemaps from '@flareapp/vite';
 
 export default defineConfig({
     plugins: [
-        flareSourcemapUploader({
-            key: 'YOUR_FLARE_API_KEY',
+        flareSourcemaps({
+            apiKey: 'YOUR_FLARE_API_KEY',
         }),
     ],
 });

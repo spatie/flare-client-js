@@ -25,10 +25,10 @@ npm workspaces monorepo with 4 packages + a playground app:
 
 | Package          | npm name          | Version | Purpose                                                           |
 | ---------------- | ----------------- | ------- | ----------------------------------------------------------------- |
-| `packages/js`    | `@flareapp/js`    | 1.1.0   | Core client — error capture, stack traces, context, API reporting |
-| `packages/react` | `@flareapp/react` | 1.0.1   | React `FlareErrorBoundary` error boundary component               |
-| `packages/vue`   | `@flareapp/vue`   | 1.0.1   | Vue error handler plugin (`flareVue()`)                           |
-| `packages/vite`  | `@flareapp/vite`  | 1.0.3   | Vite build plugin for sourcemap upload with retry logic           |
+| `packages/js`    | `@flareapp/js`    | 2.0.0   | Core client — error capture, stack traces, context, API reporting |
+| `packages/react` | `@flareapp/react` | 2.0.0   | React `FlareErrorBoundary` error boundary component               |
+| `packages/vue`   | `@flareapp/vue`   | 2.0.0   | Vue error handler plugin (`flareVue()`)                           |
+| `packages/vite`  | `@flareapp/vite`  | 2.0.0   | Vite build plugin for sourcemap upload with retry logic           |
 | `playground`     | (private)         | —       | Local dev/test app for all integrations (JS, React, Vue)          |
 
 ## Tech stack

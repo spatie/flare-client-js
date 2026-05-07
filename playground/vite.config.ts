@@ -22,13 +22,13 @@ export default defineConfig(({ mode }) => {
             react(),
             vue(),
             flareSourcemapUploader({
-                key: env.VITE_FLARE_JS_KEY,
+                apiKey: env.VITE_FLARE_JS_KEY,
             }),
             flareSourcemapUploader({
-                key: env.VITE_FLARE_REACT_KEY,
+                apiKey: env.VITE_FLARE_REACT_KEY,
             }),
             flareSourcemapUploader({
-                key: env.VITE_FLARE_VUE_KEY,
+                apiKey: env.VITE_FLARE_VUE_KEY,
             }),
         ],
         build: {
