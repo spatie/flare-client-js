@@ -146,7 +146,7 @@ export class Flare {
 
     async reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
         const seenAtUnixNano = Date.now() * 1_000_000;
-        const stackTrace = await createStackTrace(Error(), this.config.debug);
+        const stackTrace = await createStackTrace(new Error(), this.config.debug);
         // Drop the top frame so reportMessage itself doesn't appear as the call site.
         stackTrace.shift();
 
