@@ -102,14 +102,14 @@ export class Flare {
         return this;
     }
 
-    addContext(name: string, value: unknown): Flare {
+    addContext(name: string, value: AttributeValue): Flare {
         const existing = (this.pendingAttributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
-        this.pendingAttributes['context.custom'] = { ...existing, [name]: value as AttributeValue };
+        this.pendingAttributes['context.custom'] = { ...existing, [name]: value };
         return this;
     }
 
-    addContextGroup(groupName: string, value: object): Flare {
-        this.pendingAttributes[`context.${groupName}`] = value as AttributeValue;
+    addContextGroup(groupName: string, value: Record<string, AttributeValue>): Flare {
+        this.pendingAttributes[`context.${groupName}`] = value;
         return this;
     }
 
