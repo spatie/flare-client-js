@@ -36,14 +36,15 @@
             }
         }
     },
+    "engines": {
+        "node": ">=18"
+    },
     "scripts": {
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
+        "test": "vitest run",
         "typescript": "tsc",
         "release": "release-it"
-    },
-    "dependencies": {
-        "fast-glob": "^3.2.12"
     },
     "devDependencies": {
         "tsdown": "^0.20.3",
