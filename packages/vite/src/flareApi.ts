@@ -1,31 +1,29 @@
-import { deflateRawSync } from 'zlib';
+import { deflateRawSync } from 'node:zlib';
 
-import { Sourcemap } from './index';
+import { Sourcemap } from './types';
 
-export default class FlareApi {
-    endpoint: string;
-    key: string;
-    version: string;
+const RETRIABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
 
-    constructor(endpoint: string, key: string, version: string) {
-        this.endpoint = endpoint;
-        this.key = key;
-        this.version = version;
-    }
+export class FlareApi {
+    constructor(
+        private readonly endpoint: string,
+        private readonly key: string,
+        private readonly version: string
+    ) {}
 
-    uploadSourcemap(sourcemap: Sourcemap): Promise<unknown> {
+    uploadSourcemap(sourcemap: Sourcemap): Promise<void> {
         const base64GzipSourcemap = deflateRawSync(sourcemap.content).toString('base64');
 
         return this.postWithRetry({
             key: this.key,
             version_id: this.version,
-            relative_filename: sourcemap.original_file,
+            relative_filename: sourcemap.originalFile,
             sourcemap: base64GzipSourcemap,
         });
     }
 
-    private async postWithRetry(data: Record<string, string>, retries = 3): Promise<unknown> {
-        for (let attempt = 1; attempt <= retries; attempt++) {
+    private async postWithRetry(data: Record<string, string>, maxRetries = 3): Promise<void> {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 const response = await fetch(this.endpoint, {
                     method: 'POST',
@@ -33,28 +31,31 @@ export default class FlareApi {
                     body: JSON.stringify(data),
                 });
 
-                if (!response.ok) {
-                    const body = await response.text();
-                    throw `${response.status}: ${body}`;
+                if (response.ok) {
+                    return;
                 }
 
-                return await response.json();
+                if (!RETRIABLE_STATUS_CODES.has(response.status)) {
+                    const body = await response.text();
+                    throw new Error(`Flare API returned ${response.status}: ${body}`);
+                }
+
+                if (attempt === maxRetries) {
+                    throw new Error(`Flare API returned ${response.status} after ${maxRetries} attempts`);
+                }
             } catch (error: unknown) {
-                if (typeof error === 'string') {
+                if (error instanceof Error && error.message.startsWith('Flare API returned')) {
                     throw error;
                 }
 
-                // Network error (DNS, socket, etc.) - retry if attempts remain
-                if (attempt < retries) {
-                    await this.delay(attempt * 1000);
-                    continue;
+                if (attempt === maxRetries) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    throw new Error(`Network error after ${maxRetries} attempts: ${message}`);
                 }
-
-                throw `Network error: ${error instanceof Error ? error.message : String(error)}`;
             }
-        }
 
-        throw 'Unexpected: retry loop exited without returning or throwing';
+            await this.delay(Math.pow(2, attempt - 1) * 1000);
+        }
     }
 
     private delay(ms: number): Promise<void> {
