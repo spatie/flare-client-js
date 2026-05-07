@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import { Flare } from '../src/Flare';
 import { DEFAULT_URL_DENYLIST, redactFullPath, resolveDenylist } from '../src/util';
-
 import { FakeApi } from './helpers/FakeApi';
 
 describe('redactFullPath', () => {

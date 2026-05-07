@@ -2,7 +2,6 @@
 import { useRoute } from 'vue-router';
 
 import { flare } from '../../shared/initFlare';
-
 import Button from '../components/Button.vue';
 import TestSection from '../components/TestSection.vue';
 

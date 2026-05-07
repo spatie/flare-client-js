@@ -93,12 +93,14 @@ Keep the existing "Publishing multiple packages" subsection (dependency order) v
 ## Files affected
 
 New:
+
 - `packages/js/.release-it.json`
 - `packages/react/.release-it.json`
 - `packages/vue/.release-it.json`
 - `packages/vite/.release-it.json`
 
 Modified:
+
 - `package.json` (root) — add `release-it` to `devDependencies`.
 - `packages/js/package.json` — add `release` script.
 - `packages/react/package.json` — add `release` script.

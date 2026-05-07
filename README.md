@@ -13,7 +13,7 @@ in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/
 This is a npm workspaces monorepo containing the following packages:
 
 | Package                            | npm                                                                | Description                                                                        |
-|------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| ---------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | [`packages/js`](packages/js)       | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)       | Core client for error capture, stack traces, context collection, and API reporting |
 | [`packages/react`](packages/react) | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react) | React error boundary component and React 19 error handler                          |
 | [`packages/vue`](packages/vue)     | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)     | Vue error handler plugin                                                           |
@@ -46,7 +46,7 @@ npm run build
 All commands are run from the repository root:
 
 | Command              | Description                                           |
-|----------------------|-------------------------------------------------------|
+| -------------------- | ----------------------------------------------------- |
 | `npm run build`      | Build all packages to their respective `dist` folders |
 | `npm run test`       | Run tests for all packages that have them             |
 | `npm run typescript` | Type-check all packages                               |

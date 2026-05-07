@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
 
 import { Flare } from '../src';
-
 import { FakeApi } from './helpers';
 
 const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');

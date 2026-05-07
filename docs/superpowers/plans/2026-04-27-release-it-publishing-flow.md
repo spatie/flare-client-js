@@ -13,6 +13,7 @@
 ### Task 1: Install `release-it` at the root
 
 **Files:**
+
 - Modify: `package.json`
 
 - [ ] **Step 1: Install release-it as a root devDependency**
@@ -38,6 +39,7 @@ git commit -m "chore: add release-it devDependency"
 ### Task 2: Add release config and script for `@flareapp/js`
 
 **Files:**
+
 - Create: `packages/js/.release-it.json`
 - Modify: `packages/js/package.json`
 
@@ -103,6 +105,7 @@ Expected: output shows `Empty changeset` resolution prompt skipped under `--ci`,
 ### Task 3: Add release config and script for `@flareapp/vite`
 
 **Files:**
+
 - Create: `packages/vite/.release-it.json`
 - Modify: `packages/vite/package.json`
 
@@ -160,6 +163,7 @@ Expected: proposed tag `@flareapp/vite@<patch-bump>`, no errors. `npm test --if-
 ### Task 4: Add release config and script for `@flareapp/react`
 
 **Files:**
+
 - Create: `packages/react/.release-it.json`
 - Modify: `packages/react/package.json`
 
@@ -218,6 +222,7 @@ Expected: proposed tag `@flareapp/react@<patch-bump>`, tests run successfully, n
 ### Task 5: Add release config and script for `@flareapp/vue`
 
 **Files:**
+
 - Create: `packages/vue/.release-it.json`
 - Modify: `packages/vue/package.json`
 
@@ -276,13 +281,14 @@ Expected: proposed tag `@flareapp/vue@<patch-bump>`, tests run successfully, no 
 ### Task 6: Update README
 
 **Files:**
+
 - Modify: `README.md` (the "Versioning and releasing" section, lines ~90-132)
 
 - [ ] **Step 1: Replace "Bumping a version" and "Publishing to npm" subsections**
 
 Replace the content between the `## Versioning and releasing` heading and the `### Publishing multiple packages` heading with:
 
-```markdown
+````markdown
 ## Versioning and releasing
 
 Each package is versioned and published independently using [release-it](https://github.com/release-it/release-it).
@@ -295,6 +301,7 @@ From the package directory you want to release, run:
 cd packages/js
 npm run release
 ```
+````
 
 This will:
 
@@ -314,7 +321,8 @@ To preview without making any changes, add `--dry-run`:
 ```bash
 npm run release -- --dry-run
 ```
-```
+
+````
 
 Keep the existing `### Publishing multiple packages` subsection unchanged below this.
 
@@ -328,7 +336,7 @@ Expected: matches for `release-it` and `npm run release`, NO matches for `Bumpin
 ```bash
 git add README.md
 git commit -m "docs: document release-it publishing flow"
-```
+````
 
 ---
 
@@ -348,6 +356,7 @@ cd packages/vue && npx release-it --dry-run --ci && cd ../..
 ```
 
 Expected per package:
+
 - Proposed tag matches `@flareapp/<pkg>@<next-version>`.
 - Proposed commit message matches `chore: release @flareapp/<pkg>@<next-version>`.
 - `before:release` hook output shows `npm test` ran (or was skipped via `--if-present` for `vite`).

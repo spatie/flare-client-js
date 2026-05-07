@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
+
 import { type Plugin, type ResolvedConfig } from 'vite';
 
 import { FlareApi } from './flareApi';
@@ -25,9 +26,11 @@ export default function flareSourcemaps({
     function log(message: string, isError = false) {
         const formatted = `@flareapp/vite: ${message}`;
         if (isError) {
-            logger ? logger.error(formatted) : console.error(formatted);
+            if (logger) logger.error(formatted);
+            else console.error(formatted);
         } else {
-            logger ? logger.info(formatted) : console.log(formatted);
+            if (logger) logger.info(formatted);
+            else console.log(formatted);
         }
     }
 
@@ -75,7 +78,7 @@ export default function flareSourcemaps({
 
             const sourcemaps: Sourcemap[] = [];
 
-            for (const [fileName, chunk] of Object.entries(bundle)) {
+            for (const fileName of Object.keys(bundle)) {
                 if (!fileName.endsWith('.map')) {
                     continue;
                 }

@@ -2,7 +2,6 @@ import ErrorStackParser from 'error-stack-parser';
 
 import { StackFrame } from '../types';
 import { assert } from '../util';
-
 import { getCodeSnippet } from './fileReader';
 
 export function createStackTrace(error: Error, debug: boolean): Promise<Array<StackFrame>> {

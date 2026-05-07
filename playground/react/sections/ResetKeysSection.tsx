@@ -1,9 +1,9 @@
 import { FlareErrorBoundary } from '@flareapp/react';
 import { useState } from 'react';
 
-import { ConditionallyBuggyComponent } from '../ConditionallyBuggyComponent';
 import { Button } from '../components/Button';
 import { TestSection } from '../components/TestSection';
+import { ConditionallyBuggyComponent } from '../ConditionallyBuggyComponent';
 
 export function ResetKeysSection() {
     const [shouldThrow, setShouldThrow] = useState(false);

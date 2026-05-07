@@ -30,22 +30,22 @@ This skill performs those checks before invoking `release-it`.
 
 1. Confirm the working tree is clean and the branch is `main`:
 
-   ```bash
-   git status
-   git rev-parse --abbrev-ref HEAD
-   ```
+    ```bash
+    git status
+    git rev-parse --abbrev-ref HEAD
+    ```
 
-   If not on `main` or there are uncommitted changes, abort and tell the user.
+    If not on `main` or there are uncommitted changes, abort and tell the user.
 
 2. Confirm the package exists by reading `packages/$0/package.json`. Note the current `version`.
 
 3. Run cross-workspace validation from the repo root. Abort on any failure:
 
-   ```bash
-   npm run typescript
-   npm run test
-   npm run build
-   ```
+    ```bash
+    npm run typescript
+    npm run test
+    npm run build
+    ```
 
 ## Decide the version
 
@@ -68,24 +68,23 @@ This skill performs those checks before invoking `release-it`.
 
 8. Run from the package directory:
 
-   ```bash
-   cd packages/$0 && npm run release -- $1
-   ```
+    ```bash
+    cd packages/$0 && npm run release -- $1
+    ```
 
-   If the user wants a dry run first, add `--dry-run`:
+    If the user wants a dry run first, add `--dry-run`:
 
-   ```bash
-   cd packages/$0 && npm run release -- $1 --dry-run
-   ```
+    ```bash
+    cd packages/$0 && npm run release -- $1 --dry-run
+    ```
 
-   `release-it` is interactive. It will prompt for npm OTP if 2FA is on. Pass through any prompts to the user.
+    `release-it` is interactive. It will prompt for npm OTP if 2FA is on. Pass through any prompts to the user.
 
-   If `release-it` fails:
-
-   - Pre-condition failure (dirty tree, wrong branch): fix and retry.
-   - `before:release` hook failure (test failed): fix the test, do not retry the release until tests pass.
-   - `npm publish` failure: the git commit and tag may have already been pushed. Investigate before retrying.
-     Do not blindly re-run `npm run release` because the version bump commit already exists.
+    If `release-it` fails:
+    - Pre-condition failure (dirty tree, wrong branch): fix and retry.
+    - `before:release` hook failure (test failed): fix the test, do not retry the release until tests pass.
+    - `npm publish` failure: the git commit and tag may have already been pushed. Investigate before retrying.
+      Do not blindly re-run `npm run release` because the version bump commit already exists.
 
 ## Post-release
 

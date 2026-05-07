@@ -721,7 +721,7 @@ describe('FlareErrorBoundary', () => {
     test('onReset receives null when no error is set', async () => {
         const onReset = vi.fn();
 
-        const wrapper = mount(FlareErrorBoundary, {
+        mount(FlareErrorBoundary, {
             props: { onReset },
             slots: {
                 default: () => h('div', 'OK'),

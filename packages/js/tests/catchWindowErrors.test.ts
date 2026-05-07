@@ -3,7 +3,6 @@ import { beforeEach, expect, test } from 'vitest';
 
 import { Flare } from '../src';
 import { catchWindowErrors } from '../src/browser/catchWindowErrors';
-
 import { FakeApi } from './helpers';
 
 let fakeApi: FakeApi;

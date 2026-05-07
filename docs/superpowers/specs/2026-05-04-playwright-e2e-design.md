@@ -62,55 +62,55 @@ test('render error sends report', async ({ page, flare }) => {
 
 - **Medium (all reports):** Validate structure has `stacktrace`, `message`, `events`, `attributes`, `seenAtUnixNano`.
 - **Selective deep (framework-specific):**
-  - React: `attributes['react.componentStack']` present for boundary-caught errors.
-  - Vue: `vue.componentName`, `vue.errorOrigin`, `vue.componentHierarchy`, `vue.componentHierarchyFrames` in attributes. `vue.route` for route-aware tests. `vue.componentProps` for attachProps tests.
-  - JS: no framework-specific fields.
+    - React: `attributes['react.componentStack']` present for boundary-caught errors.
+    - Vue: `vue.componentName`, `vue.errorOrigin`, `vue.componentHierarchy`, `vue.componentHierarchyFrames` in attributes. `vue.route` for route-aware tests. `vue.componentProps` for attachProps tests.
+    - JS: no framework-specific fields.
 
 ## Test coverage
 
 ### React (`e2e/react.spec.ts`)
 
-| Section | Assertions |
-|---------|------------|
-| RenderError | Fallback UI visible. Report has message containing "BuggyComponent". `react.componentStack` in attributes. "Try again" click resets boundary (fallback disappears). |
-| ResetKeys | Error triggers fallback. Incrementing resetKey auto-resets boundary (success text visible). Report sent on initial error. |
-| OnClick | Report sent with "onClick handler" in message. Page remains functional. |
-| Async | Report sent with "Async error" in message. |
-| ManualReport | Report sent with "Manually reported" in message. |
+| Section      | Assertions                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RenderError  | Fallback UI visible. Report has message containing "BuggyComponent". `react.componentStack` in attributes. "Try again" click resets boundary (fallback disappears). |
+| ResetKeys    | Error triggers fallback. Incrementing resetKey auto-resets boundary (success text visible). Report sent on initial error.                                           |
+| OnClick      | Report sent with "onClick handler" in message. Page remains functional.                                                                                             |
+| Async        | Report sent with "Async error" in message.                                                                                                                          |
+| ManualReport | Report sent with "Manually reported" in message.                                                                                                                    |
 
 ### Vue (`e2e/vue.spec.ts`)
 
-| Section | Assertions |
-|---------|------------|
-| RenderError | Fallback renders. Report has `vue.componentName`, `vue.componentHierarchy`, `vue.errorOrigin`. |
-| ResetKeys | Error then auto-reset via key increment. |
-| OnClick | Report sent, `vue.errorOrigin` = `"event"`. |
-| Lifecycle | Report sent, `vue.errorOrigin` = `"lifecycle"`. |
-| Watcher | Report sent, `vue.errorOrigin` = `"watcher"`. |
-| Async | Report sent (unhandled rejection). |
-| NonErrorThrow | String thrown, report still sent with the string in message. |
-| VueWarning | Report sent with `vue.type` = `"warning"`. |
-| AttachProps | `vue.componentProps` present, nested objects serialized. |
-| DenylistProps | Sensitive props (`password`, `apiKey`, `sessionId`, `pin`, `cvv`) redacted. |
-| NestedBoundaries | One report only (inner boundary catches). |
-| ManualReport | Three reports: `report()`, `reportMessage()`, `test()`. |
-| Enrichment | Glows in `events`, custom context in `attributes`. |
-| Hooks | `beforeEvaluate` suppress = no report. `beforeSubmit` mutate = modified field in report. |
-| RouteContext | `vue.route.path`, `vue.route.params`, `vue.route.query` present. |
-| RouteDenylist | Sensitive query params (`token`, `session_id`) redacted. |
+| Section          | Assertions                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| RenderError      | Fallback renders. Report has `vue.componentName`, `vue.componentHierarchy`, `vue.errorOrigin`. |
+| ResetKeys        | Error then auto-reset via key increment.                                                       |
+| OnClick          | Report sent, `vue.errorOrigin` = `"event"`.                                                    |
+| Lifecycle        | Report sent, `vue.errorOrigin` = `"lifecycle"`.                                                |
+| Watcher          | Report sent, `vue.errorOrigin` = `"watcher"`.                                                  |
+| Async            | Report sent (unhandled rejection).                                                             |
+| NonErrorThrow    | String thrown, report still sent with the string in message.                                   |
+| VueWarning       | Report sent with `vue.type` = `"warning"`.                                                     |
+| AttachProps      | `vue.componentProps` present, nested objects serialized.                                       |
+| DenylistProps    | Sensitive props (`password`, `apiKey`, `sessionId`, `pin`, `cvv`) redacted.                    |
+| NestedBoundaries | One report only (inner boundary catches).                                                      |
+| ManualReport     | Three reports: `report()`, `reportMessage()`, `test()`.                                        |
+| Enrichment       | Glows in `events`, custom context in `attributes`.                                             |
+| Hooks            | `beforeEvaluate` suppress = no report. `beforeSubmit` mutate = modified field in report.       |
+| RouteContext     | `vue.route.path`, `vue.route.params`, `vue.route.query` present.                               |
+| RouteDenylist    | Sensitive query params (`token`, `session_id`) redacted.                                       |
 
 ### JS (`e2e/js.spec.ts`)
 
-| Section | Assertions |
-|---------|------------|
-| TypeError | Report sent with TypeError in class or message. |
-| Timeout | Report sent from setTimeout error. |
-| CauseChain | Report sent with error cause info. |
-| PromiseRejection | Report(s) sent for unhandled rejection. |
-| ManualReport | Three reports: `report()`, `reportMessage()`, `test()`. |
-| Enrichment | Glows in `events`, custom context in `attributes`. |
-| Hooks | Suppress via `beforeEvaluate`, mutate via `beforeSubmit`. |
-| RapidFire | Multiple reports sent (assert count > 0, not exact 50). |
+| Section          | Assertions                                                |
+| ---------------- | --------------------------------------------------------- |
+| TypeError        | Report sent with TypeError in class or message.           |
+| Timeout          | Report sent from setTimeout error.                        |
+| CauseChain       | Report sent with error cause info.                        |
+| PromiseRejection | Report(s) sent for unhandled rejection.                   |
+| ManualReport     | Three reports: `report()`, `reportMessage()`, `test()`.   |
+| Enrichment       | Glows in `events`, custom context in `attributes`.        |
+| Hooks            | Suppress via `beforeEvaluate`, mutate via `beforeSubmit`. |
+| RapidFire        | Multiple reports sent (assert count > 0, not exact 50).   |
 
 ## Error handling in tests
 

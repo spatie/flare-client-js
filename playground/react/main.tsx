@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 
 import { createSidebar } from '../shared/createSidebar';
 import { initFlare } from '../shared/initFlare';
-
 import { App } from './App';
 
 initFlare(import.meta.env.VITE_FLARE_REACT_KEY);

@@ -1,4 +1,4 @@
-import { type Report, expect, test } from './fixtures/flare-interceptor';
+import { expect, test } from './fixtures/flare-interceptor';
 
 test.describe('React playground', () => {
     test.beforeEach(async ({ page }) => {

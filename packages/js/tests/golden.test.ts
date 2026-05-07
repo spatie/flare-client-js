@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
-
 import { FakeApi } from './helpers';
 
 const FIXTURE_PATH = resolve(__dirname, 'fixtures/golden-report.json');

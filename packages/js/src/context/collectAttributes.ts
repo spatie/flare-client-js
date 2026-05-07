@@ -1,5 +1,4 @@
 import { Attributes } from '../types';
-
 import cookie from './cookie';
 import request from './request';
 import requestData from './requestData';

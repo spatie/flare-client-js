@@ -35,7 +35,7 @@ This builds all packages first, then starts the Vite dev server.
 ## Pages
 
 | Path      | Integration       | Description                                                          |
-|-----------|-------------------|----------------------------------------------------------------------|
+| --------- | ----------------- | -------------------------------------------------------------------- |
 | `/`       | -                 | Landing page with links to all test pages                            |
 | `/js/`    | `@flareapp/js`    | Tests for the core client (global error listeners, manual reporting) |
 | `/react/` | `@flareapp/react` | Tests for `FlareErrorBoundary` and `flareReactErrorHandler`          |
