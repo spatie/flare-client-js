@@ -947,6 +947,88 @@ describe('FlareErrorBoundary', () => {
         expect(afterSubmit).toHaveBeenCalledTimes(2);
     });
 
+    describe('route context', () => {
+        const mockRoute = {
+            name: 'user-profile',
+            path: '/users/42',
+            fullPath: '/users/42?tab=settings',
+            params: { id: '42' },
+            query: { tab: 'settings' },
+            hash: '',
+            matched: [{ name: 'AppLayout' }, { name: 'UserProfile' }],
+        };
+
+        function mockRouter(route: Record<string, unknown>) {
+            return { currentRoute: { value: route } };
+        }
+
+        test('includes route context when Vue Router is present', async () => {
+            mount(FlareErrorBoundary, {
+                global: {
+                    config: {
+                        globalProperties: {
+                            $router: mockRouter(mockRoute),
+                        },
+                    },
+                },
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const context = { vue: getReportedVue(0) };
+            expect(context.vue.route).toEqual({
+                name: 'user-profile',
+                path: '/users/42',
+                fullPath: '/users/42?tab=settings',
+                params: { id: '42' },
+                query: { tab: 'settings' },
+                hash: '',
+                matched: ['AppLayout', 'UserProfile'],
+            });
+        });
+
+        test('does not include route context when Vue Router is not present', async () => {
+            mount(FlareErrorBoundary, {
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            const context = { vue: getReportedVue(0) };
+            expect(context.vue.route).toBeUndefined();
+        });
+
+        test('route context is available to beforeSubmit hook', async () => {
+            const beforeSubmit = vi.fn(({ context }: { context: FlareVueContext }) => context);
+
+            mount(FlareErrorBoundary, {
+                global: {
+                    config: {
+                        globalProperties: {
+                            $router: mockRouter(mockRoute),
+                        },
+                    },
+                },
+                props: { beforeSubmit },
+                slots: {
+                    default: () => h(ThrowingComponent),
+                    fallback: () => h('div', 'Error'),
+                },
+            });
+
+            await nextTick();
+
+            expect(beforeSubmit.mock.calls[0][0].context.vue.route?.name).toBe('user-profile');
+        });
+    });
+
     describe('attachProps', () => {
         test('omits componentProps from the reported context by default', async () => {
             const ThrowingWithUserId = defineComponent({
