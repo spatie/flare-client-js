@@ -65,8 +65,8 @@ export type Glow = {
     time: number;
     microtime: number;
     name: string;
-    message_level: MessageLevel;
-    meta_data: object | object[];
+    messageLevel: MessageLevel;
+    metaData: Record<string, unknown> | Record<string, unknown>[];
 };
 
 export type EntryPointHandler = {

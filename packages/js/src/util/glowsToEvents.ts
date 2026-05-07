@@ -9,8 +9,8 @@ export function glowsToEvents(glows: Glow[]): SpanEvent[] {
         endTimeUnixNano: null,
         attributes: {
             'glow.name': String(glow.name),
-            'glow.level': glow.message_level,
-            'glow.context': (glow.meta_data ?? {}) as AttributeValue,
+            'glow.level': glow.messageLevel,
+            'glow.context': (glow.metaData ?? {}) as AttributeValue,
         },
     }));
 }

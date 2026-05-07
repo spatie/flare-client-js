@@ -74,13 +74,17 @@ export class Flare {
         return this.report(new Error('The Flare client is set up correctly!'));
     }
 
-    glow(name: string, level: MessageLevel = 'info', data: object | object[] = []): Flare {
+    glow(
+        name: string,
+        level: MessageLevel = 'info',
+        data: Record<string, unknown> | Record<string, unknown>[] = []
+    ): Flare {
         const time = now();
 
         this.glows.push({
             name,
-            message_level: level,
-            meta_data: data,
+            messageLevel: level,
+            metaData: data,
             time,
             microtime: time,
         });
