@@ -15,6 +15,7 @@ export type Config = {
     debug: boolean;
     urlDenylist: RegExp;
     replaceDefaultUrlDenylist: boolean;
+    sampleRate: number;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };

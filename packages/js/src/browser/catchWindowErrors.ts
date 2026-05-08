@@ -1,13 +1,19 @@
 // Wires up global `error` and `unhandledrejection` listeners. Reports are routed through
 // `window.flare`, which the host app must assign (see Flare.light()/configure()). If the global
 // is not present (e.g. flare not initialised yet), events are silently dropped rather than queued.
+
+type WindowFlare = {
+    report: (e: Error) => unknown;
+    reportUnhandledRejection: (message: string) => unknown;
+};
+
 export function catchWindowErrors() {
     if (typeof window === 'undefined') {
         return;
     }
 
     window.addEventListener('error', (event: ErrorEvent) => {
-        const flare = (window as unknown as { flare?: { report: (e: Error) => unknown } }).flare;
+        const flare = (window as unknown as { flare?: WindowFlare }).flare;
         if (!flare) return;
         // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
         if (event.error instanceof Error) {
@@ -16,7 +22,7 @@ export function catchWindowErrors() {
     });
 
     window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
-        const flare = (window as unknown as { flare?: { report: (e: Error) => unknown } }).flare;
+        const flare = (window as unknown as { flare?: WindowFlare }).flare;
         if (!flare) return;
 
         const reason = event.reason;
@@ -25,7 +31,14 @@ export function catchWindowErrors() {
             return;
         }
 
-        flare.report(new Error(describeRejectionReason(reason)));
+        if (hasStack(reason)) {
+            const error = new Error(describeRejectionReason(reason));
+            error.stack = (reason as { stack: string }).stack;
+            flare.report(error);
+            return;
+        }
+
+        flare.reportUnhandledRejection(describeRejectionReason(reason));
     });
 }
 
@@ -41,4 +54,13 @@ function describeRejectionReason(reason: unknown): string {
         }
     }
     return String(reason);
+}
+
+function hasStack(value: unknown): boolean {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'stack' in value &&
+        typeof (value as Record<string, unknown>).stack === 'string'
+    );
 }

@@ -38,6 +38,7 @@ export class Flare {
         debug: false,
         urlDenylist: DEFAULT_URL_DENYLIST,
         replaceDefaultUrlDenylist: false,
+        sampleRate: 1,
         beforeEvaluate: (error) => error,
         beforeSubmit: (report) => report,
     };
@@ -70,6 +71,10 @@ export class Flare {
     configure(config: Partial<Config>): Flare {
         this._config = { ...this._config, ...config };
 
+        if (config.sampleRate !== undefined) {
+            this._config.sampleRate = Math.max(0, Math.min(1, config.sampleRate));
+        }
+
         this._config.urlDenylist = resolveDenylist(
             config.urlDenylist,
             config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist
@@ -78,8 +83,10 @@ export class Flare {
         return this;
     }
 
-    test(): Promise<void> {
-        return this.report(new Error('The Flare client is set up correctly!'));
+    async test(): Promise<void> {
+        const report = await this.createReportFromError(new Error('The Flare client is set up correctly!'));
+        if (!report) return;
+        return this.sendReport(report);
     }
 
     glow(
@@ -137,6 +144,8 @@ export class Flare {
     }
 
     async report(error: Error, attributes: Attributes = {}): Promise<void> {
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+
         const seenAtUnixNano = Date.now() * 1_000_000;
 
         // Coerce non-Error values (strings, rejected promises, etc) so we always have a real Error
@@ -152,7 +161,28 @@ export class Flare {
         return this.sendReport(report);
     }
 
+    async reportUnhandledRejection(message: string, attributes: Attributes = {}): Promise<void> {
+        if (Math.random() >= this._config.sampleRate) return;
+
+        const seenAtUnixNano = Date.now() * 1_000_000;
+
+        const report = this.buildReport({
+            exceptionClass: 'UnhandledRejection',
+            message,
+            stacktrace: [],
+            isLog: false,
+            level: undefined,
+            extraAttributes: attributes,
+            code: undefined,
+            seenAtUnixNano,
+        });
+
+        return this.sendReport(report);
+    }
+
     async reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+
         const seenAtUnixNano = Date.now() * 1_000_000;
         const stackTrace = await createStackTrace(new Error(), this._config.debug);
         // Drop the top frame so reportMessage itself doesn't appear as the call site.

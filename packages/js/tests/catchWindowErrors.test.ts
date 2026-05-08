@@ -32,6 +32,8 @@ test('reports non-Error promise rejection reasons (string)', async () => {
 
     await new Promise((r) => setTimeout(r, 0));
     expect(fakeApi.lastReport?.message).toBe('something failed');
+    expect(fakeApi.lastReport?.exceptionClass).toBe('UnhandledRejection');
+    expect(fakeApi.lastReport?.stacktrace).toEqual([]);
 });
 
 test('reports non-Error promise rejection reasons (plain object with message)', async () => {
@@ -41,4 +43,30 @@ test('reports non-Error promise rejection reasons (plain object with message)', 
 
     await new Promise((r) => setTimeout(r, 0));
     expect(fakeApi.lastReport?.message).toBe('object reason');
+    expect(fakeApi.lastReport?.exceptionClass).toBe('UnhandledRejection');
+    expect(fakeApi.lastReport?.stacktrace).toEqual([]);
+});
+
+test('uses original stack trace from non-Error object with .stack property', async () => {
+    const originalStack = `Error: cross-realm failure\n    at userFunction (app.js:10:5)\n    at main (app.js:1:1)`;
+    const event = new Event('unhandledrejection') as any;
+    event.reason = { message: 'cross-realm failure', stack: originalStack };
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fakeApi.lastReport?.message).toBe('cross-realm failure');
+    expect(fakeApi.lastReport?.exceptionClass).toBe('Error');
+    expect(fakeApi.lastReport?.stacktrace[0]?.file).toContain('app.js');
+});
+
+test('reports Error rejection with original exceptionClass and stack', async () => {
+    const event = new Event('unhandledrejection') as any;
+    event.reason = new TypeError('null is not an object');
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fakeApi.lastReport?.message).toBe('null is not an object');
+    expect(fakeApi.lastReport?.exceptionClass).toBe('TypeError');
+    expect(fakeApi.lastReport?.stacktrace.length).toBeGreaterThan(0);
 });
