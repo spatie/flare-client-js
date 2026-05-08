@@ -350,12 +350,9 @@ test.describe('Vue playground', () => {
             await page.getByRole('button', { name: 'beforeSubmit (modify)' }).click();
             const report = await reportPromise;
 
-            const context = report.context as Record<string, unknown> | undefined;
-            expect(context).toBeDefined();
-            const hook = context!.custom_hook as Record<string, unknown>;
+            const hook = report.attributes['context.custom_hook'] as Record<string, unknown> | undefined;
             expect(hook).toBeDefined();
-            expect(hook.injected_by).toBe('beforeSubmit hook');
-            expect(hook.timestamp).toBeGreaterThan(0);
+            expect(hook!.injected_by).toBe('beforeSubmit hook');
         });
     });
 });

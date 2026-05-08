@@ -14,7 +14,8 @@ export function resolveDenylist(
     }
 
     if (replaceDefault) {
-        return custom;
+        const safeFlags = custom.flags.replace(/[gy]/g, '');
+        return new RegExp(custom.source, safeFlags);
     }
 
     const flags = unionFlags(defaultDenylist.flags, custom.flags);

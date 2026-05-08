@@ -17,7 +17,7 @@ export function catchWindowErrors() {
         if (!flare) return;
         // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
         if (event.error instanceof Error) {
-            flare.report(event.error);
+            Promise.resolve(flare.report(event.error)).catch(() => {});
         }
     });
 
@@ -27,18 +27,18 @@ export function catchWindowErrors() {
 
         const reason = event.reason;
         if (reason instanceof Error) {
-            flare.report(reason);
+            Promise.resolve(flare.report(reason)).catch(() => {});
             return;
         }
 
         if (hasStack(reason)) {
             const error = new Error(describeRejectionReason(reason));
             error.stack = (reason as { stack: string }).stack;
-            flare.report(error);
+            Promise.resolve(flare.report(error)).catch(() => {});
             return;
         }
 
-        flare.reportUnhandledRejection(describeRejectionReason(reason));
+        Promise.resolve(flare.reportUnhandledRejection(describeRejectionReason(reason))).catch(() => {});
     });
 }
 

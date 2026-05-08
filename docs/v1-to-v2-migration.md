@@ -97,6 +97,10 @@ const err = new Error('Connection failed');
 flare.report(err); // payload.code === 'ENOTFOUND'
 ```
 
+### Vue 2 dropped
+
+`@flareapp/vue@2` only supports Vue 3 (`^3.0.0`). If you are on Vue 2, stay on `@flareapp/vue@1`.
+
 ## What did NOT change
 
 - Authentication mechanism (project API key in a header).

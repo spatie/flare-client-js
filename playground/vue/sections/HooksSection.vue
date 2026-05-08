@@ -34,9 +34,12 @@ import TestSection from '../components/TestSection.vue';
                     const original = flare.config.beforeSubmit;
                     flare.configure({
                         beforeSubmit: (report) => {
-                            report.context = {
-                                ...report.context,
-                                custom_hook: { injected_by: 'beforeSubmit hook', timestamp: Date.now() },
+                            report.attributes = {
+                                ...report.attributes,
+                                'context.custom_hook': {
+                                    injected_by: 'beforeSubmit hook',
+                                    timestamp: Date.now(),
+                                },
                             };
                             console.log('beforeSubmit: added custom_hook context to report');
                             return report;

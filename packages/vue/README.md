@@ -34,7 +34,7 @@ Full documentation on the Vue error handler and its options is available at [fla
 
 ## Compatibility
 
-- Vue 2 and Vue 3
+- Vue 3
 
 ## License
 
