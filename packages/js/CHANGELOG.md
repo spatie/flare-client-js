@@ -3,16 +3,16 @@
 ### Breaking changes
 
 - **Endpoint changed.** SDK now POSTs to `https://ingress.flareapp.io/v1/errors`. Success response is `201 Created`. Auth header is `x-api-token`.
-- **Wire format reshaped to match the server's canonical schema** (no more `MapOldReportFormatAction` round-trip).
+- **Wire format reshaped to match the server's canonical schema.**
     - `Report` uses camelCase top-level fields (`exceptionClass`, `seenAtUnixNano`, `sourcemapVersionId`, `isLog`, `level`, `attributes`, `events`).
     - `StackFrame` uses camelCase (`lineNumber`, `columnNumber`, `codeSnippet`, `isApplicationFrame`).
     - `Context` is gone. User context is set via `addContext(name, value)` and `addContextGroup(group, value)`; both write into the flat `attributes` map under `context.custom` and `context.<group>`.
     - Glows ride along as `php_glow`-typed entries in `events[]`.
 - **`report()` second argument** is now an `Attributes` map (was a freeform context object). The third argument (solution provider parameters) is removed.
-- **Config keys renamed:** `reportingUrl` → `ingestUrl`, `sourcemapVersion` → `sourcemapVersionId`. No aliases.
+- **Config keys renamed:** `reportingUrl` → `ingestUrl`, `sourcemapVersion` → `sourcemapVersionId`.
 - **Deprecated trailing setters removed:** `flare.beforeEvaluate = …`, `flare.beforeSubmit = …`, `flare.stage = …`. Use `flare.configure({ … })`.
-- **`reportMessage` signature changed:** `reportMessage(message, level?, attributes?)`. The old `'Log INFO'` regex is gone — pass `level` directly.
-- **Solutions API removed:** `registerSolutionProvider`, `Solution`, `SolutionProvider`, `SolutionProviderExtraParameters` are all deleted. The server has been silently dropping `solutions` from payloads; the client now matches.
+- **`reportMessage` signature changed:** `reportMessage(message, level?, attributes?)`. The old `'Log INFO'` regex is gone, pass `level` directly.
+- **Solutions API removed:** `registerSolutionProvider`, `Solution`, `SolutionProvider`, `SolutionProviderExtraParameters` are all deleted.
 - **`flare.config` is now `Readonly<Config>`** and `flare.glows` is `readonly Glow[]`. Direct property mutation no longer works; use `configure()`.
 
 ### New
