@@ -97,6 +97,14 @@ const err = new Error('Connection failed');
 flare.report(err); // payload.code === 'ENOTFOUND'
 ```
 
+### New: `sampleRate`
+
+```ts
+flare.configure({ sampleRate: 0.5 }); // report ~50% of errors
+```
+
+Number between `0` and `1` (default `1`). Applies to `report()`, `reportMessage()`, and `reportUnhandledRejection()`. Works the same regardless of framework — configure it via `@flareapp/js`.
+
 ### Vue 2 dropped
 
 `@flareapp/vue@2` only supports Vue 3 (`^3.0.0`). If you are on Vue 2, stay on `@flareapp/vue@1`.

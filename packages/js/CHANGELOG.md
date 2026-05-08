@@ -26,6 +26,7 @@
 - Non-`Error` values passed to `report()` are coerced to `Error` instead of silently failing.
 - Browser context attributes (`url.full`, `url.query`, `browser.user_agent`, `browser.viewport.*`, cookies, request data) are auto-collected on each report.
 - New exported types: `SpanEvent`, `EntryPointHandler`, `Framework`, `SdkInfo`, `OverriddenGrouping`, `Attributes`, `AttributeValue`.
+- **`sampleRate` config option.** Number between `0` and `1` (default `1`). Controls what fraction of errors are reported. Applies to `report()`, `reportMessage()`, and `reportUnhandledRejection()`.
 
 ### Notes
 
