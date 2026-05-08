@@ -68,6 +68,7 @@ test('reports non-Error rejection reasons (string)', async () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(fakeApi.lastReport?.message).toBe('plain string reason');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
 });
 
 test('reports non-Error rejection reasons (plain object)', async () => {
@@ -79,7 +80,8 @@ test('reports non-Error rejection reasons (plain object)', async () => {
 
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(fakeApi.lastReport?.message).toContain('"code":42');
+    expect(fakeApi.lastReport?.message).toBe('Unhandled promise rejection: {"code":42}');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
 });
 
 test('reports Symbol rejection reason via String fallback', async () => {
@@ -91,7 +93,82 @@ test('reports Symbol rejection reason via String fallback', async () => {
 
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(fakeApi.lastReport?.message).toBe('Symbol(boom)');
+    expect(fakeApi.lastReport?.message).toBe('Unhandled promise rejection: Symbol(boom)');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
+});
+
+test('reports null rejection reason', async () => {
+    catchWindowErrors();
+
+    const event = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(event, 'reason', { value: null });
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fakeApi.lastReport?.message).toBe('Unhandled promise rejection (null)');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
+});
+
+test('reports undefined rejection reason', async () => {
+    catchWindowErrors();
+
+    const event = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(event, 'reason', { value: undefined });
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fakeApi.lastReport?.message).toBe('Unhandled promise rejection (undefined)');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
+});
+
+test('reports empty object rejection reason', async () => {
+    catchWindowErrors();
+
+    const event = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(event, 'reason', { value: {} });
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fakeApi.lastReport?.message).toBe('Unhandled promise rejection with non-serializable object');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
+});
+
+test('extracts message property from error-like object rejection', async () => {
+    catchWindowErrors();
+
+    const event = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(event, 'reason', { value: { message: 'something went wrong', code: 500 } });
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fakeApi.lastReport?.message).toBe('something went wrong');
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
+});
+
+// Regression: v1.2.0 wrapped non-Error rejections in `new Error(message)`, which
+// produced exception_class "Error" with message "{}" for empty-object rejections
+// and a stack trace pointing at SDK internals instead of user code.
+test('empty-object rejection does not produce misleading "Error: {}" report', async () => {
+    catchWindowErrors();
+
+    // Simulates: Promise.reject({}) in user code — the exact scenario reported
+    const event = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(event, 'reason', { value: {} });
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Before fix: exception_class was "Error" and message was "{}"
+    expect(fakeApi.lastReport?.exception_class).not.toBe('Error');
+    expect(fakeApi.lastReport?.message).not.toBe('{}');
+
+    // After fix: clearly labeled as unhandled rejection
+    expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
+    expect(fakeApi.lastReport?.message).toBe('Unhandled promise rejection with non-serializable object');
 });
 
 test('listeners are cleaned up between tests (no leak)', async () => {

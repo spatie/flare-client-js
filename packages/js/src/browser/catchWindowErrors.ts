@@ -24,15 +24,33 @@ export function catchWindowErrors() {
             return;
         }
 
-        const message = typeof reason === 'string' ? reason : safeStringify(reason);
-        flare.report(new Error(message));
+        flare.reportMessage(rejectionReasonToMessage(reason), {}, 'UnhandledPromiseRejection');
     });
 }
 
-function safeStringify(value: unknown): string {
-    try {
-        return JSON.stringify(value) ?? String(value);
-    } catch {
-        return String(value);
+function rejectionReasonToMessage(reason: unknown): string {
+    if (typeof reason === 'string') {
+        return reason;
     }
+
+    if (reason == null) {
+        return `Unhandled promise rejection (${reason})`;
+    }
+
+    if (typeof reason === 'object') {
+        if ('message' in reason && typeof (reason as Record<string, unknown>).message === 'string') {
+            return (reason as Record<string, unknown>).message as string;
+        }
+
+        try {
+            const json = JSON.stringify(reason);
+            if (json && json !== '{}') {
+                return `Unhandled promise rejection: ${json}`;
+            }
+        } catch {}
+
+        return 'Unhandled promise rejection with non-serializable object';
+    }
+
+    return `Unhandled promise rejection: ${String(reason)}`;
 }
