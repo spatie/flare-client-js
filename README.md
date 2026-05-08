@@ -86,8 +86,16 @@ See `.oxfmtrc.json` and `.oxlintrc.json` for configuration.
 
 GitHub Actions runs on every push:
 
-- **Test**: installs dependencies, builds all packages, runs all tests
+- **Test**: installs dependencies, builds all packages, runs all tests (Vitest)
 - **TypeScript**: installs dependencies, builds all packages, type-checks all packages
+- **E2E**: installs dependencies, builds all packages, starts the playground dev server, and runs Playwright end-to-end tests against it (Chromium)
+
+Run the e2e tests locally with:
+
+```bash
+npx playwright install chromium --with-deps
+npm run test:e2e
+```
 
 ## Versioning and releasing
 
