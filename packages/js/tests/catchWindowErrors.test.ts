@@ -149,6 +149,23 @@ test('extracts message property from error-like object rejection', async () => {
     expect(fakeApi.lastReport?.exception_class).toBe('UnhandledPromiseRejection');
 });
 
+test('uses original stack trace from non-Error object with .stack property', async () => {
+    catchWindowErrors();
+
+    const originalStack = `Error: cross-realm failure\n    at userFunction (app.js:10:5)\n    at main (app.js:1:1)`;
+    const event = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(event, 'reason', {
+        value: { message: 'cross-realm failure', stack: originalStack },
+    });
+    window.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fakeApi.lastReport?.message).toBe('cross-realm failure');
+    expect(fakeApi.lastReport?.exception_class).toBe('Error');
+    expect(fakeApi.lastReport?.stacktrace[0]?.file).toContain('app.js');
+});
+
 // Regression: v1.2.0 wrapped non-Error rejections in `new Error(message)`, which
 // produced exception_class "Error" with message "{}" for empty-object rejections
 // and a stack trace pointing at SDK internals instead of user code.

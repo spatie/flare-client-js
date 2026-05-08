@@ -24,6 +24,13 @@ export function catchWindowErrors() {
             return;
         }
 
+        if (hasStack(reason)) {
+            const error = new Error(rejectionReasonToMessage(reason));
+            error.stack = (reason as { stack: string }).stack;
+            flare.report(error);
+            return;
+        }
+
         flare.reportMessage(rejectionReasonToMessage(reason), {}, 'UnhandledPromiseRejection');
     });
 }
@@ -53,4 +60,13 @@ function rejectionReasonToMessage(reason: unknown): string {
     }
 
     return `Unhandled promise rejection: ${String(reason)}`;
+}
+
+function hasStack(value: unknown): boolean {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'stack' in value &&
+        typeof (value as Record<string, unknown>).stack === 'string'
+    );
 }
