@@ -43,7 +43,7 @@
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
         "test": "vitest run",
-        "typescript": "tsc",
+        "typescript": "tsc --noEmit",
         "release": "release-it"
     },
     "devDependencies": {
