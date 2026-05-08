@@ -21,6 +21,7 @@ export default defineConfig({
             VITE_FLARE_JS_KEY: 'test-key-js',
             VITE_FLARE_REACT_KEY: 'test-key-react',
             VITE_FLARE_VUE_KEY: 'test-key-vue',
+            SKIP_SOURCEMAPS: 'true',
         },
     },
 });

@@ -58,6 +58,22 @@ describe('resolveDenylist', () => {
         expect(replaced.test('password')).toBe(false);
         expect(replaced.test('myParam')).toBe(true);
     });
+
+    test('strips global/sticky flags to prevent stateful .test()', () => {
+        const resolved = resolveDenylist(/secret/gi, true);
+        expect(resolved.flags).not.toContain('g');
+        expect(resolved.flags).not.toContain('y');
+
+        const url = '/page?secret=1&secret=2';
+        const result = redactFullPath(url, resolved);
+        expect(result).toBe('/page?secret=[redacted]&secret=[redacted]');
+    });
+
+    test('strips global/sticky flags when merging with default', () => {
+        const resolved = resolveDenylist(/myParam/gy);
+        expect(resolved.flags).not.toContain('g');
+        expect(resolved.flags).not.toContain('y');
+    });
 });
 
 describe('Flare URL scrubbing', () => {
