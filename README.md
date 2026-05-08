@@ -50,7 +50,8 @@ All commands are run from the repository root:
 | `npm run build`      | Build all packages to their respective `dist` folders |
 | `npm run test`       | Run tests for all packages that have them             |
 | `npm run typescript` | Type-check all packages                               |
-| `npm run format`     | Run Prettier across all files                         |
+| `npm run format`     | Run oxfmt across all files                            |
+| `npm run lint`       | Run oxlint across all packages                        |
 | `npm run playground` | Build packages, then start the playground dev server  |
 
 ### Playground
@@ -70,15 +71,16 @@ See the [playground README](playground/README.md) for more details.
 
 ### Code style
 
-Formatting is handled by Prettier. A pre-commit hook (Husky + lint-staged) automatically formats staged files on commit.
+Formatting is handled by [oxfmt](https://oxc.rs/blog/2025-03-15-oxfmt.html) and linting by [oxlint](https://oxc.rs/docs/guide/usage/linter/). A pre-commit hook (Husky + lint-staged) automatically formats and lints staged files on commit.
 
-To manually format all files:
+To manually format and lint all files:
 
 ```bash
 npm run format
+npm run lint
 ```
 
-See `.prettierrc` for the full configuration.
+See `.oxfmtrc.json` and `.oxlintrc.json` for configuration.
 
 ### CI
 
