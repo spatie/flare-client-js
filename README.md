@@ -8,6 +8,10 @@ sourcemap uploads.
 Read the JavaScript error tracking section
 in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/installation) for more information.
 
+## Looking for v1?
+
+The v1 source lives on the [`1.x`](https://github.com/spatie/flare-client-js/tree/1.x) branch.
+
 ## Packages
 
 This is a npm workspaces monorepo containing the following packages:
