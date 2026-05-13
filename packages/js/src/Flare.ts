@@ -140,6 +140,7 @@ export class Flare {
 
     setFramework(framework: Framework): Flare {
         this.framework = framework;
+        this.addContext('framework', framework.name.toLowerCase());
         return this;
     }
 

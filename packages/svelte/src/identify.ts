@@ -11,5 +11,4 @@ export function registerSvelteSdkIdentity(): void {
 
     flare.setSdkInfo({ name: '@flareapp/svelte', version: PACKAGE_VERSION });
     flare.setFramework({ name: 'Svelte', version: svelteVersion });
-    flare.addContext('framework', 'svelte');
 }
