@@ -31,7 +31,7 @@ export default defineConfig({
             url: 'http://localhost:5174',
             reuseExistingServer: true,
             env: {
-                PUBLIC_FLARE_SVELTEKIT_KEY: 'test-key-sveltekit',
+                VITE_FLARE_SVELTEKIT_KEY: 'test-key-sveltekit',
             },
         },
     ],

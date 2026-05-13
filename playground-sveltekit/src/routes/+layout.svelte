@@ -8,7 +8,7 @@
     let { children } = $props();
 
     if (browser) {
-        flare.light(import.meta.env.PUBLIC_FLARE_SVELTEKIT_KEY ?? 'test-key-sveltekit', true);
+        flare.light(import.meta.env.VITE_FLARE_SVELTEKIT_KEY ?? 'test-key-sveltekit', true);
     }
 </script>
 
