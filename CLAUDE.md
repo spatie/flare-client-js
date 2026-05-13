@@ -17,19 +17,21 @@
 The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking by Spatie. Captures frontend
 errors, collects
 browser context (cookies, request data, query params), and reports them to the Flare backend. Includes framework
-integrations for React and Vue, and a Vite plugin for sourcemap uploads.
+integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads.
 
 ## Monorepo structure
 
-npm workspaces monorepo with 4 packages + a playground app:
+npm workspaces monorepo with 6 packages + playground apps:
 
-| Package          | npm name          | Purpose                                                           |
-| ---------------- | ----------------- | ----------------------------------------------------------------- |
-| `packages/js`    | `@flareapp/js`    | Core client — error capture, stack traces, context, API reporting |
-| `packages/react` | `@flareapp/react` | React `FlareErrorBoundary` error boundary component               |
-| `packages/vue`   | `@flareapp/vue`   | Vue error handler plugin (`flareVue()`)                           |
-| `packages/vite`  | `@flareapp/vite`  | Vite build plugin for sourcemap upload with retry logic           |
-| `playground`     | (private)         | Local dev/test app for all integrations (JS, React, Vue)          |
+| Package              | npm name              | Purpose                                                           |
+| -------------------- | --------------------- | ----------------------------------------------------------------- |
+| `packages/js`        | `@flareapp/js`        | Core client — error capture, stack traces, context, API reporting |
+| `packages/react`     | `@flareapp/react`     | React `FlareErrorBoundary` error boundary component               |
+| `packages/vue`       | `@flareapp/vue`       | Vue error handler plugin (`flareVue()`)                           |
+| `packages/svelte`    | `@flareapp/svelte`    | Svelte 5 `FlareErrorBoundary` with props serialization            |
+| `packages/sveltekit` | `@flareapp/sveltekit` | SvelteKit error hooks (`handleErrorWithFlare`) + route context    |
+| `packages/vite`      | `@flareapp/vite`      | Vite build plugin for sourcemap upload with retry logic           |
+| `playground`         | (private)             | Local dev/test app for all integrations (JS, React, Vue, Svelte)  |
 
 ## Tech stack
 

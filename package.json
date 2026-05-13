@@ -14,7 +14,8 @@
     ],
     "workspaces": [
         "packages/*",
-        "playground"
+        "playground",
+        "playground-sveltekit"
     ],
     "scripts": {
         "build": "npm run build --workspaces --if-present",
@@ -22,6 +23,7 @@
         "typescript": "npm run typescript --workspaces --if-present",
         "playground": "npm run build --workspaces --if-present && npm run dev --workspace=playground",
         "playground:preview": "npm run build --workspaces --if-present && npm run preview --workspace=playground",
+        "playground:sveltekit": "npm run build --workspaces --if-present && npm run dev --workspace=playground-sveltekit",
         "format": "oxfmt .",
         "lint": "oxlint",
         "prepare": "husky",

@@ -13,15 +13,26 @@ export default defineConfig({
             use: { browserName: 'chromium' },
         },
     ],
-    webServer: {
-        command: 'npm run playground',
-        url: 'http://localhost:5173',
-        reuseExistingServer: true,
-        env: {
-            VITE_FLARE_JS_KEY: 'test-key-js',
-            VITE_FLARE_REACT_KEY: 'test-key-react',
-            VITE_FLARE_VUE_KEY: 'test-key-vue',
-            SKIP_SOURCEMAPS: 'true',
+    webServer: [
+        {
+            command: 'npm run playground',
+            url: 'http://localhost:5173',
+            reuseExistingServer: true,
+            env: {
+                VITE_FLARE_JS_KEY: 'test-key-js',
+                VITE_FLARE_REACT_KEY: 'test-key-react',
+                VITE_FLARE_VUE_KEY: 'test-key-vue',
+                VITE_FLARE_SVELTE_KEY: 'test-key-svelte',
+                SKIP_SOURCEMAPS: 'true',
+            },
         },
-    },
+        {
+            command: 'npm run playground:sveltekit',
+            url: 'http://localhost:5174',
+            reuseExistingServer: true,
+            env: {
+                PUBLIC_FLARE_SVELTEKIT_KEY: 'test-key-sveltekit',
+            },
+        },
+    ],
 });

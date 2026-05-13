@@ -3,6 +3,7 @@ node_modules
 .idea/
 playground/.env
 .DS_Store
+.svelte-kit
 
 # Playwright
 test-results/
