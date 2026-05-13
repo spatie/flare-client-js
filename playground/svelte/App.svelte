@@ -1,0 +1,13 @@
+<script lang="ts">
+    import RenderErrorSection from './sections/RenderErrorSection.svelte';
+    import ResetKeysSection from './sections/ResetKeysSection.svelte';
+    import OnClickErrorSection from './sections/OnClickErrorSection.svelte';
+    import AsyncErrorSection from './sections/AsyncErrorSection.svelte';
+    import ManualReportSection from './sections/ManualReportSection.svelte';
+</script>
+
+<RenderErrorSection />
+<ResetKeysSection />
+<OnClickErrorSection />
+<AsyncErrorSection />
+<ManualReportSection />

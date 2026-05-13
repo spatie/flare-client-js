@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+        <title>Svelte - Flare Playground</title>
+        <link href="/shared/styles.css" rel="stylesheet" />
+    </head>
+    <body class="grid grid-cols-[14rem_1fr] min-h-screen bg-gray-50 text-gray-900">
+        <div class="relative bg-white border-r border-gray-200" data-active="svelte" data-slot="sidebar"></div>
+        <main class="p-10 space-y-4">
+            <h1 class="text-2xl font-bold">Svelte</h1>
+            <div id="root"></div>
+        </main>
+        <script src="/svelte/main.ts" type="module"></script>
+    </body>
+</html>

@@ -14,6 +14,7 @@ export function createSidebar(): void {
                     <a href="/js/" class="rounded-md px-3 py-2 text-sm font-medium ${getActive('js')}">Vanilla JS</a>
                     <a href="/react/" class="rounded-md px-3 py-2 text-sm font-medium ${getActive('react')}">React</a>
                     <a href="/vue/" class="rounded-md px-3 py-2 text-sm font-medium ${getActive('vue')}">Vue</a>
+                    <a href="/svelte/" class="rounded-md px-3 py-2 text-sm font-medium ${getActive('svelte')}">Svelte</a>
                 </nav>
             </aside>
         `

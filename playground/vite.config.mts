@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 
 import flareSourcemapUploader from '@flareapp/vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import vue from '@vitejs/plugin-vue';
@@ -14,6 +15,7 @@ export default defineConfig(({ mode }) => {
             alias: {
                 '@flareapp/js': resolve(__dirname, '../packages/js/src/index.ts'),
                 '@flareapp/react': resolve(__dirname, '../packages/react/src/index.ts'),
+                '@flareapp/svelte': resolve(__dirname, '../packages/svelte/src/index.ts'),
                 '@flareapp/vue': resolve(__dirname, '../packages/vue/src/index.ts'),
             },
         },
@@ -21,6 +23,7 @@ export default defineConfig(({ mode }) => {
             tailwindcss(),
             react(),
             vue(),
+            svelte(),
             flareSourcemapUploader({
                 apiKey: env.VITE_FLARE_JS_KEY,
             }),
@@ -30,13 +33,18 @@ export default defineConfig(({ mode }) => {
             flareSourcemapUploader({
                 apiKey: env.VITE_FLARE_VUE_KEY,
             }),
+            flareSourcemapUploader({
+                key: env.VITE_FLARE_SVELTE_KEY,
+            }),
         ],
         build: {
             rollupOptions: {
+                external: ['$app/state'],
                 input: {
                     main: resolve(__dirname, 'index.html'),
                     js: resolve(__dirname, 'js/index.html'),
                     react: resolve(__dirname, 'react/index.html'),
+                    svelte: resolve(__dirname, 'svelte/index.html'),
                     vue: resolve(__dirname, 'vue/index.html'),
                 },
             },
