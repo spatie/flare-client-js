@@ -10,7 +10,8 @@
     "dependencies": {
         "@flareapp/js": "*",
         "@flareapp/svelte": "*",
-        "@flareapp/sveltekit": "*"
+        "@flareapp/sveltekit": "*",
+        "@flareapp/vite": "*"
     },
     "devDependencies": {
         "@sveltejs/adapter-auto": "^6.0.0",
