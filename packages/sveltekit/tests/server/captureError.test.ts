@@ -9,6 +9,7 @@ vi.mock('@flareapp/js', () => ({
         report: (...args: unknown[]) => mockReport(...args),
         setSdkInfo: vi.fn(),
         setFramework: vi.fn(),
+        addContext: vi.fn(),
     },
 }));
 

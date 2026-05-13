@@ -17,6 +17,7 @@ vi.mock('@flareapp/js', async (importOriginal) => {
             report: (...args: unknown[]) => mockReport(...args),
             setSdkInfo: vi.fn(),
             setFramework: vi.fn(),
+            addContext: vi.fn(),
         },
     };
 });

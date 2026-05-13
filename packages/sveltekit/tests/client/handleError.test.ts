@@ -9,6 +9,7 @@ vi.mock('@flareapp/js', () => ({
         report: (...args: unknown[]) => mockReport(...args),
         setSdkInfo: vi.fn(),
         setFramework: vi.fn(),
+        addContext: vi.fn(),
     },
     DEFAULT_URL_DENYLIST:
         /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i,
