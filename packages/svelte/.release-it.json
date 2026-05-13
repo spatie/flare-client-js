@@ -1,0 +1,19 @@
+{
+    "git": {
+        "tagName": "@flareapp/svelte@${version}",
+        "tagAnnotation": "Release @flareapp/svelte@${version}",
+        "commitMessage": "chore: release @flareapp/svelte@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": {
+        "publish": true
+    },
+    "github": {
+        "release": false
+    },
+    "hooks": {
+        "before:release": "npm test --if-present"
+    }
+}

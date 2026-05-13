@@ -1,0 +1,64 @@
+{
+    "name": "@flareapp/svelte",
+    "version": "2.0.0",
+    "description": "Svelte client for flareapp.io",
+    "homepage": "https://flareapp.io",
+    "bugs": "https://github.com/spatie/flare-client-js/issues",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/spatie/flare-client-js.git"
+    },
+    "license": "MIT",
+    "author": {
+        "name": "Spatie",
+        "email": "info@spatie.be"
+    },
+    "contributors": [
+        "Adriaan Marain <adriaan@spatie.be>",
+        "Alex Vanderbist <alex@spatie.be>",
+        "Dries Heyninck <dries@spatie.be>",
+        "Freek Van der Herten <freek@spatie.be>",
+        "Sebastian De Deyne <sebastian@spatie.be>",
+        "Sébastien Henau <seba@spatie.be>"
+    ],
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "svelte": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "svelte": "./dist/index.js",
+            "import": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        }
+    },
+    "scripts": {
+        "prepublishOnly": "npm run build",
+        "build": "svelte-package -i src -o dist",
+        "test": "vitest run",
+        "typescript": "tsc --noEmit",
+        "release": "release-it"
+    },
+    "devDependencies": {
+        "@flareapp/js": "file:../js",
+        "@sveltejs/package": "^2.5.7",
+        "@sveltejs/vite-plugin-svelte": "^5.0.0",
+        "@testing-library/svelte": "^5.0.0",
+        "jsdom": "^26.1.0",
+        "svelte": "^5.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.0"
+    },
+    "peerDependencies": {
+        "@flareapp/js": "^2.0.0",
+        "svelte": "^5.0.0"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "dependencies": {
+        "error-stack-parser": "^2.1.4"
+    }
+}
