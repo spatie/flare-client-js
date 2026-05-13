@@ -2,6 +2,7 @@ dist
 node_modules
 .idea/
 playground/.env
+playground-sveltekit/.env
 .DS_Store
 .svelte-kit
 
