@@ -5,8 +5,6 @@ import { convertToError } from '../convertToError';
 import { registerSvelteKitSdkIdentity } from '../identify';
 import type { FlareSvelteKitContext } from '../types';
 
-registerSvelteKitSdkIdentity();
-
 export interface CaptureErrorOptions {
     event?: unknown;
     status?: number;
@@ -14,6 +12,7 @@ export interface CaptureErrorOptions {
 }
 
 export async function captureError(rawError: unknown, options?: CaptureErrorOptions): Promise<void> {
+    registerSvelteKitSdkIdentity();
     const error = convertToError(rawError);
 
     const context: FlareSvelteKitContext = {

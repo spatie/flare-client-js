@@ -6,8 +6,6 @@ import { registerSvelteKitSdkIdentity } from '../identify';
 import type { FlareSvelteKitContext } from '../types';
 import { getRouteContext } from './getRouteContext';
 
-registerSvelteKitSdkIdentity();
-
 export interface CaptureErrorOptions {
     event?: unknown;
     status?: number;
@@ -15,6 +13,7 @@ export interface CaptureErrorOptions {
 }
 
 export function captureError(rawError: unknown, options?: CaptureErrorOptions): void {
+    registerSvelteKitSdkIdentity();
     const error = convertToError(rawError);
     const route = getRouteContext();
 

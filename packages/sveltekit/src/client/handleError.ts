@@ -6,8 +6,6 @@ import { registerSvelteKitSdkIdentity } from '../identify';
 import type { FlareSvelteKitContext, HandleErrorWithFlareOptions } from '../types';
 import { getRouteContext } from './getRouteContext';
 
-registerSvelteKitSdkIdentity();
-
 interface HandleErrorInput {
     error: unknown;
     event?: unknown;
@@ -34,6 +32,7 @@ export function handleErrorWithFlare(handlerOrOptions?: HandleErrorFn | HandleEr
             return;
         }
 
+        registerSvelteKitSdkIdentity();
         const error = convertToError(input.error);
 
         options?.beforeEvaluate?.({ error, status: input.status, message: input.message });
