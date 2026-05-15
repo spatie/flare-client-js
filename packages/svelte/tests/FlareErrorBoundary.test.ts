@@ -15,6 +15,7 @@ vi.mock('@flareapp/js', async (importOriginal) => {
         ...actual,
         flare: {
             report: (...args: unknown[]) => mockReport(...args),
+            reportSilently: (...args: unknown[]) => mockReport(...args),
             setSdkInfo: vi.fn(),
             setFramework: vi.fn(),
             addContext: vi.fn(),

@@ -3,7 +3,7 @@
 // is not present (e.g. flare not initialised yet), events are silently dropped rather than queued.
 
 type WindowFlare = {
-    report: (e: Error) => unknown;
+    reportSilently: (e: Error) => void;
     reportUnhandledRejection: (message: string) => unknown;
 };
 
@@ -17,7 +17,7 @@ export function catchWindowErrors() {
         if (!flare) return;
         // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
         if (event.error instanceof Error) {
-            Promise.resolve(flare.report(event.error)).catch(() => {});
+            flare.reportSilently(event.error);
         }
     });
 
@@ -27,14 +27,14 @@ export function catchWindowErrors() {
 
         const reason = event.reason;
         if (reason instanceof Error) {
-            Promise.resolve(flare.report(reason)).catch(() => {});
+            flare.reportSilently(reason);
             return;
         }
 
         if (hasStack(reason)) {
             const error = new Error(describeRejectionReason(reason));
             error.stack = (reason as { stack: string }).stack;
-            Promise.resolve(flare.report(error)).catch(() => {});
+            flare.reportSilently(error);
             return;
         }
 

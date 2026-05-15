@@ -98,9 +98,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
-        // Swallow rejection: a transport failure must not interfere with the user's errorHandler
-        // chain or Vue's render pipeline.
-        Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
+        flare.reportSilently(errorToReport, vueContextToAttributes(finalContext));
 
         options?.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 

@@ -55,7 +55,7 @@ export function handleErrorWithFlare(handlerOrOptions?: HandleErrorFn | HandleEr
             context = options.beforeSubmit({ error, status: input.status, message: input.message, context });
         }
 
-        Promise.resolve(flare.report(error, contextToAttributes(context))).catch(() => {});
+        flare.reportSilently(error, contextToAttributes(context));
 
         options?.afterSubmit?.({ error, status: input.status, message: input.message, context });
 

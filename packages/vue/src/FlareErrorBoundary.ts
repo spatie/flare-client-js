@@ -134,7 +134,7 @@ export const FlareErrorBoundary = defineComponent({
             componentHierarchy.value = finalContext.vue.componentHierarchy;
             componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
-            Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
+            flare.reportSilently(errorToReport, vueContextToAttributes(finalContext));
 
             props.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 

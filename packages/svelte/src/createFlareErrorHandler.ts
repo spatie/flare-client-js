@@ -48,7 +48,7 @@ export function createFlareErrorHandler(options?: FlareErrorHandlerOptions) {
             context = options.beforeSubmit({ error, context });
         }
 
-        Promise.resolve(flare.report(error, contextToAttributes(context))).catch(() => {});
+        flare.reportSilently(error, contextToAttributes(context));
 
         options?.afterSubmit?.({ error, context });
     };

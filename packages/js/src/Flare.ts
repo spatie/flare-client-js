@@ -162,6 +162,10 @@ export class Flare {
         return this.sendReport(report);
     }
 
+    reportSilently(error: Error, attributes: Attributes = {}): void {
+        Promise.resolve(this.report(error, attributes)).catch(() => {});
+    }
+
     async reportUnhandledRejection(message: string, attributes: Attributes = {}): Promise<void> {
         if (Math.random() >= this._config.sampleRate) return;
 

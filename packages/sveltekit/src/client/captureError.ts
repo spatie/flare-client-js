@@ -29,5 +29,5 @@ export function captureError(rawError: unknown, options?: CaptureErrorOptions): 
         },
     };
 
-    Promise.resolve(flare.report(error, contextToAttributes(context))).catch(() => {});
+    flare.reportSilently(error, contextToAttributes(context));
 }

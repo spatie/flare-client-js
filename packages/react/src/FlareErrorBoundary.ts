@@ -59,7 +59,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         // Swallow rejection from the report call. A network/transport failure in the error reporter
         // must not bubble up and cause a second render error inside the boundary itself.
-        Promise.resolve(flare.report(error, contextToAttributes(finalContext))).catch(() => {});
+        flare.reportSilently(error, contextToAttributes(finalContext));
 
         this.props.afterSubmit?.({
             error,

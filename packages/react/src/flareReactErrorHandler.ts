@@ -46,7 +46,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
             }) ?? context;
 
         // See FlareErrorBoundary: rejection is swallowed so the reporter can't crash the host.
-        Promise.resolve(flare.report(errorObject, contextToAttributes(finalContext))).catch(() => {});
+        flare.reportSilently(errorObject, contextToAttributes(finalContext));
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });
     };

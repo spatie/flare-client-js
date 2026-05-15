@@ -10,6 +10,7 @@ const mockReport = vi.fn();
 vi.mock('@flareapp/js', () => ({
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
+        reportSilently: (...args: unknown[]) => mockReport(...args),
     },
 }));
 

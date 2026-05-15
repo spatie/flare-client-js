@@ -34,5 +34,5 @@ export async function captureError(rawError: unknown, options?: CaptureErrorOpti
         },
     };
 
-    Promise.resolve(flare.report(error, contextToAttributes(context))).catch(() => {});
+    flare.reportSilently(error, contextToAttributes(context));
 }

@@ -8,6 +8,7 @@ vi.mock('@flareapp/js', () => ({
     convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
+        reportSilently: (...args: unknown[]) => mockReport(...args),
         setSdkInfo: vi.fn(),
         setFramework: vi.fn(),
         addContext: vi.fn(),
