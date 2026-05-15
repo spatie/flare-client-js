@@ -27,7 +27,7 @@ export function vueContextToAttributes(context: FlareVueContext): Attributes {
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { framework: 'vue', vue } };
+    return { 'context.custom': { vue } };
 }
 
 export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
@@ -42,7 +42,7 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { framework: 'vue', vue } };
+    return { 'context.custom': { vue } };
 }
 
 // Tracks installed apps so calling app.use(flareVue) twice on the same app is a no-op. WeakSet so

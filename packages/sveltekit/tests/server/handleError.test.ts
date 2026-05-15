@@ -49,7 +49,7 @@ describe('handleErrorWithFlare (server)', () => {
         await handler({ error: new Error('test'), status: 500, message: 'Internal Error' });
 
         const attributes = mockReport.mock.calls[0][1];
-        expect(attributes['context.custom'].framework).toBe('svelte');
+        expect(attributes['context.custom'].svelte).toBeDefined();
         expect(attributes['context.custom'].svelte.svelteKit.status).toBe(500);
         expect(attributes['context.custom'].svelte.svelteKit.message).toBe('Internal Error');
     });

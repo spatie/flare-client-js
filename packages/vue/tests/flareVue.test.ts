@@ -781,7 +781,6 @@ describe('flareVue captureWarnings', () => {
             'warning',
             expect.objectContaining({
                 'context.custom': {
-                    framework: 'vue',
                     vue: {
                         type: 'warning',
                         info: 'Invalid prop type',

@@ -55,7 +55,7 @@ describe('createFlareErrorHandler', () => {
         expect(svelte.componentName).toBeDefined();
         expect(svelte.componentHierarchy).toBeInstanceOf(Array);
         expect(svelte.errorOrigin).toBeDefined();
-        expect(attributes['context.custom'].framework).toBe('svelte');
+        expect(attributes['context.custom'].svelte).toBeDefined();
     });
 
     test('calls beforeEvaluate with converted error', async () => {
@@ -90,7 +90,6 @@ describe('createFlareErrorHandler', () => {
 
         const attributes = mockReport.mock.calls[0][1];
         expect(attributes['context.custom']).toEqual({
-            framework: 'svelte',
             svelte: customContext.svelte,
         });
     });

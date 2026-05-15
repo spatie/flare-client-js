@@ -53,7 +53,7 @@ describe('FlareErrorBoundary', () => {
         render(BoundaryWithBuggyChild);
         await new Promise((r) => setTimeout(r, 0));
         const attributes = mockReport.mock.calls[0][1];
-        expect(attributes['context.custom'].framework).toBe('svelte');
+        expect(attributes['context.custom'].svelte).toBeDefined();
         expect(attributes['context.custom'].svelte.componentName).toBeDefined();
         expect(attributes['context.custom'].svelte.componentHierarchy).toBeInstanceOf(Array);
         expect(attributes['context.custom'].svelte.errorOrigin).toBeDefined();
@@ -84,7 +84,6 @@ describe('FlareErrorBoundary', () => {
         expect(params.context.svelte.errorOrigin).toBeDefined();
         const attributes = mockReport.mock.calls[0][1];
         expect(attributes['context.custom']).toEqual({
-            framework: 'svelte',
             svelte: customContext.svelte,
         });
     });
