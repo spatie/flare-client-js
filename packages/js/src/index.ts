@@ -10,7 +10,7 @@ if (typeof window !== 'undefined' && window) {
 }
 
 export { Flare } from './Flare';
-export { DEFAULT_URL_DENYLIST, redactFullPath, resolveDenylist } from './util';
+export { convertToError, DEFAULT_URL_DENYLIST, redactFullPath, resolveDenylist } from './util';
 export type {
     AttributeValue,
     Attributes,

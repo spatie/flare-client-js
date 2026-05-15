@@ -1,7 +1,7 @@
 import { flare } from '@flareapp/js';
+import { convertToError } from '@flareapp/js';
 
 import { contextToAttributes } from '../contextToAttributes';
-import { convertToError } from '../convertToError';
 import { registerSvelteKitSdkIdentity } from '../identify';
 import type { FlareSvelteKitContext, HandleErrorWithFlareOptions } from '../types';
 import { getRouteContext } from './getRouteContext';

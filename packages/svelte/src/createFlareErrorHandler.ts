@@ -1,8 +1,7 @@
-import { flare } from '@flareapp/js';
+import { convertToError, flare } from '@flareapp/js';
 import ErrorStackParser from 'error-stack-parser';
 
 import { contextToAttributes } from './contextToAttributes';
-import { convertToError } from './convertToError';
 import { extractComponentInfo } from './extractComponentInfo';
 import { getErrorOrigin } from './getErrorOrigin';
 import { registerSvelteSdkIdentity } from './identify';

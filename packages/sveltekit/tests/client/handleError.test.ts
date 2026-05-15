@@ -5,6 +5,7 @@ import { handleErrorWithFlare } from '../../src/client/handleError';
 const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
+    convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         setSdkInfo: vi.fn(),

@@ -1,10 +1,9 @@
-import { type AttributeValue, type Attributes, flare } from '@flareapp/js';
+import { type AttributeValue, type Attributes, convertToError, flare } from '@flareapp/js';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { PACKAGE_VERSION, resolveDenylist } from './constants';
-import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';

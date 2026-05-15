@@ -1,11 +1,10 @@
-import { flare } from '@flareapp/js';
+import { convertToError, flare } from '@flareapp/js';
 import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { resolveDenylist } from './constants';
-import { convertToError } from './convertToError';
 import { vueContextToAttributes } from './flareVue';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';

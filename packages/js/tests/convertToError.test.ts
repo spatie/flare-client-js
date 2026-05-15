@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { convertToError } from '../src/convertToError';
+import { convertToError } from '../src';
 
 describe('convertToError', () => {
     test('returns the same Error instance if given an Error', () => {
