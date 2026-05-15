@@ -5,6 +5,7 @@ playground/.env
 playground-sveltekit/.env
 .DS_Store
 .svelte-kit
+docs/superpowers/plans/
 
 # Playwright
 test-results/
