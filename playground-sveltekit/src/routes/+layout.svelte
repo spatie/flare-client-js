@@ -1,6 +1,5 @@
 <script lang="ts">
     import { flare } from '@flareapp/js';
-    import { trackRouteContext } from '@flareapp/sveltekit/client';
     import { browser } from '$app/environment';
     import { page } from '$app/state';
 
@@ -10,7 +9,6 @@
 
     if (browser) {
         flare.light(import.meta.env.VITE_FLARE_SVELTEKIT_KEY ?? 'test-key-sveltekit', true);
-        trackRouteContext();
     }
 </script>
 
