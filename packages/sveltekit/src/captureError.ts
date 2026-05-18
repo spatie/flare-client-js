@@ -1,8 +1,8 @@
 import { convertToError, flare } from '@flareapp/js';
 
-import { contextToAttributes } from './contextToAttributes';
-import { registerSvelteKitSdkIdentity } from './identify';
-import type { FlareSvelteKitContext, SvelteKitRouteContext } from './types';
+import { contextToAttributes } from './contextToAttributes.js';
+import { registerSvelteKitSdkIdentity } from './identify.js';
+import type { FlareSvelteKitContext, SvelteKitRouteContext } from './types.js';
 
 export interface CaptureErrorOptions {
     event?: unknown;

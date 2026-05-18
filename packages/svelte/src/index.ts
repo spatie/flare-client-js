@@ -1,13 +1,9 @@
-import { registerSvelteSdkIdentity } from './identify';
+import { registerSvelteSdkIdentity } from './identify.js';
 
 registerSvelteSdkIdentity();
 
 export { default as FlareErrorBoundary } from './FlareErrorBoundary.svelte';
 
-export { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler';
+export { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler.js';
 
-export { serializeProps } from './serializeProps';
-
-export { DEFAULT_PROPS_DENYLIST, resolveDenylist } from './constants';
-
-export type { FlareSvelteContext, SvelteErrorOrigin } from './types';
+export type { FlareSvelteContext, SvelteErrorOrigin } from './types.js';

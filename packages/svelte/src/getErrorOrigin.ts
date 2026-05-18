@@ -1,6 +1,6 @@
 import type ErrorStackParser from 'error-stack-parser';
 
-import type { SvelteErrorOrigin } from './types';
+import type { SvelteErrorOrigin } from './types.js';
 
 // Heuristic classification of where a Svelte error originated, based on stack frame inspection.
 //

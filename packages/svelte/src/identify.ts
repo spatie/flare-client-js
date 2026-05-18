@@ -1,7 +1,7 @@
 import { flare } from '@flareapp/js';
 import { version as svelteVersion } from 'svelte/package.json';
 
-import { PACKAGE_VERSION } from './constants';
+import { PACKAGE_VERSION } from './constants.js';
 
 let registered = false;
 

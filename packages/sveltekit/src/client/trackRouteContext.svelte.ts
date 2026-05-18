@@ -1,7 +1,7 @@
 import { page } from '$app/state';
 import { flare, type AttributeValue } from '@flareapp/js';
 
-import { redactQueryParams } from '../redactQueryParams';
+import { redactQueryParams } from '../redactQueryParams.js';
 
 let tracking = false;
 

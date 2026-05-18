@@ -1,6 +1,6 @@
 import type { AttributeValue, Attributes } from '@flareapp/js';
 
-import type { FlareSvelteContext } from './types';
+import type { FlareSvelteContext } from './types.js';
 
 export function contextToAttributes(context: FlareSvelteContext): Attributes {
     return {

@@ -1,7 +1,7 @@
 import { page } from '$app/state';
 
-import { redactQueryParams } from '../redactQueryParams';
-import type { SvelteKitRouteContext } from '../types';
+import { redactQueryParams } from '../redactQueryParams.js';
+import type { SvelteKitRouteContext } from '../types.js';
 
 export function getRouteContext(): SvelteKitRouteContext {
     return {

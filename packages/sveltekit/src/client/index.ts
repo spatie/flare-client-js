@@ -1,5 +1,5 @@
-export { handleErrorWithFlare } from './handleError';
-export { captureError } from './captureError';
-export { trackRouteContext } from './trackRouteContext.svelte';
-export type { CaptureErrorOptions } from '../captureError';
-export type { HandleErrorWithFlareOptions } from '../types';
+export { handleErrorWithFlare } from './handleError.js';
+export { captureError } from './captureError.js';
+export { trackRouteContext } from './trackRouteContext.svelte.js';
+export type { CaptureErrorOptions } from '../captureError.js';
+export type { HandleErrorWithFlareOptions } from '../types.js';

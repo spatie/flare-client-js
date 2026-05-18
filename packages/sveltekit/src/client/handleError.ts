@@ -1,6 +1,6 @@
-import { createHandleErrorWithFlare } from '../handleError';
-import { getRouteContext } from './getRouteContext';
-import { trackRouteContext } from './trackRouteContext.svelte';
+import { createHandleErrorWithFlare } from '../handleError.js';
+import { getRouteContext } from './getRouteContext.js';
+import { trackRouteContext } from './trackRouteContext.svelte.js';
 
 trackRouteContext();
 

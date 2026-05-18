@@ -1,9 +1,7 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
 
-    import { resolveDenylist } from './constants';
-    import { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler';
-    import { serializeProps } from './serializeProps';
+    import { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler.js';
 
     interface Props {
         children: Snippet;
@@ -13,10 +11,6 @@
         beforeSubmit?: FlareErrorHandlerOptions['beforeSubmit'];
         afterSubmit?: FlareErrorHandlerOptions['afterSubmit'];
         onReset?: (error: Error | null) => void;
-        attachProps?: boolean;
-        propsMaxDepth?: number;
-        propsDenylist?: RegExp;
-        replaceDefaultDenylist?: boolean;
     }
 
     let {
@@ -27,22 +21,26 @@
         beforeSubmit,
         afterSubmit,
         onReset,
-        attachProps = false,
-        propsMaxDepth = 2,
-        propsDenylist,
-        replaceDefaultDenylist = false,
     }: Props = $props();
 
     let currentError: Error | null = $state(null);
     let resetBoundary: (() => void) | null = $state(null);
 
-    let previousKeys: string | undefined;
+    let previousKeys: unknown[] | undefined;
     $effect(() => {
-        const serialized = JSON.stringify(resetKeys);
-        if (previousKeys !== undefined && serialized !== previousKeys && currentError) {
+        if (!resetKeys || !previousKeys || !currentError) {
+            previousKeys = resetKeys ? [...resetKeys] : undefined;
+            return;
+        }
+
+        const lengthChanged = previousKeys.length !== resetKeys.length;
+        const valuesChanged = resetKeys.some((key, i) => !Object.is(key, previousKeys![i]));
+
+        if (lengthChanged || valuesChanged) {
             handleReset();
         }
-        previousKeys = serialized;
+
+        previousKeys = [...resetKeys];
     });
 
     function handleReset() {
@@ -53,7 +51,6 @@
         resetBoundary = null;
     }
 
-    const resolvedDenylist = $derived(resolveDenylist(propsDenylist, replaceDefaultDenylist));
     const handler = $derived(createFlareErrorHandler({ beforeEvaluate, beforeSubmit, afterSubmit }));
 
     function onerror(rawError: unknown, reset: () => void) {
@@ -61,26 +58,7 @@
         const error = rawError instanceof Error ? rawError : new Error(String(rawError));
         currentError = error;
 
-        let capturedProps = undefined;
-        if (attachProps) {
-            capturedProps = serializeProps(
-                $state.snapshot({
-                    resetKeys,
-                    beforeEvaluate,
-                    beforeSubmit,
-                    afterSubmit,
-                    onReset,
-                    attachProps,
-                    propsMaxDepth,
-                    propsDenylist,
-                    replaceDefaultDenylist,
-                }) as Record<string, unknown>,
-                propsMaxDepth,
-                resolvedDenylist,
-            );
-        }
-
-        handler(rawError, reset, { componentProps: capturedProps });
+        handler(rawError, reset);
     }
 </script>
 

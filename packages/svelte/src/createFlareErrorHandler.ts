@@ -1,11 +1,11 @@
 import { convertToError, flare } from '@flareapp/js';
 import ErrorStackParser from 'error-stack-parser';
 
-import { contextToAttributes } from './contextToAttributes';
-import { extractComponentInfo } from './extractComponentInfo';
-import { getErrorOrigin } from './getErrorOrigin';
-import { registerSvelteSdkIdentity } from './identify';
-import type { FlareSvelteContext } from './types';
+import { contextToAttributes } from './contextToAttributes.js';
+import { extractComponentInfo } from './extractComponentInfo.js';
+import { getErrorOrigin } from './getErrorOrigin.js';
+import { registerSvelteSdkIdentity } from './identify.js';
+import type { FlareSvelteContext } from './types.js';
 
 registerSvelteSdkIdentity();
 
@@ -15,18 +15,8 @@ export interface FlareErrorHandlerOptions {
     afterSubmit?: (params: { error: Error; context: FlareSvelteContext }) => void;
 }
 
-export interface FlareErrorHandlerCallOptions {
-    componentProps?: Record<string, unknown>;
-}
-
-/**
- * Creates an error handler for use with `svelte:boundary`. Parses the error's stack trace to
- * extract component names and classify the error origin, then reports to Flare.
- *
- * Hook order: beforeEvaluate -> beforeSubmit -> report -> afterSubmit.
- */
 export function createFlareErrorHandler(options?: FlareErrorHandlerOptions) {
-    return async (rawError: unknown, _reset: () => void, callOptions?: FlareErrorHandlerCallOptions) => {
+    return async (rawError: unknown, _reset: () => void) => {
         const error = convertToError(rawError);
 
         options?.beforeEvaluate?.({ error });
@@ -46,7 +36,6 @@ export function createFlareErrorHandler(options?: FlareErrorHandlerOptions) {
                 componentName,
                 componentHierarchy,
                 errorOrigin,
-                ...(callOptions?.componentProps ? { componentProps: callOptions.componentProps } : {}),
             },
         };
 

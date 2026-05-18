@@ -1,5 +1,5 @@
-import { redactQueryParams } from '../redactQueryParams';
-import type { SvelteKitRouteContext } from '../types';
+import { redactQueryParams } from '../redactQueryParams.js';
+import type { SvelteKitRouteContext } from '../types.js';
 
 interface RequestEvent {
     url: URL;

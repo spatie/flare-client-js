@@ -1,8 +1,8 @@
 import { convertToError, flare } from '@flareapp/js';
 
-import { contextToAttributes } from './contextToAttributes';
-import { registerSvelteKitSdkIdentity } from './identify';
-import type { FlareSvelteKitContext, HandleErrorWithFlareOptions, SvelteKitRouteContext } from './types';
+import { contextToAttributes } from './contextToAttributes.js';
+import { registerSvelteKitSdkIdentity } from './identify.js';
+import type { FlareSvelteKitContext, HandleErrorWithFlareOptions, SvelteKitRouteContext } from './types.js';
 
 export interface HandleErrorInput {
     error: unknown;
@@ -11,23 +11,27 @@ export interface HandleErrorInput {
     message: string;
 }
 
-export type HandleErrorFn = (input: HandleErrorInput) => void;
+export type HandleErrorFn = (input: HandleErrorInput) => MaybePromise<void | App.Error>;
+
+type MaybePromise<T> = T | Promise<T>;
+
+declare namespace App {
+    interface Error {
+        message: string;
+        [key: string]: unknown;
+    }
+}
 
 function shouldSkip(input: HandleErrorInput): boolean {
     if (input.status >= 400 && input.status < 500) {
         return true;
     }
-    // SvelteKit serializes expected errors (e.g. error(404)) across the network boundary,
-    // losing the HttpError class. The client handleError receives them as plain objects
-    // with a status property, while input.status is incorrectly set to 500.
     const err = input.error;
     if (typeof err === 'object' && err !== null) {
         const obj = err as Record<string, unknown>;
-        // Direct status on error object
         if (typeof obj.status === 'number' && obj.status >= 400 && obj.status < 500) {
             return true;
         }
-        // Nested SvelteKit wrapper: { type: "error", error: {...}, status: N }
         if (obj.type === 'error' && typeof obj.status === 'number' && obj.status >= 400 && obj.status < 500) {
             return true;
         }
@@ -35,11 +39,6 @@ function shouldSkip(input: HandleErrorInput): boolean {
     return false;
 }
 
-/**
- * SvelteKit serializes errors across the client-server boundary as
- * `{ type: "error", error: { message: "..." }, status: N }`.
- * Unwrap to get the actual error or its message before passing to convertToError.
- */
 function unwrapSvelteKitError(error: unknown): unknown {
     if (typeof error !== 'object' || error === null) return error;
     const obj = error as Record<string, unknown>;
@@ -49,13 +48,6 @@ function unwrapSvelteKitError(error: unknown): unknown {
     return error;
 }
 
-/**
- * Factory for SvelteKit's `handleError` hook wrapper. Route context extraction is injected
- * so the same logic works for both client ($app/state) and server (RequestEvent).
- *
- * 4xx errors are skipped (expected in SvelteKit). The returned function accepts either a
- * user handler function (called after reporting) or an options object with lifecycle hooks.
- */
 export function createHandleErrorWithFlare(
     getRouteContext: (input: HandleErrorInput) => SvelteKitRouteContext
 ): (handlerOrOptions?: HandleErrorFn | HandleErrorWithFlareOptions) => HandleErrorFn {
@@ -68,8 +60,7 @@ export function createHandleErrorWithFlare(
 
         return (input: HandleErrorInput) => {
             if (shouldSkip(input)) {
-                userHandler?.(input);
-                return;
+                return userHandler?.(input);
             }
 
             registerSvelteKitSdkIdentity();
@@ -100,7 +91,7 @@ export function createHandleErrorWithFlare(
 
             options?.afterSubmit?.({ error, status: input.status, message: input.message, context });
 
-            userHandler?.(input);
+            return userHandler?.(input);
         };
     };
 }
