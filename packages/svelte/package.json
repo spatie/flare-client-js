@@ -37,7 +37,8 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "svelte-package -i src -o dist",
+        "generate:version": "node ../../scripts/generate-version.mjs .",
+        "build": "npm run generate:version && svelte-package -i src -o dist",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
         "release": "release-it"

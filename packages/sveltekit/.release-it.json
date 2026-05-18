@@ -1,8 +1,8 @@
 {
     "git": {
-        "tagName": "@flareapp/svelte@${version}",
-        "tagAnnotation": "Release @flareapp/svelte@${version}",
-        "commitMessage": "chore: release @flareapp/svelte@${version}",
+        "tagName": "@flareapp/sveltekit@${version}",
+        "tagAnnotation": "Release @flareapp/sveltekit@${version}",
+        "commitMessage": "chore: release @flareapp/sveltekit@${version}",
         "requireBranch": "main",
         "requireCleanWorkingDir": true,
         "push": true

@@ -1,6 +1,6 @@
 import { flare } from '@flareapp/js';
 
-import { PACKAGE_VERSION } from './constants.js';
+import { PACKAGE_VERSION } from './version.js';
 
 /**
  * Called on every error report (not just once) to ensure the SDK identity is '@flareapp/sveltekit'.
