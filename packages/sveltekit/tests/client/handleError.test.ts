@@ -56,6 +56,14 @@ describe('handleErrorWithFlare (client)', () => {
         expect(mockReport).not.toHaveBeenCalled();
     });
 
+    test('skips serialized expected errors with 4xx status on error object', () => {
+        const handler = handleErrorWithFlare();
+
+        handler({ error: { status: 404, message: 'Not Found' }, status: 500, message: 'Internal Error' });
+
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
     test('passes svelteKit context in attributes', () => {
         const handler = handleErrorWithFlare();
 

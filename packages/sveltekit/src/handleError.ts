@@ -13,8 +13,21 @@ export interface HandleErrorInput {
 
 export type HandleErrorFn = (input: HandleErrorInput) => void;
 
-function is4xxError(input: HandleErrorInput): boolean {
-    return input.status >= 400 && input.status < 500;
+function shouldSkip(input: HandleErrorInput): boolean {
+    if (input.status >= 400 && input.status < 500) {
+        return true;
+    }
+    // SvelteKit serializes expected errors (e.g. error(404)) across the network boundary,
+    // losing the HttpError class. The client handleError receives them as plain objects
+    // with a status property, while input.status is incorrectly set to 500.
+    const err = input.error;
+    if (typeof err === 'object' && err !== null && 'status' in err) {
+        const status = (err as { status: unknown }).status;
+        if (typeof status === 'number' && status >= 400 && status < 500) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -35,12 +48,20 @@ export function createHandleErrorWithFlare(
         const options: HandleErrorWithFlareOptions | undefined = isOptions ? handlerOrOptions : undefined;
 
         return (input: HandleErrorInput) => {
-            if (is4xxError(input)) {
+            if (shouldSkip(input)) {
                 userHandler?.(input);
                 return;
             }
 
             registerSvelteKitSdkIdentity();
+            console.log(
+                '[DEBUG] input.error type:',
+                typeof input.error,
+                'instanceof Error:',
+                input.error instanceof Error,
+                'keys:',
+                input.error && typeof input.error === 'object' ? Object.keys(input.error) : 'n/a'
+            );
             const error = convertToError(input.error);
 
             options?.beforeEvaluate?.({ error, status: input.status, message: input.message });
