@@ -5,6 +5,5 @@ export interface FlareSvelteContext {
         componentName: string | null;
         componentHierarchy: string[];
         errorOrigin: SvelteErrorOrigin;
-        componentProps?: Record<string, unknown>;
     };
 }

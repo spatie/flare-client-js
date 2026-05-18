@@ -9,10 +9,6 @@
         afterSubmit?: (params: { error: Error; context: FlareSvelteContext }) => void;
         onReset?: (error: Error | null) => void;
         resetKeys?: unknown[];
-        attachProps?: boolean;
-        propsMaxDepth?: number;
-        propsDenylist?: RegExp;
-        replaceDefaultDenylist?: boolean;
     }
 
     let {
@@ -22,10 +18,6 @@
         afterSubmit,
         onReset,
         resetKeys,
-        attachProps,
-        propsMaxDepth,
-        propsDenylist,
-        replaceDefaultDenylist,
     }: Props = $props();
 </script>
 
@@ -35,10 +27,6 @@
     {afterSubmit}
     {onReset}
     {resetKeys}
-    {attachProps}
-    {propsMaxDepth}
-    {propsDenylist}
-    {replaceDefaultDenylist}
 >
     {#if shouldThrow}
         {(() => {

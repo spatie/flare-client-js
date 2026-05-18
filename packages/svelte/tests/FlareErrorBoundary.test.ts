@@ -177,21 +177,4 @@ describe('FlareErrorBoundary', () => {
         expect(onReset).not.toHaveBeenCalled();
         expect(getByText('Child rendered successfully')).toBeTruthy();
     });
-
-    test('does not capture props by default', async () => {
-        render(BoundaryWithBuggyChild);
-        await new Promise((r) => setTimeout(r, 0));
-        const attributes = mockReport.mock.calls[0][1];
-        expect(attributes['context.custom'].svelte.componentProps).toBeUndefined();
-    });
-
-    test('captures serialized props when attachProps is true', async () => {
-        render(BoundaryWithBuggyChild, {
-            props: { attachProps: true, shouldThrow: true },
-        });
-        await new Promise((r) => setTimeout(r, 0));
-        const attributes = mockReport.mock.calls[0][1];
-        expect(attributes['context.custom'].svelte.componentProps).toBeDefined();
-        expect(typeof attributes['context.custom'].svelte.componentProps).toBe('object');
-    });
 });
