@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import flareSourcemapUploader from '@flareapp/vite';
+import flareSourcemap from '@flareapp/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
         plugins: [
             tailwindcss(),
             sveltekit(),
-            flareSourcemapUploader({
+            flareSourcemap({
                 apiKey: env.VITE_FLARE_SVELTEKIT_KEY,
             }),
         ],

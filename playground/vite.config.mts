@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 
-import flareSourcemapUploader from '@flareapp/vite';
+import flareSourcemap from '@flareapp/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
@@ -24,17 +24,17 @@ export default defineConfig(({ mode }) => {
             react(),
             vue(),
             svelte(),
-            flareSourcemapUploader({
+            flareSourcemap({
                 apiKey: env.VITE_FLARE_JS_KEY,
             }),
-            flareSourcemapUploader({
+            flareSourcemap({
                 apiKey: env.VITE_FLARE_REACT_KEY,
             }),
-            flareSourcemapUploader({
+            flareSourcemap({
                 apiKey: env.VITE_FLARE_VUE_KEY,
             }),
-            flareSourcemapUploader({
-                key: env.VITE_FLARE_SVELTE_KEY,
+            flareSourcemap({
+                apiKey: env.VITE_FLARE_SVELTE_KEY,
             }),
         ],
         build: {
