@@ -28,13 +28,13 @@
 
     let previousKeys: unknown[] | undefined;
     $effect(() => {
-        if (!resetKeys || !previousKeys || !currentError) {
+        if (!currentError || !resetKeys) {
             previousKeys = resetKeys ? [...resetKeys] : undefined;
             return;
         }
 
-        const lengthChanged = previousKeys.length !== resetKeys.length;
-        const valuesChanged = resetKeys.some((key, i) => !Object.is(key, previousKeys![i]));
+        const lengthChanged = previousKeys?.length !== resetKeys.length;
+        const valuesChanged = resetKeys.some((key, i) => !Object.is(key, previousKeys?.[i]));
 
         if (lengthChanged || valuesChanged) {
             handleReset();
