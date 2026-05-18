@@ -1,7 +1,8 @@
+import { env } from '$env/dynamic/private';
 import { flare } from '@flareapp/js';
 import { handleErrorWithFlare } from '@flareapp/sveltekit/server';
 
-flare.light(process.env.VITE_FLARE_SVELTEKIT_KEY ?? 'test-key-sveltekit');
+flare.light(env.VITE_FLARE_SVELTEKIT_KEY ?? 'test-key-sveltekit');
 
 export const handleError = handleErrorWithFlare({
     beforeSubmit: ({ error, context }) => {

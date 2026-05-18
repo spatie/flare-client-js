@@ -56,7 +56,14 @@ describe('convertToError', () => {
         expect(result.message).toBe('undefined');
     });
 
-    test('wraps an object in an Error', () => {
+    test('extracts message from objects with a message property', () => {
+        const result = convertToError({ message: 'Internal Error', status: 500 });
+
+        expect(result).toBeInstanceOf(Error);
+        expect(result.message).toBe('Internal Error');
+    });
+
+    test('wraps an object without message in an Error', () => {
         const result = convertToError({ key: 'value' });
 
         expect(result).toBeInstanceOf(Error);
