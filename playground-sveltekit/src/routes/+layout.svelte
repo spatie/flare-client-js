@@ -27,6 +27,13 @@
             <a href="/users/77?token=secret123&session_id=abc&tab=public" class="text-sm hover:underline">
                 User 77 (denylisted query)
             </a>
+            <a
+                href="/server-errors"
+                class="text-sm hover:underline"
+                class:font-semibold={page.url.pathname.startsWith('/server-errors')}
+            >
+                Server Errors
+            </a>
         </div>
     </nav>
     <main class="p-10 space-y-4">
