@@ -5,6 +5,12 @@ interface ComponentInfo {
     componentHierarchy: string[];
 }
 
+/**
+ * Extracts Svelte component names from an error's stack frames by filtering for `.svelte`
+ * filenames. The first match is `componentName`, the full deduplicated list is the hierarchy.
+ * Only captures components present in the call stack at throw time, so parent components
+ * may be missing for synchronous init errors.
+ */
 export function extractComponentInfo(frames: ErrorStackParser.StackFrame[]): ComponentInfo {
     const svelteFrames = frames.filter((frame) => frame.fileName && frame.fileName.includes('.svelte'));
 
@@ -28,6 +34,7 @@ export function extractComponentInfo(frames: ErrorStackParser.StackFrame[]): Com
     };
 }
 
+/** Prefers functionName (dev builds) over fileName (prod builds where names are mangled). */
 function extractName(frame: ErrorStackParser.StackFrame): string | null {
     if (frame.functionName && frame.functionName !== '<anonymous>' && !frame.functionName.includes('.')) {
         return frame.functionName;

@@ -17,6 +17,13 @@ function is4xxError(input: HandleErrorInput): boolean {
     return input.status >= 400 && input.status < 500;
 }
 
+/**
+ * Factory for SvelteKit's `handleError` hook wrapper. Route context extraction is injected
+ * so the same logic works for both client ($app/state) and server (RequestEvent).
+ *
+ * 4xx errors are skipped (expected in SvelteKit). The returned function accepts either a
+ * user handler function (called after reporting) or an options object with lifecycle hooks.
+ */
 export function createHandleErrorWithFlare(
     getRouteContext: (input: HandleErrorInput) => SvelteKitRouteContext
 ): (handlerOrOptions?: HandleErrorFn | HandleErrorWithFlareOptions) => HandleErrorFn {

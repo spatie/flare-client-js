@@ -61,23 +61,24 @@
         const error = rawError instanceof Error ? rawError : new Error(String(rawError));
         currentError = error;
 
-        const capturedProps = attachProps
-            ? serializeProps(
-                  $state.snapshot({
-                      resetKeys,
-                      beforeEvaluate,
-                      beforeSubmit,
-                      afterSubmit,
-                      onReset,
-                      attachProps,
-                      propsMaxDepth,
-                      propsDenylist,
-                      replaceDefaultDenylist,
-                  }) as Record<string, unknown>,
-                  propsMaxDepth,
-                  resolvedDenylist,
-              )
-            : undefined;
+        let capturedProps = undefined;
+        if (attachProps) {
+            capturedProps = serializeProps(
+                $state.snapshot({
+                    resetKeys,
+                    beforeEvaluate,
+                    beforeSubmit,
+                    afterSubmit,
+                    onReset,
+                    attachProps,
+                    propsMaxDepth,
+                    propsDenylist,
+                    replaceDefaultDenylist,
+                }) as Record<string, unknown>,
+                propsMaxDepth,
+                resolvedDenylist,
+            );
+        }
 
         handler(rawError, reset, { componentProps: capturedProps });
     }

@@ -10,6 +10,10 @@ export interface CaptureErrorOptions {
     message?: string;
 }
 
+/**
+ * Factory for the direct-call error capture API. Unlike handleErrorWithFlare (which wraps
+ * SvelteKit's handleError hook), this is called manually by the user in their own hook logic.
+ */
 export function createCaptureError(
     getRouteContext: (options?: CaptureErrorOptions) => SvelteKitRouteContext
 ): (rawError: unknown, options?: CaptureErrorOptions) => void {

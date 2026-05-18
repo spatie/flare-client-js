@@ -5,6 +5,12 @@ import {
     MAX_PROP_STRING_LENGTH,
 } from './constants';
 
+/**
+ * Produces a JSON-safe, size-bounded, redacted snapshot of component props for error reports.
+ * Class instances (Date, Map, Svelte proxies) are returned as '[Object]' to avoid walking
+ * internals that may have getters with side effects. Callers should use `$state.snapshot()`
+ * to unwrap Svelte 5 reactive proxies before passing them here.
+ */
 export function serializeProps(
     value: Record<string, unknown>,
     maxDepth: number,

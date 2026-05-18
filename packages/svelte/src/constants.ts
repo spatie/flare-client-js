@@ -7,6 +7,7 @@ export const PACKAGE_VERSION = version;
 export const DEFAULT_PROPS_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
+/** Merges a custom denylist with DEFAULT_PROPS_DENYLIST, or replaces it when `replaceDefault` is true. */
 export function resolveDenylist(custom?: RegExp, replaceDefault: boolean = false): RegExp {
     return baseResolveDenylist(custom, replaceDefault, DEFAULT_PROPS_DENYLIST);
 }

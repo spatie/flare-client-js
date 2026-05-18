@@ -19,6 +19,12 @@ export interface FlareErrorHandlerCallOptions {
     componentProps?: Record<string, unknown>;
 }
 
+/**
+ * Creates an error handler for use with `svelte:boundary`. Parses the error's stack trace to
+ * extract component names and classify the error origin, then reports to Flare.
+ *
+ * Hook order: beforeEvaluate -> beforeSubmit -> report -> afterSubmit.
+ */
 export function createFlareErrorHandler(options?: FlareErrorHandlerOptions) {
     return async (rawError: unknown, _reset: () => void, callOptions?: FlareErrorHandlerCallOptions) => {
         const error = convertToError(rawError);
