@@ -11,7 +11,7 @@
 - For more information regarding:
     - The research: take a look at .claude/docs/research
     - Repo cleanup: take a look at .claude/docs/repo-cleanup
-    - Svelte packaging (ESM import extensions): take a look at .claude/docs/svelte-packaging
+    - Svelte packaging quirks (ESM extensions, version generation): take a look at .claude/docs/svelte-packaging
 
 ## What is this?
 
