@@ -63,6 +63,22 @@ describe('convertToError', () => {
         expect(result.message).toBe('Internal Error');
     });
 
+    test('preserves stack from objects with a stack property', () => {
+        const stack = 'Error: test\n    at load (+page.server.ts:10:15)';
+        const result = convertToError({ message: 'test', stack });
+
+        expect(result).toBeInstanceOf(Error);
+        expect(result.message).toBe('test');
+        expect(result.stack).toBe(stack);
+    });
+
+    test('preserves name from objects with a name property', () => {
+        const result = convertToError({ message: 'test', name: 'TypeError' });
+
+        expect(result).toBeInstanceOf(Error);
+        expect(result.name).toBe('TypeError');
+    });
+
     test('wraps an object without message in an Error', () => {
         const result = convertToError({ key: 'value' });
 
