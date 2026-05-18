@@ -4,14 +4,14 @@ import { contextToAttributes } from './contextToAttributes';
 import { registerSvelteKitSdkIdentity } from './identify';
 import type { FlareSvelteKitContext, HandleErrorWithFlareOptions, SvelteKitRouteContext } from './types';
 
-interface HandleErrorInput {
+export interface HandleErrorInput {
     error: unknown;
     event?: unknown;
     status: number;
     message: string;
 }
 
-type HandleErrorFn = (input: HandleErrorInput) => void;
+export type HandleErrorFn = (input: HandleErrorInput) => void;
 
 function is4xxError(input: HandleErrorInput): boolean {
     return input.status >= 400 && input.status < 500;
