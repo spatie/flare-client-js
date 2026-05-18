@@ -54,14 +54,6 @@ export function createHandleErrorWithFlare(
             }
 
             registerSvelteKitSdkIdentity();
-            console.log(
-                '[DEBUG] input.error type:',
-                typeof input.error,
-                'instanceof Error:',
-                input.error instanceof Error,
-                'keys:',
-                input.error && typeof input.error === 'object' ? Object.keys(input.error) : 'n/a'
-            );
             const error = convertToError(input.error);
 
             options?.beforeEvaluate?.({ error, status: input.status, message: input.message });
