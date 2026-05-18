@@ -5,7 +5,18 @@ import { handleErrorWithFlare } from '../../src/client/handleError';
 const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
-    convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
+    convertToError: (e: unknown) => {
+        if (e instanceof Error) return e;
+        if (typeof e === 'string') return new Error(e);
+        if (
+            typeof e === 'object' &&
+            e !== null &&
+            'message' in e &&
+            typeof (e as Record<string, unknown>).message === 'string'
+        )
+            return new Error((e as Record<string, string>).message);
+        return new Error(String(e));
+    },
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         reportSilently: (...args: unknown[]) => mockReport(...args),
@@ -62,6 +73,31 @@ describe('handleErrorWithFlare (client)', () => {
         handler({ error: { status: 404, message: 'Not Found' }, status: 500, message: 'Internal Error' });
 
         expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('skips SvelteKit wrapped expected errors', () => {
+        const handler = handleErrorWithFlare();
+
+        handler({
+            error: { type: 'error', error: { message: 'This page does not exist' }, status: 404 },
+            status: 500,
+            message: 'Internal Error',
+        });
+
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('unwraps SvelteKit error wrapper for message extraction', () => {
+        const handler = handleErrorWithFlare();
+
+        handler({
+            error: { type: 'error', error: { message: 'Server load function error' }, status: 500 },
+            status: 500,
+            message: 'Internal Error',
+        });
+
+        expect(mockReport).toHaveBeenCalledOnce();
+        expect(mockReport.mock.calls[0][0].message).toBe('Server load function error');
     });
 
     test('passes svelteKit context in attributes', () => {

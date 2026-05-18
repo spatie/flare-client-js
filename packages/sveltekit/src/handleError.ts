@@ -21,13 +21,32 @@ function shouldSkip(input: HandleErrorInput): boolean {
     // losing the HttpError class. The client handleError receives them as plain objects
     // with a status property, while input.status is incorrectly set to 500.
     const err = input.error;
-    if (typeof err === 'object' && err !== null && 'status' in err) {
-        const status = (err as { status: unknown }).status;
-        if (typeof status === 'number' && status >= 400 && status < 500) {
+    if (typeof err === 'object' && err !== null) {
+        const obj = err as Record<string, unknown>;
+        // Direct status on error object
+        if (typeof obj.status === 'number' && obj.status >= 400 && obj.status < 500) {
+            return true;
+        }
+        // Nested SvelteKit wrapper: { type: "error", error: {...}, status: N }
+        if (obj.type === 'error' && typeof obj.status === 'number' && obj.status >= 400 && obj.status < 500) {
             return true;
         }
     }
     return false;
+}
+
+/**
+ * SvelteKit serializes errors across the client-server boundary as
+ * `{ type: "error", error: { message: "..." }, status: N }`.
+ * Unwrap to get the actual error or its message before passing to convertToError.
+ */
+function unwrapSvelteKitError(error: unknown): unknown {
+    if (typeof error !== 'object' || error === null) return error;
+    const obj = error as Record<string, unknown>;
+    if (obj.type === 'error' && typeof obj.error === 'object' && obj.error !== null) {
+        return obj.error;
+    }
+    return error;
 }
 
 /**
@@ -54,7 +73,7 @@ export function createHandleErrorWithFlare(
             }
 
             registerSvelteKitSdkIdentity();
-            const error = convertToError(input.error);
+            const error = convertToError(unwrapSvelteKitError(input.error));
 
             options?.beforeEvaluate?.({ error, status: input.status, message: input.message });
 
