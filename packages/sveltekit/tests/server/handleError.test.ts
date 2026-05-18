@@ -6,6 +6,8 @@ const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
     convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
+    DEFAULT_URL_DENYLIST:
+        /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i,
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         reportSilently: (...args: unknown[]) => mockReport(...args),
@@ -54,6 +56,24 @@ describe('handleErrorWithFlare (server)', () => {
         expect(attributes['context.custom'].svelte).toBeDefined();
         expect(attributes['context.custom'].svelte.svelteKit.status).toBe(500);
         expect(attributes['context.custom'].svelte.svelteKit.message).toBe('Internal Error');
+    });
+
+    test('extracts route context from event object', async () => {
+        const handler = handleErrorWithFlare();
+        const event = {
+            url: new URL('http://localhost/users/42?tab=settings&token=secret'),
+            params: { id: '42' },
+            route: { id: '/users/[id]' },
+        };
+
+        await handler({ error: new Error('test'), event, status: 500, message: 'Internal Error' });
+
+        const svelteKit = mockReport.mock.calls[0][1]['context.custom'].svelte.svelteKit;
+        expect(svelteKit.routeId).toBe('/users/[id]');
+        expect(svelteKit.url).toBe('/users/42');
+        expect(svelteKit.params.id).toBe('42');
+        expect(svelteKit.query.tab).toBe('settings');
+        expect(svelteKit.query.token).toBe('[redacted]');
     });
 
     test('passes through to user handler', async () => {

@@ -1,3 +1,4 @@
 export { handleErrorWithFlare } from './handleError';
-export { captureError, type CaptureErrorOptions } from './captureError';
+export { captureError } from './captureError';
+export type { CaptureErrorOptions } from '../captureError';
 export type { HandleErrorWithFlareOptions } from '../types';

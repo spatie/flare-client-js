@@ -6,6 +6,8 @@ const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
     convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
+    DEFAULT_URL_DENYLIST:
+        /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i,
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         reportSilently: (...args: unknown[]) => mockReport(...args),
@@ -50,6 +52,7 @@ describe('captureError (server)', () => {
 
         expect(mockReport).toHaveBeenCalledOnce();
         const attributes = mockReport.mock.calls[0][1];
-        expect(attributes['context.custom'].svelte.svelteKit).toBeUndefined();
+        expect(attributes['context.custom'].svelte.svelteKit).toBeDefined();
+        expect(attributes['context.custom'].svelte.svelteKit.routeId).toBeNull();
     });
 });
