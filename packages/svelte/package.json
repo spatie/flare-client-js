@@ -33,6 +33,12 @@
                 "types": "./dist/index.d.ts",
                 "default": "./dist/index.js"
             }
+        },
+        "./preprocessor": {
+            "import": {
+                "types": "./dist/preprocessor.d.ts",
+                "default": "./dist/preprocessor.js"
+            }
         }
     },
     "scripts": {
