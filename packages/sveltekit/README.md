@@ -4,6 +4,14 @@ SvelteKit integration for [Flare](https://flareapp.io) error tracking. It adds c
 manual SvelteKit capture helpers, route context, and the `trackRouteContext()` helper for attaching route information to
 browser reports. It also re-exports the `@flareapp/svelte` error boundary from the package root.
 
+## Experimental SvelteKit support
+
+The SvelteKit integration is experimental. Client-side SvelteKit errors use the normal browser stack trace and sourcemap
+flow, and can be resolved with `@flareapp/vite`.
+
+Server-side SvelteKit errors are reported with status, message, and route context, but Flare can not yet resolve
+SvelteKit server stack traces or server sourcemaps.
+
 ## Installation
 
 Install the core Flare client, the Svelte client, and the SvelteKit integration:
@@ -19,7 +27,7 @@ pnpm add @flareapp/js @flareapp/svelte @flareapp/sveltekit
 `@flareapp/sveltekit` supports Svelte 5.3 and higher and SvelteKit 2.12 and higher.
 
 If your app is bundled for production, also configure sourcemap uploads with `@flareapp/vite` so Flare can show readable
-stack traces and code snippets.
+client-side stack traces and code snippets.
 
 ## Package entry points
 
@@ -320,10 +328,13 @@ Useful shared documentation:
 
 ## Resolving bundled code
 
-Production SvelteKit apps are usually minified and bundled, which makes raw stack traces hard to read. Configure
-sourcemap uploads with `@flareapp/vite` so Flare can map stack frames back to your original `.svelte` and `.ts` files.
+Production SvelteKit apps are usually minified and bundled, which makes raw browser stack traces hard to read. Configure
+sourcemap uploads with `@flareapp/vite` so Flare can map client-side stack frames back to your original `.svelte` and
+`.ts` files.
 
-The SvelteKit integration uses the same sourcemap plugin as the JavaScript and React clients. See the
+SvelteKit server errors are reported, but Flare can not yet resolve their stack traces or sourcemaps.
+
+The client-side SvelteKit integration uses the same sourcemap plugin as the JavaScript and React clients. See the
 [JavaScript resolving bundled code documentation](https://flareapp.io/docs/javascript/general/resolving-bundled-code)
 for the Vite, Webpack, Laravel Mix, and manual upload setup.
 
