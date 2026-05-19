@@ -2,23 +2,26 @@
 
 The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking
 by [Spatie](https://spatie.be). Captures frontend errors, collects browser context (cookies, request data, query
-params), and reports them to the Flare backend. Includes framework integrations for React and Vue, and a Vite plugin for
-sourcemap uploads.
+params), and reports them to the Flare backend. Includes framework integrations for React, Vue, Svelte, SvelteKit, and a
+Vite plugin for sourcemap uploads.
 
 Read the JavaScript error tracking section
 in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/installation) for more information.
 
 ## Packages
 
-This is a npm workspaces monorepo containing the following packages:
+This is an npm workspaces monorepo containing the following packages:
 
-| Package                            | npm                                                                | Description                                                                        |
-| ---------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| [`packages/js`](packages/js)       | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)       | Core client for error capture, stack traces, context collection, and API reporting |
-| [`packages/react`](packages/react) | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react) | React error boundary component and React 19 error handler                          |
-| [`packages/vue`](packages/vue)     | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)     | Vue error handler plugin                                                           |
-| [`packages/vite`](packages/vite)   | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)   | Vite build plugin for sourcemap uploads                                            |
-| [`playground`](playground)         | (private)                                                          | Local dev/test app for all integrations                                            |
+| Package                                        | npm                                                                        | Description                                                                        |
+| ---------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [`packages/js`](packages/js)                   | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)               | Core client for error capture, stack traces, context collection, and API reporting |
+| [`packages/react`](packages/react)             | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)         | React error boundary component and React 19 error handler                          |
+| [`packages/vue`](packages/vue)                 | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)             | Vue error handler plugin                                                           |
+| [`packages/svelte`](packages/svelte)           | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)       | Svelte 5 error boundary component and boundary handler factory                     |
+| [`packages/sveltekit`](packages/sveltekit)     | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit) | SvelteKit client/server error hooks and route context                              |
+| [`packages/vite`](packages/vite)               | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)           | Vite build plugin for sourcemap uploads                                            |
+| [`playground`](playground)                     | (private)                                                                  | Local dev/test app for JavaScript, React, Vue, and Svelte                          |
+| [`playground-sveltekit`](playground-sveltekit) | (private)                                                                  | Local dev/test app for the SvelteKit integration                                   |
 
 ## Local development
 
@@ -56,8 +59,8 @@ All commands are run from the repository root:
 
 ### Playground
 
-The playground is a local Vite dev app for manually testing all integrations. Each page has
-buttons that trigger different error types.
+The playground is a local Vite dev app for manually testing the plain JavaScript, React, Vue, and Svelte integrations.
+Each page has buttons that trigger different error types.
 
 ```bash
 # Copy the env file and add your Flare API keys
@@ -139,6 +142,8 @@ When releasing changes that span multiple packages, publish them in dependency o
 2. `@flareapp/vite` (no internal dependencies)
 3. `@flareapp/react` (depends on `@flareapp/js`)
 4. `@flareapp/vue` (depends on `@flareapp/js`)
+5. `@flareapp/svelte` (depends on `@flareapp/js`)
+6. `@flareapp/sveltekit` (depends on `@flareapp/js` and `@flareapp/svelte`)
 
 ## Project structure
 
@@ -148,8 +153,11 @@ flare-client-js/
 │   ├── js/          # Core client
 │   ├── react/       # React integration
 │   ├── vue/         # Vue integration
+│   ├── svelte/      # Svelte integration
+│   ├── sveltekit/   # SvelteKit integration
 │   └── vite/        # Vite sourcemap plugin
-├── playground/      # Local dev/test app
+├── playground/      # Local dev/test app for JS, React, Vue, and Svelte
+├── playground-sveltekit/ # SvelteKit dev/test app
 ├── .github/         # GitHub Actions workflows
 ├── .husky/          # Git hooks (pre-commit formatting)
 └── package.json     # Root workspace config
