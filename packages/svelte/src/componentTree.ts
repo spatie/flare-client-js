@@ -1,4 +1,4 @@
-import { getContext, setContext } from 'svelte';
+import { getContext, onDestroy, setContext } from 'svelte';
 
 export interface ComponentTreeNode {
     name: string;
@@ -28,6 +28,16 @@ export function __flareRegisterComponent(name: string, file: string): void {
     }
 
     registry.set(file, node);
+
+    try {
+        onDestroy(() => {
+            if (registry.get(file) === node) {
+                registry.delete(file);
+            }
+        });
+    } catch {
+        // onDestroy throws outside component init
+    }
 }
 
 export function lookupComponentTree(fileName: string): string[] {
