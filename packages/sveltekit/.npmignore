@@ -1,0 +1,8 @@
+!dist
+node_modules
+package-lock.json
+tests
+src
+vitest.config.mts
+tsconfig.json
+.release-it.json
