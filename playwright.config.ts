@@ -31,6 +31,11 @@ export default defineConfig({
             testMatch: /react\.spec\.ts$/,
             use: { baseURL: 'http://localhost:5181', browserName: 'chromium' },
         },
+        {
+            name: 'vue',
+            testMatch: /vue\.spec\.ts$/,
+            use: { baseURL: 'http://localhost:5182', browserName: 'chromium' },
+        },
     ],
     webServer: [
         {
@@ -46,6 +51,13 @@ export default defineConfig({
             reuseExistingServer: !process.env.CI,
             timeout: 60_000,
             env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-react' },
+        },
+        {
+            command: 'npm run dev --workspace=@flareapp/playgrounds-vue',
+            url: 'http://localhost:5182',
+            reuseExistingServer: !process.env.CI,
+            timeout: 60_000,
+            env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-vue' },
         },
     ],
 });
