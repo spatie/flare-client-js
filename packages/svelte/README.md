@@ -40,11 +40,6 @@ Initialize the Flare client and wrap your component tree with the error boundary
 Full documentation on the error boundary, lifecycle callbacks, reset keys, custom boundary usage, and more is available
 at [flareapp.io/docs/svelte/general/installation](https://flareapp.io/docs/svelte/general/installation).
 
-## SvelteKit
-
-For SvelteKit apps, install `@flareapp/sveltekit` as well. It adds client and server `handleError` helpers, route
-context tracking, and re-exports the Svelte boundary component.
-
 ## Compatibility
 
 - Svelte 5.3+
