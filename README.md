@@ -12,16 +12,19 @@ in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/
 
 This is an npm workspaces monorepo containing the following packages:
 
-| Package                                        | npm                                                                        | Description                                                                        |
-| ---------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [`packages/js`](packages/js)                   | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)               | Core client for error capture, stack traces, context collection, and API reporting |
-| [`packages/react`](packages/react)             | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)         | React error boundary component and React 19 error handler                          |
-| [`packages/vue`](packages/vue)                 | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)             | Vue error handler plugin                                                           |
-| [`packages/svelte`](packages/svelte)           | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)       | Svelte 5 error boundary component and boundary handler factory                     |
-| [`packages/sveltekit`](packages/sveltekit)     | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit) | SvelteKit client/server error hooks and route context                              |
-| [`packages/vite`](packages/vite)               | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)           | Vite build plugin for sourcemap uploads                                            |
-| [`playground`](playground)                     | (private)                                                                  | Local dev/test app for JavaScript, React, Vue, and Svelte                          |
-| [`playground-sveltekit`](playground-sveltekit) | (private)                                                                  | Local dev/test app for the SvelteKit integration                                   |
+| Package                                    | npm                                                                        | Description                                                                        |
+| ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [`packages/js`](packages/js)               | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)               | Core client for error capture, stack traces, context collection, and API reporting |
+| [`packages/react`](packages/react)         | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)         | React error boundary component and React 19 error handler                          |
+| [`packages/vue`](packages/vue)             | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)             | Vue error handler plugin                                                           |
+| [`packages/svelte`](packages/svelte)       | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)       | Svelte 5 error boundary component and boundary handler factory                     |
+| [`packages/sveltekit`](packages/sveltekit) | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit) | SvelteKit client/server error hooks and route context                              |
+| [`packages/vite`](packages/vite)           | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)           | Vite build plugin for sourcemap uploads                                            |
+| [`playgrounds/shared`](playgrounds/shared) | (private)                                                                  | Shared fixtures: product data, error scenarios, test IDs, Tailwind tokens          |
+| [`playgrounds/js`](playgrounds/js)         | (private)                                                                  | Vanilla TS + Vite playground (port 5180)                                           |
+| [`playgrounds/react`](playgrounds/react)   | (private)                                                                  | React 19 + TanStack Router playground (port 5181)                                  |
+| [`playgrounds/vue`](playgrounds/vue)       | (private)                                                                  | Vue 3 + vue-router playground (port 5182)                                          |
+| [`playgrounds/svelte`](playgrounds/svelte) | (private)                                                                  | SvelteKit (adapter-node) playground (port 5183)                                    |
 
 ## Local development
 
@@ -48,29 +51,56 @@ npm run build
 
 All commands are run from the repository root:
 
-| Command              | Description                                           |
-| -------------------- | ----------------------------------------------------- |
-| `npm run build`      | Build all packages to their respective `dist` folders |
-| `npm run test`       | Run tests for all packages that have them             |
-| `npm run typescript` | Type-check all packages                               |
-| `npm run format`     | Run oxfmt across all files                            |
-| `npm run lint`       | Run oxlint across all packages                        |
-| `npm run playground` | Build packages, then start the playground dev server  |
+| Command                      | Description                                                      |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `npm run build`              | Build all packages to their respective `dist` folders            |
+| `npm run test`               | Run tests for all packages that have them                        |
+| `npm run typescript`         | Type-check all packages                                          |
+| `npm run format`             | Run oxfmt across all files                                       |
+| `npm run lint`               | Run oxlint across all packages                                   |
+| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds   |
+| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180) |
+| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)      |
+| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)        |
+| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)  |
 
-### Playground
+### Playgrounds
 
-The playground is a local Vite dev app for manually testing the plain JavaScript, React, Vue, and Svelte integrations.
-Each page has buttons that trigger different error types.
+There are four parallel playgrounds under `playgrounds/`, one per framework. Each implements the same webshop sample
+app (product grid, product detail, cart, checkout, confirmation) plus a `/broken` page that triggers a deterministic
+list of error scenarios. They share fixtures from `@flareapp/playgrounds-shared` so the surface stays identical across
+frameworks.
 
 ```bash
-# Copy the env file and add your Flare API keys
-cp playground/.env.example playground/.env.local
-
-# Start the playground
-npm run playground
+# Pick the framework you want to explore
+npm run playgrounds:js       # http://localhost:5180
+npm run playgrounds:react    # http://localhost:5181
+npm run playgrounds:vue      # http://localhost:5182
+npm run playgrounds:svelte   # http://localhost:5183
 ```
 
-See the [playground README](playground/README.md) for more details.
+To send reports to a real Flare project (instead of letting them fail), set `VITE_FLARE_URL` and `VITE_FLARE_KEY` for
+the relevant playground - e.g. `playgrounds/js/.env.local`. Without them the playground still boots; reports just have
+nowhere to land.
+
+### E2E suite
+
+End-to-end tests live in `e2e/` and run all four playgrounds against a local fake Flare server (`e2e/fake-flare-server/`)
+that records report POSTs and exposes inspection endpoints for the tests. Playwright spawns each playground's Vite dev
+server automatically.
+
+```bash
+# One-time browser install
+npx playwright install chromium --with-deps
+
+# Run the suite (~25s, 44 tests across js/react/vue/svelte)
+npm run test:e2e
+
+# One project, one scenario
+npx playwright test --project=svelte -g "render-error"
+```
+
+The fake server listens on `FAKE_FLARE_PORT` (default `7765`; avoid `4318`, OrbStack squats on the OTLP port).
 
 ### Code style
 
@@ -91,14 +121,7 @@ GitHub Actions runs on every push:
 
 - **Test**: installs dependencies, builds all packages, runs all tests (Vitest)
 - **TypeScript**: installs dependencies, builds all packages, type-checks all packages
-- **E2E**: installs dependencies, builds all packages, starts the playground dev server, and runs Playwright end-to-end tests against it (Chromium)
-
-Run the e2e tests locally with:
-
-```bash
-npx playwright install chromium --with-deps
-npm run test:e2e
-```
+- **E2E**: installs dependencies, caches Playwright browsers by `@playwright/test` version, builds all packages, and runs the Playwright suite across all four framework playgrounds (Chromium). HTML reports are uploaded as artifacts on every run; traces and screenshots are uploaded only on failure.
 
 ## Versioning and releasing
 
@@ -156,8 +179,13 @@ flare-client-js/
 │   ├── svelte/      # Svelte integration
 │   ├── sveltekit/   # SvelteKit integration
 │   └── vite/        # Vite sourcemap plugin
-├── playground/      # Local dev/test app for JS, React, Vue, and Svelte
-├── playground-sveltekit/ # SvelteKit dev/test app
+├── playgrounds/
+│   ├── shared/      # Shared fixtures (products, scenarios, test IDs, Tailwind tokens)
+│   ├── js/          # Vanilla TS + Vite playground
+│   ├── react/       # React + TanStack Router playground
+│   ├── vue/         # Vue + vue-router playground
+│   └── svelte/      # SvelteKit playground
+├── e2e/             # Playwright specs + fake-flare-server fixture
 ├── .github/         # GitHub Actions workflows
 ├── .husky/          # Git hooks (pre-commit formatting)
 └── package.json     # Root workspace config

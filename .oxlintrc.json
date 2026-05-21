@@ -27,5 +27,5 @@
             }
         }
     ],
-    "ignorePatterns": ["dist", "node_modules", "*.config.*", "playground"]
+    "ignorePatterns": ["dist", "node_modules", "*.config.*", "playgrounds", "test-results"]
 }

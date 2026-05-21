@@ -1,0 +1,21 @@
+{
+    "name": "@flareapp/playgrounds-js",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "typescript": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@flareapp/js": "*",
+        "@flareapp/playgrounds-shared": "*"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "^4.0.0",
+        "tailwindcss": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vite": "^6.0.0"
+    }
+}
