@@ -1,0 +1,16 @@
+{
+    "name": "@flareapp/playgrounds-shared",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts",
+        "./tailwind-preset": "./src/tailwind-preset.ts",
+        "./styles.css": "./src/styles.css"
+    },
+    "scripts": {
+        "typescript": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.0"
+    }
+}
