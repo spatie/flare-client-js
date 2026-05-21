@@ -7,7 +7,7 @@ browser-side reports.
 ## Installation
 
 ```bash
-npm install @flareapp/sveltekit @flareapp/svelte @flareapp/js
+npm install @flareapp/sveltekit @flareapp/js
 ```
 
 ## Quick start
