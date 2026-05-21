@@ -26,6 +26,11 @@ export default defineConfig({
             testMatch: /js\.spec\.ts$/,
             use: { baseURL: 'http://localhost:5180', browserName: 'chromium' },
         },
+        {
+            name: 'react',
+            testMatch: /react\.spec\.ts$/,
+            use: { baseURL: 'http://localhost:5181', browserName: 'chromium' },
+        },
     ],
     webServer: [
         {
@@ -34,6 +39,13 @@ export default defineConfig({
             reuseExistingServer: !process.env.CI,
             timeout: 60_000,
             env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-js' },
+        },
+        {
+            command: 'npm run dev --workspace=@flareapp/playgrounds-react',
+            url: 'http://localhost:5181',
+            reuseExistingServer: !process.env.CI,
+            timeout: 60_000,
+            env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-react' },
         },
     ],
 });
