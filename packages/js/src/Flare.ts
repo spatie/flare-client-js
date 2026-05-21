@@ -140,6 +140,7 @@ export class Flare {
 
     setFramework(framework: Framework): Flare {
         this.framework = framework;
+        this.addContext('framework', framework.name.toLowerCase());
         return this;
     }
 
@@ -159,6 +160,10 @@ export class Flare {
         if (!report) return;
 
         return this.sendReport(report);
+    }
+
+    reportSilently(error: Error, attributes: Attributes = {}): void {
+        Promise.resolve(this.report(error, attributes)).catch(() => {});
     }
 
     async reportUnhandledRejection(message: string, attributes: Attributes = {}): Promise<void> {

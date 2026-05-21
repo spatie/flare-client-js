@@ -1,10 +1,9 @@
-import { type AttributeValue, type Attributes, flare } from '@flareapp/js';
+import { type AttributeValue, type Attributes, convertToError, flare } from '@flareapp/js';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
 import { PACKAGE_VERSION, resolveDenylist } from './constants';
-import { convertToError } from './convertToError';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
@@ -27,7 +26,7 @@ export function vueContextToAttributes(context: FlareVueContext): Attributes {
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { framework: 'vue', vue } };
+    return { 'context.custom': { vue } };
 }
 
 export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
@@ -42,7 +41,7 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { framework: 'vue', vue } };
+    return { 'context.custom': { vue } };
 }
 
 // Tracks installed apps so calling app.use(flareVue) twice on the same app is a no-op. WeakSet so
@@ -99,9 +98,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
         const finalContext = options?.beforeSubmit?.({ error: errorToReport, instance, info, context }) ?? context;
 
-        // Swallow rejection: a transport failure must not interfere with the user's errorHandler
-        // chain or Vue's render pipeline.
-        Promise.resolve(flare.report(errorToReport, vueContextToAttributes(finalContext))).catch(() => {});
+        flare.reportSilently(errorToReport, vueContextToAttributes(finalContext));
 
         options?.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 

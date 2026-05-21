@@ -1,0 +1,20 @@
+{
+    "git": {
+        "tagName": "@flareapp/sveltekit@${version}",
+        "tagAnnotation": "Release @flareapp/sveltekit@${version}",
+        "commitMessage": "chore: release @flareapp/sveltekit@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": {
+        "publish": true
+    },
+    "github": {
+        "release": false
+    },
+    "hooks": {
+        "after:bump": "npm run generate:version && git add src/version.ts",
+        "before:release": "npm test --if-present"
+    }
+}

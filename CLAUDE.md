@@ -11,25 +11,34 @@
 - For more information regarding:
     - The research: take a look at .claude/docs/research
     - Repo cleanup: take a look at .claude/docs/repo-cleanup
+    - Svelte packaging quirks (ESM extensions, version generation): take a look at .claude/docs/svelte-packaging
 
 ## What is this?
 
 The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking by Spatie. Captures frontend
 errors, collects
 browser context (cookies, request data, query params), and reports them to the Flare backend. Includes framework
-integrations for React and Vue, and a Vite plugin for sourcemap uploads.
+integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads.
 
 ## Monorepo structure
 
-npm workspaces monorepo with 4 packages + a playground app:
+npm workspaces monorepo with 6 published packages, 4 framework playground apps, a shared fixture
+package, and a Playwright-based e2e suite:
 
-| Package          | npm name          | Purpose                                                           |
-| ---------------- | ----------------- | ----------------------------------------------------------------- |
-| `packages/js`    | `@flareapp/js`    | Core client — error capture, stack traces, context, API reporting |
-| `packages/react` | `@flareapp/react` | React `FlareErrorBoundary` error boundary component               |
-| `packages/vue`   | `@flareapp/vue`   | Vue error handler plugin (`flareVue()`)                           |
-| `packages/vite`  | `@flareapp/vite`  | Vite build plugin for sourcemap upload with retry logic           |
-| `playground`     | (private)         | Local dev/test app for all integrations (JS, React, Vue)          |
+| Package              | npm name                       | Purpose                                                           |
+| -------------------- | ------------------------------ | ----------------------------------------------------------------- |
+| `packages/js`        | `@flareapp/js`                 | Core client — error capture, stack traces, context, API reporting |
+| `packages/react`     | `@flareapp/react`              | React `FlareErrorBoundary` error boundary component               |
+| `packages/vue`       | `@flareapp/vue`                | Vue error handler plugin (`flareVue()`)                           |
+| `packages/svelte`    | `@flareapp/svelte`             | Svelte 5 `FlareErrorBoundary` with props serialization            |
+| `packages/sveltekit` | `@flareapp/sveltekit`          | SvelteKit error hooks (`handleErrorWithFlare`) + route context    |
+| `packages/vite`      | `@flareapp/vite`               | Vite build plugin for sourcemap upload with retry logic           |
+| `playgrounds/shared` | `@flareapp/playgrounds-shared` | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens |
+| `playgrounds/js`     | `@flareapp/playgrounds-js`     | Vanilla TS + Vite webshop (port 5180)                             |
+| `playgrounds/react`  | `@flareapp/playgrounds-react`  | React 19 + TanStack Router webshop (port 5181)                    |
+| `playgrounds/vue`    | `@flareapp/playgrounds-vue`    | Vue 3 + vue-router webshop (port 5182)                            |
+| `playgrounds/svelte` | `@flareapp/playgrounds-svelte` | SvelteKit (adapter-node) webshop (port 5183)                      |
+| `e2e/`               | (not a workspace)              | Playwright specs + fake-flare-server fixture                      |
 
 ## Tech stack
 
@@ -44,12 +53,16 @@ npm workspaces monorepo with 4 packages + a playground app:
 ## Commands (run from repo root)
 
 ```bash
-npm run build        # Build all packages
-npm run test         # Run tests (vitest) across all workspaces
-npm run typescript   # Type-check all packages
-npm run format       # Run oxfmt on all files
-npm run lint         # Run oxlint across all packages
-npm run playground   # Build packages, then start playground dev server
+npm run build              # Build all packages
+npm run test               # Run vitest across workspaces (after build)
+npm run typescript         # Type-check all packages
+npm run format             # Run oxfmt on all files
+npm run lint               # Run oxlint across all packages
+npm run test:e2e           # Run Playwright suite across all 4 framework playgrounds
+npm run playgrounds:js     # Boot the vanilla JS playground on http://localhost:5180
+npm run playgrounds:react  # Boot the React playground on http://localhost:5181
+npm run playgrounds:vue    # Boot the Vue playground on http://localhost:5182
+npm run playgrounds:svelte # Boot the SvelteKit playground on http://localhost:5183
 ```
 
 ## Key source files (packages/js)
@@ -74,16 +87,41 @@ All tests are in `packages/js/tests/`:
 
 Run tests: `npm run test` from root, or `npx vitest run` from `packages/js`.
 
-## Playground
+## Playgrounds
 
-Local Vite dev app (`playground/`) for manually testing all integrations. Multi-page setup with separate entry points
-for plain JS, React, and Vue. Each page has buttons that trigger different error types (uncaught exceptions, unhandled
-promise rejections, async errors, component errors, etc.).
+Four parallel webshop apps under `playgrounds/{js,react,vue,svelte}/`, one per framework. Each implements the same
+spec (product grid, detail, cart, checkout, confirmation, broken page) so the Playwright suite can exercise the
+SDK uniformly across frameworks.
 
-- Registered as an npm workspace (`"private": true`, not published)
-- Imports `@flareapp/js`, `@flareapp/react`, `@flareapp/vue` from local packages
-- Flare API key goes in `playground/.env.local` (gitignored) — see `playground/.env.example`
-- Run with `npm run playground` from root (builds packages first, then starts Vite dev server)
+- Shared data lives in `@flareapp/playgrounds-shared`: product list, error scenarios, test IDs, route paths,
+  Tailwind v4 `@theme` tokens. Every playground imports from this workspace.
+- The `/broken` route in each playground renders one button per scenario in `coverageFor('<framework>')`. Test IDs
+  follow `testIds.brokenTrigger(scenario.id)` so specs select by ID, not label.
+- Each playground reads `VITE_FLARE_URL` (and `VITE_FLARE_KEY`) at boot and overrides Flare's `ingestUrl`. In tests
+  this points at the fake-flare-server (see e2e section below).
+- For manual exploration, run a playground with `npm run playgrounds:<framework>` and visit `localhost:518X`. No
+  fake server needed; reports just fail to send.
+- Tailwind v4: each playground imports `@flareapp/playgrounds-shared/styles.css` once in its entry. The shared
+  stylesheet declares `@theme` tokens. Don't duplicate `tailwindcss` config.
+
+## E2E suite
+
+Playwright config at `playwright.config.ts`, specs at `e2e/specs/*.spec.ts`. One project per framework, single
+worker (the fake server has shared in-memory state), `webServer` boots each playground's `vite dev` automatically.
+
+- `e2e/fake-flare-server/`: standalone node http server (no deps). `POST /api/reports` and `POST /api/sourcemaps`
+  record the body. `GET /__inspect/reports` and `POST /__inspect/reset` are the inspection API used by the test
+  fixture. CORS open. Boots on `FAKE_FLARE_PORT` (default 7765 — avoid 4318, OrbStack squats on it).
+- `e2e/global-setup.ts` / `global-teardown.ts`: boots/stops the fake server around the test run.
+- `e2e/fixtures/fake-flare.ts`: Playwright fixture exposing `reset()`, `reports()`, `waitForReport({ predicate })`,
+  `assertNoReports()`. Each test auto-resets the server before running.
+- `e2e/specs/shared.ts`: data-driven `runScenario(page, fakeFlare, scenario)` helper used by all four spec files.
+  Branches on `scenario.kind` (sync / async / unhandled / render / boundaryReset / manualReport / sveltekitServer).
+- After `page.goto(...)`, specs call `page.waitForLoadState('networkidle')` to let SvelteKit (and others) finish
+  hydrating before the click — otherwise the onclick handler isn't wired up yet and clicks no-op silently.
+
+Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --project=svelte`. One scenario:
+`npx playwright test -g "sync-throw"`.
 
 ## Error reporting flow
 
@@ -103,6 +141,13 @@ Each published package (`@flareapp/js`, `@flareapp/react`, `@flareapp/vue`, `@fl
 independently with [`release-it`](https://github.com/release-it/release-it). `release-it` is installed once at the
 repo root as a devDependency and shared across workspaces. Per-package configuration lives in
 `packages/<pkg>/.release-it.json` and a `release` script in each `packages/<pkg>/package.json`.
+
+## Commits and PRs
+
+- No co-authored by <model_name> in commit messages.
+- When creating PRs and PR descriptions, do not add Generated by Claude Code at the bottom.
+- Keep the commit descriptions short or omit them completely if the commit title contains enough info.
+- Keep commits small and contained
 
 ### Release a single package
 

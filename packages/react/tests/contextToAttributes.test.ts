@@ -4,7 +4,7 @@ import { contextToAttributes } from '../src/contextToAttributes';
 import { FlareReactContext } from '../src/types';
 
 describe('contextToAttributes', () => {
-    test('wraps react context under context.custom with framework identifier', () => {
+    test('wraps react context under context.custom', () => {
         const context: FlareReactContext = {
             react: {
                 componentStack: ['at App', 'at div'],
@@ -16,7 +16,6 @@ describe('contextToAttributes', () => {
 
         expect(attributes).toEqual({
             'context.custom': {
-                framework: 'react',
                 react: {
                     componentStack: ['at App', 'at div'],
                     componentStackFrames: [{ component: 'App', file: 'App.tsx', line: 5, column: 3 }],
@@ -36,7 +35,6 @@ describe('contextToAttributes', () => {
         const attributes = contextToAttributes(context);
 
         expect(attributes['context.custom']).toEqual({
-            framework: 'react',
             react: {
                 componentStack: [],
                 componentStackFrames: [],

@@ -2,7 +2,13 @@ dist
 node_modules
 .idea/
 playground/.env
+playground-sveltekit/.env
+playgrounds/*/.env
+playgrounds/*/.env.local
+playgrounds/*/build
 .DS_Store
+.svelte-kit
+docs/superpowers/plans/
 
 # Playwright
 test-results/

@@ -10,7 +10,13 @@
         "no-underscore-dangle": "off",
         "typescript/no-explicit-any": "warn",
         "unicorn/no-null": "off",
-        "unicorn/consistent-function-scoping": "off"
+        "unicorn/consistent-function-scoping": "off",
+        "import/no-unassigned-import": [
+            "warn",
+            {
+                "allow": ["**/*.css"]
+            }
+        ]
     },
     "overrides": [
         {
@@ -21,5 +27,5 @@
             }
         }
     ],
-    "ignorePatterns": ["dist", "node_modules", "*.config.*", "playground"]
+    "ignorePatterns": ["dist", "node_modules", "*.config.*", "playgrounds", "test-results"]
 }
