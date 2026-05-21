@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
 
+    import { getComponentTreeContext } from './componentTree.js';
     import { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler.js';
 
     interface Props {
@@ -51,7 +52,11 @@
         resetBoundary = null;
     }
 
-    const handler = $derived(createFlareErrorHandler({ beforeEvaluate, beforeSubmit, afterSubmit }));
+    const ancestor = __flareRegisterComponent('FlareErrorBoundary', '@flareapp/svelte/FlareErrorBoundary.svelte');
+
+    const handler = $derived(
+        createFlareErrorHandler({ ancestor, beforeEvaluate, beforeSubmit, afterSubmit }),
+    );
 
     function onerror(rawError: unknown, reset: () => void) {
         resetBoundary = reset;

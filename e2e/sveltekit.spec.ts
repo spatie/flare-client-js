@@ -78,12 +78,67 @@ test.describe('SvelteKit playground', () => {
         });
     });
 
+    test.describe('ComponentTree disambiguation section', () => {
+        test('sidebar error reports hierarchy with SidebarBuggyButton parent', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('BuggyButton render error') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger error in Sidebar' }).click();
+            const report = await reportPromise;
+
+            await expect(page.locator('text=Sidebar caught:')).toBeVisible();
+
+            const svelte = svelteContext(report);
+            expect(svelte).toBeDefined();
+            const hierarchy = svelte!.componentHierarchy as string[];
+            expect(hierarchy[0]).toBe('BuggyButton');
+            expect(hierarchy).toContain('SidebarBuggyButton');
+            expect(hierarchy).not.toContain('HeaderBuggyButton');
+        });
+
+        test('header error reports hierarchy with HeaderBuggyButton parent', async ({ page, flare }) => {
+            const reportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('BuggyButton render error') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger error in Header' }).click();
+            const report = await reportPromise;
+
+            await expect(page.locator('text=Header caught:')).toBeVisible();
+
+            const svelte = svelteContext(report);
+            expect(svelte).toBeDefined();
+            const hierarchy = svelte!.componentHierarchy as string[];
+            expect(hierarchy[0]).toBe('BuggyButton');
+            expect(hierarchy).toContain('HeaderBuggyButton');
+            expect(hierarchy).not.toContain('SidebarBuggyButton');
+        });
+
+        test('both instances can error independently', async ({ page, flare }) => {
+            const sidebarReportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('BuggyButton render error') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger error in Sidebar' }).click();
+            await sidebarReportPromise;
+
+            await expect(page.locator('text=Sidebar caught:')).toBeVisible();
+            await expect(page.getByRole('button', { name: 'I am a BuggyButton' })).toBeVisible();
+
+            const headerReportPromise = flare.waitForReport({
+                filter: (r) => r.message?.includes('BuggyButton render error') ?? false,
+            });
+            await page.getByRole('button', { name: 'Trigger error in Header' }).click();
+            await headerReportPromise;
+
+            await expect(page.locator('text=Header caught:')).toBeVisible();
+        });
+    });
+
     test.describe('ResetKeys section', () => {
         test('auto-resets boundary when resetKey changes', async ({ page, flare }) => {
             const reportPromise = flare.waitForReport({
                 filter: (r) => r.message?.includes('ConditionallyBuggyComponent error') ?? false,
             });
-            await page.getByRole('button', { name: 'Trigger error' }).click();
+            await page.getByRole('button', { name: 'Trigger error', exact: true }).click();
             await reportPromise;
 
             await expect(page.getByText('Boundary caught:')).toBeVisible();
@@ -97,7 +152,7 @@ test.describe('SvelteKit playground', () => {
             const reportPromise = flare.waitForReport({
                 filter: (r) => r.message?.includes('ConditionallyBuggyComponent error') ?? false,
             });
-            await page.getByRole('button', { name: 'Trigger error' }).click();
+            await page.getByRole('button', { name: 'Trigger error', exact: true }).click();
             await reportPromise;
 
             const consolePromise = page.waitForEvent('console', {

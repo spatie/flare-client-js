@@ -205,6 +205,10 @@ Field details:
 | `componentHierarchy` | Component names ordered from inner component to outer component. |
 | `errorOrigin`        | Best-effort classification of where the error came from.         |
 
+When the same component is mounted in multiple places (e.g. a `Button` inside both `Sidebar` and `Header`),
+`FlareErrorBoundary` disambiguates by matching the error to the instance whose ancestor chain includes the catching
+boundary. Without an ancestor hint (e.g. manual `lookupComponentTree` calls), the first registered instance is returned.
+
 Component context is extracted from `.svelte` stack frames. In production bundles, function names and filenames may be
 minified. Configure sourcemaps so Flare can resolve the original source code on the backend.
 

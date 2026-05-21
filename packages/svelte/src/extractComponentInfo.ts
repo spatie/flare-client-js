@@ -1,13 +1,16 @@
 import type ErrorStackParser from 'error-stack-parser';
 
-import { lookupComponentTree } from './componentTree.js';
+import { lookupComponentTree, type ComponentTreeNode } from './componentTree.js';
 
 interface ComponentInfo {
     componentName: string | null;
     componentHierarchy: string[];
 }
 
-export function extractComponentInfo(frames: ErrorStackParser.StackFrame[]): ComponentInfo {
+export function extractComponentInfo(
+    frames: ErrorStackParser.StackFrame[],
+    ancestor?: ComponentTreeNode | null
+): ComponentInfo {
     const svelteFrames = frames.filter((frame) => frame.fileName && frame.fileName.includes('.svelte'));
 
     if (svelteFrames.length === 0) {
@@ -19,7 +22,7 @@ export function extractComponentInfo(frames: ErrorStackParser.StackFrame[]): Com
     for (const frame of svelteFrames) {
         if (!frame.fileName) continue;
 
-        const treeHierarchy = lookupComponentTree(frame.fileName);
+        const treeHierarchy = lookupComponentTree(frame.fileName, ancestor);
 
         if (treeHierarchy.length > 0) {
             return {

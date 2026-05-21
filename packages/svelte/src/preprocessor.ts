@@ -31,7 +31,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
             const injection =
                 `<script>\n` +
                 `import { __flareRegisterComponent as __flare_reg__ } from '@flareapp/svelte';\n` +
-                `__flare_reg__('${componentName}', '${escapedFile}');\n` +
+                `const __flare_node__ = __flare_reg__('${componentName}', '${escapedFile}');\n` +
                 `</script>\n`;
 
             return {
@@ -57,7 +57,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
 
             const injection =
                 `import { __flareRegisterComponent as __flare_reg__ } from '@flareapp/svelte';\n` +
-                `__flare_reg__('${componentName}', '${escapedFile}');\n`;
+                `const __flare_node__ = __flare_reg__('${componentName}', '${escapedFile}');\n`;
 
             return {
                 code: injection + content,

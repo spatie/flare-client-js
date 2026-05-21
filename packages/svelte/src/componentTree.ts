@@ -8,15 +8,15 @@ export interface ComponentTreeNode {
 
 const CONTEXT_KEY = '__flare_component_tree';
 
-const registry = new Map<string, ComponentTreeNode>();
+const registry = new Map<string, Set<ComponentTreeNode>>();
 
-export function __flareRegisterComponent(name: string, file: string): void {
+export function __flareRegisterComponent(name: string, file: string): ComponentTreeNode {
     let parent: ComponentTreeNode | null = null;
 
     try {
         parent = getContext<ComponentTreeNode>(CONTEXT_KEY) ?? null;
     } catch {
-        // getContext throws outside component init — top-level or non-component call
+        // getContext throws outside component init
     }
 
     const node: ComponentTreeNode = { name, file, parent };
@@ -27,38 +27,40 @@ export function __flareRegisterComponent(name: string, file: string): void {
         // setContext throws outside component init
     }
 
-    registry.set(file, node);
+    let nodes = registry.get(file);
+    if (!nodes) {
+        nodes = new Set();
+        registry.set(file, nodes);
+    }
+    nodes.add(node);
 
     try {
         onDestroy(() => {
-            if (registry.get(file) === node) {
-                registry.delete(file);
+            const set = registry.get(file);
+            if (set) {
+                set.delete(node);
+                if (set.size === 0) {
+                    registry.delete(file);
+                }
             }
         });
     } catch {
         // onDestroy throws outside component init
     }
+
+    return node;
 }
 
-export function lookupComponentTree(fileName: string): string[] {
-    const normalizedLookup = normalizePath(fileName);
-
-    let node: ComponentTreeNode | undefined;
-
-    for (const [registeredFile, registeredNode] of registry) {
-        if (normalizedLookup === normalizePath(registeredFile)) {
-            node = registeredNode;
-            break;
-        }
-
-        if (
-            normalizedLookup.endsWith(normalizePath(registeredFile)) ||
-            normalizePath(registeredFile).endsWith(normalizedLookup)
-        ) {
-            node = registeredNode;
-            break;
-        }
+export function getComponentTreeContext(): ComponentTreeNode | null {
+    try {
+        return getContext<ComponentTreeNode>(CONTEXT_KEY) ?? null;
+    } catch {
+        return null;
     }
+}
+
+export function lookupComponentTree(fileName: string, ancestor?: ComponentTreeNode | null): string[] {
+    const node = findNode(fileName, ancestor);
 
     if (!node) {
         return [];
@@ -75,6 +77,48 @@ export function lookupComponentTree(fileName: string): string[] {
     }
 
     return hierarchy;
+}
+
+export function findNode(fileName: string, ancestor?: ComponentTreeNode | null): ComponentTreeNode | undefined {
+    const normalizedLookup = normalizePath(fileName);
+    const candidates: ComponentTreeNode[] = [];
+
+    for (const [registeredFile, nodes] of registry) {
+        const normalizedFile = normalizePath(registeredFile);
+        const match =
+            normalizedLookup === normalizedFile ||
+            normalizedLookup.endsWith(normalizedFile) ||
+            normalizedFile.endsWith(normalizedLookup);
+
+        if (match) {
+            for (const node of nodes) {
+                candidates.push(node);
+            }
+        }
+    }
+
+    if (candidates.length === 0) {
+        return undefined;
+    }
+
+    if (ancestor && candidates.length > 1) {
+        return candidates.find((c) => hasAncestor(c, ancestor)) ?? candidates[0];
+    }
+
+    return candidates[0];
+}
+
+function hasAncestor(node: ComponentTreeNode, ancestor: ComponentTreeNode): boolean {
+    let current: ComponentTreeNode | null = node.parent;
+    const seen = new Set<ComponentTreeNode>();
+
+    while (current && !seen.has(current)) {
+        if (current === ancestor) return true;
+        seen.add(current);
+        current = current.parent;
+    }
+
+    return false;
 }
 
 function normalizePath(filePath: string): string {

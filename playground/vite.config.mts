@@ -1,5 +1,6 @@
 import { resolve } from 'path';
 
+import { flarePreprocessor } from '@flareapp/svelte/preprocessor';
 import flareSourcemap from '@flareapp/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
@@ -23,7 +24,7 @@ export default defineConfig(({ mode }) => {
             tailwindcss(),
             react(),
             vue(),
-            svelte(),
+            svelte({ preprocess: [flarePreprocessor()] }),
             flareSourcemap({
                 apiKey: env.VITE_FLARE_JS_KEY,
             }),
