@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
 
-    import { getComponentTreeContext } from './componentTree.js';
+    import { __flareRegisterComponent, getComponentTreeContext } from './componentTree.js';
     import { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler.js';
 
     interface Props {
