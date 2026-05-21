@@ -4,7 +4,7 @@ export const initFlareClient = (): void => {
     const url = import.meta.env.VITE_FLARE_URL;
     const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-svelte';
 
-    if (url) flare.configure({ ingestUrl: `${url}/api/reports` });
+    if (url) flare.configure({ ingestUrl: url });
 
     flare.configure({
         beforeEvaluate: (error) => (error.message === 'hook-drop-report' ? null : error),

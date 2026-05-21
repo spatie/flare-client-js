@@ -1,10 +1,10 @@
 import { defineConfig } from '@playwright/test';
 
 const FAKE_FLARE_PORT = process.env.FAKE_FLARE_PORT ?? '7765';
-const FAKE_FLARE_URL = `http://127.0.0.1:${FAKE_FLARE_PORT}`;
+const FAKE_FLARE_INGEST_URL = `http://127.0.0.1:${FAKE_FLARE_PORT}/api/reports`;
 
 const sharedEnv = {
-    VITE_FLARE_URL: FAKE_FLARE_URL,
+    VITE_FLARE_URL: FAKE_FLARE_INGEST_URL,
     FAKE_FLARE_PORT,
 };
 

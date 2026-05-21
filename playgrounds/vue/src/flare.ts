@@ -5,7 +5,7 @@ export const initFlare = (): void => {
     const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-vue';
 
     if (url) {
-        flare.configure({ ingestUrl: `${url}/api/reports` });
+        flare.configure({ ingestUrl: url });
     }
 
     flare.configure({
