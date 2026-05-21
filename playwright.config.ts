@@ -14,7 +14,7 @@ export default defineConfig({
     retries: 0,
     fullyParallel: false,
     workers: 1,
-    reporter: 'list',
+    reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     globalSetup: './e2e/global-setup.ts',
     globalTeardown: './e2e/global-teardown.ts',
     use: {

@@ -13,12 +13,32 @@ jobs:
 
             - name: Use Node.js
               uses: actions/setup-node@v4
+              with:
+                  cache: 'npm'
 
             - name: Install dependencies
               run: npm install
 
+            - name: Get Playwright version
+              id: playwright-version
+              run: |
+                  version=$(node -p "require('@playwright/test/package.json').version")
+                  echo "version=$version" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              id: playwright-cache
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
             - name: Install Playwright browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true'
               run: npx playwright install chromium --with-deps
+
+            - name: Install Playwright system deps
+              if: steps.playwright-cache.outputs.cache-hit == 'true'
+              run: npx playwright install-deps chromium
 
             - name: Build packages
               run: npm run build
@@ -26,10 +46,18 @@ jobs:
             - name: Run E2E tests
               run: npm run test:e2e
 
-            - name: Upload test results
+            - name: Upload Playwright HTML report
               if: ${{ !cancelled() }}
               uses: actions/upload-artifact@v4
               with:
                   name: playwright-report
                   path: playwright-report/
+                  retention-days: 7
+
+            - name: Upload Playwright traces and results
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-test-results
+                  path: test-results/
                   retention-days: 7
