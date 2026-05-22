@@ -34,10 +34,10 @@
                 "default": "./dist/index.js"
             }
         },
-        "./preprocessor": {
+        "./config": {
             "import": {
-                "types": "./dist/preprocessor.d.ts",
-                "default": "./dist/preprocessor.js"
+                "types": "./dist/config.d.ts",
+                "default": "./dist/config.js"
             }
         }
     },
