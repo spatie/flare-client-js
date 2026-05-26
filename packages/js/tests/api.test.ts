@@ -36,7 +36,7 @@ describe('Api.report', () => {
                     'Content-Type': 'application/json',
                     'X-Flare-Client-Version': '2',
                 }),
-            })
+            }),
         );
     });
 
@@ -89,7 +89,7 @@ describe('Api.report', () => {
                 headers: expect.objectContaining({
                     'X-Api-Token': '',
                 }),
-            })
+            }),
         );
     });
 });

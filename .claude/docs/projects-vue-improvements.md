@@ -124,7 +124,7 @@ the `context` and must return a (possibly modified) context object. Use this to 
                 vue: {
                     ...context.vue,
                     componentHierarchy: context.vue.componentHierarchy.filter(
-                        (entry) => !entry.includes('ThirdPartyWrapper')
+                        (entry) => !entry.includes('ThirdPartyWrapper'),
                     ),
                 },
             };

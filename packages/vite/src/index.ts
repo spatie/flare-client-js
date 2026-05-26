@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { FlareApi } from '@flareapp/flare-api';
 import { type Plugin, type ResolvedConfig } from 'vite';
 
-import { FlareApi } from './flareApi';
-import { FlareVitePluginOptions, Sourcemap } from './types';
+import type { FlareVitePluginOptions, Sourcemap } from './types';
 
 export type { FlareVitePluginOptions, Sourcemap } from './types';
 

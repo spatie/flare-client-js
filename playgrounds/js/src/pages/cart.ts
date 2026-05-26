@@ -13,7 +13,7 @@ export const renderCart: RouteHandler = (_match, root) => {
             `<section>
                 <h1 class="text-xl font-semibold mb-6">Cart</h1>
                 <p class="text-sm opacity-70">Cart is empty.</p>
-            </section>`
+            </section>`,
         );
         return;
     }
@@ -53,7 +53,7 @@ export const renderCart: RouteHandler = (_match, root) => {
                 <div class="text-sm">Total: <span class="font-mono">$${(total / 100).toFixed(2)}</span></div>
                 <a data-link href="/checkout" class="rounded-lg bg-brand-ink text-white px-4 py-2 text-sm">Checkout</a>
             </div>
-        </section>`
+        </section>`,
     );
 
     root.querySelectorAll<HTMLButtonElement>('button[data-remove-id]').forEach((button) => {

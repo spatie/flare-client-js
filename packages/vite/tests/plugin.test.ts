@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 
+import { FlareApi } from '@flareapp/flare-api';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { FlareApi } from '../src/flareApi';
 import flareSourcemaps from '../src/index';
 
 vi.mock('node:fs', () => ({
@@ -11,10 +11,10 @@ vi.mock('node:fs', () => ({
     unlinkSync: vi.fn(),
 }));
 
-vi.mock('../src/flareApi');
+vi.mock('@flareapp/flare-api');
 
 function createPlugin(
-    { apiKey = 'test-key', ...rest }: Parameters<typeof flareSourcemaps>[0] = { apiKey: 'test-key' }
+    { apiKey = 'test-key', ...rest }: Parameters<typeof flareSourcemaps>[0] = { apiKey: 'test-key' },
 ) {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const plugin = flareSourcemaps({ apiKey, ...rest }) as any;
@@ -110,7 +110,7 @@ describe('flareSourcemaps plugin', () => {
                     'assets/app.js.map': {},
                     'assets/vendor.js': {},
                     'assets/vendor.js.map': {},
-                }
+                },
             );
 
             expect(uploadSpy).toHaveBeenCalledTimes(2);
@@ -130,7 +130,7 @@ describe('flareSourcemaps plugin', () => {
                     'assets/app.js': {},
                     'assets/app.css': {},
                     'assets/index.html': {},
-                }
+                },
             );
 
             expect(uploadSpy).not.toHaveBeenCalled();
@@ -197,7 +197,7 @@ describe('flareSourcemaps plugin', () => {
                 {
                     'assets/app.js.map': {},
                     'assets/vendor.js.map': {},
-                }
+                },
             );
 
             expect(uploadSpy).toHaveBeenCalledTimes(2);
@@ -216,7 +216,7 @@ describe('flareSourcemaps plugin', () => {
                 {
                     'assets/fail.js.map': {},
                     'assets/ok.js.map': {},
-                }
+                },
             );
 
             expect(unlinkSync).toHaveBeenCalledTimes(1);

@@ -22,7 +22,7 @@ export const renderCheckout: RouteHandler = (_match, root) => {
                 </label>
                 <button type="submit" data-testid="checkout-submit" class="rounded-lg bg-brand-ink text-white py-2 text-sm">Pay</button>
             </form>
-        </section>`
+        </section>`,
     );
 
     root.querySelector<HTMLFormElement>('#checkout-form')?.addEventListener('submit', (event) => {

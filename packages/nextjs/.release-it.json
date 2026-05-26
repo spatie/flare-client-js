@@ -1,0 +1,19 @@
+{
+    "git": {
+        "tagName": "@flareapp/nextjs@${version}",
+        "tagAnnotation": "Release @flareapp/nextjs@${version}",
+        "commitMessage": "chore: release @flareapp/nextjs@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": {
+        "publish": true
+    },
+    "github": {
+        "release": false
+    },
+    "hooks": {
+        "before:release": "npm test --if-present"
+    }
+}

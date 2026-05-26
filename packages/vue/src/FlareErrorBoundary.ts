@@ -85,7 +85,7 @@ export const FlareErrorBoundary = defineComponent({
                 if (lengthChanged || valuesChanged) {
                     resetErrorBoundary();
                 }
-            }
+            },
         );
 
         onErrorCaptured((currentError: unknown, instance: ComponentPublicInstance | null, info: string) => {

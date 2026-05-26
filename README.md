@@ -2,8 +2,8 @@
 
 The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking
 by [Spatie](https://spatie.be). Captures frontend errors, collects browser context (cookies, request data, query
-params), and reports them to the Flare backend. Includes framework integrations for React, Vue, Svelte, SvelteKit, and a
-Vite plugin for sourcemap uploads.
+params), and reports them to the Flare backend. Includes framework integrations for React, Vue, Svelte, SvelteKit, and build plugins for Vite, webpack, and Next.js
+for sourcemap uploads.
 
 Read the JavaScript error tracking section
 in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/installation) for more information.
@@ -24,11 +24,15 @@ This is an npm workspaces monorepo containing the following packages:
 | [`packages/svelte`](packages/svelte)       | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)       | Svelte 5 error boundary component and boundary handler factory                     |
 | [`packages/sveltekit`](packages/sveltekit) | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit) | SvelteKit client/server error hooks and route context                              |
 | [`packages/vite`](packages/vite)           | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)           | Vite build plugin for sourcemap uploads                                            |
+| [`packages/webpack`](packages/webpack)     | [`@flareapp/webpack`](https://www.npmjs.com/package/@flareapp/webpack)     | Webpack 5 plugin for sourcemap uploads                                             |
+| [`packages/nextjs`](packages/nextjs)       | [`@flareapp/nextjs`](https://www.npmjs.com/package/@flareapp/nextjs)       | Next.js wrapper for sourcemap uploads via webpack                                  |
+| [`packages/flare-api`](packages/flare-api) | (private)                                                                  | Shared API client for sourcemap uploads (internal)                                 |
 | [`playgrounds/shared`](playgrounds/shared) | (private)                                                                  | Shared fixtures: product data, error scenarios, test IDs, Tailwind tokens          |
 | [`playgrounds/js`](playgrounds/js)         | (private)                                                                  | Vanilla TS + Vite playground (port 5180)                                           |
 | [`playgrounds/react`](playgrounds/react)   | (private)                                                                  | React 19 + TanStack Router playground (port 5181)                                  |
 | [`playgrounds/vue`](playgrounds/vue)       | (private)                                                                  | Vue 3 + vue-router playground (port 5182)                                          |
 | [`playgrounds/svelte`](playgrounds/svelte) | (private)                                                                  | SvelteKit (adapter-node) playground (port 5183)                                    |
+| [`playgrounds/nextjs`](playgrounds/nextjs) | (private)                                                                  | Next.js 15 App Router playground (port 5184)                                       |
 
 ## Local development
 
@@ -67,10 +71,11 @@ All commands are run from the repository root:
 | `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)      |
 | `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)        |
 | `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)  |
+| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)    |
 
 ### Playgrounds
 
-There are four parallel playgrounds under `playgrounds/`, one per framework. Each implements the same webshop sample
+There are five parallel playgrounds under `playgrounds/`, one per framework. Each implements the same webshop sample
 app (product grid, product detail, cart, checkout, confirmation) plus a `/broken` page that triggers a deterministic
 list of error scenarios. They share fixtures from `@flareapp/playgrounds-shared` so the surface stays identical across
 frameworks.
@@ -81,6 +86,7 @@ npm run playgrounds:js       # http://localhost:5180
 npm run playgrounds:react    # http://localhost:5181
 npm run playgrounds:vue      # http://localhost:5182
 npm run playgrounds:svelte   # http://localhost:5183
+npm run playgrounds:nextjs   # http://localhost:5184
 ```
 
 To send reports to a real Flare project (instead of letting them fail), set `VITE_FLARE_URL` and `VITE_FLARE_KEY` for
@@ -167,10 +173,12 @@ When releasing changes that span multiple packages, publish them in dependency o
 
 1. `@flareapp/js` (core, no internal dependencies)
 2. `@flareapp/vite` (no internal dependencies)
-3. `@flareapp/react` (depends on `@flareapp/js`)
-4. `@flareapp/vue` (depends on `@flareapp/js`)
-5. `@flareapp/svelte` (depends on `@flareapp/js`)
-6. `@flareapp/sveltekit` (depends on `@flareapp/js` and `@flareapp/svelte`)
+3. `@flareapp/webpack` (no internal dependencies)
+4. `@flareapp/nextjs` (depends on `@flareapp/webpack`)
+5. `@flareapp/react` (depends on `@flareapp/js`)
+6. `@flareapp/vue` (depends on `@flareapp/js`)
+7. `@flareapp/svelte` (depends on `@flareapp/js`)
+8. `@flareapp/sveltekit` (depends on `@flareapp/js` and `@flareapp/svelte`)
 
 ## Project structure
 
@@ -182,13 +190,17 @@ flare-client-js/
 │   ├── vue/         # Vue integration
 │   ├── svelte/      # Svelte integration
 │   ├── sveltekit/   # SvelteKit integration
-│   └── vite/        # Vite sourcemap plugin
+│   ├── vite/        # Vite sourcemap plugin
+│   ├── webpack/     # Webpack sourcemap plugin
+│   ├── nextjs/      # Next.js sourcemap plugin
+│   └── flare-api/   # Shared API client (private)
 ├── playgrounds/
 │   ├── shared/      # Shared fixtures (products, scenarios, test IDs, Tailwind tokens)
 │   ├── js/          # Vanilla TS + Vite playground
 │   ├── react/       # React + TanStack Router playground
 │   ├── vue/         # Vue + vue-router playground
-│   └── svelte/      # SvelteKit playground
+│   ├── svelte/      # SvelteKit playground
+│   └── nextjs/      # Next.js playground
 ├── e2e/             # Playwright specs + fake-flare-server fixture
 ├── .github/         # GitHub Actions workflows
 ├── .husky/          # Git hooks (pre-commit formatting)

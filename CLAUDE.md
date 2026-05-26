@@ -22,7 +22,7 @@ integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads
 
 ## Monorepo structure
 
-npm workspaces monorepo with 6 published packages, 4 framework playground apps, a shared fixture
+npm workspaces monorepo with 8 published packages, 1 internal package, 4 framework playground apps, a shared fixture
 package, and a Playwright-based e2e suite:
 
 | Package              | npm name                       | Purpose                                                           |
@@ -33,6 +33,9 @@ package, and a Playwright-based e2e suite:
 | `packages/svelte`    | `@flareapp/svelte`             | Svelte 5 `FlareErrorBoundary` with props serialization            |
 | `packages/sveltekit` | `@flareapp/sveltekit`          | SvelteKit error hooks (`handleErrorWithFlare`) + route context    |
 | `packages/vite`      | `@flareapp/vite`               | Vite build plugin for sourcemap upload with retry logic           |
+| `packages/webpack`   | `@flareapp/webpack`            | Webpack 5 plugin for sourcemap upload                             |
+| `packages/nextjs`    | `@flareapp/nextjs`             | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload      |
+| `packages/flare-api` | `@flareapp/flare-api`          | Shared API client for sourcemap uploads (private, not published)  |
 | `playgrounds/shared` | `@flareapp/playgrounds-shared` | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens |
 | `playgrounds/js`     | `@flareapp/playgrounds-js`     | Vanilla TS + Vite webshop (port 5180)                             |
 | `playgrounds/react`  | `@flareapp/playgrounds-react`  | React 19 + TanStack Router webshop (port 5181)                    |
@@ -137,7 +140,7 @@ Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --pro
 
 ## Publishing
 
-Each published package (`@flareapp/js`, `@flareapp/react`, `@flareapp/vue`, `@flareapp/vite`) is released
+Each published package (`@flareapp/js`, `@flareapp/react`, `@flareapp/vue`, `@flareapp/vite`, `@flareapp/webpack`, `@flareapp/nextjs`) is released
 independently with [`release-it`](https://github.com/release-it/release-it). `release-it` is installed once at the
 repo root as a devDependency and shared across workspaces. Per-package configuration lives in
 `packages/<pkg>/.release-it.json` and a `release` script in each `packages/<pkg>/package.json`.

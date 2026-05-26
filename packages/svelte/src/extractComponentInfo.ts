@@ -9,7 +9,7 @@ interface ComponentInfo {
 
 export function extractComponentInfo(
     frames: ErrorStackParser.StackFrame[],
-    ancestor?: ComponentTreeNode | null
+    ancestor?: ComponentTreeNode | null,
 ): ComponentInfo {
     const svelteFrames = frames.filter((frame) => frame.fileName && frame.fileName.includes('.svelte'));
 

@@ -163,7 +163,7 @@ describe('parseComponentStack', () => {
         test('handles large stacks without truncation', () => {
             const lines = Array.from(
                 { length: 50 },
-                (_, i) => `at Component${i} (http://localhost:5173/src/deep.tsx:${i + 1}:1)`
+                (_, i) => `at Component${i} (http://localhost:5173/src/deep.tsx:${i + 1}:1)`,
             );
 
             const result = parseComponentStack(lines.join('\n'));

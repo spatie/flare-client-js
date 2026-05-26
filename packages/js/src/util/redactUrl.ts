@@ -7,7 +7,7 @@ export const DEFAULT_URL_DENYLIST =
 export function resolveDenylist(
     custom?: RegExp,
     replaceDefault: boolean = false,
-    defaultDenylist: RegExp = DEFAULT_URL_DENYLIST
+    defaultDenylist: RegExp = DEFAULT_URL_DENYLIST,
 ): RegExp {
     if (!custom) {
         return defaultDenylist;

@@ -26,7 +26,7 @@ const rows = computed<Row[]>(() =>
                 subtotalCents: product.priceCents * line.quantity,
             };
         })
-        .filter((row): row is Row => row !== null)
+        .filter((row): row is Row => row !== null),
 );
 
 const totalCents = computed(() => rows.value.reduce((sum, row) => sum + row.subtotalCents, 0));

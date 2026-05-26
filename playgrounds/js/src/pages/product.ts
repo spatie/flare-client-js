@@ -23,7 +23,7 @@ export const renderProduct: RouteHandler = (match, root) => {
                 <button data-action="add" data-testid="add-to-cart-${product.id}" class="rounded-lg bg-brand-ink text-white py-3 hover:opacity-90">Add to cart</button>
                 <button data-action="broken-solution" class="rounded-lg border border-brand text-brand py-3 hover:bg-brand-soft">Trigger broken solution</button>
             </div>
-        </article>`
+        </article>`,
     );
 
     root.querySelector<HTMLButtonElement>('[data-action="add"]')?.addEventListener('click', () => cart.add(product.id));

@@ -24,6 +24,7 @@
         "playgrounds:react": "npm run build --workspaces --if-present && npm run dev --workspace=@flareapp/playgrounds-react",
         "playgrounds:vue": "npm run build --workspaces --if-present && npm run dev --workspace=@flareapp/playgrounds-vue",
         "playgrounds:svelte": "npm run build --workspaces --if-present && npm run dev --workspace=@flareapp/playgrounds-svelte",
+        "playgrounds:nextjs": "npm run build --workspaces --if-present && npm run dev --workspace=@flareapp/playgrounds-nextjs",
         "format": "oxfmt .",
         "lint": "oxlint",
         "prepare": "husky",

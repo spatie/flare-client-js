@@ -14,7 +14,7 @@ function createMockInstance(
         parent?: ComponentPublicInstance | null;
         file?: string;
         props?: Record<string, unknown>;
-    } = {}
+    } = {},
 ): ComponentPublicInstance {
     return {
         $options: {

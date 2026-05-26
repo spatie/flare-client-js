@@ -43,7 +43,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary>
                 <div>Hello</div>
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(screen.getByText('Hello')).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(mockReport).toHaveBeenCalledOnce();
@@ -64,7 +64,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         const attributes = mockReport.mock.calls[0][1];
@@ -73,18 +73,18 @@ describe('FlareErrorBoundary', () => {
         expect(((attributes['context.custom'] as any).react.componentStack as string[]).length).toBeGreaterThan(0);
         expect(
             ((attributes['context.custom'] as any).react.componentStack as string[]).some((entry) =>
-                entry.includes('ThrowingComponent')
-            )
+                entry.includes('ThrowingComponent'),
+            ),
         ).toBe(true);
 
         expect((attributes['context.custom'] as any).react.componentStackFrames).toBeInstanceOf(Array);
         expect(((attributes['context.custom'] as any).react.componentStackFrames as unknown[]).length).toBeGreaterThan(
-            0
+            0,
         );
         expect(
             ((attributes['context.custom'] as any).react.componentStackFrames as { component: string }[]).some(
-                (frame) => frame.component === 'ThrowingComponent'
-            )
+                (frame) => frame.component === 'ThrowingComponent',
+            ),
         ).toBe(true);
     });
 
@@ -92,7 +92,7 @@ describe('FlareErrorBoundary', () => {
         const { container } = render(
             <FlareErrorBoundary>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(container.innerHTML).toBe('');
@@ -102,7 +102,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Something went wrong</div>}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(screen.getByText('Something went wrong')).toBeInTheDocument();
@@ -120,7 +120,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={fallbackFn}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(fallbackFn).toHaveBeenCalled();
@@ -137,7 +137,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(beforeEvaluate).toHaveBeenCalledOnce();
@@ -150,7 +150,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(beforeEvaluate.mock.calls[0][0].error).toBe(testError);
@@ -170,7 +170,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
@@ -179,13 +179,13 @@ describe('FlareErrorBoundary', () => {
 
     test('calls beforeSubmit with error, errorInfo, and context', () => {
         const beforeSubmit = vi.fn(
-            (params: { error: Error; errorInfo: unknown; context: FlareReactContext }) => params.context
+            (params: { error: Error; errorInfo: unknown; context: FlareReactContext }) => params.context,
         );
 
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(beforeSubmit.mock.calls[0][0].error).toBe(testError);
@@ -207,7 +207,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         const reportedAttributes = mockReport.mock.calls[0][1];
@@ -228,7 +228,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit} afterSubmit={afterSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toBe(customStack);
@@ -241,13 +241,13 @@ describe('FlareErrorBoundary', () => {
         const afterSubmit = vi.fn(
             (_params: { error: Error; errorInfo: unknown; context: { react: { componentStack: string[] } } }) => {
                 callOrder.push('afterSubmit');
-            }
+            },
         );
 
         render(
             <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(afterSubmit).toHaveBeenCalledOnce();
@@ -272,7 +272,7 @@ describe('FlareErrorBoundary', () => {
                 fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Reset</button>}
             >
                 <MaybeThrow />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(screen.getByText('Reset')).toBeInTheDocument();
@@ -300,7 +300,7 @@ describe('FlareErrorBoundary', () => {
                 fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Reset</button>}
             >
                 <MaybeThrow />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         shouldThrow = false;
@@ -324,7 +324,7 @@ describe('FlareErrorBoundary', () => {
         const { rerender } = render(
             <FlareErrorBoundary onReset={onReset} resetKeys={['a']} fallback={<div>Error</div>}>
                 <MaybeThrow />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(screen.getByText('Error')).toBeInTheDocument();
@@ -334,7 +334,7 @@ describe('FlareErrorBoundary', () => {
         rerender(
             <FlareErrorBoundary onReset={onReset} resetKeys={['b']} fallback={<div>Error</div>}>
                 <MaybeThrow />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(onReset).toHaveBeenCalledOnce();
@@ -347,7 +347,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary onReset={onReset} resetKeys={['a']} fallback={<div>Error</div>}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(screen.getByText('Error')).toBeInTheDocument();
@@ -360,7 +360,7 @@ describe('FlareErrorBoundary', () => {
                 fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Reset</button>}
             >
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(mockReport).toHaveBeenCalledOnce();
@@ -384,8 +384,8 @@ describe('FlareErrorBoundary', () => {
             render(
                 <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>
                     <ThrowingComponent />
-                </FlareErrorBoundary>
-            )
+                </FlareErrorBoundary>,
+            ),
         ).toThrow('beforeEvaluate error');
 
         expect(beforeEvaluate).toHaveBeenCalledOnce();
@@ -401,8 +401,8 @@ describe('FlareErrorBoundary', () => {
             render(
                 <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
                     <ThrowingComponent />
-                </FlareErrorBoundary>
-            )
+                </FlareErrorBoundary>,
+            ),
         ).toThrow('beforeSubmit error');
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
@@ -418,8 +418,8 @@ describe('FlareErrorBoundary', () => {
             render(
                 <FlareErrorBoundary fallback={<div>Error</div>} afterSubmit={afterSubmit}>
                     <ThrowingComponent />
-                </FlareErrorBoundary>
-            )
+                </FlareErrorBoundary>,
+            ),
         ).toThrow('afterSubmit error');
 
         expect(afterSubmit).toHaveBeenCalledOnce();
@@ -435,7 +435,7 @@ describe('FlareErrorBoundary', () => {
             // @ts-expect-error - intentionally testing a user mistake where beforeSubmit does not return
             <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
@@ -459,7 +459,7 @@ describe('FlareErrorBoundary', () => {
         render(
             <FlareErrorBoundary fallback={fallbackFn} beforeSubmit={beforeSubmit}>
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(screen.getByTestId('stack')).toHaveTextContent('at Custom (custom.tsx:1:1)');
@@ -478,7 +478,7 @@ describe('FlareErrorBoundary', () => {
                 fallback={({ resetErrorBoundary }) => <button onClick={resetErrorBoundary}>Reset</button>}
             >
                 <ThrowingComponent />
-            </FlareErrorBoundary>
+            </FlareErrorBoundary>,
         );
 
         expect(beforeEvaluate).toHaveBeenCalledOnce();

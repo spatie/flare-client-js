@@ -62,7 +62,7 @@ function createMockApp(options?: {
 function createMockInstance(
     name: string,
     parent: ComponentPublicInstance | null = null,
-    props: Record<string, unknown> = {}
+    props: Record<string, unknown> = {},
 ): ComponentPublicInstance {
     return {
         $options: { __name: name },
@@ -446,7 +446,7 @@ describe('flareVue', () => {
 
     test('calls beforeSubmit with error, instance, info, and context', () => {
         const beforeSubmit = vi.fn(
-            (params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => params.context
+            (params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => params.context,
         );
 
         const app = createMockApp();
@@ -505,7 +505,7 @@ describe('flareVue', () => {
         const afterSubmit = vi.fn(
             (_params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => {
                 callOrder.push('afterSubmit');
-            }
+            },
         );
 
         const app = createMockApp();
@@ -789,7 +789,7 @@ describe('flareVue captureWarnings', () => {
                         componentTrace: 'found in\n---> <Counter>',
                     },
                 },
-            })
+            }),
         );
     });
 

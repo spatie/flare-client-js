@@ -11,7 +11,7 @@ import {
 export function serializeProps(
     value: Record<string, unknown>,
     maxDepth: number,
-    denylist: RegExp = DEFAULT_PROPS_DENYLIST
+    denylist: RegExp = DEFAULT_PROPS_DENYLIST,
 ): Record<string, unknown> {
     return serialize(value, 0, maxDepth, new WeakSet(), denylist) as Record<string, unknown>;
 }

@@ -1,6 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 
-import { Sourcemap } from './types';
+import type { Sourcemap } from './types';
 
 class FlareApiError extends Error {
     constructor(message: string) {
@@ -15,7 +15,7 @@ export class FlareApi {
     constructor(
         private readonly endpoint: string,
         private readonly key: string,
-        private readonly version: string
+        private readonly version: string,
     ) {}
 
     uploadSourcemap(sourcemap: Sourcemap): Promise<void> {

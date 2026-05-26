@@ -77,7 +77,7 @@ export class Flare {
 
         this._config.urlDenylist = resolveDenylist(
             config.urlDenylist,
-            config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist
+            config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
         );
 
         return this;
@@ -92,7 +92,7 @@ export class Flare {
     glow(
         name: string,
         level: MessageLevel = 'info',
-        data: Record<string, unknown> | Record<string, unknown>[] = []
+        data: Record<string, unknown> | Record<string, unknown>[] = [],
     ): Flare {
         const time = now();
 
@@ -210,7 +210,7 @@ export class Flare {
     async createReportFromError(
         error: Error,
         attributes: Attributes = {},
-        seenAtUnixNano: number = Date.now() * 1_000_000
+        seenAtUnixNano: number = Date.now() * 1_000_000,
     ): Promise<Report | false> {
         if (!assert(error, 'No error provided.', this._config.debug)) {
             return false;
@@ -354,7 +354,7 @@ export class Flare {
             this._config.ingestUrl,
             this._config.key,
             this._config.reportBrowserExtensionErrors,
-            this._config.debug
+            this._config.debug,
         );
     }
 }

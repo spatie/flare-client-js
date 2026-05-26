@@ -32,5 +32,5 @@ if (!container) throw new Error('No #root element');
 createRoot(container).render(
     <StrictMode>
         <BoundaryShell />
-    </StrictMode>
+    </StrictMode>,
 );

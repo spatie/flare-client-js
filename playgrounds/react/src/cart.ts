@@ -59,12 +59,12 @@ export const useCart = (): CartLine[] =>
     useSyncExternalStore(
         subscribe,
         () => linesSnapshot,
-        () => linesSnapshot
+        () => linesSnapshot,
     );
 
 export const useCartCount = (): number =>
     useSyncExternalStore(
         subscribe,
         () => countSnapshot,
-        () => countSnapshot
+        () => countSnapshot,
     );

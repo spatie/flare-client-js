@@ -226,7 +226,7 @@ describe('getRouteContext', () => {
             });
 
             expect(getRouteContext(router)!.fullPath).toBe(
-                '/users/77?token=[redacted]&session_id=[redacted]&tab=public&tag=a&tag=b'
+                '/users/77?token=[redacted]&session_id=[redacted]&tab=public&tag=a&tag=b',
             );
         });
 

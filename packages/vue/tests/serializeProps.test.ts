@@ -13,8 +13,8 @@ describe('serializeProps', () => {
                     nul: null,
                     undef: undefined,
                 },
-                2
-            )
+                2,
+            ),
         ).toEqual({
             str: 'hello',
             num: 42,
@@ -205,8 +205,8 @@ describe('serializeProps', () => {
                         credentials: { u: 'a' },
                         auth: 'value',
                     },
-                    5
-                )
+                    5,
+                ),
             ).toEqual({
                 password: '[redacted]',
                 Token: '[redacted]',
@@ -257,8 +257,8 @@ describe('serializeProps', () => {
                         card_number: '4111111111111111',
                         cvv: '123',
                     },
-                    5
-                )
+                    5,
+                ),
             ).toEqual({
                 bearer: '[redacted]',
                 bearerToken: '[redacted]',

@@ -49,7 +49,7 @@ function unwrapSvelteKitError(error: unknown): unknown {
 }
 
 export function createHandleErrorWithFlare(
-    getRouteContext: (input: HandleErrorInput) => SvelteKitRouteContext
+    getRouteContext: (input: HandleErrorInput) => SvelteKitRouteContext,
 ): (handlerOrOptions?: HandleErrorFn | HandleErrorWithFlareOptions) => HandleErrorFn {
     return (handlerOrOptions) => {
         const isOptions =

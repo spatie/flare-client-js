@@ -49,7 +49,7 @@ export const renderBroken: RouteHandler = (_match, root) => {
                 <div class="font-medium">${scenario.label}</div>
                 <div class="text-xs opacity-60 font-mono">${scenario.id}</div>
             </button>
-        `
+        `,
         )
         .join('');
 
@@ -59,7 +59,7 @@ export const renderBroken: RouteHandler = (_match, root) => {
             <h1 class="text-xl font-semibold mb-2">Error playground</h1>
             <p class="text-sm opacity-70 mb-6">Each button triggers a deterministic error scenario.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${buttons}</div>
-        </section>`
+        </section>`,
     );
 
     root.querySelectorAll<HTMLButtonElement>('button[data-scenario]').forEach((button) => {
