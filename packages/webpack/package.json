@@ -14,12 +14,7 @@
         "email": "info@spatie.be"
     },
     "contributors": [
-        "Adriaan Marain <adriaan@spatie.be>",
-        "Alex Vanderbist <alex@spatie.be>",
-        "Dries Heyninck <dries@spatie.be>",
-        "Freek Van der Herten <freek@spatie.be>",
-        "Sebastian De Deyne <sebastian@spatie.be>",
-        "Sébastien Henau <seba@spatie.be>"
+        "Dries Heyninck <dries@spatie.be>"
     ],
     "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
