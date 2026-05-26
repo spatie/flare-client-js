@@ -48,12 +48,12 @@ export class FlareWebpackPlugin {
             FLARE_SOURCEMAP_VERSION: JSON.stringify(this.version),
         }).apply(compiler);
 
+        const flare = new FlareApi(this.apiEndpoint, this.apiKey, this.version);
+
         compiler.hooks.afterEmit.tapPromise('FlareWebpackPlugin', async (compilation) => {
             if (!this.shouldUpload(compiler, compilation)) {
                 return;
             }
-
-            const flare = new FlareApi(this.apiEndpoint, this.apiKey, this.version);
             const resolvedPublicPath = this.resolvePublicPath(compiler);
             const sourcemaps = this.getSourcemaps(compilation, resolvedPublicPath);
 
@@ -136,18 +136,12 @@ export class FlareWebpackPlugin {
     }
 
     private getSourcemaps(compilation: Compilation, publicPath: string): Array<{ sourcemap: Sourcemap; path: string }> {
-        const chunks = compilation.getStats().toJson().chunks;
         const outputPath = compilation.getPath(compilation.compiler.outputPath);
-
-        if (!chunks) {
-            return [];
-        }
-
         const sourcemaps: Array<{ sourcemap: Sourcemap; path: string }> = [];
 
-        for (const chunk of chunks) {
-            const jsFile = chunk.files.find((file) => file.endsWith('.js'));
-            const mapFile = (chunk.auxiliaryFiles || chunk.files).find((file) => file.endsWith('.js.map'));
+        for (const chunk of compilation.chunks) {
+            const jsFile = [...chunk.files].find((file) => file.endsWith('.js'));
+            const mapFile = [...chunk.auxiliaryFiles].find((file) => file.endsWith('.js.map'));
 
             if (!jsFile || !mapFile) {
                 continue;

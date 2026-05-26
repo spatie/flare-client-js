@@ -2,7 +2,6 @@ import { FlareWebpackPlugin } from '@flareapp/webpack';
 
 import type { FlareNextjsPluginOptions } from './types';
 
-// eslint-disable-next-line typescript/no-explicit-any -- Next.js config is intentionally untyped to avoid depending on `next` types
 type NextConfig = Record<string, unknown>;
 
 type WebpackConfig = { plugins: unknown[] } & Record<string, unknown>;

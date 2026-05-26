@@ -9,8 +9,7 @@ vi.mock('@flareapp/flare-api');
 
 vi.mock('webpack', () => {
     class DefinePlugin {
-        // eslint-disable-next-line no-useless-constructor -- mock needs constructor signature
-        constructor(_definitions: Record<string, string>) {}
+        constructor(readonly _definitions: Record<string, string>) {}
         apply(_compiler: unknown) {}
     }
     class WebpackError extends Error {
@@ -58,11 +57,19 @@ function createMockCompiler({
 function createMockCompilation({
     chunks = [],
     outputPath = '/dist',
-}: { chunks?: Array<{ files: string[]; auxiliaryFiles?: string[] }>; outputPath?: string } = {}) {
+}: {
+    chunks?: Array<{ files: string[]; auxiliaryFiles?: string[] }>;
+    outputPath?: string;
+} = {}) {
+    const chunkSet = new Set(
+        chunks.map((c) => ({
+            files: new Set(c.files),
+            auxiliaryFiles: new Set(c.auxiliaryFiles ?? []),
+        })),
+    );
+
     return {
-        getStats: () => ({
-            toJson: () => ({ chunks }) as Record<string, unknown>,
-        }),
+        chunks: chunkSet,
         compiler: { outputPath },
         getPath: (_: string) => outputPath,
         warnings: [] as Error[],
@@ -167,24 +174,6 @@ describe('FlareWebpackPlugin', () => {
             expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledTimes(2);
         });
 
-        test('falls back to files array when auxiliaryFiles missing (webpack 4)', async () => {
-            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
-            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
-
-            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
-            const { compiler, tapPromise } = createMockCompiler();
-
-            plugin.apply(compiler as any);
-
-            const afterEmitCallback = tapPromise.mock.calls[0][1];
-            const compilation = createMockCompilation({
-                chunks: [{ files: ['main.js', 'main.js.map'] }],
-            });
-            await afterEmitCallback(compilation);
-
-            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledTimes(1);
-        });
-
         test('warns when no sourcemaps found', async () => {
             const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
             const { compiler, tapPromise } = createMockCompiler();
@@ -221,6 +210,31 @@ describe('FlareWebpackPlugin', () => {
             await afterEmitCallback(compilation);
 
             expect(unlinkSync).toHaveBeenCalledWith(expect.stringContaining('main.js.map'));
+        });
+
+        test('does not remove sourcemaps for failed uploads', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(unlinkSync).mockImplementation(() => {});
+            vi.mocked(FlareApi.prototype.uploadSourcemap)
+                .mockRejectedValueOnce(new Error('upload failed'))
+                .mockResolvedValueOnce();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key', removeSourcemaps: true });
+            const { compiler, tapPromise } = createMockCompiler();
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [
+                    { files: ['fail.js'], auxiliaryFiles: ['fail.js.map'] },
+                    { files: ['ok.js'], auxiliaryFiles: ['ok.js.map'] },
+                ],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(unlinkSync).toHaveBeenCalledTimes(1);
+            expect(unlinkSync).toHaveBeenCalledWith(expect.stringContaining('ok.js.map'));
         });
     });
 
