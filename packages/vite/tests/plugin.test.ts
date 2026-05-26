@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 
+import { FlareApi } from '@flareapp/flare-api';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { FlareApi } from '../src/flareApi';
 import flareSourcemaps from '../src/index';
 
 vi.mock('node:fs', () => ({
@@ -11,7 +11,7 @@ vi.mock('node:fs', () => ({
     unlinkSync: vi.fn(),
 }));
 
-vi.mock('../src/flareApi');
+vi.mock('@flareapp/flare-api');
 
 function createPlugin(
     { apiKey = 'test-key', ...rest }: Parameters<typeof flareSourcemaps>[0] = { apiKey: 'test-key' }

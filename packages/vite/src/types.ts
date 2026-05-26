@@ -6,9 +6,3 @@ export type FlareVitePluginOptions = {
     version?: string;
     removeSourcemaps?: boolean;
 };
-
-export type Sourcemap = {
-    originalFile: string;
-    content: string;
-    sourcemapPath: string;
-};

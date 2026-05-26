@@ -2,12 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { FlareApi, type Sourcemap } from '@flareapp/flare-api';
 import { type Plugin, type ResolvedConfig } from 'vite';
 
-import { FlareApi } from './flareApi';
-import { FlareVitePluginOptions, Sourcemap } from './types';
+import { FlareVitePluginOptions } from './types';
 
-export type { FlareVitePluginOptions, Sourcemap } from './types';
+export type { FlareVitePluginOptions } from './types';
+export type { Sourcemap } from '@flareapp/flare-api';
+
+type SourcemapWithPath = Sourcemap & {
+    sourcemapPath: string;
+};
 
 export default function flareSourcemaps({
     apiKey,
@@ -76,7 +81,7 @@ export default function flareSourcemaps({
 
             const outputDir = outputOptions.dir || '';
 
-            const sourcemaps: Sourcemap[] = [];
+            const sourcemaps: SourcemapWithPath[] = [];
 
             for (const fileName of Object.keys(bundle)) {
                 if (!fileName.endsWith('.map')) {
