@@ -30,6 +30,7 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                         version: options.version,
                         runInDevelopment: options.runInDevelopment,
                         removeSourcemaps,
+                        publicPath: options.publicPath,
                     }),
                 );
             }

@@ -3,31 +3,9 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { FlareApi, type Sourcemap } from '@flareapp/flare-api';
-import webpack from 'webpack';
+import webpack, { type Compiler, type Compilation } from 'webpack';
 
 import type { FlareWebpackPluginOptions } from './types';
-
-type Compiler = {
-    options: { mode?: string; watch?: boolean; plugins?: unknown[] };
-    hooks: {
-        afterEmit: {
-            tapPromise: (name: string, callback: (compilation: Compilation) => Promise<void>) => void;
-        };
-    };
-    outputPath: string;
-};
-
-type Chunk = {
-    files: string[];
-    auxiliaryFiles?: string[];
-};
-
-type Compilation = {
-    getStats: () => { toJson: () => { chunks?: Chunk[] } };
-    compiler: { outputPath: string };
-    getPath: (path: string) => string;
-    warnings: string[];
-};
 
 function log(message: string, isError = false) {
     const formatted = `@flareapp/webpack: ${message}`;
@@ -44,6 +22,7 @@ export class FlareWebpackPlugin {
     private readonly runInDevelopment: boolean;
     private readonly version: string;
     private readonly removeSourcemaps: boolean;
+    private readonly publicPathOverride: string | undefined;
 
     constructor({
         apiKey,
@@ -51,12 +30,14 @@ export class FlareWebpackPlugin {
         runInDevelopment = false,
         version = randomUUID(),
         removeSourcemaps = false,
+        publicPath,
     }: FlareWebpackPluginOptions) {
         this.apiKey = apiKey;
         this.apiEndpoint = apiEndpoint;
         this.runInDevelopment = runInDevelopment;
         this.version = version;
         this.removeSourcemaps = removeSourcemaps;
+        this.publicPathOverride = publicPath;
     }
 
     apply(compiler: Compiler) {
@@ -65,7 +46,7 @@ export class FlareWebpackPlugin {
         new DefinePlugin({
             FLARE_JS_KEY: JSON.stringify(this.apiKey),
             FLARE_SOURCEMAP_VERSION: JSON.stringify(this.version),
-        }).apply(compiler as unknown as Parameters<InstanceType<typeof webpack.DefinePlugin>['apply']>[0]);
+        }).apply(compiler);
 
         compiler.hooks.afterEmit.tapPromise('FlareWebpackPlugin', async (compilation) => {
             if (!this.shouldUpload(compiler, compilation)) {
@@ -73,11 +54,14 @@ export class FlareWebpackPlugin {
             }
 
             const flare = new FlareApi(this.apiEndpoint, this.apiKey, this.version);
-            const sourcemaps = this.getSourcemaps(compilation);
+            const resolvedPublicPath = this.resolvePublicPath(compiler);
+            const sourcemaps = this.getSourcemaps(compilation, resolvedPublicPath);
 
             if (!sourcemaps.length) {
                 compilation.warnings.push(
-                    '@flareapp/webpack: No sourcemap files found. Make sure sourcemaps are enabled in your webpack config.',
+                    new webpack.WebpackError(
+                        '@flareapp/webpack: No sourcemap files found. Make sure sourcemaps are enabled in your webpack config.',
+                    ),
                 );
                 return;
             }
@@ -92,7 +76,9 @@ export class FlareWebpackPlugin {
             if (failed.length > 0) {
                 for (const result of failed) {
                     compilation.warnings.push(
-                        `@flareapp/webpack: Upload failed: ${(result as PromiseRejectedResult).reason}`,
+                        new webpack.WebpackError(
+                            `@flareapp/webpack: Upload failed: ${(result as PromiseRejectedResult).reason}`,
+                        ),
                     );
                 }
             } else {
@@ -117,7 +103,9 @@ export class FlareWebpackPlugin {
 
     private shouldUpload(compiler: Compiler, compilation: Compilation): boolean {
         if (!this.apiKey) {
-            compilation.warnings.push('@flareapp/webpack: No Flare API key provided, not uploading sourcemaps.');
+            compilation.warnings.push(
+                new webpack.WebpackError('@flareapp/webpack: No Flare API key provided, not uploading sourcemaps.'),
+            );
             return false;
         }
 
@@ -134,7 +122,20 @@ export class FlareWebpackPlugin {
         return true;
     }
 
-    private getSourcemaps(compilation: Compilation): Array<{ sourcemap: Sourcemap; path: string }> {
+    private resolvePublicPath(compiler: Compiler): string {
+        if (this.publicPathOverride != null) {
+            return this.publicPathOverride.endsWith('/') ? this.publicPathOverride : `${this.publicPathOverride}/`;
+        }
+
+        const configPublicPath = compiler.options.output?.publicPath;
+        if (typeof configPublicPath === 'string' && configPublicPath && configPublicPath !== 'auto') {
+            return configPublicPath.endsWith('/') ? configPublicPath : `${configPublicPath}/`;
+        }
+
+        return '/';
+    }
+
+    private getSourcemaps(compilation: Compilation, publicPath: string): Array<{ sourcemap: Sourcemap; path: string }> {
         const chunks = compilation.getStats().toJson().chunks;
         const outputPath = compilation.getPath(compilation.compiler.outputPath);
 
@@ -157,7 +158,7 @@ export class FlareWebpackPlugin {
             try {
                 const content = readFileSync(mapPath, 'utf8');
                 sourcemaps.push({
-                    sourcemap: { originalFile: jsFile, content },
+                    sourcemap: { originalFile: `${publicPath}${jsFile}`, content },
                     path: mapPath,
                 });
             } catch (error) {

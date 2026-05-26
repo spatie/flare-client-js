@@ -4,4 +4,5 @@ export type FlareWebpackPluginOptions = {
     runInDevelopment?: boolean;
     version?: string;
     removeSourcemaps?: boolean;
+    publicPath?: string;
 };

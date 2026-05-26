@@ -4,4 +4,5 @@ export type FlareNextjsPluginOptions = {
     runInDevelopment?: boolean;
     version?: string;
     removeSourcemaps?: boolean;
+    publicPath?: string;
 };

@@ -13,9 +13,16 @@ vi.mock('webpack', () => {
         constructor(_definitions: Record<string, string>) {}
         apply(_compiler: unknown) {}
     }
+    class WebpackError extends Error {
+        constructor(message: string) {
+            super(message);
+            this.name = 'WebpackError';
+        }
+    }
     return {
-        default: { DefinePlugin },
+        default: { DefinePlugin, WebpackError },
         DefinePlugin,
+        WebpackError,
     };
 });
 
@@ -33,11 +40,12 @@ function createMockCompiler({
     mode = 'production',
     watch = false,
     outputPath = '/dist',
-}: { mode?: string; watch?: boolean; outputPath?: string } = {}) {
+    publicPath,
+}: { mode?: string; watch?: boolean; outputPath?: string; publicPath?: string } = {}) {
     const tapPromise = vi.fn();
 
     const compiler = {
-        options: { mode, watch, plugins: [] },
+        options: { mode, watch, plugins: [], output: { publicPath } },
         hooks: {
             afterEmit: { tapPromise },
         },
@@ -53,11 +61,11 @@ function createMockCompilation({
 }: { chunks?: Array<{ files: string[]; auxiliaryFiles?: string[] }>; outputPath?: string } = {}) {
     return {
         getStats: () => ({
-            toJson: () => ({ chunks }),
+            toJson: () => ({ chunks }) as Record<string, unknown>,
         }),
         compiler: { outputPath },
         getPath: (_: string) => outputPath,
-        warnings: [] as string[],
+        warnings: [] as Error[],
     };
 }
 
@@ -118,7 +126,9 @@ describe('FlareWebpackPlugin', () => {
             const compilation = createMockCompilation();
             await afterEmitCallback(compilation);
 
-            expect(compilation.warnings).not.toContainEqual(expect.stringContaining('development'));
+            expect(compilation.warnings).not.toContainEqual(
+                expect.objectContaining({ message: expect.stringContaining('development') }),
+            );
         });
 
         test('skips upload in watch mode', async () => {
@@ -187,7 +197,9 @@ describe('FlareWebpackPlugin', () => {
             });
             await afterEmitCallback(compilation);
 
-            expect(compilation.warnings).toContainEqual(expect.stringContaining('No sourcemap'));
+            expect(compilation.warnings).toContainEqual(
+                expect.objectContaining({ message: expect.stringContaining('No sourcemap') }),
+            );
         });
     });
 
@@ -209,6 +221,88 @@ describe('FlareWebpackPlugin', () => {
             await afterEmitCallback(compilation);
 
             expect(unlinkSync).toHaveBeenCalledWith(expect.stringContaining('main.js.map'));
+        });
+    });
+
+    describe('publicPath', () => {
+        test('defaults to / when no publicPath configured', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler();
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['main.js'], auxiliaryFiles: ['main.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: '/main.js' }),
+            );
+        });
+
+        test('reads publicPath from compiler.options.output', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler({ publicPath: '/_next/' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['static/chunks/main.js'], auxiliaryFiles: ['static/chunks/main.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: '/_next/static/chunks/main.js' }),
+            );
+        });
+
+        test('option overrides compiler publicPath', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key', publicPath: '/custom/' });
+            const { compiler, tapPromise } = createMockCompiler({ publicPath: '/_next/' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['main.js'], auxiliaryFiles: ['main.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: '/custom/main.js' }),
+            );
+        });
+
+        test('treats "auto" as default /', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler({ publicPath: 'auto' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['main.js'], auxiliaryFiles: ['main.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: '/main.js' }),
+            );
         });
     });
 });
