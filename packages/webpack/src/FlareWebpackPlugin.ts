@@ -65,7 +65,7 @@ export class FlareWebpackPlugin {
         new DefinePlugin({
             FLARE_JS_KEY: JSON.stringify(this.apiKey),
             FLARE_SOURCEMAP_VERSION: JSON.stringify(this.version),
-        }).apply(compiler);
+        }).apply(compiler as unknown as Parameters<InstanceType<typeof webpack.DefinePlugin>['apply']>[0]);
 
         compiler.hooks.afterEmit.tapPromise('FlareWebpackPlugin', async (compilation) => {
             if (!this.shouldUpload(compiler, compilation)) {

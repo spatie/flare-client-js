@@ -9,6 +9,7 @@ vi.mock('@flareapp/flare-api');
 
 vi.mock('webpack', () => {
     class DefinePlugin {
+        // eslint-disable-next-line no-useless-constructor -- mock needs constructor signature
         constructor(_definitions: Record<string, string>) {}
         apply(_compiler: unknown) {}
     }
