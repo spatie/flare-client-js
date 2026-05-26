@@ -47,7 +47,7 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/webpack": "^1.0.0"
+        "@flareapp/webpack": "^2.0.0"
     },
     "devDependencies": {
         "next": "^15.0.0",
