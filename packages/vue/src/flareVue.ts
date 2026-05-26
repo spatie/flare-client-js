@@ -132,7 +132,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             };
 
             Promise.resolve(flare.reportMessage(msg, 'warning', vueWarningContextToAttributes(context))).catch(
-                () => {}
+                () => {},
             );
 
             if (typeof initialWarnHandler === 'function') {

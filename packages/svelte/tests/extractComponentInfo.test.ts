@@ -24,7 +24,7 @@ describe('extractComponentInfo', () => {
                 '    at Card (http://localhost:5173/src/lib/Card.svelte:5:1)',
                 '    at Layout (http://localhost:5173/src/routes/Layout.svelte:3:1)',
                 '    at App (http://localhost:5173/src/App.svelte:1:1)',
-            ].join('\n')
+            ].join('\n'),
         );
 
         const result = extractComponentInfo(frames);
@@ -35,7 +35,7 @@ describe('extractComponentInfo', () => {
 
     test('extracts component name from fileName when functionName is unavailable', () => {
         const frames = parseStack(
-            ['Error: test', '    at http://localhost:5173/src/lib/MyComponent.svelte:10:5'].join('\n')
+            ['Error: test', '    at http://localhost:5173/src/lib/MyComponent.svelte:10:5'].join('\n'),
         );
 
         const result = extractComponentInfo(frames);
@@ -51,7 +51,7 @@ describe('extractComponentInfo', () => {
                 '    at Button (http://localhost:5173/src/lib/Button.svelte:12:5)',
                 '    at Button (http://localhost:5173/src/lib/Button.svelte:8:3)',
                 '    at Card (http://localhost:5173/src/lib/Card.svelte:5:1)',
-            ].join('\n')
+            ].join('\n'),
         );
 
         const result = extractComponentInfo(frames);
@@ -66,7 +66,7 @@ describe('extractComponentInfo', () => {
                 'Error: test',
                 '    at someFunction (http://localhost:5173/src/utils.ts:5:1)',
                 '    at main (http://localhost:5173/src/main.ts:1:1)',
-            ].join('\n')
+            ].join('\n'),
         );
 
         const result = extractComponentInfo(frames);
@@ -81,7 +81,7 @@ describe('extractComponentInfo', () => {
                 'Error: test',
                 '    at Qe (http://example.com/assets/svelte-abc123.js:42:15)',
                 '    at jt (http://example.com/assets/svelte-abc123.js:38:10)',
-            ].join('\n')
+            ].join('\n'),
         );
 
         const result = extractComponentInfo(frames);
@@ -105,7 +105,7 @@ describe('extractComponentInfo', () => {
                 '    at Button (http://localhost:5173/src/lib/Button.svelte:12:5)',
                 '    at createEffect (http://localhost:5173/node_modules/svelte/internal:100:5)',
                 '    at Card (http://localhost:5173/src/lib/Card.svelte:5:1)',
-            ].join('\n')
+            ].join('\n'),
         );
 
         const result = extractComponentInfo(frames);

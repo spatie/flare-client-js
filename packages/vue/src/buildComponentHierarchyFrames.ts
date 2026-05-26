@@ -13,7 +13,7 @@ type BuildComponentHierarchyFramesOptions = {
 
 export function buildComponentHierarchyFrames(
     instance: ComponentPublicInstance | null,
-    options: BuildComponentHierarchyFramesOptions
+    options: BuildComponentHierarchyFramesOptions,
 ): ComponentHierarchyFrame[] {
     const frames: ComponentHierarchyFrame[] = [];
     let current = instance;

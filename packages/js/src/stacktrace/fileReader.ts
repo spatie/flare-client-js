@@ -79,7 +79,7 @@ export function readLinesFromFile(
     lineNumber: number,
     columnNumber?: number,
     maxSnippetLineLength = 1000,
-    maxSnippetLines = 40
+    maxSnippetLines = 40,
 ): ReaderResponse {
     const codeSnippet: CodeSnippet = {};
     let trimmedColumnNumber = null;

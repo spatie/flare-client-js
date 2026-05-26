@@ -11,7 +11,7 @@ const compile = (pattern: string): { regex: RegExp; keys: string[] } => {
                 keys.push(key);
                 return '/([^/]+)';
             }) +
-            '/?$'
+            '/?$',
     );
     return { regex, keys };
 };

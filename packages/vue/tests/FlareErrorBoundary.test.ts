@@ -481,7 +481,7 @@ describe('FlareErrorBoundary', () => {
 
     test('calls beforeSubmit with error, instance, info, and context', async () => {
         const beforeSubmit = vi.fn(
-            (params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => params.context
+            (params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => params.context,
         );
 
         mount(FlareErrorBoundary, {
@@ -557,7 +557,7 @@ describe('FlareErrorBoundary', () => {
         const afterSubmit = vi.fn(
             (_params: { error: Error; instance: unknown; info: string; context: FlareVueContext }) => {
                 callOrder.push('afterSubmit');
-            }
+            },
         );
 
         mount(FlareErrorBoundary, {

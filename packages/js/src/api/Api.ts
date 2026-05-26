@@ -7,7 +7,7 @@ export class Api {
         url: string,
         key: string | null,
         reportBrowserExtensionErrors: boolean,
-        debug: boolean = false
+        debug: boolean = false,
     ): Promise<void> {
         return fetch(url, {
             method: 'POST',
@@ -29,7 +29,7 @@ export class Api {
                 if (debug) {
                     console.error(error);
                 }
-            }
+            },
         );
     }
 }

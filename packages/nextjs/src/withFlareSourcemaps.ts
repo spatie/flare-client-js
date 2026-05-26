@@ -18,7 +18,7 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
             if (typeof nextConfig.webpack === 'function') {
                 config = (nextConfig.webpack as (c: WebpackConfig, ctx: WebpackContext) => WebpackConfig)(
                     config,
-                    context
+                    context,
                 );
             }
 
@@ -30,7 +30,7 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                         version: options.version,
                         runInDevelopment: options.runInDevelopment,
                         removeSourcemaps,
-                    })
+                    }),
                 );
             }
 

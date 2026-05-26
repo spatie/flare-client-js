@@ -15,7 +15,7 @@ export class FlareApi {
     constructor(
         private readonly endpoint: string,
         private readonly key: string,
-        private readonly version: string
+        private readonly version: string,
     ) {}
 
     uploadSourcemap(sourcemap: Sourcemap): Promise<void> {

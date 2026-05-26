@@ -23,7 +23,7 @@ export const renderProducts: RouteHandler = (_match, root) => {
                     <button data-product-id="${product.id}" data-testid="add-to-cart-${product.id}" class="w-full rounded-lg bg-brand-ink text-white text-sm py-2 hover:opacity-90">Add to cart</button>
                 </div>
             </article>
-        `
+        `,
         )
         .join('');
 
@@ -32,7 +32,7 @@ export const renderProducts: RouteHandler = (_match, root) => {
         `<section data-testid="product-grid">
             <h1 class="text-xl font-semibold mb-6">Photographs</h1>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-6">${grid}</div>
-        </section>`
+        </section>`,
     );
 
     root.querySelectorAll<HTMLButtonElement>('button[data-product-id]').forEach((button) => {

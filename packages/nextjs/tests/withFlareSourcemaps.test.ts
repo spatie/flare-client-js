@@ -18,7 +18,7 @@ describe('withFlareSourcemaps', () => {
     test('preserves existing Next.js config properties', () => {
         const config = withFlareSourcemaps(
             { reactStrictMode: true, images: { domains: ['example.com'] } },
-            { apiKey: 'test-key' }
+            { apiKey: 'test-key' },
         );
 
         expect(config.reactStrictMode).toBe(true);
@@ -92,7 +92,7 @@ describe('withFlareSourcemaps', () => {
                     apiKey: 'test-key',
                     apiEndpoint: 'https://custom.flare.test/api',
                     version: 'v42',
-                }
+                },
             );
 
             const webpackConfig = { plugins: [] as unknown[] };
@@ -102,7 +102,7 @@ describe('withFlareSourcemaps', () => {
                 expect.objectContaining({
                     apiEndpoint: 'https://custom.flare.test/api',
                     version: 'v42',
-                })
+                }),
             );
         });
     });

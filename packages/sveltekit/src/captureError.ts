@@ -15,7 +15,7 @@ export interface CaptureErrorOptions {
  * SvelteKit's handleError hook), this is called manually by the user in their own hook logic.
  */
 export function createCaptureError(
-    getRouteContext: (options?: CaptureErrorOptions) => SvelteKitRouteContext
+    getRouteContext: (options?: CaptureErrorOptions) => SvelteKitRouteContext,
 ): (rawError: unknown, options?: CaptureErrorOptions) => void {
     return (rawError, options) => {
         registerSvelteKitSdkIdentity();

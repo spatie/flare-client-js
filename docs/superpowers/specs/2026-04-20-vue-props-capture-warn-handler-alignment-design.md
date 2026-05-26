@@ -180,7 +180,7 @@ New second parameter:
 ```ts
 export function buildComponentHierarchyFrames(
     instance: ComponentPublicInstance | null,
-    options: { attachProps: boolean; propsMaxDepth: number }
+    options: { attachProps: boolean; propsMaxDepth: number },
 ): ComponentHierarchyFrame[];
 ```
 
@@ -221,7 +221,7 @@ app.config.warnHandler = (msg: string, instance: ComponentPublicInstance | null,
                 ...(route && { route }),
             },
         },
-        'VueWarning'
+        'VueWarning',
     );
 
     if (typeof initialWarnHandler === 'function') {

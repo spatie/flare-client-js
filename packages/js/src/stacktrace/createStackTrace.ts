@@ -33,7 +33,7 @@ export function createStackTrace(error: Error, debug: boolean): Promise<Array<St
                     class: '',
                     isApplicationFrame: isApplicationFrame(frame.fileName),
                 }));
-            })
+            }),
         ).then(resolve);
     });
 }

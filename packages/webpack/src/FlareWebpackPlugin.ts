@@ -77,7 +77,7 @@ export class FlareWebpackPlugin {
 
             if (!sourcemaps.length) {
                 compilation.warnings.push(
-                    '@flareapp/webpack: No sourcemap files found. Make sure sourcemaps are enabled in your webpack config.'
+                    '@flareapp/webpack: No sourcemap files found. Make sure sourcemaps are enabled in your webpack config.',
                 );
                 return;
             }
@@ -85,14 +85,14 @@ export class FlareWebpackPlugin {
             log(`Uploading ${sourcemaps.length} sourcemap(s) to Flare.`);
 
             const results = await Promise.allSettled(
-                sourcemaps.map(({ sourcemap }) => flare.uploadSourcemap(sourcemap))
+                sourcemaps.map(({ sourcemap }) => flare.uploadSourcemap(sourcemap)),
             );
 
             const failed = results.filter((r) => r.status === 'rejected');
             if (failed.length > 0) {
                 for (const result of failed) {
                     compilation.warnings.push(
-                        `@flareapp/webpack: Upload failed: ${(result as PromiseRejectedResult).reason}`
+                        `@flareapp/webpack: Upload failed: ${(result as PromiseRejectedResult).reason}`,
                     );
                 }
             } else {

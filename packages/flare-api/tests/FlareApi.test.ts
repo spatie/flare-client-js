@@ -28,7 +28,7 @@ describe('FlareApi', () => {
                 expect.objectContaining({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                })
+                }),
             );
 
             const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
@@ -83,7 +83,7 @@ describe('FlareApi', () => {
             const api = new FlareApi('https://flare.test/api', 'key', 'v1');
 
             await expect(api.uploadSourcemap({ originalFile: '/app.js', content: '{}' })).rejects.toThrow(
-                'Flare API returned 400'
+                'Flare API returned 400',
             );
 
             expect(fetch).toHaveBeenCalledTimes(1);
