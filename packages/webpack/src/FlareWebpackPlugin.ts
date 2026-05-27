@@ -55,7 +55,8 @@ export class FlareWebpackPlugin {
                 return;
             }
             const resolvedPublicPath = this.resolvePublicPath(compiler);
-            const sourcemaps = this.getSourcemaps(compilation, resolvedPublicPath);
+            const isServer = this.isServerBuild(compiler);
+            const sourcemaps = this.getSourcemaps(compilation, resolvedPublicPath, isServer);
 
             if (!sourcemaps.length) {
                 compilation.warnings.push(
@@ -122,6 +123,23 @@ export class FlareWebpackPlugin {
         return true;
     }
 
+    private isServerBuild(compiler: Compiler): boolean {
+        // Next.js names its server compilers 'server' and 'edge-server'.
+        if (compiler.name === 'server' || compiler.name === 'edge-server') {
+            return true;
+        }
+
+        const target = compiler.options.target;
+        if (!target) {
+            return false;
+        }
+
+        const targets = Array.isArray(target) ? target : [target];
+        const serverTargets = ['node', 'async-node', 'node-webkit', 'electron-main', 'electron-preload'];
+
+        return targets.some((t) => serverTargets.includes(t) || t.startsWith('node'));
+    }
+
     private resolvePublicPath(compiler: Compiler): string {
         if (this.publicPathOverride != null) {
             return this.publicPathOverride.endsWith('/') ? this.publicPathOverride : `${this.publicPathOverride}/`;
@@ -135,7 +153,11 @@ export class FlareWebpackPlugin {
         return '/';
     }
 
-    private getSourcemaps(compilation: Compilation, publicPath: string): Array<{ sourcemap: Sourcemap; path: string }> {
+    private getSourcemaps(
+        compilation: Compilation,
+        publicPath: string,
+        isServer: boolean,
+    ): Array<{ sourcemap: Sourcemap; path: string }> {
         const outputPath = compilation.getPath(compilation.compiler.outputPath);
         const sourcemaps: Array<{ sourcemap: Sourcemap; path: string }> = [];
 
@@ -151,8 +173,12 @@ export class FlareWebpackPlugin {
 
             try {
                 const content = readFileSync(mapPath, 'utf8');
+                // Server (Node/SSR) runtime stack frames are filesystem / file:// paths, not URLs,
+                // so the web public-path prefix is meaningless and breaks suffix matching on the
+                // backend. Upload the bundle-relative path for server builds.
+                const originalFile = isServer ? jsFile : `${publicPath}${jsFile}`;
                 sourcemaps.push({
-                    sourcemap: { originalFile: `${publicPath}${jsFile}`, content },
+                    sourcemap: { originalFile, content },
                     path: mapPath,
                 });
             } catch (error) {
