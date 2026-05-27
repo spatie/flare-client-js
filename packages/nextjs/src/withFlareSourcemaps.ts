@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { FlareWebpackPlugin } from '@flareapp/webpack';
 
 import type { FlareNextjsPluginOptions } from './types';
@@ -8,7 +10,8 @@ type WebpackConfig = { plugins: unknown[]; devtool?: string | false } & Record<s
 type WebpackContext = { isServer: boolean; dev?: boolean } & Record<string, unknown>;
 
 export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjsPluginOptions): NextConfig {
-    const removeSourcemaps = options.removeSourcemaps ?? true;
+    const removeSourcemaps = options.removeSourcemaps ?? false;
+    const version = options.version ?? randomUUID();
 
     const existingExperimental = (nextConfig.experimental as Record<string, unknown> | undefined) ?? {};
 
@@ -34,7 +37,7 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                 new FlareWebpackPlugin({
                     apiKey: options.apiKey,
                     apiEndpoint: options.apiEndpoint,
-                    version: options.version,
+                    version,
                     runInDevelopment: options.runInDevelopment,
                     removeSourcemaps,
                     publicPath: options.publicPath,
@@ -44,7 +47,7 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
             // Make sure the server build emits .js.map files so the plugin has something to
             // upload. Only set this for production server builds, and never override a devtool
             // the user has already configured.
-            if (context.isServer && !context.dev && !config.devtool) {
+            if (context.isServer && !context.dev && config.devtool == null) {
                 config.devtool = 'source-map';
             }
 
