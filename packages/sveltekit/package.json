@@ -68,10 +68,10 @@
         "vitest": "^4.0.0"
     },
     "dependencies": {
-        "@flareapp/svelte": "^2.0.1"
+        "@flareapp/svelte": "^2.1.0"
     },
     "peerDependencies": {
-        "@flareapp/js": "^2.0.1",
+        "@flareapp/js": "^2.1.0",
         "@sveltejs/kit": "^2.12.0",
         "svelte": "^5.3.0"
     },
