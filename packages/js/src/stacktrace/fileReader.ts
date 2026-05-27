@@ -1,3 +1,5 @@
+import { nativeImport } from './nativeImport';
+
 // Module-level cache: bundles fetched once per page load are reused across every frame in the trace.
 const cachedFiles: { [key: string]: string } = {};
 
@@ -93,18 +95,14 @@ function readFileWithFetch(url: string): Promise<string | null> {
         .catch(() => null);
 }
 
-// Node-only. The `webpackIgnore`/`@vite-ignore` comments stop downstream bundlers from trying to
-// resolve these `node:` builtins when @flareapp/js is bundled for the browser (which would throw
-// UnhandledSchemeError). The imports stay native and are only reached behind the `isNode()` gate,
-// so they never execute in the browser.
+// Node-only. `nativeImport` hides the `node:` specifiers from bundlers (see its module). This branch
+// is only reached behind the `isNode()` gate, so it never runs in the browser.
 function readFileFromDisk(url: string): Promise<string | null> {
-    return import(/* webpackIgnore: true */ /* @vite-ignore */ 'node:url')
+    return nativeImport('node:url')
         .then(({ fileURLToPath }) => {
             const path = /^file:\/\//i.test(url) ? fileURLToPath(url) : url;
 
-            return import(/* webpackIgnore: true */ /* @vite-ignore */ 'node:fs/promises').then(
-                ({ readFile: readFileAsync }) => readFileAsync(path, 'utf-8'),
-            );
+            return nativeImport('node:fs/promises').then(({ readFile: readFileAsync }) => readFileAsync(path, 'utf-8'));
         })
         .catch(() => null);
 }
