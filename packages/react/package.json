@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/react",
-    "version": "2.0.1",
+    "version": "2.1.0",
     "description": "React client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
