@@ -40,11 +40,21 @@ function createMockCompiler({
     watch = false,
     outputPath = '/dist',
     publicPath,
-}: { mode?: string; watch?: boolean; outputPath?: string; publicPath?: string } = {}) {
+    target,
+    name,
+}: {
+    mode?: string;
+    watch?: boolean;
+    outputPath?: string;
+    publicPath?: string;
+    target?: string | string[] | false;
+    name?: string;
+} = {}) {
     const tapPromise = vi.fn();
 
     const compiler = {
-        options: { mode, watch, plugins: [], output: { publicPath } },
+        name,
+        options: { mode, watch, plugins: [], output: { publicPath }, target },
         hooks: {
             afterEmit: { tapPromise },
         },
@@ -316,6 +326,88 @@ describe('FlareWebpackPlugin', () => {
 
             expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
                 expect.objectContaining({ originalFile: '/main.js' }),
+            );
+        });
+    });
+
+    describe('server builds', () => {
+        test('omits the publicPath prefix for node target builds', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler({ target: 'node', publicPath: '/_next/' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['chunks/0.js'], auxiliaryFiles: ['chunks/0.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: 'chunks/0.js' }),
+            );
+        });
+
+        test('detects versioned node targets like "node10"', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler({ target: ['node10'], publicPath: '/_next/' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['chunks/0.js'], auxiliaryFiles: ['chunks/0.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: 'chunks/0.js' }),
+            );
+        });
+
+        test('detects Next.js server compiler by name', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler({ name: 'server', publicPath: '/_next/' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['chunks/0.js'], auxiliaryFiles: ['chunks/0.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: 'chunks/0.js' }),
+            );
+        });
+
+        test('keeps the publicPath prefix for browser target builds', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler({ target: 'web', publicPath: '/_next/' });
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [{ files: ['chunks/0.js'], auxiliaryFiles: ['chunks/0.js.map'] }],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
+                expect.objectContaining({ originalFile: '/_next/chunks/0.js' }),
             );
         });
     });
