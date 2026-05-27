@@ -93,14 +93,18 @@ function readFileWithFetch(url: string): Promise<string | null> {
         .catch(() => null);
 }
 
-// Node-only. The dynamic imports keep `node:fs/promises` and `node:url` out of the browser bundle:
-// they live behind the `isNode()` gate and bundlers tree-shake them from browser builds.
+// Node-only. The `webpackIgnore`/`@vite-ignore` comments stop downstream bundlers from trying to
+// resolve these `node:` builtins when @flareapp/js is bundled for the browser (which would throw
+// UnhandledSchemeError). The imports stay native and are only reached behind the `isNode()` gate,
+// so they never execute in the browser.
 function readFileFromDisk(url: string): Promise<string | null> {
-    return import('node:url')
+    return import(/* webpackIgnore: true */ /* @vite-ignore */ 'node:url')
         .then(({ fileURLToPath }) => {
             const path = /^file:\/\//i.test(url) ? fileURLToPath(url) : url;
 
-            return import('node:fs/promises').then(({ readFile: readFileAsync }) => readFileAsync(path, 'utf-8'));
+            return import(/* webpackIgnore: true */ /* @vite-ignore */ 'node:fs/promises').then(
+                ({ readFile: readFileAsync }) => readFileAsync(path, 'utf-8'),
+            );
         })
         .catch(() => null);
 }
