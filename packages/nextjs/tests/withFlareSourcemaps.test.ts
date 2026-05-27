@@ -31,6 +31,21 @@ describe('withFlareSourcemaps', () => {
         expect(config.productionBrowserSourceMaps).toBe(false);
     });
 
+    test('enables experimental.serverSourceMaps by default', () => {
+        const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
+
+        expect(config.experimental).toMatchObject({ serverSourceMaps: true });
+    });
+
+    test('preserves existing experimental config and explicit serverSourceMaps', () => {
+        const config = withFlareSourcemaps(
+            { experimental: { serverSourceMaps: false, typedRoutes: true } },
+            { apiKey: 'test-key' },
+        );
+
+        expect(config.experimental).toMatchObject({ serverSourceMaps: false, typedRoutes: true });
+    });
+
     describe('webpack function', () => {
         test('adds FlareWebpackPlugin to config plugins for client builds', () => {
             const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
@@ -42,13 +57,50 @@ describe('withFlareSourcemaps', () => {
             expect(result.plugins).toHaveLength(1);
         });
 
-        test('does NOT add FlareWebpackPlugin for server builds', () => {
+        test('adds FlareWebpackPlugin for server builds', () => {
             const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
 
             const webpackConfig = { plugins: [] as unknown[] };
             const result = config.webpack!(webpackConfig as any, { isServer: true } as any);
 
-            expect(result.plugins).toHaveLength(0);
+            expect(FlareWebpackPlugin).toHaveBeenCalledWith(expect.objectContaining({ apiKey: 'test-key' }));
+            expect(result.plugins).toHaveLength(1);
+        });
+
+        test('sets devtool to source-map for production server builds', () => {
+            const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
+
+            const webpackConfig = { plugins: [] as unknown[] };
+            const result = config.webpack!(webpackConfig as any, { isServer: true, dev: false } as any);
+
+            expect(result.devtool).toBe('source-map');
+        });
+
+        test('does not set devtool for client builds', () => {
+            const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
+
+            const webpackConfig = { plugins: [] as unknown[] };
+            const result = config.webpack!(webpackConfig as any, { isServer: false, dev: false } as any);
+
+            expect(result.devtool).toBeUndefined();
+        });
+
+        test('does not set devtool for server builds in dev mode', () => {
+            const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
+
+            const webpackConfig = { plugins: [] as unknown[] };
+            const result = config.webpack!(webpackConfig as any, { isServer: true, dev: true } as any);
+
+            expect(result.devtool).toBeUndefined();
+        });
+
+        test('does not override an existing devtool on the server build', () => {
+            const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
+
+            const webpackConfig = { plugins: [] as unknown[], devtool: 'eval' };
+            const result = config.webpack!(webpackConfig as any, { isServer: true, dev: false } as any);
+
+            expect(result.devtool).toBe('eval');
         });
 
         test('chains with existing webpack function', () => {
