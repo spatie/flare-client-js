@@ -20,6 +20,7 @@ export default function flareSourcemaps({
     let logger: ResolvedConfig['logger'] | null = null;
     let resolvedBase = base ?? '/';
     let enableUpload = false;
+    let isSsrBuild = false;
 
     const flare = new FlareApi(apiEndpoint, apiKey, version);
 
@@ -61,6 +62,8 @@ export default function flareSourcemaps({
         configResolved(config) {
             logger = config.logger;
 
+            isSsrBuild = !!config.build?.ssr;
+
             if (!base) {
                 resolvedBase = config.base;
             }
@@ -94,10 +97,15 @@ export default function flareSourcemaps({
                 const sourcemapPath = resolve(outputDir, fileName);
 
                 try {
+                    // For SSR (server) builds the runtime stack frame is a filesystem / file:// path, not a web
+                    // URL, so prefixing with the web base is meaningless. Use the bundle-relative path so the
+                    // backend can suffix-match it against the runtime frame path.
+                    const originalFile = isSsrBuild ? sourceFileName : `${resolvedBase}${sourceFileName}`;
+
                     sourcemaps.push({
                         content: readFileSync(sourcemapPath, 'utf8'),
                         sourcemapPath,
-                        originalFile: `${resolvedBase}${sourceFileName}`,
+                        originalFile,
                     });
                 } catch (error) {
                     log(`Error reading sourcemap ${sourcemapPath}: ${error}`, true);

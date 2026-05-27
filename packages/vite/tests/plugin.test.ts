@@ -175,6 +175,23 @@ describe('flareSourcemaps plugin', () => {
             expect(uploadSpy).toHaveBeenCalledWith(expect.objectContaining({ originalFile: '/my-app/assets/app.js' }));
         });
 
+        test('uses bundle-relative path without base prefix for SSR builds', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const plugin = flareSourcemaps({ apiKey: 'test-key', base: '/my-app/' }) as any;
+            warnSpy.mockRestore();
+
+            plugin.config({}, { mode: 'production' });
+            plugin.configResolved({ logger: { info: vi.fn(), error: vi.fn() }, base: '/', build: { ssr: true } });
+
+            const uploadSpy = vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
+            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+
+            await plugin.writeBundle({ dir: '/build/server' }, { 'chunks/0.js.map': {} });
+
+            expect(uploadSpy).toHaveBeenCalledWith(expect.objectContaining({ originalFile: 'chunks/0.js' }));
+        });
+
         test('does not upload when upload is disabled', async () => {
             const plugin = createPlugin({ apiKey: '' });
             const uploadSpy = vi.mocked(FlareApi.prototype.uploadSourcemap).mockResolvedValue();
