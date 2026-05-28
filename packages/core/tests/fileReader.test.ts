@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { getCodeSnippet, readLinesFromFile } from '../../core/src/stacktrace/fileReader';
+import { getCodeSnippet, readLinesFromFile } from '../src/stacktrace/fileReader';
 
 let originalFetch: typeof globalThis.fetch;
 

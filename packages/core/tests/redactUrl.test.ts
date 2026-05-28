@@ -1,43 +1,43 @@
-import { DEFAULT_URL_DENYLIST, Flare, redactUrlQuery as redactFullPath, resolveDenylist } from '@flareapp/core';
+import { DEFAULT_URL_DENYLIST, Flare, redactUrlQuery, resolveDenylist } from '@flareapp/core';
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import { FakeApi } from './helpers/FakeApi';
 
-describe('redactFullPath', () => {
+describe('redactUrlQuery', () => {
     test('redacts denylisted query keys', () => {
-        const result = redactFullPath('/page?token=abc&q=visible', DEFAULT_URL_DENYLIST);
+        const result = redactUrlQuery('/page?token=abc&q=visible', DEFAULT_URL_DENYLIST);
         expect(result).toBe('/page?token=[redacted]&q=visible');
     });
 
     test('redacts session-style keys', () => {
-        const result = redactFullPath('/page?session_id=xyz&tab=open', DEFAULT_URL_DENYLIST);
+        const result = redactUrlQuery('/page?session_id=xyz&tab=open', DEFAULT_URL_DENYLIST);
         expect(result).toBe('/page?session_id=[redacted]&tab=open');
     });
 
     test('preserves hash fragment after query', () => {
-        const result = redactFullPath('/page?token=abc#section', DEFAULT_URL_DENYLIST);
+        const result = redactUrlQuery('/page?token=abc#section', DEFAULT_URL_DENYLIST);
         expect(result).toBe('/page?token=[redacted]#section');
     });
 
     test('handles hash-router URLs (query inside hash)', () => {
         const url = 'http://localhost/#/users/77?token=secret&tab=open';
-        const result = redactFullPath(url, DEFAULT_URL_DENYLIST);
+        const result = redactUrlQuery(url, DEFAULT_URL_DENYLIST);
         expect(result).toBe('http://localhost/#/users/77?token=[redacted]&tab=open');
     });
 
     test('returns input unchanged when no query string present', () => {
-        expect(redactFullPath('/page', DEFAULT_URL_DENYLIST)).toBe('/page');
-        expect(redactFullPath('', DEFAULT_URL_DENYLIST)).toBe('');
+        expect(redactUrlQuery('/page', DEFAULT_URL_DENYLIST)).toBe('/page');
+        expect(redactUrlQuery('', DEFAULT_URL_DENYLIST)).toBe('');
     });
 
     test('honours a custom denylist', () => {
-        const result = redactFullPath('/page?secretKey=xyz&token=visible', /^secretKey$/);
+        const result = redactUrlQuery('/page?secretKey=xyz&token=visible', /^secretKey$/);
         expect(result).toBe('/page?secretKey=[redacted]&token=visible');
     });
 
     test('redacts keys without values', () => {
-        expect(redactFullPath('/page?token', DEFAULT_URL_DENYLIST)).toBe('/page?token');
+        expect(redactUrlQuery('/page?token', DEFAULT_URL_DENYLIST)).toBe('/page?token');
     });
 });
 
@@ -64,7 +64,7 @@ describe('resolveDenylist', () => {
         expect(resolved.flags).not.toContain('y');
 
         const url = '/page?secret=1&secret=2';
-        const result = redactFullPath(url, resolved);
+        const result = redactUrlQuery(url, resolved);
         expect(result).toBe('/page?secret=[redacted]&secret=[redacted]');
     });
 

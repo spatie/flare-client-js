@@ -2,7 +2,7 @@
 import ErrorStackParser from 'error-stack-parser';
 import { expect, test, vi } from 'vitest';
 
-import { createStackTrace } from '../../core/src/stacktrace/createStackTrace';
+import { createStackTrace } from '../src/stacktrace/createStackTrace';
 
 vi.mock('error-stack-parser', () => ({
     default: {
