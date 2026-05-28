@@ -143,6 +143,23 @@ function bumpPackages(newVersion) {
     info('All packages bumped');
 }
 
+function updateCrossReferences(newVersion) {
+    console.log('\n--- Updating cross-package references ---\n');
+
+    for (const { pkg, field, dep } of CROSS_PACKAGE_REFS) {
+        const pkgJson = readPkgJson(pkg);
+        if (pkgJson[field] && pkgJson[field][dep]) {
+            const oldRange = pkgJson[field][dep];
+            const newRange = `^${newVersion}`;
+            pkgJson[field][dep] = newRange;
+            writePkgJson(pkg, pkgJson);
+            info(`@flareapp/${pkg} ${field}.${dep}: ${oldRange} -> ${newRange}`);
+        }
+    }
+
+    info('Cross-package references updated');
+}
+
 async function preflight() {
     console.log('\n--- Pre-flight checks ---\n');
 
