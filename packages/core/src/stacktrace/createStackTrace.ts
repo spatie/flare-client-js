@@ -2,9 +2,10 @@ import ErrorStackParser from 'error-stack-parser';
 
 import { StackFrame } from '../types';
 import { assert } from '../util';
+import type { FileReader } from './fileReader';
 import { getCodeSnippet } from './fileReader';
 
-export function createStackTrace(error: Error, debug: boolean): Promise<Array<StackFrame>> {
+export function createStackTrace(error: Error, debug: boolean, fileReader: FileReader): Promise<Array<StackFrame>> {
     return new Promise((resolve) => {
         if (!hasStack(error)) {
             return resolve([fallbackFrame('stacktrace missing')]);
@@ -24,15 +25,17 @@ export function createStackTrace(error: Error, debug: boolean): Promise<Array<St
 
         Promise.all(
             parsedFrames.map((frame) => {
-                return getCodeSnippet(frame.fileName, frame.lineNumber, frame.columnNumber).then((snippet) => ({
-                    lineNumber: frame.lineNumber || 1,
-                    columnNumber: frame.columnNumber || 1,
-                    method: frame.functionName || 'Anonymous or unknown function',
-                    file: frame.fileName || 'Unknown file',
-                    codeSnippet: snippet.codeSnippet,
-                    class: '',
-                    isApplicationFrame: isApplicationFrame(frame.fileName),
-                }));
+                return getCodeSnippet(fileReader, frame.fileName, frame.lineNumber, frame.columnNumber).then(
+                    (snippet) => ({
+                        lineNumber: frame.lineNumber || 1,
+                        columnNumber: frame.columnNumber || 1,
+                        method: frame.functionName || 'Anonymous or unknown function',
+                        file: frame.fileName || 'Unknown file',
+                        codeSnippet: snippet.codeSnippet,
+                        class: '',
+                        isApplicationFrame: isApplicationFrame(frame.fileName),
+                    }),
+                );
             }),
         ).then(resolve);
     });

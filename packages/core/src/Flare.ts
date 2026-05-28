@@ -2,6 +2,8 @@ import { Api } from './api';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { GlobalScopeProvider, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
+import type { FileReader } from './stacktrace/fileReader';
+import { NullFileReader } from './stacktrace/NullFileReader';
 import {
     AttributeValue,
     Attributes,
@@ -43,6 +45,7 @@ export class Flare {
         public api: Api = new Api(),
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
         private contextCollector: ContextCollector = () => ({}),
+        private fileReader: FileReader = new NullFileReader(),
     ) {}
 
     get config(): Readonly<Config> {
@@ -183,7 +186,7 @@ export class Flare {
         if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
 
         const seenAtUnixNano = Date.now() * 1_000_000;
-        const stackTrace = await createStackTrace(new Error(), this._config.debug);
+        const stackTrace = await createStackTrace(new Error(), this._config.debug, this.fileReader);
         // Drop the top frame so reportMessage itself doesn't appear as the call site.
         stackTrace.shift();
 
@@ -210,7 +213,7 @@ export class Flare {
             return false;
         }
 
-        const stacktrace = await createStackTrace(error, this._config.debug);
+        const stacktrace = await createStackTrace(error, this._config.debug, this.fileReader);
 
         assert(stacktrace.length, "Couldn't generate stacktrace of this error: " + error, this._config.debug);
 
