@@ -1,8 +1,8 @@
+import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { collectAttributes } from '../src/context';
-import { DEFAULT_URL_DENYLIST } from '../src/util';
+import { collectAttributes } from '../../core/src/context';
 
 const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
 const originalReferrer = Object.getOwnPropertyDescriptor(Document.prototype, 'referrer');

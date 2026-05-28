@@ -20,7 +20,7 @@ import {
     extractCode,
     glowsToEvents,
     now,
-    redactFullPath,
+    redactUrlQuery,
     resolveDenylist,
 } from './util';
 
@@ -253,7 +253,7 @@ export class Flare {
         };
 
         if (typeof window !== 'undefined' && window?.location?.href) {
-            baseAttributes['flare.entry_point.value'] = redactFullPath(window.location.href, this._config.urlDenylist);
+            baseAttributes['flare.entry_point.value'] = redactUrlQuery(window.location.href, this._config.urlDenylist);
         }
 
         const handlerIdentifier =

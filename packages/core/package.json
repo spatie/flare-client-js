@@ -33,7 +33,7 @@
     "scripts": {
         "prepublishOnly": "npm run build",
         "build": "tsdown src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=$(node -p \"require('./package.json').version\") --clean",
-        "test": "vitest run",
+        "test": "vitest run --passWithNoTests",
         "typescript": "tsc --noEmit",
         "release": "release-it"
     },

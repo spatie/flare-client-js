@@ -27,3 +27,5 @@ export {
 } from './util';
 
 export { Api } from './api';
+
+export { Flare } from './Flare';

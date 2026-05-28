@@ -9,11 +9,11 @@ import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 // Production hides `node:` specifiers behind a Function-built import so browser bundlers don't try to
 // resolve them. That opacity also defeats vitest's module runner, so we swap it for a plain dynamic
 // import (which vitest can resolve) to exercise the real disk-read path.
-vi.mock('../src/stacktrace/nativeImport', () => ({
+vi.mock('../../core/src/stacktrace/nativeImport', () => ({
     nativeImport: (specifier: string) => import(specifier),
 }));
 
-import { getCodeSnippet } from '../src/stacktrace/fileReader';
+import { getCodeSnippet } from '../../core/src/stacktrace/fileReader';
 
 let dir: string;
 

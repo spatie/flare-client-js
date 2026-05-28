@@ -1,5 +1,5 @@
 import { Attributes } from '../types';
-import { redactFullPath } from '../util';
+import { redactUrlQuery } from '../util';
 
 export default function requestData(urlDenylist: RegExp): Attributes {
     if (!window.location.search) {
@@ -7,6 +7,6 @@ export default function requestData(urlDenylist: RegExp): Attributes {
     }
 
     return {
-        'url.query': redactFullPath(window.location.search, urlDenylist).replace(/^\?/, ''),
+        'url.query': redactUrlQuery(window.location.search, urlDenylist).replace(/^\?/, ''),
     };
 }
