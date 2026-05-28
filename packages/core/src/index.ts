@@ -35,4 +35,4 @@ export { Scope, GlobalScopeProvider } from './Scope';
 export type { ScopeProvider } from './Scope';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
-export type { FileReader } from './stacktrace/FileReader';
+export type { FileReader } from './stacktrace/fileReader';
