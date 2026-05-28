@@ -1,13 +1,30 @@
-import { Api, Flare, GlobalScopeProvider } from '@flareapp/core';
+import {
+    Api,
+    Flare as CoreFlare,
+    GlobalScopeProvider,
+    type ContextCollector,
+    type FileReader,
+    type ScopeProvider,
+} from '@flareapp/core';
 
 import { catchWindowErrors } from './browser';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
 
-export const flare = new Flare(new Api(), new GlobalScopeProvider(), collectBrowser, new FetchFileReader());
+export class Flare extends CoreFlare {
+    constructor(
+        api: Api = new Api(),
+        contextCollector: ContextCollector = collectBrowser,
+        fileReader: FileReader = new FetchFileReader(),
+        scopeProvider: ScopeProvider = new GlobalScopeProvider(),
+    ) {
+        super(api, contextCollector, fileReader, scopeProvider);
+        this.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
+    }
+}
 
-flare.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
+export const flare = new Flare();
 
 if (typeof window !== 'undefined' && window) {
     // @ts-expect-error attach to window
@@ -15,7 +32,7 @@ if (typeof window !== 'undefined' && window) {
     catchWindowErrors();
 }
 
-export { Flare, Scope, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
+export { Scope, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
 export type {
     AttributeValue,
     Attributes,

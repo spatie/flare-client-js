@@ -45,9 +45,9 @@ export class Flare {
 
     constructor(
         public api: Api = new Api(),
-        private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
         private contextCollector: ContextCollector = () => ({}),
         private fileReader: FileReader = new NullFileReader(),
+        private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
     ) {}
 
     private track<T>(p: Promise<T>): Promise<T> {

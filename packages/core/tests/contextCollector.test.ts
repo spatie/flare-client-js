@@ -14,7 +14,7 @@ describe('Flare ContextCollector', () => {
             return Promise.resolve();
         };
 
-        const flare = new Flare(api, undefined, collector);
+        const flare = new Flare(api, collector);
         flare.light('test-key');
         await flare.report(new Error('boom'));
 

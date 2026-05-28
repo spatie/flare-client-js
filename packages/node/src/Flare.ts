@@ -38,7 +38,7 @@ export class NodeFlare extends CoreFlare {
     constructor() {
         const scopeProvider = new AsyncLocalStorageScopeProvider();
         const collector = makeNodeContextCollector(scopeProvider, () => this.nodeOptions);
-        super(new Api(), scopeProvider, collector, new DiskFileReader());
+        super(new Api(), collector, new DiskFileReader(), scopeProvider);
         this.nodeScopeProvider = scopeProvider;
         this.setSdkInfo({ name: NODE_SDK_NAME, version: NODE_SDK_VERSION });
 

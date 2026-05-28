@@ -25,7 +25,7 @@ let client: Flare;
 
 beforeEach(() => {
     fakeApi = new FakeApi();
-    client = new Flare(fakeApi, undefined, browserCollector).configure({ key: 'key', debug: true });
+    client = new Flare(fakeApi, browserCollector).configure({ key: 'key', debug: true });
     setLocation('https://app.test/users/42');
 });
 

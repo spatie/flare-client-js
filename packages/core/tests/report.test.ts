@@ -25,7 +25,7 @@ test('report() emits new-format payload with required attributes', async () => {
 });
 
 test('report() emits flare.entry_point.type=web when browser collector is injected', async () => {
-    const browserClient = new Flare(fakeApi, undefined, () => ({ 'flare.entry_point.type': 'web' })).configure({
+    const browserClient = new Flare(fakeApi, () => ({ 'flare.entry_point.type': 'web' })).configure({
         key: 'key',
         debug: true,
     });

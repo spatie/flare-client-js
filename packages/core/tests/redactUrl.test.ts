@@ -96,7 +96,7 @@ describe('Flare URL scrubbing', () => {
     beforeEach(() => {
         originalHref = window.location.href;
         api = new FakeApi();
-        flare = new Flare(api, undefined, browserCollector);
+        flare = new Flare(api, browserCollector);
         flare.light('test-key', false);
     });
 
