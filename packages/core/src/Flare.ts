@@ -22,6 +22,8 @@ export type ContextCollector = (config: Readonly<Config>) => Attributes;
 const DEFAULT_SDK_NAME = '@flareapp/core';
 
 export class Flare {
+    private inflight = new Set<Promise<void>>();
+
     private _config: Config = {
         key: null,
         version: '',
@@ -47,6 +49,28 @@ export class Flare {
         private contextCollector: ContextCollector = () => ({}),
         private fileReader: FileReader = new NullFileReader(),
     ) {}
+
+    private track<T>(p: Promise<T>): Promise<T> {
+        const tracked = p.then(
+            () => undefined,
+            () => undefined,
+        ) as Promise<void>;
+        this.inflight.add(tracked);
+        tracked.finally(() => this.inflight.delete(tracked));
+        return p;
+    }
+
+    flush(timeoutMs = 2000): Promise<void> {
+        const pending = [...this.inflight];
+        if (pending.length === 0) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, timeoutMs);
+            Promise.allSettled(pending).then(() => {
+                clearTimeout(timer);
+                resolve();
+            });
+        });
+    }
 
     get config(): Readonly<Config> {
         return this._config;
@@ -79,7 +103,11 @@ export class Flare {
         return this;
     }
 
-    async test(): Promise<void> {
+    test(): Promise<void> {
+        return this.track(this.testInternal());
+    }
+
+    private async testInternal(): Promise<void> {
         const report = await this.createReportFromError(new Error('The Flare client is set up correctly!'));
         if (!report) return;
         return this.sendReport(report);
@@ -141,7 +169,11 @@ export class Flare {
         return this;
     }
 
-    async report(error: Error, attributes: Attributes = {}): Promise<void> {
+    report(error: Error, attributes: Attributes = {}): Promise<void> {
+        return this.track(this.reportInternal(error, attributes));
+    }
+
+    private async reportInternal(error: Error, attributes: Attributes = {}): Promise<void> {
         if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
 
         const seenAtUnixNano = Date.now() * 1_000_000;
@@ -160,10 +192,14 @@ export class Flare {
     }
 
     reportSilently(error: Error, attributes: Attributes = {}): void {
-        Promise.resolve(this.report(error, attributes)).catch(() => {});
+        void this.track(this.reportInternal(error, attributes).catch(() => {}));
     }
 
-    async reportUnhandledRejection(message: string, attributes: Attributes = {}): Promise<void> {
+    reportUnhandledRejection(message: string, attributes: Attributes = {}): Promise<void> {
+        return this.track(this.reportUnhandledRejectionInternal(message, attributes));
+    }
+
+    private async reportUnhandledRejectionInternal(message: string, attributes: Attributes = {}): Promise<void> {
         if (Math.random() >= this._config.sampleRate) return;
 
         const seenAtUnixNano = Date.now() * 1_000_000;
@@ -182,7 +218,15 @@ export class Flare {
         return this.sendReport(report);
     }
 
-    async reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
+    reportMessage(message: string, level?: MessageLevel, attributes: Attributes = {}): Promise<void> {
+        return this.track(this.reportMessageInternal(message, level, attributes));
+    }
+
+    private async reportMessageInternal(
+        message: string,
+        level?: MessageLevel,
+        attributes: Attributes = {},
+    ): Promise<void> {
         if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
 
         const seenAtUnixNano = Date.now() * 1_000_000;
