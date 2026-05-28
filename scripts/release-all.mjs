@@ -139,6 +139,8 @@ function bumpPackages(newVersion) {
             '--git.commit=false',
             '--git.tag=false',
             '--git.push=false',
+            '--git.requireCleanWorkingDir=false',
+            '--git.requireBranch=',
             '--npm.publish=false',
             '--hooks.before:release=',
         ].join(' ');
