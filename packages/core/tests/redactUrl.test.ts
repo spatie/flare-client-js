@@ -2,6 +2,7 @@ import { DEFAULT_URL_DENYLIST, Flare, redactUrlQuery, resolveDenylist } from '@f
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
+import type { Attributes, Config } from '../src/types';
 import { FakeApi } from './helpers/FakeApi';
 
 describe('redactUrlQuery', () => {
@@ -75,8 +76,19 @@ describe('resolveDenylist', () => {
     });
 });
 
-// TODO(node-sdk-Task26): re-enable once BrowserContextCollector is wired into the singleton
-describe.skip('Flare URL scrubbing', () => {
+function browserCollector(config: Readonly<Config>): Attributes {
+    const attrs: Attributes = { 'flare.entry_point.type': 'web' };
+    if (typeof window !== 'undefined' && window?.location?.href) {
+        attrs['flare.entry_point.value'] = redactUrlQuery(window.location.href, config.urlDenylist);
+        attrs['url.full'] = redactUrlQuery(window.location.href, config.urlDenylist);
+        if (window.location.search) {
+            attrs['url.query'] = redactUrlQuery(window.location.search, config.urlDenylist).replace(/^\?/, '');
+        }
+    }
+    return attrs;
+}
+
+describe('Flare URL scrubbing', () => {
     let flare: Flare;
     let api: FakeApi;
     let originalHref: string;
@@ -84,7 +96,7 @@ describe.skip('Flare URL scrubbing', () => {
     beforeEach(() => {
         originalHref = window.location.href;
         api = new FakeApi();
-        flare = new Flare(api);
+        flare = new Flare(api, undefined, browserCollector);
         flare.light('test-key', false);
     });
 

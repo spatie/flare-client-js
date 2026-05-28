@@ -294,17 +294,6 @@ export class Flare {
             'flare.language.name': 'javascript',
         };
 
-        const entryPoint = activeScope.entryPoint;
-        if (entryPoint?.identifier !== undefined) {
-            baseAttributes['flare.entry_point.handler.identifier'] = entryPoint.identifier;
-        }
-        if (entryPoint?.type !== undefined) {
-            baseAttributes['flare.entry_point.handler.type'] = entryPoint.type;
-        }
-        if (entryPoint?.name !== undefined) {
-            baseAttributes['flare.entry_point.handler.name'] = entryPoint.name;
-        }
-
         if (this._config.stage) {
             baseAttributes['service.stage'] = this._config.stage;
         }
@@ -312,9 +301,24 @@ export class Flare {
             baseAttributes['service.version'] = this._config.version;
         }
 
+        // Scope entryPoint overrides are applied after the context collector so that
+        // explicitly set values (via setEntryPoint) win over collector-provided defaults.
+        const entryPoint = activeScope.entryPoint;
+        const entryPointOverrides: Attributes = {};
+        if (entryPoint?.identifier !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.identifier'] = entryPoint.identifier;
+        }
+        if (entryPoint?.type !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
+        }
+        if (entryPoint?.name !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
+        }
+
         const attributes: Attributes = {
             ...baseAttributes,
             ...this.contextCollector(this._config),
+            ...entryPointOverrides,
             ...activeScope.pendingAttributes,
             ...input.extraAttributes,
         };

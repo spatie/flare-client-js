@@ -24,9 +24,12 @@ test('report() emits new-format payload with required attributes', async () => {
     expect(r.attributes['flare.language.name']).toBe('javascript');
 });
 
-// TODO(node-sdk-Task26): re-enable once BrowserContextCollector is wired into the singleton
-test.skip('report() emits flare.entry_point.type=web by default', async () => {
-    await client.report(new Error('boom'));
+test('report() emits flare.entry_point.type=web when browser collector is injected', async () => {
+    const browserClient = new Flare(fakeApi, undefined, () => ({ 'flare.entry_point.type': 'web' })).configure({
+        key: 'key',
+        debug: true,
+    });
+    await browserClient.report(new Error('boom'));
     expect(fakeApi.lastReport!.attributes['flare.entry_point.type']).toBe('web');
 });
 
