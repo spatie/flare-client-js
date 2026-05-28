@@ -27,6 +27,7 @@ package, and a Playwright-based e2e suite:
 
 | Package              | npm name                       | Purpose                                                           |
 | -------------------- | ------------------------------ | ----------------------------------------------------------------- |
+| `packages/core`      | `@flareapp/core`               | Environment-agnostic Flare core (shared between js + node)        |
 | `packages/js`        | `@flareapp/js`                 | Core client — error capture, stack traces, context, API reporting |
 | `packages/react`     | `@flareapp/react`              | React `FlareErrorBoundary` error boundary component               |
 | `packages/vue`       | `@flareapp/vue`                | Vue error handler plugin (`flareVue()`)                           |
@@ -35,6 +36,7 @@ package, and a Playwright-based e2e suite:
 | `packages/vite`      | `@flareapp/vite`               | Vite build plugin for sourcemap upload with retry logic           |
 | `packages/webpack`   | `@flareapp/webpack`            | Webpack 5 plugin for sourcemap upload                             |
 | `packages/nextjs`    | `@flareapp/nextjs`             | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload      |
+| `packages/node`      | `@flareapp/node`               | Node.js SDK (process handlers, AsyncLocalStorage scope)           |
 | `packages/flare-api` | `@flareapp/flare-api`          | Shared API client for sourcemap uploads (private, not published)  |
 | `playgrounds/shared` | `@flareapp/playgrounds-shared` | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens |
 | `playgrounds/js`     | `@flareapp/playgrounds-js`     | Vanilla TS + Vite webshop (port 5180)                             |
@@ -216,6 +218,21 @@ If any of those fail, fix first; do not release.
 - No CI/GitHub Actions publishing. GitHub releases are disabled (`github.release: false`).
 - No `CHANGELOG.md` generation, no conventional-commit-driven version inference.
 - No coordinated multi-package release. Release each package separately.
+
+### Independently versioned packages: `@flareapp/core` and `@flareapp/node`
+
+These two packages are NOT released by `scripts/release-all.mjs`. They are released
+per-package via the same `release-it` flow used by the lockstep packages:
+
+```bash
+cd packages/core   # or packages/node
+npm run release
+```
+
+When you bump `@flareapp/core`, manually update the version pin in
+`packages/js/package.json` (`"@flareapp/core": "<new-version>"`) and
+`packages/node/package.json`. The release-all script verifies those refs exist
+but does not bump them; independent versioning is intentional.
 
 ### Skill
 
