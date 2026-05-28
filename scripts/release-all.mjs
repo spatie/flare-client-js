@@ -1,4 +1,10 @@
 // scripts/release-all.mjs
+//
+// Note: @flareapp/flare-api is a private workspace package, bundled into
+// @flareapp/vite and @flareapp/webpack via tsdown's --noExternal flag.
+// It is not published and not version-bumped here. Changes to flare-api
+// ship only when vite or webpack are re-released (their prepublishOnly
+// rebuilds and inlines the latest flare-api source).
 import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
