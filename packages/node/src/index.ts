@@ -23,3 +23,5 @@ export type {
     StackFrame,
 } from '@flareapp/core';
 export { convertToError, DEFAULT_URL_DENYLIST, redactUrlQuery, resolveDenylist } from '@flareapp/core';
+
+export { NodeScope } from './scope/NodeScope';

@@ -36,3 +36,6 @@ export type { ScopeProvider } from './Scope';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
 export type { FileReader } from './stacktrace/fileReader';
+
+export { createStackTrace } from './stacktrace/createStackTrace';
+export { getCodeSnippet, readLinesFromFile } from './stacktrace/fileReader';
