@@ -24,7 +24,7 @@ import {
     resolveDenylist,
 } from './util';
 
-const DEFAULT_SDK_NAME = '@flareapp/js';
+const DEFAULT_SDK_NAME = '@flareapp/core';
 
 export class Flare {
     private _config: Config = {

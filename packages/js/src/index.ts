@@ -1,8 +1,11 @@
 import { Flare } from '@flareapp/core';
 
 import { catchWindowErrors } from './browser';
+import { CLIENT_VERSION } from './env';
 
 export const flare = new Flare();
+
+flare.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
 
 if (typeof window !== 'undefined' && window) {
     // @ts-expect-error attach to window
