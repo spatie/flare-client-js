@@ -149,7 +149,10 @@ function bumpPackages(newVersion) {
         try {
             run(cmd, { cwd: pkgDir(name), stdio: 'inherit' });
         } catch (e) {
-            fail(`release-it failed for @flareapp/${name}. Run \`git checkout .\` to undo partial bumps.`);
+            fail(
+                `release-it failed for @flareapp/${name}. ` +
+                `To undo partial bumps and staged version.ts hooks, run: git reset --hard HEAD`,
+            );
         }
     }
 
@@ -176,10 +179,22 @@ function updateCrossReferences(newVersion) {
 function commitAndTag(newVersion) {
     console.log('\n--- Committing and tagging ---\n');
 
-    run('git add -A');
+    const filesToStage = [
+        ...PUBLIC_PACKAGES.map((name) => `packages/${name}/package.json`),
+        'packages/svelte/src/version.ts',
+        'packages/sveltekit/src/version.ts',
+    ];
+
+    const addResult = spawnSync('git', ['add', '--', ...filesToStage], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+    if (addResult.status !== 0) {
+        fail(`git add failed: ${addResult.stderr || addResult.status}`);
+    }
 
     const commitMsg = `chore: release v${newVersion}`;
-    run(`git commit -m "${commitMsg}"`);
+    const commitResult = spawnSync('git', ['commit', '-m', commitMsg], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+    if (commitResult.status !== 0) {
+        fail(`git commit failed: ${commitResult.stderr || commitResult.status}`);
+    }
     info(`Committed: ${commitMsg}`);
 
     for (const name of PUBLIC_PACKAGES) {
@@ -215,7 +230,10 @@ async function dryRunGate(currentVersion, newVersion) {
     if (answer.toLowerCase() !== 'y') {
         console.log('');
         info('Aborted. Commit and tags are local.');
-        info('To undo: git reset HEAD~1 && git tag -d ' + PUBLIC_PACKAGES.map((n) => `@flareapp/${n}@${newVersion}`).join(' '));
+        info(
+            'To undo: git reset --hard HEAD~1 && git tag -d ' +
+                PUBLIC_PACKAGES.map((n) => `@flareapp/${n}@${newVersion}`).join(' '),
+        );
         process.exit(0);
     }
 }
