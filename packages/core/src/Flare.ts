@@ -80,7 +80,7 @@ export class Flare {
         return this.scopeProvider.active().glows;
     }
 
-    light(key: string = KEY, debug?: boolean): Flare {
+    light(key: string = KEY, debug?: boolean): this {
         this._config.key = key;
         if (debug !== undefined) {
             this._config.debug = debug;
@@ -88,7 +88,7 @@ export class Flare {
         return this;
     }
 
-    configure(config: Partial<Config>): Flare {
+    configure(config: Partial<Config>): this {
         this._config = { ...this._config, ...config };
 
         if (config.sampleRate !== undefined) {
@@ -117,7 +117,7 @@ export class Flare {
         name: string,
         level: MessageLevel = 'info',
         data: Record<string, unknown> | Record<string, unknown>[] = [],
-    ): Flare {
+    ): this {
         const time = now();
         this.scopeProvider.active().addGlow(
             {
@@ -132,12 +132,12 @@ export class Flare {
         return this;
     }
 
-    clearGlows(): Flare {
+    clearGlows(): this {
         this.scopeProvider.active().clearGlows();
         return this;
     }
 
-    addContext(name: string, value: AttributeValue): Flare {
+    addContext(name: string, value: AttributeValue): this {
         const scope = this.scopeProvider.active();
         const existing =
             (scope.pendingAttributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
@@ -145,27 +145,24 @@ export class Flare {
         return this;
     }
 
-    addContextGroup(groupName: string, value: Record<string, AttributeValue>): Flare {
+    addContextGroup(groupName: string, value: Record<string, AttributeValue>): this {
         this.scopeProvider.active().setAttribute(`context.${groupName}`, value);
         return this;
     }
 
-    setEntryPoint(handler: EntryPointHandler): Flare {
+    setEntryPoint(handler: EntryPointHandler): this {
         this.scopeProvider.active().entryPoint = handler;
         return this;
     }
 
-    setSdkInfo(info: SdkInfo): Flare {
+    setSdkInfo(info: SdkInfo): this {
         this.sdkInfo = info;
         return this;
     }
 
-    setFramework(framework: Framework): Flare {
+    setFramework(framework: Framework): this {
         this.framework = framework;
         this.addContext('framework', framework.name.toLowerCase());
-        const scope = this.scopeProvider.active();
-        if (framework.name) scope.setAttribute('flare.framework.name', framework.name);
-        if (framework.version) scope.setAttribute('flare.framework.version', framework.version);
         return this;
     }
 
@@ -299,6 +296,12 @@ export class Flare {
         }
         if (this._config.version) {
             baseAttributes['service.version'] = this._config.version;
+        }
+        if (this.framework?.name) {
+            baseAttributes['flare.framework.name'] = this.framework.name;
+        }
+        if (this.framework?.version) {
+            baseAttributes['flare.framework.version'] = this.framework.version;
         }
 
         // Scope entryPoint overrides are applied after the context collector so that
