@@ -29,7 +29,15 @@ const CROSS_PACKAGE_REFS = [
     { pkg: 'sveltekit', field: 'peerDependencies', dep: '@flareapp/js' },
     { pkg: 'sveltekit', field: 'dependencies', dep: '@flareapp/svelte' },
     { pkg: 'nextjs', field: 'dependencies', dep: '@flareapp/webpack' },
+    // Independently versioned packages: recorded so the refs are visible, but not bumped.
+    { pkg: 'js', field: 'dependencies', dep: '@flareapp/core' },
+    { pkg: 'node', field: 'dependencies', dep: '@flareapp/core' },
 ];
+
+// Packages that version independently from the lockstep release.
+// Their cross-package refs are listed in CROSS_PACKAGE_REFS for documentation
+// purposes but must never be bumped by this script.
+const INDEPENDENT_PACKAGES = new Set(['@flareapp/core', '@flareapp/node']);
 
 function run(cmd, opts = {}) {
     const stdio = opts.stdio ?? ['ignore', 'pipe', 'inherit'];
@@ -170,6 +178,9 @@ function updateCrossReferences(newVersion) {
     console.log('\n--- Updating cross-package references ---\n');
 
     for (const { pkg, field, dep } of CROSS_PACKAGE_REFS) {
+        // Skip independently versioned packages; their version pins are managed manually.
+        if (INDEPENDENT_PACKAGES.has(dep)) continue;
+
         const pkgJson = readPkgJson(pkg);
         if (pkgJson[field] && pkgJson[field][dep]) {
             const oldRange = pkgJson[field][dep];
