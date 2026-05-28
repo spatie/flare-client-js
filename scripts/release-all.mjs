@@ -1,7 +1,8 @@
 // scripts/release-all.mjs
-import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { execSync, spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
@@ -267,6 +268,32 @@ function pushToOrigin() {
     }
 }
 
+function generateNotesWithClaude(pkgName, version, commits) {
+    const prompt = [
+        `Generate a concise GitHub release changelog for @flareapp/${pkgName} v${version}.`,
+        `Commits since last release:`,
+        commits,
+        `Write 3-5 bullet points summarizing changes. Be specific. No intro text, just bullet points.`,
+    ].join('\n');
+
+    const result = spawnSync('claude', ['-p', prompt], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+    if (result.status !== 0) {
+        throw new Error(result.stderr || `claude exited with status ${result.status}`);
+    }
+    return result.stdout.trim();
+}
+
+function ghReleaseCreate(tag, notesPath) {
+    const result = spawnSync(
+        'gh',
+        ['release', 'create', tag, '--title', tag, '--notes-file', notesPath, '--target', 'main'],
+        { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    if (result.status !== 0) {
+        throw new Error(result.stderr || `gh exited with status ${result.status}`);
+    }
+}
+
 function createGitHubReleases(newVersion, ghAvailable) {
     console.log('\n--- GitHub releases ---\n');
 
@@ -280,39 +307,50 @@ function createGitHubReleases(newVersion, ghAvailable) {
         warn('claude CLI not found. Releases will have minimal notes.');
     }
 
-    for (const name of PUBLIC_PACKAGES) {
-        const tag = `@flareapp/${name}@${newVersion}`;
+    const notesDir = mkdtempSync(join(tmpdir(), 'flare-release-notes-'));
 
-        let prevTag;
-        try {
-            prevTag = run(`git describe --tags --match="@flareapp/${name}@*" --abbrev=0 ${tag}^`);
-        } catch {
-            prevTag = null;
-        }
+    try {
+        for (const name of PUBLIC_PACKAGES) {
+            const tag = `@flareapp/${name}@${newVersion}`;
 
-        let notes = `@flareapp/${name} v${newVersion}`;
+            let prevTag;
+            try {
+                prevTag = run(`git describe --tags --match="@flareapp/${name}@*" --abbrev=0 ${tag}^`);
+            } catch {
+                prevTag = null;
+            }
 
-        if (prevTag) {
-            const commits = run(`git log --pretty=format:"%s (%h)" ${prevTag}...${tag}`);
+            let notes = `@flareapp/${name} v${newVersion}`;
 
-            if (claudeAvailable && commits) {
-                try {
-                    notes = run(
-                        `claude -p "Generate a concise GitHub release changelog for @flareapp/${name} v${newVersion}. Commits since last release:\n${commits}\nWrite 3-5 bullet points summarizing changes. Be specific. No intro text, just bullet points."`,
-                        { stdio: 'pipe' },
-                    );
-                } catch {
-                    warn(`claude failed for @flareapp/${name}. Using minimal notes.`);
+            if (prevTag) {
+                const logResult = spawnSync(
+                    'git',
+                    ['log', '--pretty=format:%s (%h)', `${prevTag}...${tag}`],
+                    { encoding: 'utf-8' },
+                );
+                const commits = logResult.status === 0 ? logResult.stdout.trim() : '';
+
+                if (claudeAvailable && commits) {
+                    try {
+                        notes = generateNotesWithClaude(name, newVersion, commits);
+                    } catch (e) {
+                        warn(`claude failed for @flareapp/${name} (${e.message}). Using minimal notes.`);
+                    }
                 }
             }
-        }
 
-        try {
-            run(`gh release create "${tag}" --title "${tag}" --notes "${notes.replace(/"/g, '\\"')}" --target main`);
-            info(`Created release: ${tag}`);
-        } catch (e) {
-            warn(`Failed to create release for ${tag}: ${e.message}`);
+            const notesPath = join(notesDir, `${name}.md`);
+            writeFileSync(notesPath, notes);
+
+            try {
+                ghReleaseCreate(tag, notesPath);
+                info(`Created release: ${tag}`);
+            } catch (e) {
+                warn(`Failed to create release for ${tag}: ${e.message}`);
+            }
         }
+    } finally {
+        rmSync(notesDir, { recursive: true, force: true });
     }
 }
 
