@@ -34,7 +34,7 @@ A single Node.js script (`scripts/release-all.mjs`) that orchestrates a lockstep
 1. Verify working tree is clean
 2. Verify current branch is `main`
 3. Verify npm auth (`npm whoami`)
-4. Verify GitHub CLI auth (`gh auth status`)
+4. Warn if `gh` CLI not authenticated (non-fatal, only needed for GitHub releases)
 5. Run `npm run build` (all packages)
 6. Run `npm run test` (vitest across workspaces)
 7. Run `npm run typescript` (type-check all packages)
@@ -136,7 +136,7 @@ If a publish fails mid-way: stop, report which packages succeeded and which fail
 git push origin main --follow-tags
 ```
 
-### Phase 9: GitHub releases via Claude CLI
+### Phase 9: GitHub releases
 
 For each of the 8 packages:
 
@@ -144,7 +144,7 @@ For each of the 8 packages:
     ```
     git log --pretty=format:"%s (%h)" {prev_tag}...{new_tag}
     ```
-2. Shell out to Claude CLI:
+2. If `claude` CLI is available, generate release notes:
     ```
     claude -p "Generate a concise GitHub release changelog for @flareapp/{pkg} v{version}. Here are the commits since the last release: {commits}. Write 3-5 bullet points summarizing what changed. Be specific, not generic. No intro text, just the bullet points."
     ```
@@ -152,6 +152,8 @@ For each of the 8 packages:
     ```
     gh release create @flareapp/{pkg}@{version} --title "@flareapp/{pkg}@{version}" --notes "{changelog}" --target main
     ```
+
+**Fallback**: if `claude` CLI is not installed, create releases with a minimal body (`@flareapp/{pkg} v{version}`) instead of AI-generated notes.
 
 If a GitHub release fails, log a warning and continue (non-fatal).
 
