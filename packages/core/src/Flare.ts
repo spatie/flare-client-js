@@ -1,6 +1,7 @@
 import { Api } from './api';
 import { collectAttributes } from './context';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
+import { GlobalScopeProvider, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
 import {
     AttributeValue,
@@ -43,21 +44,23 @@ export class Flare {
         beforeSubmit: (report) => report,
     };
 
-    private _glows: Glow[] = [];
     private pendingAttributes: Attributes = {};
 
     private entryPoint: EntryPointHandler | null = null;
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
     private framework: Framework | null = null;
 
-    constructor(public api: Api = new Api()) {}
+    constructor(
+        public api: Api = new Api(),
+        private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
+    ) {}
 
     get config(): Readonly<Config> {
         return this._config;
     }
 
     get glows(): readonly Glow[] {
-        return this._glows;
+        return this.scopeProvider.active().glows;
     }
 
     light(key: string = KEY, debug?: boolean): Flare {
@@ -95,25 +98,21 @@ export class Flare {
         data: Record<string, unknown> | Record<string, unknown>[] = [],
     ): Flare {
         const time = now();
-
-        this._glows.push({
-            name,
-            messageLevel: level,
-            metaData: data,
-            time,
-            microtime: time,
-        });
-
-        // Cap at maxGlowsPerReport: drop oldest entries so the most recent N remain.
-        if (this._glows.length > this._config.maxGlowsPerReport) {
-            this._glows = this._glows.slice(this._glows.length - this._config.maxGlowsPerReport);
-        }
-
+        this.scopeProvider.active().addGlow(
+            {
+                name,
+                messageLevel: level,
+                metaData: data,
+                time,
+                microtime: time,
+            },
+            this._config.maxGlowsPerReport,
+        );
         return this;
     }
 
     clearGlows(): Flare {
-        this._glows = [];
+        this.scopeProvider.active().clearGlows();
         return this;
     }
 
@@ -320,7 +319,7 @@ export class Flare {
             message: input.message,
             seenAtUnixNano: input.seenAtUnixNano,
             stacktrace: input.stacktrace,
-            events: glowsToEvents(this._glows),
+            events: glowsToEvents(this.scopeProvider.active().glows),
             attributes,
         };
 
