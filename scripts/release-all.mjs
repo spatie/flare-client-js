@@ -63,6 +63,15 @@ function ask(question) {
     });
 }
 
+function isCommandAvailable(cmd) {
+    try {
+        run(`which ${cmd}`);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function bumpVersion(current, type) {
     const [major, minor, patch] = current.split('.').map(Number);
     switch (type) {
@@ -255,6 +264,55 @@ function pushToOrigin() {
     }
 }
 
+function createGitHubReleases(newVersion, ghAvailable) {
+    console.log('\n--- GitHub releases ---\n');
+
+    if (!ghAvailable) {
+        warn('gh CLI not authenticated. Skipping GitHub releases.');
+        return;
+    }
+
+    const claudeAvailable = isCommandAvailable('claude');
+    if (!claudeAvailable) {
+        warn('claude CLI not found. Releases will have minimal notes.');
+    }
+
+    for (const name of PUBLIC_PACKAGES) {
+        const tag = `@flareapp/${name}@${newVersion}`;
+
+        let prevTag;
+        try {
+            prevTag = run(`git describe --tags --match="@flareapp/${name}@*" --abbrev=0 ${tag}^`);
+        } catch {
+            prevTag = null;
+        }
+
+        let notes = `@flareapp/${name} v${newVersion}`;
+
+        if (prevTag) {
+            const commits = run(`git log --pretty=format:"%s (%h)" ${prevTag}...${tag}`);
+
+            if (claudeAvailable && commits) {
+                try {
+                    notes = run(
+                        `claude -p "Generate a concise GitHub release changelog for @flareapp/${name} v${newVersion}. Commits since last release:\n${commits}\nWrite 3-5 bullet points summarizing changes. Be specific. No intro text, just bullet points."`,
+                        { stdio: 'pipe' },
+                    );
+                } catch {
+                    warn(`claude failed for @flareapp/${name}. Using minimal notes.`);
+                }
+            }
+        }
+
+        try {
+            run(`gh release create "${tag}" --title "${tag}" --notes "${notes.replace(/"/g, '\\"')}" --target main`);
+            info(`Created release: ${tag}`);
+        } catch (e) {
+            warn(`Failed to create release for ${tag}: ${e.message}`);
+        }
+    }
+}
+
 async function preflight() {
     console.log('\n--- Pre-flight checks ---\n');
 
@@ -299,7 +357,16 @@ async function preflight() {
 
 async function main() {
     const { ghAvailable } = await preflight();
-    console.log('\nPre-flight passed. ghAvailable:', ghAvailable);
+    const { currentVersion, newVersion } = await promptVersion();
+    bumpPackages(newVersion);
+    updateCrossReferences(newVersion);
+    commitAndTag(newVersion);
+    await dryRunGate(currentVersion, newVersion);
+    publishPackages();
+    pushToOrigin();
+    createGitHubReleases(newVersion, ghAvailable);
+
+    console.log(`\n  Done! Released v${newVersion}\n`);
 }
 
 main();
