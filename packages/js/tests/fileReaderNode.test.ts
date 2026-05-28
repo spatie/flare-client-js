@@ -26,9 +26,8 @@ afterAll(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-// TODO(node-sdk-Task26): re-enable once BrowserContextCollector is wired into the singleton
-// These tests used the old getCodeSnippet(url, line) signature; Task 18 changed it to
-// getCodeSnippet(fileReader, url, line). They will be rewritten when DiskFileReader lands (Task 47).
+// TODO(node-sdk-Task47): rewrite with DiskFileReader; old signature getCodeSnippet(url, line) no
+// longer exists after Task 18 changed it to getCodeSnippet(fileReader, url, line).
 test.skip('getCodeSnippet reads a local file from disk by absolute path in Node', async () => {
     const file = join(dir, 'absolute.ts');
     writeFileSync(file, 'const a = 1;\nthrow new Error("boom");\nconst b = 2;\n');
@@ -38,7 +37,7 @@ test.skip('getCodeSnippet reads a local file from disk by absolute path in Node'
     expect(result.codeSnippet[2]).toBe('throw new Error("boom");');
 });
 
-// TODO(node-sdk-Task26): re-enable once BrowserContextCollector is wired into the singleton
+// TODO(node-sdk-Task47): rewrite with DiskFileReader
 test.skip('getCodeSnippet reads a local file from a file:// URL in Node', async () => {
     const file = join(dir, 'fileurl.ts');
     writeFileSync(file, 'line one\nline two\nline three\n');
