@@ -44,7 +44,6 @@ export class Flare {
         beforeSubmit: (report) => report,
     };
 
-    private entryPoint: EntryPointHandler | null = null;
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
     private framework: Framework | null = null;
 
@@ -128,7 +127,7 @@ export class Flare {
     }
 
     setEntryPoint(handler: EntryPointHandler): Flare {
-        this.entryPoint = handler;
+        this.scopeProvider.active().entryPoint = handler;
         return this;
     }
 
@@ -257,10 +256,11 @@ export class Flare {
             baseAttributes['flare.entry_point.value'] = redactUrlQuery(window.location.href, this._config.urlDenylist);
         }
 
+        const entryPoint = activeScope.entryPoint;
         const handlerIdentifier =
-            this.entryPoint?.identifier ??
+            entryPoint?.identifier ??
             (typeof window !== 'undefined' && window?.location?.pathname ? window.location.pathname : undefined);
-        const handlerType = this.entryPoint?.type ?? (typeof window !== 'undefined' && window ? 'browser' : undefined);
+        const handlerType = entryPoint?.type ?? (typeof window !== 'undefined' && window ? 'browser' : undefined);
 
         if (handlerIdentifier !== undefined) {
             baseAttributes['flare.entry_point.handler.identifier'] = handlerIdentifier;
@@ -268,8 +268,8 @@ export class Flare {
         if (handlerType !== undefined) {
             baseAttributes['flare.entry_point.handler.type'] = handlerType;
         }
-        if (this.entryPoint?.name !== undefined) {
-            baseAttributes['flare.entry_point.handler.name'] = this.entryPoint.name;
+        if (entryPoint?.name !== undefined) {
+            baseAttributes['flare.entry_point.handler.name'] = entryPoint.name;
         }
 
         if (this.framework?.name) {
