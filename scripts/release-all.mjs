@@ -160,6 +160,53 @@ function updateCrossReferences(newVersion) {
     info('Cross-package references updated');
 }
 
+function commitAndTag(newVersion) {
+    console.log('\n--- Committing and tagging ---\n');
+
+    run('git add -A');
+
+    const commitMsg = `chore: release v${newVersion}`;
+    run(`git commit -m "${commitMsg}"`);
+    info(`Committed: ${commitMsg}`);
+
+    for (const name of PUBLIC_PACKAGES) {
+        const tag = `@flareapp/${name}@${newVersion}`;
+        run(`git tag -a "${tag}" -m "${tag}"`);
+        info(`Tagged: ${tag}`);
+    }
+}
+
+async function dryRunGate(currentVersion, newVersion) {
+    console.log('\n--- Summary ---\n');
+    console.log(`  Version: ${currentVersion} -> ${newVersion}`);
+    console.log('');
+    console.log('  Tags:');
+    for (const name of PUBLIC_PACKAGES) {
+        console.log(`    @flareapp/${name}@${newVersion}`);
+    }
+    console.log('');
+    console.log('  Publish order:');
+    for (const tier of PUBLISH_ORDER) {
+        console.log(`    ${tier.map((n) => `@flareapp/${n}`).join(', ')}`);
+    }
+    console.log('');
+
+    const changedFiles = run('git diff --name-only HEAD~1');
+    console.log('  Files changed:');
+    for (const f of changedFiles.split('\n').filter(Boolean)) {
+        console.log(`    ${f}`);
+    }
+    console.log('');
+
+    const answer = await ask('  Publish to npm and push to origin? [y/N]: ');
+    if (answer.toLowerCase() !== 'y') {
+        console.log('');
+        info('Aborted. Commit and tags are local.');
+        info('To undo: git reset HEAD~1 && git tag -d ' + PUBLIC_PACKAGES.map((n) => `@flareapp/${n}@${newVersion}`).join(' '));
+        process.exit(0);
+    }
+}
+
 async function preflight() {
     console.log('\n--- Pre-flight checks ---\n');
 
