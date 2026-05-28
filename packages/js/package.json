@@ -46,10 +46,10 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/core": "0.1.0",
-        "error-stack-parser": "^2.0.2"
+        "@flareapp/core": "0.1.0"
     },
     "devDependencies": {
+        "error-stack-parser": "^2.0.2",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18"

@@ -20,7 +20,7 @@ test('report() emits new-format payload with required attributes', async () => {
     expect(r.exceptionClass).toBe('Error');
     expect(r.isLog).toBeUndefined();
     expect(r.attributes['telemetry.sdk.language']).toBe('javascript');
-    expect(r.attributes['telemetry.sdk.name']).toBe('@flareapp/js');
+    expect(r.attributes['telemetry.sdk.name']).toBe('@flareapp/core');
     expect(r.attributes['flare.language.name']).toBe('javascript');
     expect(r.attributes['flare.entry_point.type']).toBe('web');
 });

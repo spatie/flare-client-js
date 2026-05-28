@@ -12,11 +12,11 @@ beforeEach(() => {
     client = new Flare(fakeApi).configure({ key: 'key', debug: true });
 });
 
-test('default sdk info is @flareapp/js', async () => {
+test('default sdk info for a bare Flare instance is @flareapp/core', async () => {
     await client.report(new Error('x'));
 
     const a = fakeApi.lastReport!.attributes;
-    expect(a['telemetry.sdk.name']).toBe('@flareapp/js');
+    expect(a['telemetry.sdk.name']).toBe('@flareapp/core');
     expect(typeof a['telemetry.sdk.version']).toBe('string');
 });
 
