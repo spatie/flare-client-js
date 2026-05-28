@@ -6,11 +6,15 @@ import request from './request';
 import requestData from './requestData';
 
 export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
+    if (typeof window === 'undefined') {
+        return { 'flare.entry_point.type': 'server' };
+    }
+
     const attrs: Attributes = {
         'flare.entry_point.type': 'web',
     };
 
-    if (typeof window !== 'undefined' && window?.location?.href) {
+    if (window?.location?.href) {
         attrs['flare.entry_point.value'] = redactUrlQuery(window.location.href, config.urlDenylist);
         if (window.location.pathname) {
             attrs['flare.entry_point.handler.identifier'] = window.location.pathname;
