@@ -63,6 +63,61 @@ function ask(question) {
     });
 }
 
+function bumpVersion(current, type) {
+    const [major, minor, patch] = current.split('.').map(Number);
+    switch (type) {
+        case 'major': return `${major + 1}.0.0`;
+        case 'minor': return `${major}.${minor + 1}.0`;
+        case 'patch': return `${major}.${minor}.${patch + 1}`;
+        default: return type;
+    }
+}
+
+function isValidSemver(v) {
+    return /^\d+\.\d+\.\d+$/.test(v);
+}
+
+async function promptVersion() {
+    console.log('\n--- Version ---\n');
+
+    const currentVersion = readPkgJson('js').version;
+    info(`Current version: ${currentVersion}`);
+
+    const patch = bumpVersion(currentVersion, 'patch');
+    const minor = bumpVersion(currentVersion, 'minor');
+    const major = bumpVersion(currentVersion, 'major');
+
+    console.log('');
+    console.log(`  1) patch  ${currentVersion} -> ${patch}`);
+    console.log(`  2) minor  ${currentVersion} -> ${minor}`);
+    console.log(`  3) major  ${currentVersion} -> ${major}`);
+    console.log(`  4) custom (enter exact version)`);
+    console.log('');
+
+    const choice = await ask('  Select [1-4]: ');
+
+    let newVersion;
+    switch (choice) {
+        case '1': newVersion = patch; break;
+        case '2': newVersion = minor; break;
+        case '3': newVersion = major; break;
+        case '4':
+            newVersion = await ask('  Enter version (e.g. 3.0.0): ');
+            if (!isValidSemver(newVersion)) fail(`Invalid semver: ${newVersion}`);
+            break;
+        default:
+            fail(`Invalid choice: ${choice}`);
+    }
+
+    const confirm = await ask(`\n  Release v${newVersion}? [y/N]: `);
+    if (confirm.toLowerCase() !== 'y') {
+        console.log('  Aborted.');
+        process.exit(0);
+    }
+
+    return { currentVersion, newVersion };
+}
+
 async function preflight() {
     console.log('\n--- Pre-flight checks ---\n');
 
