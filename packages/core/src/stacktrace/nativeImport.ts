@@ -5,11 +5,11 @@
 //
 // Built lazily and only ever called behind an `isNode()` gate, so the `Function` constructor is never
 // evaluated in the browser — keeping it safe under strict CSP.
-let cached: ((specifier: string) => Promise<any>) | null = null;
+let cached: ((specifier: string) => Promise<unknown>) | null = null;
 
-export function nativeImport(specifier: string): Promise<any> {
+export function nativeImport(specifier: string): Promise<unknown> {
     if (!cached) {
-        cached = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<any>;
+        cached = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<unknown>;
     }
 
     return cached(specifier);

@@ -155,7 +155,7 @@ function bumpPackages(newVersion) {
 
         try {
             run(cmd, { cwd: pkgDir(name), stdio: 'inherit' });
-        } catch (e) {
+        } catch {
             fail(
                 `release-it failed for @flareapp/${name}. ` +
                 `To undo partial bumps and staged version.ts hooks, run: git reset --hard HEAD`,
