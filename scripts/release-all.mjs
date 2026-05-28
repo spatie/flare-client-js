@@ -118,6 +118,31 @@ async function promptVersion() {
     return { currentVersion, newVersion };
 }
 
+function bumpPackages(newVersion) {
+    console.log('\n--- Bumping versions via release-it ---\n');
+
+    for (const name of PUBLIC_PACKAGES) {
+        info(`Bumping @flareapp/${name} to ${newVersion}...`);
+        const cmd = [
+            'npx release-it', newVersion,
+            '--ci',
+            '--git.commit=false',
+            '--git.tag=false',
+            '--git.push=false',
+            '--npm.publish=false',
+            '--hooks.before:release=',
+        ].join(' ');
+
+        try {
+            run(cmd, { cwd: pkgDir(name), stdio: 'inherit' });
+        } catch (e) {
+            fail(`release-it failed for @flareapp/${name}. Run \`git checkout .\` to undo partial bumps.`);
+        }
+    }
+
+    info('All packages bumped');
+}
+
 async function preflight() {
     console.log('\n--- Pre-flight checks ---\n');
 
