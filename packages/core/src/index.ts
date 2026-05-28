@@ -25,3 +25,5 @@ export {
     redactUrlQuery,
     resolveDenylist,
 } from './util';
+
+export { Api } from './api';
