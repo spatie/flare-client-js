@@ -1,4 +1,4 @@
-import { Attributes } from '../types';
+import type { Attributes } from '@flareapp/core';
 
 export default function cookie(): Attributes {
     if (!window.document.cookie) {

@@ -1,5 +1,5 @@
-import { Attributes } from '../types';
-import { redactUrlQuery } from '../util';
+import type { Attributes } from '@flareapp/core';
+import { redactUrlQuery } from '@flareapp/core';
 
 export default function request(urlDenylist: RegExp): Attributes {
     return {
