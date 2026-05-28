@@ -13,16 +13,7 @@ import {
     Report,
     SdkInfo,
 } from './types';
-import {
-    DEFAULT_URL_DENYLIST,
-    assert,
-    assertKey,
-    extractCode,
-    glowsToEvents,
-    now,
-    redactUrlQuery,
-    resolveDenylist,
-} from './util';
+import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
 
 export type ContextCollector = (config: Readonly<Config>) => Attributes;
 
@@ -141,6 +132,9 @@ export class Flare {
     setFramework(framework: Framework): Flare {
         this.framework = framework;
         this.addContext('framework', framework.name.toLowerCase());
+        const scope = this.scopeProvider.active();
+        if (framework.name) scope.setAttribute('flare.framework.name', framework.name);
+        if (framework.version) scope.setAttribute('flare.framework.version', framework.version);
         return this;
     }
 
@@ -251,34 +245,17 @@ export class Flare {
             'telemetry.sdk.name': this.sdkInfo.name,
             'telemetry.sdk.version': this.sdkInfo.version,
             'flare.language.name': 'javascript',
-            'flare.entry_point.type': 'web',
         };
 
-        if (typeof window !== 'undefined' && window?.location?.href) {
-            baseAttributes['flare.entry_point.value'] = redactUrlQuery(window.location.href, this._config.urlDenylist);
-        }
-
         const entryPoint = activeScope.entryPoint;
-        const handlerIdentifier =
-            entryPoint?.identifier ??
-            (typeof window !== 'undefined' && window?.location?.pathname ? window.location.pathname : undefined);
-        const handlerType = entryPoint?.type ?? (typeof window !== 'undefined' && window ? 'browser' : undefined);
-
-        if (handlerIdentifier !== undefined) {
-            baseAttributes['flare.entry_point.handler.identifier'] = handlerIdentifier;
+        if (entryPoint?.identifier !== undefined) {
+            baseAttributes['flare.entry_point.handler.identifier'] = entryPoint.identifier;
         }
-        if (handlerType !== undefined) {
-            baseAttributes['flare.entry_point.handler.type'] = handlerType;
+        if (entryPoint?.type !== undefined) {
+            baseAttributes['flare.entry_point.handler.type'] = entryPoint.type;
         }
         if (entryPoint?.name !== undefined) {
             baseAttributes['flare.entry_point.handler.name'] = entryPoint.name;
-        }
-
-        if (this.framework?.name) {
-            baseAttributes['flare.framework.name'] = this.framework.name;
-        }
-        if (this.framework?.version) {
-            baseAttributes['flare.framework.version'] = this.framework.version;
         }
 
         if (this._config.stage) {
