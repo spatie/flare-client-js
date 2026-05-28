@@ -44,8 +44,6 @@ export class Flare {
         beforeSubmit: (report) => report,
     };
 
-    private pendingAttributes: Attributes = {};
-
     private entryPoint: EntryPointHandler | null = null;
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
     private framework: Framework | null = null;
@@ -117,13 +115,15 @@ export class Flare {
     }
 
     addContext(name: string, value: AttributeValue): Flare {
-        const existing = (this.pendingAttributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
-        this.pendingAttributes['context.custom'] = { ...existing, [name]: value };
+        const scope = this.scopeProvider.active();
+        const existing =
+            (scope.pendingAttributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
+        scope.setAttribute('context.custom', { ...existing, [name]: value });
         return this;
     }
 
     addContextGroup(groupName: string, value: Record<string, AttributeValue>): Flare {
-        this.pendingAttributes[`context.${groupName}`] = value;
+        this.scopeProvider.active().setAttribute(`context.${groupName}`, value);
         return this;
     }
 
@@ -243,6 +243,8 @@ export class Flare {
         code: string | undefined;
         seenAtUnixNano: number;
     }): Report {
+        const activeScope = this.scopeProvider.active();
+
         const baseAttributes: Attributes = {
             'telemetry.sdk.language': 'javascript',
             'telemetry.sdk.name': this.sdkInfo.name,
@@ -287,14 +289,14 @@ export class Flare {
         const attributes: Attributes = {
             ...baseAttributes,
             ...collectAttributes(this._config.urlDenylist),
-            ...this.pendingAttributes,
+            ...activeScope.pendingAttributes,
             ...input.extraAttributes,
         };
 
         // Merge `context.custom` from extraAttributes into pendingAttributes' value
         // instead of overwriting, so framework adapters can attach custom context
         // without clobbering user-set context from addContext().
-        const pendingCustom = this.pendingAttributes['context.custom'];
+        const pendingCustom = activeScope.pendingAttributes['context.custom'];
         const extraCustom = input.extraAttributes['context.custom'];
         if (
             pendingCustom &&
@@ -319,7 +321,7 @@ export class Flare {
             message: input.message,
             seenAtUnixNano: input.seenAtUnixNano,
             stacktrace: input.stacktrace,
-            events: glowsToEvents(this.scopeProvider.active().glows),
+            events: glowsToEvents(activeScope.glows),
             attributes,
         };
 
