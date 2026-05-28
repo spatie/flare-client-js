@@ -28,7 +28,8 @@
         "format": "oxfmt .",
         "lint": "oxlint",
         "prepare": "husky",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "release:all": "node scripts/release-all.mjs"
     },
     "devDependencies": {
         "@playwright/test": "^1.59.1",
