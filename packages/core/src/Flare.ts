@@ -1,5 +1,4 @@
 import { Api } from './api';
-import { collectAttributes } from './context';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { GlobalScopeProvider, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
@@ -24,6 +23,8 @@ import {
     redactUrlQuery,
     resolveDenylist,
 } from './util';
+
+export type ContextCollector = (config: Readonly<Config>) => Attributes;
 
 const DEFAULT_SDK_NAME = '@flareapp/core';
 
@@ -50,6 +51,7 @@ export class Flare {
     constructor(
         public api: Api = new Api(),
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
+        private contextCollector: ContextCollector = () => ({}),
     ) {}
 
     get config(): Readonly<Config> {
@@ -288,7 +290,7 @@ export class Flare {
 
         const attributes: Attributes = {
             ...baseAttributes,
-            ...collectAttributes(this._config.urlDenylist),
+            ...this.contextCollector(this._config),
             ...activeScope.pendingAttributes,
             ...input.extraAttributes,
         };
