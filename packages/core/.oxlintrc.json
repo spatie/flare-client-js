@@ -2,9 +2,6 @@
     "$schema": "../../node_modules/oxlint/configuration_schema.json",
     "extends": ["../../.oxlintrc.json"],
     "env": {
-        "browser": true
-    },
-    "rules": {
-        "unicorn/require-module-specifiers": "off"
+        "node": true
     }
 }
