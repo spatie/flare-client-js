@@ -25,7 +25,8 @@ const CROSS_PACKAGE_REFS = [
 ];
 
 function run(cmd, opts = {}) {
-    return execSync(cmd, { encoding: 'utf-8', stdio: opts.stdio ?? 'pipe', cwd: opts.cwd ?? ROOT }).trim();
+    const result = execSync(cmd, { encoding: 'utf-8', stdio: opts.stdio ?? 'pipe', cwd: opts.cwd ?? ROOT });
+    return result ? result.trim() : '';
 }
 
 function fail(msg) {
@@ -340,16 +341,23 @@ async function preflight() {
         ghAvailable = false;
     }
 
-    info('Running build...');
-    run('npm run build', { stdio: 'inherit' });
+    info('Building packages...');
+    for (const name of PUBLIC_PACKAGES) {
+        run(`npm run build --workspace=@flareapp/${name}`, { stdio: 'inherit' });
+    }
+    run('npm run build --workspace=@flareapp/flare-api', { stdio: 'inherit' });
     info('Build passed');
 
     info('Running tests...');
-    run('npm run test', { stdio: 'inherit' });
+    for (const name of PUBLIC_PACKAGES) {
+        run(`npm run test --workspace=@flareapp/${name} --if-present`, { stdio: 'inherit' });
+    }
     info('Tests passed');
 
     info('Running type-check...');
-    run('npm run typescript', { stdio: 'inherit' });
+    for (const name of PUBLIC_PACKAGES) {
+        run(`npm run typescript --workspace=@flareapp/${name} --if-present`, { stdio: 'inherit' });
+    }
     info('Type-check passed');
 
     return { ghAvailable };
