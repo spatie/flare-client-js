@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Scope } from '../src/Scope';
+import { GlobalScopeProvider, Scope } from '../src/Scope';
 import type { Glow } from '../src/types';
 
 const glow = (name: string): Glow => ({
@@ -45,5 +45,20 @@ describe('Scope', () => {
         const scope = new Scope();
         scope.entryPoint = { identifier: '/foo', type: 'browser' };
         expect(scope.entryPoint?.identifier).toBe('/foo');
+    });
+});
+
+describe('GlobalScopeProvider', () => {
+    it('returns the same scope on every active() call', () => {
+        const provider = new GlobalScopeProvider();
+        const a = provider.active();
+        const b = provider.active();
+        expect(a).toBe(b);
+    });
+
+    it('mutations on the active scope persist', () => {
+        const provider = new GlobalScopeProvider();
+        provider.active().setAttribute('k', 'v');
+        expect(provider.active().pendingAttributes).toEqual({ k: 'v' });
     });
 });
