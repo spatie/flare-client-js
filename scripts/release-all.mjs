@@ -14,6 +14,8 @@ import { createInterface } from 'node:readline';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+const SKIP_DEP_CHECK = process.argv.includes('--skip-dep-check');
+
 const PUBLISH_ORDER = [
     ['js'],
     ['react', 'vue', 'svelte', 'webpack', 'vite'],
@@ -86,6 +88,46 @@ function isCommandAvailable(cmd) {
         return true;
     } catch {
         return false;
+    }
+}
+
+function isDepPublishedOnNpm(dep, version) {
+    try {
+        const result = execSync(`npm view ${dep}@${version} version`, {
+            encoding: 'utf-8',
+            stdio: 'pipe',
+        });
+        return result.trim() === version;
+    } catch {
+        return false;
+    }
+}
+
+function checkIndependentDepsPublished() {
+    if (SKIP_DEP_CHECK) {
+        warn('--skip-dep-check: skipping independent dependency publication check.');
+        return;
+    }
+
+    // Check every lockstep package's dependencies for refs to independently versioned packages
+    // and verify those exact versions are published on npm before we proceed.
+    for (const name of PUBLIC_PACKAGES) {
+        const pkgJson = readPkgJson(name);
+        const deps = pkgJson.dependencies ?? {};
+        for (const [dep, range] of Object.entries(deps)) {
+            if (!INDEPENDENT_PACKAGES.has(dep)) continue;
+            // Strip leading ^ or ~ to get the pinned version
+            const pinnedVersion = range.replace(/^[\^~]/, '');
+            if (!isDepPublishedOnNpm(dep, pinnedVersion)) {
+                fail(
+                    `@flareapp/${name} depends on ${dep}@${pinnedVersion} but ${dep}@${pinnedVersion} is not published on npm.\n` +
+                    `  Publish ${dep} first (cd packages/${dep.replace('@flareapp/', '')} && npm run release)\n` +
+                    `  before running release-all.\n` +
+                    `  To bypass this check (offline / private registry), pass --skip-dep-check.`,
+                );
+            }
+            info(`${dep}@${pinnedVersion} is published on npm`);
+        }
     }
 }
 
@@ -424,6 +466,10 @@ async function preflight() {
         warn('gh CLI not authenticated. GitHub releases will be skipped.');
         ghAvailable = false;
     }
+
+    info('Checking independently versioned dependencies are published on npm...');
+    checkIndependentDepsPublished();
+    info('Dependency check passed');
 
     info('Building packages...');
     for (const name of PUBLIC_PACKAGES) {

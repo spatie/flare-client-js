@@ -231,8 +231,14 @@ npm run release
 
 When you bump `@flareapp/core`, manually update the version pin in
 `packages/js/package.json` (`"@flareapp/core": "<new-version>"`) and
-`packages/node/package.json`. The release-all script verifies those refs exist
-but does not bump them; independent versioning is intentional.
+`packages/node/package.json`. The release-all script does not bump those pins;
+independent versioning is intentional.
+
+Before running `release-all`, make sure every `@flareapp/core` and `@flareapp/node`
+version referenced in `packages/js/package.json` and `packages/node/package.json`
+is already published on npm. The pre-flight check in `release-all` queries npm for
+each pinned version and fails with a clear message if the version is not found.
+Pass `--skip-dep-check` to bypass this check (offline environments, private registries).
 
 ### Skill
 
