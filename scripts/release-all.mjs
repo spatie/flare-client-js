@@ -8,13 +8,13 @@ import { createInterface } from 'node:readline';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const PUBLIC_PACKAGES = ['js', 'react', 'vue', 'svelte', 'sveltekit', 'webpack', 'vite', 'nextjs'];
-
 const PUBLISH_ORDER = [
     ['js'],
     ['react', 'vue', 'svelte', 'webpack', 'vite'],
     ['sveltekit', 'nextjs'],
 ];
+
+const PUBLIC_PACKAGES = PUBLISH_ORDER.flat();
 
 const CROSS_PACKAGE_REFS = [
     { pkg: 'react', field: 'peerDependencies', dep: '@flareapp/js' },
@@ -26,7 +26,8 @@ const CROSS_PACKAGE_REFS = [
 ];
 
 function run(cmd, opts = {}) {
-    const result = execSync(cmd, { encoding: 'utf-8', stdio: opts.stdio ?? 'pipe', cwd: opts.cwd ?? ROOT });
+    const stdio = opts.stdio ?? ['ignore', 'pipe', 'inherit'];
+    const result = execSync(cmd, { encoding: 'utf-8', stdio, cwd: opts.cwd ?? ROOT });
     return result ? result.trim() : '';
 }
 
@@ -179,6 +180,14 @@ function updateCrossReferences(newVersion) {
 function commitAndTag(newVersion) {
     console.log('\n--- Committing and tagging ---\n');
 
+    const status = run('git status --porcelain');
+    if (!status) {
+        fail(
+            `No file changes after bump phase. ` +
+            `Version ${newVersion} likely matches the current version. Nothing to release.`,
+        );
+    }
+
     const filesToStage = [
         ...PUBLIC_PACKAGES.map((name) => `packages/${name}/package.json`),
         'packages/svelte/src/version.ts',
@@ -304,7 +313,7 @@ function generateNotesWithClaude(pkgName, version, commits) {
 function ghReleaseCreate(tag, notesPath) {
     const result = spawnSync(
         'gh',
-        ['release', 'create', tag, '--title', tag, '--notes-file', notesPath, '--target', 'main'],
+        ['release', 'create', tag, '--title', tag, '--notes-file', notesPath],
         { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     if (result.status !== 0) {
