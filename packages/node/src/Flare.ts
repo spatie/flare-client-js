@@ -32,21 +32,21 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
 export class NodeFlare extends CoreFlare {
     private nodeOptions: ResolvedNodeOptions = { ...DEFAULT_NODE_OPTIONS };
     private isLit = false;
-    private scopeProvider: AsyncLocalStorageScopeProvider;
+    private nodeScopeProvider: AsyncLocalStorageScopeProvider;
     private handlerManager: ProcessHandlerManager;
 
     constructor() {
         const scopeProvider = new AsyncLocalStorageScopeProvider();
         const collector = makeNodeContextCollector(scopeProvider, () => this.nodeOptions);
         super(new Api(), scopeProvider, collector, new DiskFileReader());
-        this.scopeProvider = scopeProvider;
+        this.nodeScopeProvider = scopeProvider;
         this.setSdkInfo({ name: NODE_SDK_NAME, version: NODE_SDK_VERSION });
 
         const cbs = buildFatalCallbacks(this, () => this.nodeOptions);
         this.handlerManager = new ProcessHandlerManager(cbs);
     }
 
-    light(key?: string, debug?: boolean): NodeFlare {
+    light(key?: string, debug?: boolean) {
         super.light(key, debug);
         if (!this.isLit) {
             this.isLit = true;
@@ -81,19 +81,19 @@ export class NodeFlare extends CoreFlare {
     }
 
     runWithContext<T>(request: RequestContext, fn: () => T): T {
-        return this.scopeProvider.runWithContext(request, fn);
+        return this.nodeScopeProvider.runWithContext(request, fn);
     }
 
     mergeContext(partial: Partial<RequestContext>): void {
-        this.scopeProvider.mergeContext(partial);
+        this.nodeScopeProvider.mergeContext(partial);
     }
 
     setUser(user: User | null): void {
-        this.scopeProvider.setUser(user);
+        this.nodeScopeProvider.setUser(user);
     }
 
     getContext(): NodeScope | null {
-        return this.scopeProvider.getContext();
+        return this.nodeScopeProvider.getContext();
     }
 
     removeProcessListeners(): void {
