@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { glowsToEvents } from '../src/util/glowsToEvents';
+import { glowsToEvents } from '../src/util';
 
 describe('glowsToEvents', () => {
     test('produces a php_glow span event per glow', () => {

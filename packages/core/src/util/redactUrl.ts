@@ -36,7 +36,7 @@ function unionFlags(a: string, b: string): string {
     return [...merged].join('');
 }
 
-export function redactFullPath(fullPath: string, denylist: RegExp = DEFAULT_URL_DENYLIST): string {
+export function redactUrlQuery(fullPath: string, denylist: RegExp = DEFAULT_URL_DENYLIST): string {
     const queryStart = fullPath.indexOf('?');
 
     if (queryStart === -1) {

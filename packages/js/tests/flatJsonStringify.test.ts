@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { flatJsonStringify } from '../src/util/flatJsonStringify';
+import { flatJsonStringify } from '../src/util';
 
 describe('flatJsonStringify', () => {
     test('preserves shared (non-cyclic) sub-objects on both branches', () => {

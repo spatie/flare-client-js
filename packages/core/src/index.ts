@@ -12,3 +12,16 @@ export type {
     SpanEvent,
     StackFrame,
 } from './types';
+
+export {
+    assert,
+    assertKey,
+    convertToError,
+    DEFAULT_URL_DENYLIST,
+    extractCode,
+    flatJsonStringify,
+    glowsToEvents,
+    now,
+    redactUrlQuery,
+    resolveDenylist,
+} from './util';
