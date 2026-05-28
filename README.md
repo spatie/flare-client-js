@@ -72,6 +72,7 @@ All commands are run from the repository root:
 | `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)        |
 | `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)  |
 | `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)    |
+| `npm run release:all`        | Lockstep-release all 8 public packages at one shared version     |
 
 ### Playgrounds
 
@@ -135,9 +136,35 @@ GitHub Actions runs on every push:
 
 ## Versioning and releasing
 
-Each package is versioned and published independently using [release-it](https://github.com/release-it/release-it).
+Each package can be versioned and published independently using [release-it](https://github.com/release-it/release-it), or all 8 public packages can be released in lockstep with a single command via `scripts/release-all.mjs`.
 
-### Releasing a package
+### Releasing all packages in lockstep (recommended)
+
+For coordinated releases that span multiple packages, use `npm run release:all` from the repo root. This orchestrates a single-version release across all 8 published packages and produces one release commit instead of eight.
+
+```bash
+npm run release:all
+```
+
+The script will:
+
+1. **Pre-flight**: verify clean working tree, on `main`, npm authenticated, then run `build`, `test`, and `typescript` for the 8 published packages and the internal `flare-api` workspace.
+2. **Prompt for the next version** (patch, minor, major, or custom). The same version is applied to every public package.
+3. **Bump** each package via `release-it` (no commit/tag/publish at this stage). The svelte and sveltekit `after:bump` hooks regenerate their `src/version.ts`.
+4. **Update cross-package references**: peer-dep and dependency ranges that point at `@flareapp/js`, `@flareapp/svelte`, or `@flareapp/webpack` are bumped to `^<new version>`.
+5. **Commit + tag**: one commit (`chore: release v<version>`) plus 8 annotated tags (`@flareapp/<pkg>@<version>`).
+6. **Dry-run gate**: prints a summary of tags, file changes, and publish order, then asks for confirmation before any push or publish. Declining leaves the commit and tags local; the script prints the exact undo command.
+7. **Publish** to npm in dependency order: `js` first, then `react/vue/svelte/webpack/vite`, then `sveltekit/nextjs`.
+8. **Push** the commit and all tags to `origin`.
+9. **GitHub releases**: one per tag. If the `claude` CLI is available, release notes are auto-generated from the commit log since the previous tag; otherwise minimal notes are used. Failures here are non-fatal.
+
+Requirements: `npm whoami` must succeed. `gh auth status` is checked but optional (GitHub releases are skipped if unauthenticated). `claude` CLI is optional (falls back to minimal notes).
+
+If publishing fails partway, the script stops, lists which packages made it onto npm, and tells you to publish the remaining ones manually. Commit and tags are already local at that point.
+
+> **Note:** `@flareapp/flare-api` is private and not published. Its source is bundled into `@flareapp/vite` and `@flareapp/webpack` via tsdown's `--noExternal` flag, so changes to `flare-api` only ship when those packages are re-released.
+
+### Releasing a single package
 
 From the package directory you want to release, run:
 
@@ -169,7 +196,9 @@ npm run release -- --dry-run
 
 ### Publishing multiple packages
 
-When releasing changes that span multiple packages, publish them in dependency order:
+Prefer `npm run release:all` for any release that spans more than one package - it enforces the correct order, bumps the cross-package version ranges, and ships everything under one commit.
+
+If you do release packages individually for some reason, the dependency order is:
 
 1. `@flareapp/js` (core, no internal dependencies)
 2. `@flareapp/vite` (no internal dependencies)
