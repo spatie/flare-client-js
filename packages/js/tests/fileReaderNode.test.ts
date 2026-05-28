@@ -1,3 +1,4 @@
+// TODO(node-sdk): move to @flareapp/node tests when DiskFileReader lands (Task 47).
 // @vitest-environment node
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
