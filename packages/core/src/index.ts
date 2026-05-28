@@ -29,3 +29,6 @@ export {
 export { Api } from './api';
 
 export { Flare } from './Flare';
+
+export { Scope, GlobalScopeProvider } from './Scope';
+export type { ScopeProvider } from './Scope';
