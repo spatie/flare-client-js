@@ -207,6 +207,54 @@ async function dryRunGate(currentVersion, newVersion) {
     }
 }
 
+function publishPackages() {
+    console.log('\n--- Publishing ---\n');
+
+    const published = [];
+    const failed = [];
+
+    for (const tier of PUBLISH_ORDER) {
+        for (const name of tier) {
+            info(`Publishing @flareapp/${name}...`);
+            try {
+                run(`npm publish --workspace=@flareapp/${name}`, { stdio: 'inherit' });
+                published.push(name);
+            } catch {
+                failed.push(name);
+                console.error('');
+                console.error(`  PUBLISH FAILED for @flareapp/${name}`);
+                console.error(`  Published so far: ${published.map((n) => `@flareapp/${n}`).join(', ') || 'none'}`);
+
+                const remaining = [];
+                let foundFailed = false;
+                for (const t of PUBLISH_ORDER) {
+                    for (const n of t) {
+                        if (n === name) foundFailed = true;
+                        if (foundFailed && n !== name) remaining.push(n);
+                    }
+                }
+                if (remaining.length) {
+                    console.error(`  Remaining: ${remaining.map((n) => `@flareapp/${n}`).join(', ')}`);
+                }
+                fail('Fix the issue and publish remaining packages manually.');
+            }
+        }
+    }
+
+    info(`All ${published.length} packages published`);
+}
+
+function pushToOrigin() {
+    console.log('\n--- Pushing ---\n');
+
+    try {
+        run('git push origin main --follow-tags', { stdio: 'inherit' });
+        info('Pushed commit and tags to origin');
+    } catch {
+        fail('git push failed. Packages are already on npm. Push manually with: git push origin main --follow-tags');
+    }
+}
+
 async function preflight() {
     console.log('\n--- Pre-flight checks ---\n');
 
