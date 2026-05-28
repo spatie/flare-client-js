@@ -48,10 +48,8 @@ export class NodeFlare extends CoreFlare {
 
     light(key?: string, debug?: boolean) {
         super.light(key, debug);
-        if (!this.isLit) {
-            this.isLit = true;
-            this.handlerManager.reconcile(this.nodeOptions);
-        }
+        this.isLit = true;
+        this.handlerManager.reconcile(this.nodeOptions);
         return this;
     }
 
