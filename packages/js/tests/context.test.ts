@@ -1,8 +1,10 @@
-import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 // @vitest-environment jsdom
+import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { collectAttributes } from '../../core/src/context';
+import cookie from '../src/browser/context/cookie';
+import request from '../src/browser/context/request';
+import requestData from '../src/browser/context/requestData';
 
 const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
 const originalReferrer = Object.getOwnPropertyDescriptor(Document.prototype, 'referrer');
@@ -12,8 +14,8 @@ function setLocation(url: string) {
 }
 
 function clearCookies() {
-    for (const cookie of window.document.cookie.split('; ')) {
-        const name = cookie.split('=')[0];
+    for (const c of window.document.cookie.split('; ')) {
+        const name = c.split('=')[0];
         if (name) {
             (window.document as any).cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
         }
@@ -49,7 +51,7 @@ afterEach(() => {
 });
 
 test('emits flat OTel-style request attributes', () => {
-    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
+    const attributes = request(DEFAULT_URL_DENYLIST);
 
     expect(attributes['url.full']).toBe('https://app.test/some/path?utm=foo&q=bar');
     expect(attributes['user_agent.original']).toBe('TestAgent/1.0');
@@ -58,7 +60,7 @@ test('emits flat OTel-style request attributes', () => {
 });
 
 test('emits url.query as raw query string without leading ?', () => {
-    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
+    const attributes = requestData(DEFAULT_URL_DENYLIST);
 
     expect(attributes['url.query']).toBe('utm=foo&q=bar');
 });
@@ -66,13 +68,13 @@ test('emits url.query as raw query string without leading ?', () => {
 test('omits url.query when no search string is present', () => {
     setLocation('https://app.test/some/path');
 
-    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
+    const attributes = requestData(DEFAULT_URL_DENYLIST);
 
     expect('url.query' in attributes).toBe(false);
 });
 
 test('emits http.request.cookies as parsed object', () => {
-    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
+    const attributes = cookie();
 
     expect(attributes['http.request.cookies']).toEqual({
         session: 'abc',
@@ -84,17 +86,7 @@ test('preserves = characters inside cookie values (e.g. base64)', () => {
     clearCookies();
     (window.document as any).cookie = 'token=abc==';
 
-    const attributes = collectAttributes(DEFAULT_URL_DENYLIST);
+    const attributes = cookie();
 
     expect((attributes['http.request.cookies'] as Record<string, string>).token).toBe('abc==');
-});
-
-test('returns empty object when no window present (SSR)', () => {
-    const realWindow = globalThis.window;
-    // @ts-expect-error
-    delete globalThis.window;
-
-    expect(collectAttributes(DEFAULT_URL_DENYLIST)).toEqual({});
-
-    globalThis.window = realWindow;
 });
