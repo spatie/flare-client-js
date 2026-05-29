@@ -48,7 +48,38 @@ describe('captureBody', () => {
     it('truncates over bodyMaxBytes', () => {
         const big = { v: 'x'.repeat(20_000) };
         const out = captureBody(big, undefined, { ...opts, bodyMaxBytes: 100 });
-        expect(out!.length).toBeLessThanOrEqual(120);
+        expect(Buffer.byteLength(out!, 'utf8')).toBeLessThanOrEqual(100);
+        expect(out!.endsWith('…[truncated]')).toBe(true);
+    });
+
+    it('truncates by UTF-8 byte length, not character length, for multi-byte payloads', () => {
+        // Three-byte char (CJK) repeated. 200 chars = 600 UTF-8 bytes.
+        const big = { v: '漢'.repeat(200) };
+        const out = captureBody(big, undefined, { ...opts, bodyMaxBytes: 100 });
+        expect(out).not.toBeNull();
+        expect(Buffer.byteLength(out!, 'utf8')).toBeLessThanOrEqual(100);
+        expect(out!.endsWith('…[truncated]')).toBe(true);
+    });
+
+    it('never leaves a partial multi-byte sequence at the cut', () => {
+        const big = { v: '漢'.repeat(200) };
+        const out = captureBody(big, undefined, { ...opts, bodyMaxBytes: 50 });
+        // Decoded buffer must round-trip cleanly (no Unicode replacement char).
+        expect(out!.includes('�')).toBe(false);
+    });
+
+    it('emits only suffix when budget is too small', () => {
+        const big = { v: 'x'.repeat(100) };
+        const out = captureBody(big, undefined, { ...opts, bodyMaxBytes: 5 });
+        // 5 bytes can't fit 14-byte suffix + any payload. Result should be the
+        // suffix truncated to 5 bytes, staying within the byte budget.
+        expect(Buffer.byteLength(out!, 'utf8')).toBeLessThanOrEqual(5);
+    });
+
+    it('ASCII-only path still truncates at byte budget including suffix', () => {
+        const big = { v: 'x'.repeat(200) };
+        const out = captureBody(big, undefined, { ...opts, bodyMaxBytes: 50 });
+        expect(Buffer.byteLength(out!, 'utf8')).toBeLessThanOrEqual(50);
         expect(out!.endsWith('…[truncated]')).toBe(true);
     });
 

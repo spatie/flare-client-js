@@ -49,9 +49,9 @@ type BodyOptions = {
  *    repeat sight).
  * 2. **Stringify.** `JSON.stringify`; if it throws (BigInt, Symbol, etc),
  *    drop the body entirely.
- * 3. **Truncate.** Cap at `bodyMaxBytes` characters with a `'…[truncated]'`
- *    suffix when over. Character count, not byte count — close enough for
- *    practical payload sizes and avoids an extra encode step.
+ * 3. **Truncate.** Cap at `bodyMaxBytes` UTF-8 bytes (the option's named
+ *    semantic) INCLUDING the suffix. Truncation respects codepoint boundaries
+ *    so the result decodes cleanly with no replacement characters.
  *
  * Returns the final JSON string, or `null` when the body should not be
  * reported (unknown shape, content-type miss, serialization failure).
@@ -83,10 +83,35 @@ export function captureBody(body: unknown, contentType: string | undefined, opts
     } catch {
         return null;
     }
-    if (serialized.length > opts.bodyMaxBytes) {
-        return serialized.slice(0, opts.bodyMaxBytes) + '…[truncated]';
+    return truncateToByteLimit(serialized, opts.bodyMaxBytes);
+}
+
+const TRUNCATION_SUFFIX = '…[truncated]';
+const TRUNCATION_SUFFIX_BYTES = Buffer.byteLength(TRUNCATION_SUFFIX, 'utf8');
+
+/**
+ * Truncate a serialized string so the resulting UTF-8 byte length never
+ * exceeds `maxBytes`, including the appended truncation suffix.
+ *
+ * Walks backwards from the budget index while the byte at that position is a
+ * UTF-8 continuation byte (`10xxxxxx`), stopping at the first byte that
+ * starts a new codepoint. Slicing at that index leaves a buffer that decodes
+ * cleanly with no replacement characters.
+ */
+function truncateToByteLimit(serialized: string, maxBytes: number): string {
+    const buf = Buffer.from(serialized, 'utf8');
+    if (buf.length <= maxBytes) return serialized;
+    if (maxBytes <= TRUNCATION_SUFFIX_BYTES) {
+        // Budget too small to fit the suffix plus any payload. Emit the suffix
+        // truncated to the byte budget, respecting codepoint boundaries.
+        const suffixBuf = Buffer.from(TRUNCATION_SUFFIX, 'utf8');
+        let cut = maxBytes;
+        while (cut > 0 && (suffixBuf[cut] & 0xc0) === 0x80) cut--;
+        return suffixBuf.subarray(0, cut).toString('utf8');
     }
-    return serialized;
+    let cut = maxBytes - TRUNCATION_SUFFIX_BYTES;
+    while (cut > 0 && (buf[cut] & 0xc0) === 0x80) cut--;
+    return buf.subarray(0, cut).toString('utf8') + TRUNCATION_SUFFIX;
 }
 
 /**
