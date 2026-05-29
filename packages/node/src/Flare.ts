@@ -16,6 +16,11 @@ const NODE_SDK_VERSION =
         ? process.env.FLARE_JS_CLIENT_VERSION
         : '?';
 
+function sanitizeRegex(re: RegExp): RegExp {
+    const safeFlags = re.flags.replace(/[gy]/g, '');
+    return new RegExp(re.source, safeFlags);
+}
+
 const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
     uncaughtExceptionMode: 'report-and-exit',
     unhandledRejectionMode: 'report-and-exit',
@@ -62,7 +67,8 @@ export class NodeFlare extends CoreFlare {
             this.nodeOptions.replaceDefaultHeaderDenylist =
                 partial.replaceDefaultHeaderDenylist ?? this.nodeOptions.replaceDefaultHeaderDenylist;
         }
-        if (partial.headerAllowlist !== undefined) this.nodeOptions.headerAllowlist = partial.headerAllowlist;
+        if (partial.headerAllowlist !== undefined)
+            this.nodeOptions.headerAllowlist = sanitizeRegex(partial.headerAllowlist);
         if (partial.uncaughtExceptionMode !== undefined)
             this.nodeOptions.uncaughtExceptionMode = partial.uncaughtExceptionMode;
         if (partial.unhandledRejectionMode !== undefined)
@@ -71,8 +77,9 @@ export class NodeFlare extends CoreFlare {
         if (partial.captureRequestBody !== undefined) this.nodeOptions.captureRequestBody = partial.captureRequestBody;
         if (partial.bodyMaxBytes !== undefined) this.nodeOptions.bodyMaxBytes = partial.bodyMaxBytes;
         if (partial.bodyAllowedContentTypes !== undefined)
-            this.nodeOptions.bodyAllowedContentTypes = partial.bodyAllowedContentTypes;
-        if (partial.bodyKeyDenylist !== undefined) this.nodeOptions.bodyKeyDenylist = partial.bodyKeyDenylist;
+            this.nodeOptions.bodyAllowedContentTypes = sanitizeRegex(partial.bodyAllowedContentTypes);
+        if (partial.bodyKeyDenylist !== undefined)
+            this.nodeOptions.bodyKeyDenylist = sanitizeRegex(partial.bodyKeyDenylist);
 
         if (this.isLit) this.handlerManager.reconcile(this.nodeOptions);
         return this;
