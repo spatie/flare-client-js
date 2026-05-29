@@ -1,5 +1,6 @@
 dist
 node_modules
+*.tsbuildinfo
 .idea/
 playground/.env
 playground-sveltekit/.env
