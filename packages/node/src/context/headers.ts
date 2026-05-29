@@ -1,6 +1,26 @@
 import type { Attributes } from '@flareapp/core';
 
 /**
+ * Case-insensitively look up a header value. Returns the first defined value
+ * for the lowercased name, or undefined. Array values (rare but valid for
+ * some headers) are coalesced to the first element since the consumers in
+ * this package treat the value as scalar.
+ */
+export function findHeader(
+    headers: Record<string, string | string[] | undefined> | undefined,
+    name: string,
+): string | undefined {
+    if (!headers) return undefined;
+    const target = name.toLowerCase();
+    for (const [key, value] of Object.entries(headers)) {
+        if (key.toLowerCase() !== target) continue;
+        if (value === undefined) continue;
+        return Array.isArray(value) ? value[0] : value;
+    }
+    return undefined;
+}
+
+/**
  * Default-redacted header names. The pattern is anchored to the FULL header
  * name (`^...$`) and case-insensitive so it catches `Authorization`,
  * `AUTHORIZATION`, `authorization`, etc. Anchoring matters: an unanchored

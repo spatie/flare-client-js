@@ -4,7 +4,7 @@ import { redactUrlQuery } from '@flareapp/core';
 import type { AsyncLocalStorageScopeProvider } from '../scope/AsyncLocalStorageScopeProvider';
 import type { ResolvedNodeOptions } from '../types';
 import { captureBody } from './body';
-import { projectHeaders } from './headers';
+import { findHeader, projectHeaders } from './headers';
 import { collectProcessAttributes } from './process';
 
 /**
@@ -96,9 +96,7 @@ export function makeNodeContextCollector(
         // the body is missing, or serialization fails; we only emit the
         // attribute when there's something to emit.
         if (opts.captureRequestBody) {
-            const contentType = (request.headers?.['content-type'] ?? request.headers?.['Content-Type']) as
-                | string
-                | undefined;
+            const contentType = findHeader(request.headers, 'content-type');
             const body = captureBody(request.body, contentType, opts);
             if (body !== null) attrs['http.request.body'] = body;
         }

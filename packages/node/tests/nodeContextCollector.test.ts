@@ -73,4 +73,34 @@ describe('Node ContextCollector', () => {
             expect(attrs['http.request.body']).toBe('{"a":1}');
         });
     });
+
+    it('captures body with CONTENT-TYPE header casing', () => {
+        const provider = new AsyncLocalStorageScopeProvider();
+        const collect = makeNodeContextCollector(provider, () => ({ ...baseOpts, captureRequestBody: true }));
+        provider.runWithContext({ body: { a: 1 }, headers: { 'CONTENT-TYPE': 'application/json' } }, () => {
+            const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
+            expect(attrs['http.request.body']).toBe('{"a":1}');
+        });
+    });
+
+    it('captures body with Content-type header casing', () => {
+        const provider = new AsyncLocalStorageScopeProvider();
+        const collect = makeNodeContextCollector(provider, () => ({ ...baseOpts, captureRequestBody: true }));
+        provider.runWithContext(
+            { body: '{"a":1}', headers: { 'Content-type': 'application/json; charset=utf-8' } },
+            () => {
+                const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
+                expect(attrs['http.request.body']).toBe('{"a":1}');
+            },
+        );
+    });
+
+    it('captures body when content-type is an array value (uses first element)', () => {
+        const provider = new AsyncLocalStorageScopeProvider();
+        const collect = makeNodeContextCollector(provider, () => ({ ...baseOpts, captureRequestBody: true }));
+        provider.runWithContext({ body: { a: 1 }, headers: { 'content-type': ['application/json'] as any } }, () => {
+            const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
+            expect(attrs['http.request.body']).toBe('{"a":1}');
+        });
+    });
 });
