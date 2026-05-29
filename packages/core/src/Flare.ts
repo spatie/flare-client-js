@@ -43,6 +43,22 @@ export class Flare {
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
     private framework: Framework | null = null;
 
+    /**
+     * Four pluggable seams. Each parameter doubles as a class field (TypeScript
+     * parameter-property shorthand: `public`/`private` in front of a parameter
+     * declares + assigns the field in one place).
+     *
+     * - `api`            sends the report over HTTP.
+     * - `contextCollector` returns per-report attributes (browser DOM info, Node
+     *                    process info, etc). Default is a no-op.
+     * - `fileReader`     reads source files for stack-trace snippets. Default
+     *                    returns null (no snippets); `@flareapp/js` injects a
+     *                    fetch-based reader, `@flareapp/node` injects a disk reader.
+     * - `scopeProvider`  returns the current `Scope` (per-call mutable state:
+     *                    glows, pendingAttributes, entryPoint). Browser uses a
+     *                    single global scope; Node uses an AsyncLocalStorage-
+     *                    backed provider so each request gets its own.
+     */
     constructor(
         public api: Api = new Api(),
         private contextCollector: ContextCollector = () => ({}),
@@ -50,6 +66,19 @@ export class Flare {
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
     ) {}
 
+    /**
+     * Register an in-flight report so `flush()` can wait for it.
+     *
+     * The original promise `p` may reject (network error, etc). If we stored it
+     * directly in `inflight`, an eventual rejection without a `.catch` would
+     * surface as an unhandled-rejection warning. So we build a void-typed
+     * "shadow" promise (`tracked`) that settles when `p` settles but never
+     * rejects: both `onFulfilled` and `onRejected` return `undefined`.
+     *
+     * The shadow goes into the Set; `finally` removes it when the work is done.
+     * The original `p` is returned unchanged so the caller still observes real
+     * success/failure semantics.
+     */
     private track<T>(p: Promise<T>): Promise<T> {
         const tracked = p.then(
             () => undefined,
@@ -60,6 +89,26 @@ export class Flare {
         return p;
     }
 
+    /**
+     * Wait until every in-flight report (everything currently being sent by
+     * `report`, `reportMessage`, `reportSilently`, etc) settles, or until
+     * `timeoutMs` elapses, whichever comes first.
+     *
+     * Used by `@flareapp/node`'s fatal handlers: when a process is about to
+     * exit on `uncaughtException`, we want to give in-progress reports a brief
+     * window to finish their HTTP round-trip before `process.exit(1)` kills
+     * the runtime. The timeout caps that window so a hung request cannot block
+     * shutdown indefinitely.
+     *
+     * Implementation notes:
+     * - `pending` snapshots the set with a spread, so reports started AFTER
+     *   `flush()` is called are not awaited by this call.
+     * - Fast path: when nothing is in flight, resolve immediately.
+     * - Otherwise race the timeout (`setTimeout`) against `allSettled`. The
+     *   first to fire wins; `clearTimeout` cancels the loser so the timer
+     *   does not fire later and call `resolve` a second time (which would be
+     *   a no-op but is wasteful).
+     */
     flush(timeoutMs = 2000): Promise<void> {
         const pending = [...this.inflight];
         if (pending.length === 0) return Promise.resolve();
