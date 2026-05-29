@@ -63,17 +63,55 @@ export class Flare {
     ) {}
 
     /**
-     * Register an in-flight report so `flush()` can wait for it.
+     * Register an in-flight report so `flush()` can wait for it. Called by
+     * every public report entry point (`report`, `reportSilently`,
+     * `reportMessage`, `reportUnhandledRejection`, `test`); each wraps its
+     * full async pipeline (beforeEvaluate -> stack trace + source snippets ->
+     * beforeSubmit -> `api.report()`) so the entire roundtrip is what's
+     * tracked, not just the HTTP send at the end.
      *
-     * The original promise `p` may reject (network error, etc). If we stored it
-     * directly in `inflight`, an eventual rejection without a `.catch` would
-     * surface as an unhandled-rejection warning. So we build a void-typed
-     * "shadow" promise (`tracked`) that settles when `p` settles but never
-     * rejects: both `onFulfilled` and `onRejected` return `undefined`.
+     * Two problems this method solves at once.
      *
-     * The shadow goes into the Set; `finally` removes it when the work is done.
-     * The original `p` is returned unchanged so the caller still observes real
-     * success/failure semantics.
+     * Problem 1: hold a reference to the work without leaking rejections.
+     *
+     *   `p` is the real report pipeline; it can reject (network failure,
+     *   `beforeSubmit` throws, etc). If we stored `p` directly in `inflight`
+     *   and no caller attached a `.catch` (the global error listeners use
+     *   `reportSilently` which DOES catch, but the path is still subtle), an
+     *   eventual rejection would surface as an unhandled-rejection warning
+     *   on Node and a console error in the browser. Bad citizen.
+     *
+     *   So we build a SHADOW promise that mirrors `p`'s timing but cannot
+     *   reject:
+     *
+     *     p.then(
+     *         () => undefined,   // on fulfilment, value is undefined
+     *         () => undefined,   // on rejection, ALSO resolve with undefined
+     *     )
+     *
+     *   Providing the second argument means we have "handled" any rejection
+     *   from `p`. The shadow always resolves with `undefined`, and `p`'s
+     *   rejection is consumed at the boundary. From the runtime's point of
+     *   view, the shadow is well-behaved.
+     *
+     * Problem 2: self-cleaning entry.
+     *
+     *   `tracked.finally(() => this.inflight.delete(tracked))`. `finally`
+     *   fires whether the shadow resolves or rejects, but the shadow can no
+     *   longer reject (problem 1 normalized it), so this is effectively
+     *   "when the underlying report has settled, remove me from the Set."
+     *   No GC magic, no external cleanup, no race window.
+     *
+     *   Note that `.finally` itself returns a new promise that we drop on
+     *   the floor. If the cleanup callback ever throws, that would surface
+     *   as an unhandled rejection on the dropped promise; `delete` does not
+     *   throw so we are safe today, but anything more elaborate added here
+     *   should be wrapped in try/catch.
+     *
+     * The return value is the ORIGINAL `p`. The caller awaits real success
+     * or failure; the tracking is completely invisible to them. This is why
+     * `await flare.report(err)` inside a fatal handler observes network
+     * errors the same as before tracking was added.
      */
     private track<T>(p: Promise<T>): Promise<T> {
         const tracked = p.then(
@@ -86,24 +124,83 @@ export class Flare {
     }
 
     /**
-     * Wait until every in-flight report (everything currently being sent by
-     * `report`, `reportMessage`, `reportSilently`, etc) settles, or until
-     * `timeoutMs` elapses, whichever comes first.
+     * Wait until every in-flight report settles, or until `timeoutMs`
+     * elapses, whichever comes first. Always resolves; never rejects.
      *
-     * Used by `@flareapp/node`'s fatal handlers: when a process is about to
-     * exit on `uncaughtException`, we want to give in-progress reports a brief
-     * window to finish their HTTP round-trip before `process.exit(1)` kills
-     * the runtime. The timeout caps that window so a hung request cannot block
-     * shutdown indefinitely.
+     * The main consumer is `@flareapp/node`'s fatal handler:
      *
-     * Implementation notes:
-     * - `pending` snapshots the set with a spread, so reports started AFTER
-     *   `flush()` is called are not awaited by this call.
-     * - Fast path: when nothing is in flight, resolve immediately.
-     * - Otherwise race the timeout (`setTimeout`) against `allSettled`. The
-     *   first to fire wins; `clearTimeout` cancels the loser so the timer
-     *   does not fire later and call `resolve` a second time (which would be
-     *   a no-op but is wasteful).
+     *     process.on('uncaughtException', async (err) => {
+     *         process.exitCode = 1;
+     *         try { await flare.report(err); } catch {}
+     *         await flare.flush(shutdownTimeoutMs);
+     *         process.exit(1);
+     *     });
+     *
+     * The fatal `report` is awaited explicitly; `flush` then drains any
+     * OTHER reports that were already in flight (a request handler that
+     * fired `flare.report(...)` concurrently with the crash). The timeout
+     * caps the wait so a hung HTTP request cannot indefinitely block
+     * shutdown.
+     *
+     * Walking the implementation:
+     *
+     *   const pending = [...this.inflight];
+     *
+     *     Spread takes a SNAPSHOT of the Set at this instant. Reports that
+     *     start AFTER this line are not included in `pending`, so they are
+     *     not awaited by THIS flush call. This is intentional: it bounds
+     *     the wait. Without the snapshot, a handler that kept emitting
+     *     reports during shutdown could keep flush alive forever and block
+     *     the process from exiting.
+     *
+     *   if (pending.length === 0) return Promise.resolve();
+     *
+     *     Fast path. No timer scheduled, no promise constructor needed.
+     *     Resolves on the microtask queue. Cheap.
+     *
+     *   return new Promise<void>((resolve) => {
+     *       const timer = setTimeout(resolve, timeoutMs);
+     *       Promise.allSettled(pending).then(() => {
+     *           clearTimeout(timer);
+     *           resolve();
+     *       });
+     *   });
+     *
+     *     The race between two outcomes, both calling the same `resolve`:
+     *
+     *     1. `setTimeout(resolve, timeoutMs)` schedules a "give up" call.
+     *        After `timeoutMs` it fires, calling `resolve()` from the
+     *        timer-queue side. The outer promise resolves immediately,
+     *        even if reports are still pending. Those reports are abandoned
+     *        (they continue running but the process is about to die).
+     *
+     *     2. `Promise.allSettled(pending)` returns a promise that resolves
+     *        when every promise in `pending` has either fulfilled or
+     *        rejected. It NEVER rejects on its own. We use `allSettled`
+     *        rather than `Promise.all` because `all` short-circuits on the
+     *        first rejection -- we want to wait for everyone regardless of
+     *        whether their HTTP calls succeed or fail. (Our shadows cannot
+     *        reject anyway because `track` normalized them, but using
+     *        `allSettled` documents the intent and survives future changes
+     *        to shadow construction.) When it resolves, we call
+     *        `clearTimeout(timer)` to cancel the pending timer (so it does
+     *        not fire later and call `resolve` a second time -- a no-op,
+     *        but wasted work) and then `resolve()` ourselves.
+     *
+     *   Resolve can only meaningfully fire once. Subsequent calls to the
+     *   same `resolve` are silently ignored by the Promise spec, so the
+     *   race is safe even if for some reason both branches fired together.
+     *
+     * Things flush() deliberately does NOT do:
+     *
+     *   - It does not reject. Even if every report failed, allSettled
+     *     resolves. Callers do not need a `.catch`.
+     *   - It does not retry. One pipeline attempt per report, then move on.
+     *   - It does not stop new reports from starting. The Flare instance
+     *     is still usable after flush resolves. flush is "wait for what is
+     *     in flight," not "freeze the SDK."
+     *   - It does not drain reports started after the snapshot. Call flush
+     *     again if you need to wait for those too.
      */
     flush(timeoutMs = 2000): Promise<void> {
         const pending = [...this.inflight];
