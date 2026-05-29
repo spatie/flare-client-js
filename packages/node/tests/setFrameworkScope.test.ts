@@ -58,4 +58,29 @@ describe('setFramework inside runWithContext', () => {
         expect(attrs['flare.framework.name']).toBe('Koa');
         expect(attrs['flare.framework.version']).toBe('3.0.0');
     });
+
+    it('context.custom.framework is set inside runWithContext when setFramework was called at startup', async () => {
+        const { instance, sent } = makeInstance();
+
+        instance.setFramework({ name: 'Express', version: '4.0.0' });
+
+        await instance.runWithContext({ method: 'GET', path: '/test' }, async () => {
+            await instance.report(new Error('boom'));
+        });
+
+        expect(sent.length).toBe(1);
+        const custom = sent[0].attributes['context.custom'] as Record<string, unknown>;
+        expect(custom.framework).toBe('express');
+    });
+
+    it('context.custom.framework is set outside runWithContext', async () => {
+        const { instance, sent } = makeInstance();
+
+        instance.setFramework({ name: 'Koa', version: '3.0.0' });
+        await instance.report(new Error('koa-error'));
+
+        expect(sent.length).toBe(1);
+        const custom = sent[0].attributes['context.custom'] as Record<string, unknown>;
+        expect(custom.framework).toBe('koa');
+    });
 });

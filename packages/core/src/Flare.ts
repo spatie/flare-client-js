@@ -162,7 +162,6 @@ export class Flare {
 
     setFramework(framework: Framework): this {
         this.framework = framework;
-        this.addContext('framework', framework.name.toLowerCase());
         return this;
     }
 
@@ -343,6 +342,14 @@ export class Flare {
                 ...(pendingCustom as Record<string, AttributeValue>),
                 ...(extraCustom as Record<string, AttributeValue>),
             };
+        }
+
+        // Emit context.custom.framework from instance state so it is present even
+        // inside a fresh request scope (where pendingAttributes starts empty).
+        // This mirrors the pre-refactor behavior: setFramework always set framework.
+        if (this.framework?.name) {
+            const existing = (attributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
+            attributes['context.custom'] = { ...existing, framework: this.framework.name.toLowerCase() };
         }
 
         // seenAtUnixNano: real nanoseconds. Date.now() * 1_000_000 exceeds Number.MAX_SAFE_INTEGER
