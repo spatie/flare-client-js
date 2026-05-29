@@ -9,5 +9,5 @@
     },
     "npm": { "publish": true },
     "github": { "release": false },
-    "hooks": { "before:release": "npm test --if-present" }
+    "hooks": { "before:release": "node ../../scripts/check-deps-published.mjs && npm test --if-present" }
 }

@@ -7,14 +7,14 @@
 // rebuilds and inlines the latest flare-api source).
 import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const SKIP_DEP_CHECK = process.argv.includes('--skip-dep-check');
+const SKIP_DEP_CHECK = process.argv.includes('--skip-dep-check') || process.env.SKIP_DEP_CHECK === '1';
 
 const PUBLISH_ORDER = [
     ['js'],
@@ -91,42 +91,26 @@ function isCommandAvailable(cmd) {
     }
 }
 
-function isDepPublishedOnNpm(dep, version) {
-    try {
-        const result = execSync(`npm view ${dep}@${version} version`, {
-            encoding: 'utf-8',
-            stdio: 'pipe',
-        });
-        return result.trim() === version;
-    } catch {
-        return false;
-    }
-}
+const CHECK_DEPS_SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), 'check-deps-published.mjs');
 
 function checkIndependentDepsPublished() {
-    if (SKIP_DEP_CHECK) {
-        warn('--skip-dep-check: skipping independent dependency publication check.');
-        return;
-    }
+    // Delegate to the shared script for each lockstep package that has
+    // @flareapp/* dependencies (currently only @flareapp/js and @flareapp/node).
+    // The script honours --skip-dep-check via SKIP_DEP_CHECK env var.
+    const env = { ...process.env };
+    if (SKIP_DEP_CHECK) env.SKIP_DEP_CHECK = '1';
 
-    // Check every lockstep package's dependencies for refs to independently versioned packages
-    // and verify those exact versions are published on npm before we proceed.
     for (const name of PUBLIC_PACKAGES) {
-        const pkgJson = readPkgJson(name);
-        const deps = pkgJson.dependencies ?? {};
-        for (const [dep, range] of Object.entries(deps)) {
-            if (!INDEPENDENT_PACKAGES.has(dep)) continue;
-            // Strip leading ^ or ~ to get the pinned version
-            const pinnedVersion = range.replace(/^[\^~]/, '');
-            if (!isDepPublishedOnNpm(dep, pinnedVersion)) {
-                fail(
-                    `@flareapp/${name} depends on ${dep}@${pinnedVersion} but ${dep}@${pinnedVersion} is not published on npm.\n` +
-                    `  Publish ${dep} first (cd packages/${dep.replace('@flareapp/', '')} && npm run release)\n` +
-                    `  before running release-all.\n` +
-                    `  To bypass this check (offline / private registry), pass --skip-dep-check.`,
-                );
-            }
-            info(`${dep}@${pinnedVersion} is published on npm`);
+        const dir = pkgDir(name);
+        const result = spawnSync('node', [CHECK_DEPS_SCRIPT, dir], {
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env,
+        });
+        if (result.stdout) process.stdout.write(result.stdout);
+        if (result.stderr) process.stderr.write(result.stderr);
+        if (result.status !== 0) {
+            process.exit(result.status ?? 1);
         }
     }
 }
