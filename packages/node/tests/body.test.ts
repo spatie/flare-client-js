@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+
 import { describe, expect, it } from 'vitest';
 
 import { captureBody, DEFAULT_BODY_CONTENT_TYPES, DEFAULT_BODY_KEY_DENYLIST } from '../src/context/body';
@@ -55,5 +57,34 @@ describe('captureBody', () => {
         obj.self = obj;
         const out = captureBody(obj, undefined, opts);
         expect(out).toContain('"[Circular]"');
+    });
+
+    it('skips Node streams', () => {
+        const stream = Readable.from(['x']);
+        expect(captureBody(stream, undefined, opts)).toBeNull();
+    });
+
+    it('skips ArrayBuffer and typed arrays', () => {
+        expect(captureBody(new ArrayBuffer(8), undefined, opts)).toBeNull();
+        expect(captureBody(new Uint8Array([1, 2, 3]), undefined, opts)).toBeNull();
+    });
+
+    it('skips FormData', () => {
+        const fd = new FormData();
+        fd.append('a', '1');
+        expect(captureBody(fd, undefined, opts)).toBeNull();
+    });
+
+    it('skips class instances with non-Object prototypes', () => {
+        class User {
+            constructor(public id: string) {}
+        }
+        expect(captureBody(new User('u1'), undefined, opts)).toBeNull();
+    });
+
+    it('still accepts plain objects and arrays', () => {
+        expect(captureBody({ a: 1 }, undefined, opts)).toBe('{"a":1}');
+        expect(captureBody([1, 2, 3], undefined, opts)).toBe('[1,2,3]');
+        expect(captureBody(Object.create(null), undefined, opts)).toBe('{}');
     });
 });

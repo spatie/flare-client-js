@@ -70,7 +70,7 @@ export function captureBody(body: unknown, contentType: string | undefined, opts
         if (parsed === undefined) return null;
     } else if (body instanceof URLSearchParams) {
         parsed = Object.fromEntries(body.entries());
-    } else if (typeof body === 'object') {
+    } else if (Array.isArray(body) || isPlainObject(body)) {
         parsed = body;
     } else {
         return null;
@@ -117,6 +117,18 @@ function parseString(text: string, contentType?: string): unknown {
     } catch {
         return undefined;
     }
+}
+
+/**
+ * True only for `Object.create(null)` or `{}`-shaped values. Excludes class
+ * instances (their prototype chain points somewhere other than Object.prototype
+ * or null), streams, FormData, ArrayBuffer views, Buffer, URLSearchParams,
+ * and other built-ins that happen to be `typeof === 'object'`.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (value === null || typeof value !== 'object') return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === null || proto === Object.prototype;
 }
 
 /**
