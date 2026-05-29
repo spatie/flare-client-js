@@ -44,20 +44,16 @@ export class Flare {
     private framework: Framework | null = null;
 
     /**
-     * Four pluggable seams. Each parameter doubles as a class field (TypeScript
-     * parameter-property shorthand: `public`/`private` in front of a parameter
-     * declares + assigns the field in one place).
-     *
-     * - `api`            sends the report over HTTP.
-     * - `contextCollector` returns per-report attributes (browser DOM info, Node
-     *                    process info, etc). Default is a no-op.
-     * - `fileReader`     reads source files for stack-trace snippets. Default
-     *                    returns null (no snippets); `@flareapp/js` injects a
-     *                    fetch-based reader, `@flareapp/node` injects a disk reader.
-     * - `scopeProvider`  returns the current `Scope` (per-call mutable state:
-     *                    glows, pendingAttributes, entryPoint). Browser uses a
-     *                    single global scope; Node uses an AsyncLocalStorage-
-     *                    backed provider so each request gets its own.
+     * @param api              sends the report over HTTP.
+     * @param contextCollector returns per-report attributes (browser DOM info, Node
+     *                         process info, etc). Default is a no-op.
+     * @param fileReader       reads source files for stack-trace snippets. Default
+     *                         returns null (no snippets); `@flareapp/js` injects a
+     *                         fetch-based reader, `@flareapp/node` injects a disk reader.
+     * @param scopeProvider    returns the current `Scope` (per-call mutable state:
+     *                         glows, pendingAttributes, entryPoint). Browser uses a
+     *                         single global scope; Node uses an AsyncLocalStorage-
+     *                         backed provider so each request gets its own.
      */
     constructor(
         public api: Api = new Api(),
