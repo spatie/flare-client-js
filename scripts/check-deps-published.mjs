@@ -11,7 +11,6 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const SKIP_DEP_CHECK =
     process.argv.includes('--skip-dep-check') || process.env.SKIP_DEP_CHECK === '1';

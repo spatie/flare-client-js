@@ -7,7 +7,7 @@
 // rebuilds and inlines the latest flare-api source).
 import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve as resolvePath } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
@@ -91,7 +91,7 @@ function isCommandAvailable(cmd) {
     }
 }
 
-const CHECK_DEPS_SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), 'check-deps-published.mjs');
+const CHECK_DEPS_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), 'check-deps-published.mjs');
 
 function checkIndependentDepsPublished() {
     // Delegate to the shared script for each lockstep package that has
