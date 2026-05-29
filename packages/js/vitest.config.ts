@@ -11,7 +11,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@flareapp/core': resolve(__dirname, 'src/index.ts'),
+            '@flareapp/core': resolve(__dirname, '../core/src/index.ts'),
         },
     },
 });
