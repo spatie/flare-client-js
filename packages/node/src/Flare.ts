@@ -122,8 +122,10 @@ export class NodeFlare extends CoreFlare {
             this.nodeOptions.replaceDefaultHeaderDenylist =
                 partial.replaceDefaultHeaderDenylist ?? this.nodeOptions.replaceDefaultHeaderDenylist;
         }
-        if (partial.headerAllowlist !== undefined)
-            this.nodeOptions.headerAllowlist = sanitizeRegex(partial.headerAllowlist);
+        if (partial.headerAllowlist !== undefined) {
+            this.nodeOptions.headerAllowlist =
+                partial.headerAllowlist === null ? null : sanitizeRegex(partial.headerAllowlist);
+        }
         if (partial.uncaughtExceptionMode !== undefined)
             this.nodeOptions.uncaughtExceptionMode = partial.uncaughtExceptionMode;
         if (partial.unhandledRejectionMode !== undefined)

@@ -20,7 +20,7 @@ export type NodeOptions = {
     unhandledRejectionMode?: FatalMode;
     shutdownTimeoutMs?: number;
     headerDenylist?: RegExp;
-    headerAllowlist?: RegExp;
+    headerAllowlist?: RegExp | null;
     replaceDefaultHeaderDenylist?: boolean;
     captureRequestBody?: boolean;
     bodyMaxBytes?: number;

@@ -59,4 +59,13 @@ describe('Node singleton lifecycle', () => {
         instance.configure({ stage: 'prod' }).configureNode({ uncaughtExceptionMode: 'off' });
         instance.removeProcessListeners();
     });
+
+    it('configureNode({ headerAllowlist: null }) clears a previously set allowlist', () => {
+        const instance = new NodeFlare();
+        instance.configureNode({ headerAllowlist: /^x-foo$/i });
+        expect((instance as any).nodeOptions.headerAllowlist).not.toBeNull();
+        instance.configureNode({ headerAllowlist: null });
+        expect((instance as any).nodeOptions.headerAllowlist).toBeNull();
+        instance.removeProcessListeners();
+    });
 });
