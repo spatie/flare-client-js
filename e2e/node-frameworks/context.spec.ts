@@ -29,6 +29,8 @@ test('hono: async route error report carries request context', async () => {
         throw new Error('boom');
     });
     app.onError((err, c) => {
+        // flare.report() returns a Promise, but Hono's onError cannot await it.
+        // waitForReport() below polls until the fire-and-forget report arrives.
         flare.report(err);
         return c.text('Internal Server Error', 500);
     });
