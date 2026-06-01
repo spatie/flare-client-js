@@ -1,5 +1,4 @@
-import type { Server } from 'node:http';
-import { createServer } from 'node:http';
+import { createServer, type Server } from 'node:http';
 
 import { flare } from '@flareapp/node';
 import { serve, type ServerType } from '@hono/node-server';
