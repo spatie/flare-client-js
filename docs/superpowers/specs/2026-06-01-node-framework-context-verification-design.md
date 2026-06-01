@@ -53,10 +53,12 @@ Each harness:
 
 1. Boots the framework app on an ephemeral port, wired to point Flare's
    `ingestUrl` at the existing `e2e/fake-flare-server` (reuse, do not reinvent).
-2. Registers a route whose handler throws **after an `await`** (the async path,
+2. Wires the framework using the **exact shape shown in the current README
+   example** (the wiring under test), not an already-corrected variant.
+3. Registers a route whose handler throws **after an `await`** (the async path,
    which is where context loss would occur).
-3. Issues a request to that route.
-4. Reads the captured report from the fake server's `GET /__inspect/reports`
+4. Issues a request to that route.
+5. Reads the captured report from the fake server's `GET /__inspect/reports`
    inspection API and asserts the report attributes include
    `http.request.method` and `url.path` matching the request.
 
@@ -64,21 +66,39 @@ Frameworks covered: **Express 5, Fastify, Hono**. Express 4 is documented (async
 throws never reach the error handler) but not exercised, since the example targets
 Express 5.
 
-Test framework: prefer a single Node test file driven by the existing e2e tooling
-rather than a new Playwright project (these are server-to-server checks, no
-browser). If Playwright project structure is the path of least friction given the
-current `playwright.config.ts`, a dedicated `node-frameworks` project is
-acceptable. Decide during planning; either way the harness lives under `e2e/`.
+**Discovery / CI wiring (required, not "ride along").** Current Playwright
+discovery is scoped to `testDir: './e2e/specs'` in `playwright.config.ts`, so a
+file dropped under `e2e/node-frameworks/` is NOT picked up by `npm run test:e2e`
+as-is. The harness MUST be made discoverable by one of:
 
-Framework deps (`express@5`, `fastify`, `hono`) are added as devDependencies at
-the workspace root or in an `e2e` package as appropriate to the existing e2e
-dependency layout.
+- a dedicated Playwright **project** (`node-frameworks`) with its own `testMatch`,
+  and a `testDir` broad enough to include it (e.g. widen to `./e2e`), OR
+- a separate Node test script wired into an npm script that CI runs.
+
+The chosen mechanism, the npm script that runs it, and the build step that ensures
+`@flareapp/core` + `@flareapp/node` `dist` exist before import, are all part of the
+deliverable. "CI already runs e2e" is not sufficient without one of the above.
+
+Framework deps added as devDependencies at the repo root (`e2e` is not a
+workspace; its deps resolve from root `node_modules`):
+`express@5`, `@types/express@5`, `fastify`, `hono`, and `@hono/node-server`
+(Hono needs a real Node HTTP server adapter to listen on a port; `@types/express`
+is required for the TypeScript Express harness/example to type-check).
 
 ### 2. Correct failing examples
 
-For any framework whose harness fails the assertion, rewrite the README example to
-report **inside** the active scope rather than from the global error handler. The
-robust shape, where the framework supports awaiting downstream (Hono):
+**Acceptance rule.** Each harness MUST initially encode the current README wiring
+shape verbatim (including reporting from the framework's global error handler
+where the README does so — e.g. Hono's `onError`). The harness is what proves the
+README. If a harness fails the assertion, the harness AND the corresponding README
+snippet are updated together to the corrected shape, so the two never diverge. A
+harness that ships a different pattern than the README it claims to verify is a
+defect.
+
+For any framework whose harness fails the assertion, rewrite both the harness and
+the README example to report **inside** the active scope rather than from the
+global error handler. The robust shape, where the framework supports awaiting
+downstream (Hono):
 
 ```ts
 await flare.runWithContext({ method, path, headers }, async () => {
@@ -120,9 +140,12 @@ is and add a one-line note that it is verified for that framework/version.
 ## Testing
 
 The harness **is** the test. Success criteria: for each covered framework, an
-async-thrown route error produces a fake-server report whose attributes include
-the request method and path. CI already runs the e2e suite; these checks ride
-along.
+async-thrown route error, wired exactly as the README shows, produces a
+fake-server report whose attributes include the request method and path. The
+harness is wired into an npm script (see "Discovery / CI wiring" above) and run
+in CI; a build step ensures `@flareapp/core` + `@flareapp/node` `dist` are present
+before the spec imports them. It does NOT merely "ride along" with the existing
+browser e2e discovery.
 
 ## Risks
 
