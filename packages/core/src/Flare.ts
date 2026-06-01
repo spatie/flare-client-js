@@ -338,7 +338,7 @@ export class Flare {
     }
 
     private async reportUnhandledRejectionInternal(message: string, attributes: Attributes = {}): Promise<void> {
-        if (Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
 
         const seenAtUnixNano = Date.now() * 1_000_000;
 
