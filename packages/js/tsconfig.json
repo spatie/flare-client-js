@@ -1,4 +1,9 @@
 {
     "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "paths": {
+            "@flareapp/core": ["../core/src/index.ts"]
+        }
+    },
     "include": ["src"]
 }
