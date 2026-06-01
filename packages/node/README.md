@@ -55,6 +55,14 @@ flare.mergeContext({ url: resolvedAbsoluteUrl });
 
 ## Framework wiring
 
+> **Async errors and request context.** A report only carries request context
+> (`http.request.*`, `url.path`, user) when it is created while the request's
+> `runWithContext` scope is active. `AsyncLocalStorage` propagates that scope
+> across `await`, but a report fired from a framework's _global_ error handler
+> only stays in scope if that handler runs inside the request's async chain.
+> When in doubt, report inside `runWithContext`. The patterns below are verified
+> by `e2e/node-frameworks/context.spec.ts` against the versions noted.
+
 ### Express
 
 ```ts
@@ -112,6 +120,10 @@ app.onError((err, c) => {
     return c.text('Internal Server Error', 500);
 });
 ```
+
+Verified with Express 5, Fastify 5, Hono 4. Express 4 does not catch async
+route errors at all (they surface as `unhandledRejection`); use Express 5 or
+report inside `runWithContext`.
 
 ## Configuration
 
