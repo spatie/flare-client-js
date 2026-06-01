@@ -8,7 +8,7 @@
 //
 // Flags:
 //   --skip-dep-check   Skip the check entirely (also honoured via SKIP_DEP_CHECK=1).
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -30,7 +30,7 @@ function info(msg) {
 
 function isDepPublishedOnNpm(dep, version) {
     try {
-        const result = execSync(`npm view ${dep}@${version} version`, {
+        const result = execFileSync('npm', ['view', `${dep}@${version}`, 'version'], {
             encoding: 'utf-8',
             stdio: 'pipe',
         });
