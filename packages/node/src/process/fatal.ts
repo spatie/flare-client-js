@@ -25,8 +25,12 @@ export function buildFatalCallbacks(
             } catch {
                 // swallow
             }
-            await flare.flush(opts.shutdownTimeoutMs);
+            // Only drain other in-flight reports when we're about to exit. In
+            // 'report' mode the process keeps running, so those reports settle
+            // on their own and flushing here would just waste time. Mirrors
+            // onRejection.
             if (opts.uncaughtExceptionMode === 'report-and-exit') {
+                await flare.flush(opts.shutdownTimeoutMs);
                 exit(1);
             }
         },
