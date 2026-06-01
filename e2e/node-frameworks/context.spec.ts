@@ -4,6 +4,7 @@ import { flare } from '@flareapp/node';
 import { serve, type ServerType } from '@hono/node-server';
 import { test, expect } from '@playwright/test';
 import express from 'express';
+import Fastify from 'fastify';
 import { Hono } from 'hono';
 
 import { attr, close, hasMessage, listen, resetReports, setupFlare, waitForReport } from './helpers';
@@ -78,5 +79,31 @@ test('express5: async route error report carries request context', async () => {
         expect(attr(report, 'http.request.method')).toBe('GET');
     } finally {
         await close(server);
+    }
+});
+
+test('fastify: async route error report carries request context', async () => {
+    const app = Fastify();
+    // CURRENT README shape: onRequest hook + report from setErrorHandler.
+    app.addHook('onRequest', (req, _reply, done) => {
+        flare.runWithContext({ method: req.method, path: req.url, headers: req.headers }, () => done());
+    });
+    app.get('/boom', async () => {
+        await new Promise((r) => setTimeout(r, 1));
+        throw new Error('boom');
+    });
+    app.setErrorHandler((err, _req, reply) => {
+        flare.report(err);
+        reply.status(500).send({ error: 'Internal Server Error' });
+    });
+
+    const base = await app.listen({ port: 0, host: '127.0.0.1' });
+    try {
+        await fetch(`${base}/boom`);
+        const report = await waitForReport(hasMessage('boom'));
+        expect(attr(report, 'url.path')).toBe('/boom');
+        expect(attr(report, 'http.request.method')).toBe('GET');
+    } finally {
+        await app.close();
     }
 });
