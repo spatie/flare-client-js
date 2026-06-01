@@ -22,3 +22,6 @@ jobs:
 
             - name: Run TypeScript
               run: npm run typescript
+
+            - name: Typecheck e2e harness
+              run: npm run typecheck:e2e
