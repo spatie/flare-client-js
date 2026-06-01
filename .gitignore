@@ -14,3 +14,5 @@ docs/superpowers/plans/
 # Playwright
 test-results/
 playwright-report/
+test-results-node/
+playwright-report-node/
