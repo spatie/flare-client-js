@@ -26,11 +26,12 @@ export const waitForReport = async (
     let lastCount = 0;
     while (Date.now() < deadline) {
         const res = await fetch(`${fakeBaseUrl()}/__inspect/reports`);
+        if (!res.ok) throw new Error(`inspect reports returned ${res.status}`);
         const records = (await res.json()) as FakeFlareRecord[];
         const reports = records.filter((r) => r.endpoint === 'reports');
-        lastCount = reports.length;
         const match = reports.find(predicate);
         if (match) return match;
+        lastCount = reports.length;
         await new Promise((r) => setTimeout(r, 50));
     }
     throw new Error(`waitForReport timed out after ${timeout}ms (${lastCount} reports captured)`);
@@ -38,7 +39,8 @@ export const waitForReport = async (
 
 /** Bind an http.Server to an ephemeral port and return its base URL. */
 export const listen = (server: Server): Promise<string> =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
+        server.once('error', reject);
         server.listen(0, '127.0.0.1', () => {
             const addr = server.address() as AddressInfo;
             resolve(`http://127.0.0.1:${addr.port}`);
@@ -62,6 +64,7 @@ export const close = (server: Server): Promise<void> =>
 export const setupFlare = (): void => {
     flare.configure({ ingestUrl: `${fakeBaseUrl()}/api/reports` });
     flare.configureNode({ uncaughtExceptionMode: 'off', unhandledRejectionMode: 'off' });
+    // Synthetic key on purpose: reports go to the fake server, not real Flare. Do not wire an env key here.
     flare.light('node-frameworks-test');
 };
 
