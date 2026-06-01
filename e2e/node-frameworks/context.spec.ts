@@ -93,7 +93,9 @@ test('fastify: async route error report carries request context', async () => {
         throw new Error('boom');
     });
     app.setErrorHandler((err, _req, reply) => {
-        flare.report(err);
+        // Fastify types the error handler's `err` as `unknown` (setErrorHandler<TError = unknown>),
+        // so narrow to Error for report(). Not a wiring change vs the README.
+        flare.report(err as Error);
         reply.status(500).send({ error: 'Internal Server Error' });
     });
 
