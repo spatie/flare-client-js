@@ -26,6 +26,14 @@ describe('captureBody', () => {
         expect(out).toBe('{"a":1}');
     });
 
+    it('normalizes the media type so a strict custom regex matches parameterized headers', () => {
+        const strict = { ...opts, bodyAllowedContentTypes: /^application\/json$/ };
+        // Anchored regex would reject the raw header `application/json; charset=utf-8`;
+        // matchesContentType strips params and lowercases first, so it matches.
+        expect(captureBody('{"a":1}', 'application/json; charset=utf-8', strict)).toBe('{"a":1}');
+        expect(captureBody('{"a":1}', 'APPLICATION/JSON', strict)).toBe('{"a":1}');
+    });
+
     it('rejects content-types not in allowlist', () => {
         expect(captureBody('hello', 'text/plain', opts)).toBeNull();
     });

@@ -115,13 +115,17 @@ function truncateToByteLimit(serialized: string, maxBytes: number): string {
 }
 
 /**
- * Check whether a `content-type` header (possibly with parameters like
- * `; charset=utf-8`) is on the allowlist. Empty/missing is a hard miss.
- * `.trim()` defends against leading whitespace that some clients send.
+ * Check whether a `content-type` header is on the allowlist. Normalizes to the
+ * bare media type first: strips any parameters (`; charset=utf-8`), trims, and
+ * lowercases, so the regex is tested against `application/json` rather than the
+ * full header. This lets a strict custom regex like `/^application\/json$/`
+ * still match `application/json; charset=utf-8`. Empty/missing is a hard miss.
  */
 function matchesContentType(ct: string | undefined, allowed: RegExp): boolean {
     if (!ct) return false;
-    return allowed.test(ct.trim());
+    const mediaType = ct.split(';')[0].trim().toLowerCase();
+    if (!mediaType) return false;
+    return allowed.test(mediaType);
 }
 
 /**
