@@ -122,23 +122,44 @@ export class NodeFlare extends CoreFlare {
             this.nodeOptions.replaceDefaultHeaderDenylist =
                 partial.replaceDefaultHeaderDenylist ?? this.nodeOptions.replaceDefaultHeaderDenylist;
         }
+
         if (partial.headerAllowlist !== undefined) {
             this.nodeOptions.headerAllowlist =
                 partial.headerAllowlist === null ? null : sanitizeRegex(partial.headerAllowlist);
         }
-        if (partial.uncaughtExceptionMode !== undefined)
-            this.nodeOptions.uncaughtExceptionMode = partial.uncaughtExceptionMode;
-        if (partial.unhandledRejectionMode !== undefined)
-            this.nodeOptions.unhandledRejectionMode = partial.unhandledRejectionMode;
-        if (partial.shutdownTimeoutMs !== undefined) this.nodeOptions.shutdownTimeoutMs = partial.shutdownTimeoutMs;
-        if (partial.captureRequestBody !== undefined) this.nodeOptions.captureRequestBody = partial.captureRequestBody;
-        if (partial.bodyMaxBytes !== undefined) this.nodeOptions.bodyMaxBytes = partial.bodyMaxBytes;
-        if (partial.bodyAllowedContentTypes !== undefined)
-            this.nodeOptions.bodyAllowedContentTypes = sanitizeRegex(partial.bodyAllowedContentTypes);
-        if (partial.bodyKeyDenylist !== undefined)
-            this.nodeOptions.bodyKeyDenylist = sanitizeRegex(partial.bodyKeyDenylist);
 
-        if (this.isLit) this.handlerManager.reconcile(this.nodeOptions);
+        if (partial.uncaughtExceptionMode !== undefined) {
+            this.nodeOptions.uncaughtExceptionMode = partial.uncaughtExceptionMode;
+        }
+
+        if (partial.unhandledRejectionMode !== undefined) {
+            this.nodeOptions.unhandledRejectionMode = partial.unhandledRejectionMode;
+        }
+
+        if (partial.shutdownTimeoutMs !== undefined) {
+            this.nodeOptions.shutdownTimeoutMs = partial.shutdownTimeoutMs;
+        }
+
+        if (partial.captureRequestBody !== undefined) {
+            this.nodeOptions.captureRequestBody = partial.captureRequestBody;
+        }
+
+        if (partial.bodyMaxBytes !== undefined) {
+            this.nodeOptions.bodyMaxBytes = partial.bodyMaxBytes;
+        }
+
+        if (partial.bodyAllowedContentTypes !== undefined) {
+            this.nodeOptions.bodyAllowedContentTypes = sanitizeRegex(partial.bodyAllowedContentTypes);
+        }
+
+        if (partial.bodyKeyDenylist !== undefined) {
+            this.nodeOptions.bodyKeyDenylist = sanitizeRegex(partial.bodyKeyDenylist);
+        }
+
+        if (this.isLit) {
+            this.handlerManager.reconcile(this.nodeOptions);
+        }
+
         return this;
     }
 
