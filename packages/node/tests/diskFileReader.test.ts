@@ -3,14 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { describe, expect, it, vi } from 'vitest';
-
-// nativeImport hides node: specifiers from bundlers via new Function.
-// Vitest's module runner cannot resolve those, so we swap it for a plain
-// dynamic import that vitest can handle.
-vi.mock('../src/stacktrace/nativeImport', () => ({
-    nativeImport: (specifier: string) => import(specifier),
-}));
+import { describe, expect, it } from 'vitest';
 
 import { DiskFileReader } from '../src/stacktrace/DiskFileReader';
 

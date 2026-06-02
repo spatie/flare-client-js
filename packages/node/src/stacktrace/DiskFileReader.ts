@@ -1,6 +1,7 @@
-import type { FileReader } from '@flareapp/core';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
-import { nativeImport } from './nativeImport';
+import type { FileReader } from '@flareapp/core';
 
 /**
  * Node `FileReader` implementation that reads source files from disk.
@@ -20,12 +21,7 @@ import { nativeImport } from './nativeImport';
  *    file — no surprise traversal, no following http stack frames in a
  *    server build, no relative-path ambiguity around the current working
  *    directory.
- * 2. **Lazy native imports.** `node:url` and `node:fs/promises` are loaded
- *    via `nativeImport` (a `new Function('id', 'return import(id)')`
- *    indirection) so bundlers that statically analyze `import()` calls do
- *    not trip over `node:` specifiers when this file is accidentally
- *    bundled into a non-Node target. See `nativeImport.ts` for the why.
- * 3. **Catch-all.** Missing files, permission errors, and any other failure
+ * 2. **Catch-all.** Missing files, permission errors, and any other failure
  *    return `null`. The `read()` contract returns `null` on every failure
  *    path and never throws.
  *
@@ -37,8 +33,6 @@ export class DiskFileReader implements FileReader {
     async read(url: string): Promise<string | null> {
         if (!isLocalFileUrl(url)) return null;
         try {
-            const { fileURLToPath } = await nativeImport<typeof import('node:url')>('node:url');
-            const { readFile } = await nativeImport<typeof import('node:fs/promises')>('node:fs/promises');
             const path = /^file:\/\//i.test(url) ? fileURLToPath(url) : url;
             return await readFile(path, 'utf-8');
         } catch {
