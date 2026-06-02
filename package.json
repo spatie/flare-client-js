@@ -32,7 +32,8 @@
         "pretest:e2e:node": "npm run build --workspace=@flareapp/core --workspace=@flareapp/node",
         "test:e2e:node": "playwright test -c playwright.node.config.ts",
         "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
-        "release:all": "node scripts/release-all.mjs"
+        "release:all": "node scripts/release-all.mjs",
+        "check:pack": "node scripts/check-pack.mjs"
     },
     "devDependencies": {
         "@hono/node-server": "^1.19.14",

@@ -15,12 +15,14 @@
 //     which carry an exact pin on it.
 import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join, dirname, resolve as resolvePath } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { join, dirname, resolve as resolvePath } from 'node:path';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 
 import ora from 'ora';
+
+import { checkPack } from './check-pack.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -175,10 +177,14 @@ function shortName(scoped) {
 function bumpVersion(current, type) {
     const [major, minor, patch] = current.split('.').map(Number);
     switch (type) {
-        case 'major': return `${major + 1}.0.0`;
-        case 'minor': return `${major}.${minor + 1}.0`;
-        case 'patch': return `${major}.${minor}.${patch + 1}`;
-        default: return type;
+        case 'major':
+            return `${major + 1}.0.0`;
+        case 'minor':
+            return `${major}.${minor + 1}.0`;
+        case 'patch':
+            return `${major}.${minor}.${patch + 1}`;
+        default:
+            return type;
     }
 }
 
@@ -207,9 +213,15 @@ async function promptLockstepVersion() {
 
     let newVersion;
     switch (choice) {
-        case '1': newVersion = patch; break;
-        case '2': newVersion = minor; break;
-        case '3': newVersion = major; break;
+        case '1':
+            newVersion = patch;
+            break;
+        case '2':
+            newVersion = minor;
+            break;
+        case '3':
+            newVersion = major;
+            break;
         case '4':
             newVersion = await ask('  Enter version (e.g. 3.0.0): ');
             if (!isValidSemver(newVersion)) fail(`Invalid semver: ${newVersion}`);
@@ -232,9 +244,7 @@ async function promptIndependentVersion(name) {
     const current = readPkgJson(name).version;
     console.log(`\n--- @flareapp/${name} (independent) ---\n`);
     info(`Current version: ${current}`);
-    const ans = await ask(
-        `  Enter version to release, 'k' to keep ${current}, or 's' to skip @flareapp/${name}: `,
-    );
+    const ans = await ask(`  Enter version to release, 'k' to keep ${current}, or 's' to skip @flareapp/${name}: `);
     if (ans === '' || ans.toLowerCase() === 's') return null;
     if (ans.toLowerCase() === 'k') return current;
     if (!isValidSemver(ans)) fail(`Invalid semver for @flareapp/${name}: ${ans}`);
@@ -295,7 +305,8 @@ function bumpPackages(plan) {
         }
         info(`Bumping @flareapp/${name} to ${target}...`);
         const cmd = [
-            'npx release-it', target,
+            'npx release-it',
+            target,
             '--ci',
             '--git.commit=false',
             '--git.tag=false',
@@ -311,7 +322,7 @@ function bumpPackages(plan) {
         } catch {
             fail(
                 `release-it failed for @flareapp/${name}. ` +
-                `To undo partial bumps and staged version.ts hooks, run: git reset --hard HEAD`,
+                    `To undo partial bumps and staged version.ts hooks, run: git reset --hard HEAD`,
             );
         }
     }
@@ -426,8 +437,8 @@ async function waitForNpm(name, version) {
             spinner.fail(`${full} not visible after ${Math.round(NPM_POLL_TIMEOUT_MS / 1000)}s`);
             fail(
                 `Timed out waiting for ${full} to appear on npm. It was published, but the ` +
-                `registry has not made it resolvable yet. Re-run publishing for the remaining ` +
-                `tiers once it appears, or raise NPM_POLL_TIMEOUT_MS.`,
+                    `registry has not made it resolvable yet. Re-run publishing for the remaining ` +
+                    `tiers once it appears, or raise NPM_POLL_TIMEOUT_MS.`,
             );
         }
         const secs = Math.round(NPM_POLL_INTERVAL_MS / 1000);
@@ -540,11 +551,10 @@ function generateNotesWithClaude(pkgName, version, commits) {
 }
 
 function ghReleaseCreate(tag, notesPath) {
-    const result = spawnSync(
-        'gh',
-        ['release', 'create', tag, '--title', tag, '--notes-file', notesPath],
-        { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    const result = spawnSync('gh', ['release', 'create', tag, '--title', tag, '--notes-file', notesPath], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
     if (result.status !== 0) {
         throw new Error(result.stderr || `gh exited with status ${result.status}`);
     }
@@ -581,11 +591,9 @@ function createGitHubReleases(plan, ghAvailable) {
                 let notes = `@flareapp/${name} v${version}`;
 
                 if (prevTag) {
-                    const logResult = spawnSync(
-                        'git',
-                        ['log', '--pretty=format:%s (%h)', `${prevTag}...${tag}`],
-                        { encoding: 'utf-8' },
-                    );
+                    const logResult = spawnSync('git', ['log', '--pretty=format:%s (%h)', `${prevTag}...${tag}`], {
+                        encoding: 'utf-8',
+                    });
                     const commits = logResult.status === 0 ? logResult.stdout.trim() : '';
 
                     if (claudeAvailable && commits) {
@@ -651,6 +659,15 @@ async function preflight(plan) {
     run('npm run build --workspace=@flareapp/flare-api', { stdio: 'inherit' });
     info('Build passed');
 
+    info('Checking tarball integrity (every manifest-referenced file is shipped)...');
+    const packFailures = checkPack([...plan.releaseSet]);
+    if (packFailures.length > 0) {
+        fail(
+            'One or more packages would publish a broken tarball (see above). Fix the `files` field or exports before releasing.',
+        );
+    }
+    info('Tarball integrity passed');
+
     info('Running tests...');
     for (const name of plan.releaseSet) {
         run(`npm run test --workspace=@flareapp/${name} --if-present`, { stdio: 'inherit' });
@@ -681,9 +698,12 @@ async function main() {
     pushToOrigin();
     createGitHubReleases(plan, ghAvailable);
 
-    console.log(`\n  Done! Released v${plan.lockstepVersion}` +
-        (plan.releaseSet.has('core') ? ` + core@${plan.versions['core']}` : '') +
-        (plan.releaseSet.has('node') ? ` + node@${plan.versions['node']}` : '') + '\n');
+    console.log(
+        `\n  Done! Released v${plan.lockstepVersion}` +
+            (plan.releaseSet.has('core') ? ` + core@${plan.versions['core']}` : '') +
+            (plan.releaseSet.has('node') ? ` + node@${plan.versions['node']}` : '') +
+            '\n',
+    );
 }
 
 main();

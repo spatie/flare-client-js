@@ -22,6 +22,9 @@
         "Sébastien Henau <seba@spatie.be>"
     ],
     "type": "module",
+    "files": [
+        "dist"
+    ],
     "main": "./dist/index.js",
     "module": "./dist/index.js",
     "svelte": "./dist/index.js",
