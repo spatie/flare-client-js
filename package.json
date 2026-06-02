@@ -50,6 +50,6 @@
         "release-it": "^20.0.1"
     },
     "optionalDependencies": {
-        "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.3"
+        "@rolldown/binding-linux-x64-gnu": "1.0.3"
     }
 }
