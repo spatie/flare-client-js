@@ -4,9 +4,9 @@ Environment-agnostic core for the Flare JavaScript SDK. Most users want
 [`@flareapp/js`](../js) (browser) or [`@flareapp/node`](../node) (Node.js
 servers). This package is the shared base that both consume.
 
-Public, but currently unstable (0.x). Intended for third-party Flare
-integrators who need to build against the same primitives the official SDKs
-use.
+Public and stable, versioned in lockstep with `@flareapp/js` (2.x). Intended
+for third-party Flare integrators who need to build against the same primitives
+the official SDKs use.
 
 ## Surface
 
