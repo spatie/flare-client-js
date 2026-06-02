@@ -4,6 +4,11 @@ Node.js SDK for [flareapp.io](https://flareapp.io). Capture uncaught
 exceptions, unhandled rejections, and explicit `flare.report(err)` calls in
 your Node servers. Per-request context isolation via AsyncLocalStorage.
 
+> **Status: unstable (0.x).** This package is pre-1.0 and its API may change
+> between minor releases. Pin an exact version in production
+> (`"@flareapp/node": "0.1.0"`). The 2.x packages (`@flareapp/js` and the
+> framework integrations) are stable and unaffected.
+
 Requires Node 22 or newer.
 
 ## Install
