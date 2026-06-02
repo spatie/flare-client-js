@@ -5,6 +5,14 @@
 // It is not published and not version-bumped here. Changes to flare-api
 // ship only when vite or webpack are re-released (their prepublishOnly
 // rebuilds and inlines the latest flare-api source).
+//
+// Versioning model:
+//   - The "lockstep" packages (js + framework integrations + bundler plugins)
+//     all release at a SINGLE shared version, anchored on @flareapp/js.
+//   - @flareapp/core and @flareapp/node version INDEPENDENTLY. Each run asks
+//     whether to (re)release them and at which version, so a plain lockstep
+//     release does not drag them along. core must publish before js/node,
+//     which carry an exact pin on it.
 import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname, resolve as resolvePath } from 'node:path';
@@ -12,34 +20,55 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
+import ora from 'ora';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const SKIP_DEP_CHECK = process.argv.includes('--skip-dep-check') || process.env.SKIP_DEP_CHECK === '1';
 
+// How long to wait for a freshly published version to become visible on npm
+// before giving up, and how often to re-check. npm's registry can lag a minute
+// or two between `npm publish` returning and the version resolving on installs.
+const NPM_POLL_INTERVAL_MS = Number(process.env.NPM_POLL_INTERVAL_MS ?? 30_000);
+const NPM_POLL_TIMEOUT_MS = Number(process.env.NPM_POLL_TIMEOUT_MS ?? 10 * 60_000);
+
+// The lockstep set: one shared version anchored on @flareapp/js.
+const LOCKSTEP_PACKAGES = ['js', 'react', 'vue', 'svelte', 'webpack', 'vite', 'sveltekit', 'nextjs'];
+
+// Independently versioned packages, prompted separately each run.
+const INDEPENDENT_PACKAGES = ['core', 'node'];
+
+// Publish tiers, ordered by dependency. A package may only publish once every
+// package it hard-depends on has been published AND has become visible on npm.
+//   core      <- js, node hard-pin it
+//   js        <- framework integrations peer-depend on it
+//   svelte    <- sveltekit depends on it
+//   webpack   <- nextjs depends on it
+// Packages skipped this run are filtered out of these tiers before publishing.
 const PUBLISH_ORDER = [
-    ['js'],
+    ['core'],
+    ['js', 'node'],
     ['react', 'vue', 'svelte', 'webpack', 'vite'],
     ['sveltekit', 'nextjs'],
 ];
 
-const PUBLIC_PACKAGES = PUBLISH_ORDER.flat();
-
-const CROSS_PACKAGE_REFS = [
+// Cross-package references rewritten on each release.
+//   - Lockstep refs become `^<lockstepVersion>`.
+//   - core refs become the EXACT core version, but only when core is part of
+//     this run and the referring package is too.
+const LOCKSTEP_REFS = [
     { pkg: 'react', field: 'peerDependencies', dep: '@flareapp/js' },
     { pkg: 'vue', field: 'peerDependencies', dep: '@flareapp/js' },
     { pkg: 'svelte', field: 'peerDependencies', dep: '@flareapp/js' },
     { pkg: 'sveltekit', field: 'peerDependencies', dep: '@flareapp/js' },
     { pkg: 'sveltekit', field: 'dependencies', dep: '@flareapp/svelte' },
     { pkg: 'nextjs', field: 'dependencies', dep: '@flareapp/webpack' },
-    // Independently versioned packages: recorded so the refs are visible, but not bumped.
+];
+
+const CORE_REFS = [
     { pkg: 'js', field: 'dependencies', dep: '@flareapp/core' },
     { pkg: 'node', field: 'dependencies', dep: '@flareapp/core' },
 ];
-
-// Packages that version independently from the lockstep release.
-// Their cross-package refs are listed in CROSS_PACKAGE_REFS for documentation
-// purposes but must never be bumped by this script.
-const INDEPENDENT_PACKAGES = new Set(['@flareapp/core', '@flareapp/node']);
 
 function run(cmd, opts = {}) {
     const stdio = opts.stdio ?? ['ignore', 'pipe', 'inherit'];
@@ -72,6 +101,10 @@ function writePkgJson(name, data) {
     writeFileSync(join(pkgDir(name), 'package.json'), JSON.stringify(data, null, 4) + '\n');
 }
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function ask(question) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     return new Promise((resolve) => {
@@ -93,16 +126,26 @@ function isCommandAvailable(cmd) {
 
 const CHECK_DEPS_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), 'check-deps-published.mjs');
 
-function checkIndependentDepsPublished() {
-    // Delegate to the shared script for each lockstep package that has
-    // @flareapp/* dependencies (currently only @flareapp/js and @flareapp/node).
-    // The script honours --skip-dep-check via SKIP_DEP_CHECK env var.
+/**
+ * Verify the @flareapp/* deps that lockstep packages rely on are already on
+ * npm. Deps being published in THIS run are excluded: they are guaranteed
+ * available later by the publish phase, which waits for npm visibility before
+ * releasing anything that depends on them. So a package whose every @flareapp
+ * dep is part of this run is skipped here entirely.
+ */
+function checkIndependentDepsPublished(releaseSet) {
     const env = { ...process.env };
     if (SKIP_DEP_CHECK) env.SKIP_DEP_CHECK = '1';
 
-    for (const name of PUBLIC_PACKAGES) {
-        const dir = pkgDir(name);
-        const result = spawnSync('node', [CHECK_DEPS_SCRIPT, dir], {
+    for (const name of releaseSet) {
+        const pkgJson = readPkgJson(name);
+        const flareDeps = collectFlareDeps(pkgJson);
+        // If every @flareapp dep is also being released now, the publish phase
+        // covers availability; nothing to pre-check.
+        const externalDeps = flareDeps.filter((dep) => !releaseSet.has(shortName(dep)));
+        if (externalDeps.length === 0) continue;
+
+        const result = spawnSync('node', [CHECK_DEPS_SCRIPT, pkgDir(name)], {
             encoding: 'utf-8',
             stdio: ['ignore', 'pipe', 'pipe'],
             env,
@@ -113,6 +156,20 @@ function checkIndependentDepsPublished() {
             process.exit(result.status ?? 1);
         }
     }
+}
+
+function collectFlareDeps(pkgJson) {
+    const out = [];
+    for (const field of ['dependencies', 'peerDependencies']) {
+        for (const dep of Object.keys(pkgJson[field] ?? {})) {
+            if (dep.startsWith('@flareapp/')) out.push(dep);
+        }
+    }
+    return out;
+}
+
+function shortName(scoped) {
+    return scoped.replace(/^@flareapp\//, '');
 }
 
 function bumpVersion(current, type) {
@@ -129,8 +186,8 @@ function isValidSemver(v) {
     return /^\d+\.\d+\.\d+$/.test(v);
 }
 
-async function promptVersion() {
-    console.log('\n--- Version ---\n');
+async function promptLockstepVersion() {
+    console.log('\n--- Lockstep version (js + framework + bundler packages) ---\n');
 
     const currentVersion = readPkgJson('js').version;
     info(`Current version: ${currentVersion}`);
@@ -161,22 +218,84 @@ async function promptVersion() {
             fail(`Invalid choice: ${choice}`);
     }
 
-    const confirm = await ask(`\n  Release v${newVersion}? [y/N]: `);
+    return { currentVersion, newVersion };
+}
+
+/**
+ * Prompt for an independently versioned package (core, node). The caller can:
+ *   - enter an exact semver to (re)release at that version,
+ *   - 'k' to keep the current version (first publish of an unreleased package),
+ *   - 's' to skip the package entirely this run.
+ * Returns the chosen version, or null when skipped.
+ */
+async function promptIndependentVersion(name) {
+    const current = readPkgJson(name).version;
+    console.log(`\n--- @flareapp/${name} (independent) ---\n`);
+    info(`Current version: ${current}`);
+    const ans = await ask(
+        `  Enter version to release, 'k' to keep ${current}, or 's' to skip @flareapp/${name}: `,
+    );
+    if (ans === '' || ans.toLowerCase() === 's') return null;
+    if (ans.toLowerCase() === 'k') return current;
+    if (!isValidSemver(ans)) fail(`Invalid semver for @flareapp/${name}: ${ans}`);
+    return ans;
+}
+
+/**
+ * Resolve the full release plan: which packages publish, at which versions, in
+ * which order. Returns { versions, releaseSet, tiers, lockstepVersion }.
+ */
+async function planRelease() {
+    const { newVersion: lockstepVersion } = await promptLockstepVersion();
+    const coreVersion = await promptIndependentVersion('core');
+    const nodeVersion = await promptIndependentVersion('node');
+
+    const versions = {};
+    for (const name of LOCKSTEP_PACKAGES) versions[name] = lockstepVersion;
+    if (coreVersion) versions['core'] = coreVersion;
+    if (nodeVersion) versions['node'] = nodeVersion;
+
+    const releaseSet = new Set(Object.keys(versions));
+    const tiers = PUBLISH_ORDER.map((tier) => tier.filter((n) => releaseSet.has(n))).filter((t) => t.length > 0);
+
+    return { versions, releaseSet, tiers, lockstepVersion };
+}
+
+async function confirmPlan(plan) {
+    console.log('\n--- Release plan ---\n');
+    for (const tier of plan.tiers) {
+        for (const name of tier) {
+            const current = readPkgJson(name).version;
+            const target = plan.versions[name];
+            const note = target === current ? ' (keep / first publish)' : ` (was ${current})`;
+            console.log(`    @flareapp/${name}@${target}${note}`);
+        }
+    }
+    if (plan.releaseSet.has('core')) {
+        console.log('');
+        info(`@flareapp/core@${plan.versions['core']} will be released first; js/node pins rewritten to it.`);
+    }
+    console.log('');
+    const confirm = await ask('  Proceed with this plan? [y/N]: ');
     if (confirm.toLowerCase() !== 'y') {
         console.log('  Aborted.');
         process.exit(0);
     }
-
-    return { currentVersion, newVersion };
 }
 
-function bumpPackages(newVersion) {
+function bumpPackages(plan) {
     console.log('\n--- Bumping versions via release-it ---\n');
 
-    for (const name of PUBLIC_PACKAGES) {
-        info(`Bumping @flareapp/${name} to ${newVersion}...`);
+    for (const name of plan.releaseSet) {
+        const target = plan.versions[name];
+        const current = readPkgJson(name).version;
+        if (target === current) {
+            info(`@flareapp/${name} already at ${target}; skipping bump (will still tag + publish).`);
+            continue;
+        }
+        info(`Bumping @flareapp/${name} to ${target}...`);
         const cmd = [
-            'npx release-it', newVersion,
+            'npx release-it', target,
             '--ci',
             '--git.commit=false',
             '--git.tag=false',
@@ -200,73 +319,142 @@ function bumpPackages(newVersion) {
     info('All packages bumped');
 }
 
-function updateCrossReferences(newVersion) {
+function updateCrossReferences(plan) {
     console.log('\n--- Updating cross-package references ---\n');
 
-    for (const { pkg, field, dep } of CROSS_PACKAGE_REFS) {
-        // Skip independently versioned packages; their version pins are managed manually.
-        if (INDEPENDENT_PACKAGES.has(dep)) continue;
-
+    // Lockstep refs -> caret on the lockstep version.
+    for (const { pkg, field, dep } of LOCKSTEP_REFS) {
+        if (!plan.releaseSet.has(pkg)) continue;
         const pkgJson = readPkgJson(pkg);
-        if (pkgJson[field] && pkgJson[field][dep]) {
+        if (pkgJson[field]?.[dep]) {
             const oldRange = pkgJson[field][dep];
-            const newRange = `^${newVersion}`;
+            const newRange = `^${plan.lockstepVersion}`;
             pkgJson[field][dep] = newRange;
             writePkgJson(pkg, pkgJson);
             info(`@flareapp/${pkg} ${field}.${dep}: ${oldRange} -> ${newRange}`);
         }
     }
 
+    // core refs -> exact core version, but only when core is being released
+    // this run and the referring package is too (don't rewrite the pin of a
+    // package we are not republishing).
+    if (plan.releaseSet.has('core')) {
+        const coreVersion = plan.versions['core'];
+        for (const { pkg, field, dep } of CORE_REFS) {
+            if (!plan.releaseSet.has(pkg)) continue;
+            const pkgJson = readPkgJson(pkg);
+            if (pkgJson[field]?.[dep]) {
+                const oldRange = pkgJson[field][dep];
+                pkgJson[field][dep] = coreVersion; // exact pin
+                writePkgJson(pkg, pkgJson);
+                info(`@flareapp/${pkg} ${field}.${dep}: ${oldRange} -> ${coreVersion}`);
+            }
+        }
+    }
+
     info('Cross-package references updated');
 }
 
-function commitAndTag(newVersion) {
+function commitAndTag(plan) {
     console.log('\n--- Committing and tagging ---\n');
 
     const status = run('git status --porcelain');
     if (!status) {
-        fail(
-            `No file changes after bump phase. ` +
-            `Version ${newVersion} likely matches the current version. Nothing to release.`,
-        );
+        fail('No file changes after bump phase. Versions likely match current. Nothing to release.');
     }
 
-    const filesToStage = [
-        ...PUBLIC_PACKAGES.map((name) => `packages/${name}/package.json`),
-        'packages/svelte/src/version.ts',
-        'packages/sveltekit/src/version.ts',
-    ];
+    const filesToStage = [...plan.releaseSet].map((name) => `packages/${name}/package.json`);
+    // release-it's after:bump hook regenerates these for svelte/sveltekit.
+    if (plan.releaseSet.has('svelte')) filesToStage.push('packages/svelte/src/version.ts');
+    if (plan.releaseSet.has('sveltekit')) filesToStage.push('packages/sveltekit/src/version.ts');
 
-    const addResult = spawnSync('git', ['add', '--', ...filesToStage], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const addResult = spawnSync('git', ['add', '--', ...filesToStage], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
     if (addResult.status !== 0) {
         fail(`git add failed: ${addResult.stderr || addResult.status}`);
     }
 
-    const commitMsg = `chore: release v${newVersion}`;
-    const commitResult = spawnSync('git', ['commit', '-m', commitMsg], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const commitMsg = releaseCommitMessage(plan);
+    const commitResult = spawnSync('git', ['commit', '-m', commitMsg], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
     if (commitResult.status !== 0) {
         fail(`git commit failed: ${commitResult.stderr || commitResult.status}`);
     }
     info(`Committed: ${commitMsg}`);
 
-    for (const name of PUBLIC_PACKAGES) {
-        const tag = `@flareapp/${name}@${newVersion}`;
-        run(`git tag -a "${tag}" -m "${tag}"`);
-        info(`Tagged: ${tag}`);
+    for (const tier of plan.tiers) {
+        for (const name of tier) {
+            const tag = `@flareapp/${name}@${plan.versions[name]}`;
+            run(`git tag -a "${tag}" -m "${tag}"`);
+            info(`Tagged: ${tag}`);
+        }
     }
 }
 
-async function dryRunGate(currentVersion, newVersion) {
+function releaseCommitMessage(plan) {
+    // Lockstep packages share one version; surface that plus any independent
+    // versions so the commit reads clearly.
+    const parts = [`chore: release v${plan.lockstepVersion}`];
+    const independent = INDEPENDENT_PACKAGES.filter((n) => plan.releaseSet.has(n)).map(
+        (n) => `@flareapp/${n}@${plan.versions[n]}`,
+    );
+    if (independent.length) parts.push(`(${independent.join(', ')})`);
+    return parts.join(' ');
+}
+
+/**
+ * Block until `@flareapp/<name>@<version>` resolves on npm, polling every
+ * NPM_POLL_INTERVAL_MS up to NPM_POLL_TIMEOUT_MS, with a live spinner. A
+ * not-yet-published version makes `npm view` exit non-zero; that is treated as
+ * "keep waiting", not an error, until the timeout is hit.
+ */
+async function waitForNpm(name, version) {
+    const full = `@flareapp/${name}@${version}`;
+    const spinner = ora(`Waiting for ${full} on npm...`).start();
+    const deadline = Date.now() + NPM_POLL_TIMEOUT_MS;
+
+    for (;;) {
+        if (isVersionOnNpm(`@flareapp/${name}`, version)) {
+            spinner.succeed(`${full} is live on npm`);
+            return;
+        }
+        if (Date.now() >= deadline) {
+            spinner.fail(`${full} not visible after ${Math.round(NPM_POLL_TIMEOUT_MS / 1000)}s`);
+            fail(
+                `Timed out waiting for ${full} to appear on npm. It was published, but the ` +
+                `registry has not made it resolvable yet. Re-run publishing for the remaining ` +
+                `tiers once it appears, or raise NPM_POLL_TIMEOUT_MS.`,
+            );
+        }
+        const secs = Math.round(NPM_POLL_INTERVAL_MS / 1000);
+        spinner.text = `Waiting for ${full} on npm... (re-checking every ${secs}s)`;
+        await sleep(NPM_POLL_INTERVAL_MS);
+    }
+}
+
+function isVersionOnNpm(scopedName, version) {
+    const result = spawnSync('npm', ['view', `${scopedName}@${version}`, 'version'], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return result.status === 0 && result.stdout.trim() === version;
+}
+
+async function dryRunGate(plan) {
     console.log('\n--- Summary ---\n');
-    console.log(`  Version: ${currentVersion} -> ${newVersion}`);
-    console.log('');
     console.log('  Tags:');
-    for (const name of PUBLIC_PACKAGES) {
-        console.log(`    @flareapp/${name}@${newVersion}`);
+    for (const tier of plan.tiers) {
+        for (const name of tier) {
+            console.log(`    @flareapp/${name}@${plan.versions[name]}`);
+        }
     }
     console.log('');
-    console.log('  Publish order:');
-    for (const tier of PUBLISH_ORDER) {
+    console.log('  Publish order (waits for npm visibility between tiers):');
+    for (const tier of plan.tiers) {
         console.log(`    ${tier.map((n) => `@flareapp/${n}`).join(', ')}`);
     }
     console.log('');
@@ -282,44 +470,42 @@ async function dryRunGate(currentVersion, newVersion) {
     if (answer.toLowerCase() !== 'y') {
         console.log('');
         info('Aborted. Commit and tags are local.');
-        info(
-            'To undo: git reset --hard HEAD~1 && git tag -d ' +
-                PUBLIC_PACKAGES.map((n) => `@flareapp/${n}@${newVersion}`).join(' '),
-        );
+        const tags = plan.tiers.flat().map((n) => `@flareapp/${n}@${plan.versions[n]}`);
+        info('To undo: git reset --hard HEAD~1 && git tag -d ' + tags.join(' '));
         process.exit(0);
     }
 }
 
-function publishPackages() {
+async function publishPackages(plan) {
     console.log('\n--- Publishing ---\n');
 
     const published = [];
-    const failed = [];
 
-    for (const tier of PUBLISH_ORDER) {
+    for (const tier of plan.tiers) {
         for (const name of tier) {
-            info(`Publishing @flareapp/${name}...`);
+            info(`Publishing @flareapp/${name}@${plan.versions[name]}...`);
             try {
                 run(`npm publish --workspace=@flareapp/${name}`, { stdio: 'inherit' });
                 published.push(name);
             } catch {
-                failed.push(name);
                 console.error('');
                 console.error(`  PUBLISH FAILED for @flareapp/${name}`);
                 console.error(`  Published so far: ${published.map((n) => `@flareapp/${n}`).join(', ') || 'none'}`);
 
-                const remaining = [];
-                let foundFailed = false;
-                for (const t of PUBLISH_ORDER) {
-                    for (const n of t) {
-                        if (n === name) foundFailed = true;
-                        if (foundFailed && n !== name) remaining.push(n);
-                    }
-                }
+                const remaining = plan.tiers.flat().slice(published.length + 1);
                 if (remaining.length) {
                     console.error(`  Remaining: ${remaining.map((n) => `@flareapp/${n}`).join(', ')}`);
                 }
                 fail('Fix the issue and publish remaining packages manually.');
+            }
+        }
+
+        // Wait for every package in this tier to become resolvable on npm before
+        // publishing the next tier, which may hard-depend on them.
+        const isLastTier = tier === plan.tiers[plan.tiers.length - 1];
+        if (!isLastTier) {
+            for (const name of tier) {
+                await waitForNpm(name, plan.versions[name]);
             }
         }
     }
@@ -364,7 +550,7 @@ function ghReleaseCreate(tag, notesPath) {
     }
 }
 
-function createGitHubReleases(newVersion, ghAvailable) {
+function createGitHubReleases(plan, ghAvailable) {
     console.log('\n--- GitHub releases ---\n');
 
     if (!ghAvailable) {
@@ -380,43 +566,46 @@ function createGitHubReleases(newVersion, ghAvailable) {
     const notesDir = mkdtempSync(join(tmpdir(), 'flare-release-notes-'));
 
     try {
-        for (const name of PUBLIC_PACKAGES) {
-            const tag = `@flareapp/${name}@${newVersion}`;
+        for (const tier of plan.tiers) {
+            for (const name of tier) {
+                const version = plan.versions[name];
+                const tag = `@flareapp/${name}@${version}`;
 
-            let prevTag;
-            try {
-                prevTag = run(`git describe --tags --match="@flareapp/${name}@*" --abbrev=0 ${tag}^`);
-            } catch {
-                prevTag = null;
-            }
+                let prevTag;
+                try {
+                    prevTag = run(`git describe --tags --match="@flareapp/${name}@*" --abbrev=0 ${tag}^`);
+                } catch {
+                    prevTag = null;
+                }
 
-            let notes = `@flareapp/${name} v${newVersion}`;
+                let notes = `@flareapp/${name} v${version}`;
 
-            if (prevTag) {
-                const logResult = spawnSync(
-                    'git',
-                    ['log', '--pretty=format:%s (%h)', `${prevTag}...${tag}`],
-                    { encoding: 'utf-8' },
-                );
-                const commits = logResult.status === 0 ? logResult.stdout.trim() : '';
+                if (prevTag) {
+                    const logResult = spawnSync(
+                        'git',
+                        ['log', '--pretty=format:%s (%h)', `${prevTag}...${tag}`],
+                        { encoding: 'utf-8' },
+                    );
+                    const commits = logResult.status === 0 ? logResult.stdout.trim() : '';
 
-                if (claudeAvailable && commits) {
-                    try {
-                        notes = generateNotesWithClaude(name, newVersion, commits);
-                    } catch (e) {
-                        warn(`claude failed for @flareapp/${name} (${e.message}). Using minimal notes.`);
+                    if (claudeAvailable && commits) {
+                        try {
+                            notes = generateNotesWithClaude(name, version, commits);
+                        } catch (e) {
+                            warn(`claude failed for @flareapp/${name} (${e.message}). Using minimal notes.`);
+                        }
                     }
                 }
-            }
 
-            const notesPath = join(notesDir, `${name}.md`);
-            writeFileSync(notesPath, notes);
+                const notesPath = join(notesDir, `${name}.md`);
+                writeFileSync(notesPath, notes);
 
-            try {
-                ghReleaseCreate(tag, notesPath);
-                info(`Created release: ${tag}`);
-            } catch (e) {
-                warn(`Failed to create release for ${tag}: ${e.message}`);
+                try {
+                    ghReleaseCreate(tag, notesPath);
+                    info(`Created release: ${tag}`);
+                } catch (e) {
+                    warn(`Failed to create release for ${tag}: ${e.message}`);
+                }
             }
         }
     } finally {
@@ -424,7 +613,7 @@ function createGitHubReleases(newVersion, ghAvailable) {
     }
 }
 
-async function preflight() {
+async function preflight(plan) {
     console.log('\n--- Pre-flight checks ---\n');
 
     const status = run('git status --porcelain');
@@ -451,25 +640,25 @@ async function preflight() {
         ghAvailable = false;
     }
 
-    info('Checking independently versioned dependencies are published on npm...');
-    checkIndependentDepsPublished();
+    info('Checking that referenced dependencies are published (excluding ones released this run)...');
+    checkIndependentDepsPublished(plan.releaseSet);
     info('Dependency check passed');
 
     info('Building packages...');
-    for (const name of PUBLIC_PACKAGES) {
+    for (const name of plan.releaseSet) {
         run(`npm run build --workspace=@flareapp/${name}`, { stdio: 'inherit' });
     }
     run('npm run build --workspace=@flareapp/flare-api', { stdio: 'inherit' });
     info('Build passed');
 
     info('Running tests...');
-    for (const name of PUBLIC_PACKAGES) {
+    for (const name of plan.releaseSet) {
         run(`npm run test --workspace=@flareapp/${name} --if-present`, { stdio: 'inherit' });
     }
     info('Tests passed');
 
     info('Running type-check...');
-    for (const name of PUBLIC_PACKAGES) {
+    for (const name of plan.releaseSet) {
         run(`npm run typescript --workspace=@flareapp/${name} --if-present`, { stdio: 'inherit' });
     }
     info('Type-check passed');
@@ -478,17 +667,23 @@ async function preflight() {
 }
 
 async function main() {
-    const { ghAvailable } = await preflight();
-    const { currentVersion, newVersion } = await promptVersion();
-    bumpPackages(newVersion);
-    updateCrossReferences(newVersion);
-    commitAndTag(newVersion);
-    await dryRunGate(currentVersion, newVersion);
-    publishPackages();
-    pushToOrigin();
-    createGitHubReleases(newVersion, ghAvailable);
+    // Plan first so preflight knows which packages are in scope.
+    const plan = await planRelease();
+    await confirmPlan(plan);
 
-    console.log(`\n  Done! Released v${newVersion}\n`);
+    const { ghAvailable } = await preflight(plan);
+
+    bumpPackages(plan);
+    updateCrossReferences(plan);
+    commitAndTag(plan);
+    await dryRunGate(plan);
+    await publishPackages(plan);
+    pushToOrigin();
+    createGitHubReleases(plan, ghAvailable);
+
+    console.log(`\n  Done! Released v${plan.lockstepVersion}` +
+        (plan.releaseSet.has('core') ? ` + core@${plan.versions['core']}` : '') +
+        (plan.releaseSet.has('node') ? ` + node@${plan.versions['node']}` : '') + '\n');
 }
 
 main();

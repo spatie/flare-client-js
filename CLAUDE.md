@@ -221,24 +221,37 @@ If any of those fail, fix first; do not release.
 
 ### Independently versioned packages: `@flareapp/core` and `@flareapp/node`
 
-These two packages are NOT released by `scripts/release-all.mjs`. They are released
-per-package via the same `release-it` flow used by the lockstep packages:
+`@flareapp/core` and `@flareapp/node` version INDEPENDENTLY of the lockstep set
+(e.g. core at `2.2.0`, node at `0.1.0`), but `scripts/release-all.mjs` can
+release them in the same run. After the lockstep version prompt the script asks,
+per package, for a core and a node version, where you can:
+
+- enter an exact semver to (re)release it,
+- press `k` to keep the current version (first publish of an unreleased package),
+- press `s` to skip it (a plain lockstep release that leaves core/node alone).
+
+When core is part of the run it publishes FIRST (js and node hard-pin it), and the
+script rewrites the `@flareapp/core` pin in `packages/js/package.json` and
+`packages/node/package.json` to the EXACT core version it just released, staged
+into the release commit. No manual pin edit needed. If you skip core, the pins are
+left untouched and the pre-flight dependency check verifies the currently pinned
+core version is already on npm (`--skip-dep-check` bypasses it). Deps that are
+being published in the same run are excluded from that pre-check.
+
+Publishing waits for npm visibility between tiers: after a tier publishes, the
+script polls `npm view` (every `NPM_POLL_INTERVAL_MS`, default 30s, up to
+`NPM_POLL_TIMEOUT_MS`, default 10m, with a spinner) until each package resolves
+before releasing anything that depends on it. This absorbs registry propagation
+lag, so a downstream package never publishes against a core/svelte/webpack version
+the registry has not surfaced yet.
+
+You can still release either package on its own with the per-package `release-it`
+flow when you don't want a full run:
 
 ```bash
 cd packages/core   # or packages/node
 npm run release
 ```
-
-When you bump `@flareapp/core`, manually update the version pin in
-`packages/js/package.json` (`"@flareapp/core": "<new-version>"`) and
-`packages/node/package.json`. The release-all script does not bump those pins;
-independent versioning is intentional.
-
-Before running `release-all`, make sure every `@flareapp/core` and `@flareapp/node`
-version referenced in `packages/js/package.json` and `packages/node/package.json`
-is already published on npm. The pre-flight check in `release-all` queries npm for
-each pinned version and fails with a clear message if the version is not found.
-Pass `--skip-dep-check` to bypass this check (offline environments, private registries).
 
 ### Skill
 
