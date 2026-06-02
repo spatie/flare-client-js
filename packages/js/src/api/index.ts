@@ -1,1 +1,1 @@
-export * from './Api';
+export { Api } from '@flareapp/core';

@@ -1,5 +1,5 @@
 import { Api } from '../../src/api';
-import { Report } from '../../src/types';
+import type { Report } from '../../src/types';
 
 export class FakeApi extends Api {
     reports: Report[] = [];

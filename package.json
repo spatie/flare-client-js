@@ -29,18 +29,27 @@
         "lint": "oxlint",
         "prepare": "husky",
         "test:e2e": "playwright test",
+        "pretest:e2e:node": "npm run build --workspace=@flareapp/core --workspace=@flareapp/node",
+        "test:e2e:node": "playwright test -c playwright.node.config.ts",
+        "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
         "release:all": "node scripts/release-all.mjs"
     },
     "devDependencies": {
+        "@hono/node-server": "^1.19.14",
         "@playwright/test": "^1.59.1",
+        "@types/express": "^5.0.6",
         "@types/node": "^25.3.0",
+        "express": "^5.2.1",
+        "fastify": "^5.8.5",
+        "hono": "^4.12.23",
         "husky": "^9.0.0",
         "lint-staged": "^16.2.7",
+        "ora": "^9.4.0",
         "oxfmt": "^0.48.0",
         "oxlint": "^1.63.0",
         "release-it": "^20.0.1"
     },
     "optionalDependencies": {
-        "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.3"
+        "@rolldown/binding-linux-x64-gnu": "1.0.3"
     }
 }

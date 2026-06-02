@@ -25,6 +25,11 @@ collects browser context, and sends error reports to Flare.
 Full documentation on configuration, hooks, context, breadcrumbs, solution providers, and more is available
 at [flareapp.io/docs/javascript/general/installation](https://flareapp.io/docs/javascript/general/installation).
 
+## Deprecations
+
+> `redactFullPath` is now a deprecated alias for `redactUrlQuery`. Both names
+> are still exported and continue to work; prefer `redactUrlQuery` in new code.
+
 ## License
 
 The MIT License (MIT). Please see [License File](../../LICENSE.md) for more information.

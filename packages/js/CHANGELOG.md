@@ -1,3 +1,15 @@
+## next-version — 2026-05-28
+
+- Internal refactor: most env-agnostic logic moved to the new `@flareapp/core`
+  package. Public API is unchanged: `import { flare, Flare, ... } from '@flareapp/js'`
+  continues to work.
+- `redactFullPath` is now a deprecated alias for `redactUrlQuery` (re-exported
+  from `@flareapp/core`). Replace call sites at your convenience; both keep
+  working.
+- Per-call mutable state (glows, context attributes, entry point) now lives on
+  a `Scope` object internally. Behavior is identical in the browser. The change
+  enables `@flareapp/node` to isolate per-request state via AsyncLocalStorage.
+
 ## 2.0.0
 
 ### Breaking changes

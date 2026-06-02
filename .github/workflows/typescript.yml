@@ -13,6 +13,8 @@ jobs:
 
             - name: Use Node.js
               uses: actions/setup-node@v4
+              with:
+                  node-version-file: '.node-version'
 
             - name: Install dependencies
               run: npm install
@@ -22,3 +24,6 @@ jobs:
 
             - name: Run TypeScript
               run: npm run typescript
+
+            - name: Typecheck e2e harness
+              run: npm run typecheck:e2e
