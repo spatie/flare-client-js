@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/svelte",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Svelte client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -60,7 +60,7 @@
         "vitest": "^4.0.0"
     },
     "peerDependencies": {
-        "@flareapp/js": "^2.1.0",
+        "@flareapp/js": "^2.2.0",
         "svelte": "^5.3.0"
     },
     "publishConfig": {

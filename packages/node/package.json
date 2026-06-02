@@ -41,7 +41,7 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/core": "0.1.0"
+        "@flareapp/core": "2.2.0"
     },
     "devDependencies": {
         "tsdown": "^0.20.3",
