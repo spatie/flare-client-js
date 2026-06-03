@@ -33,8 +33,6 @@ and POST them to `/v1/logs` as their own entity, viewable independent of errors.
   breadcrumbs-on-report.
 - Monolog/console-bridge style auto-capture of existing log calls.
 - e2e playground triggers + Playwright coverage (follow-up).
-- Auto-merging active-scope context / entry point into log attributes (later
-  enhancement; avoids coupling now).
 
 ## Architecture
 
@@ -109,9 +107,30 @@ the Flare UI.
 1. If `!config.enableLogs`, return.
 2. If `config.minimumLogLevel` is set and `level` is below it (by severity
    number), drop.
-3. Build a `LogRecord` (timestamp now, severityNumber + severityText, body,
-   attributes), push to the buffer.
-4. Evaluate auto-flush triggers (below).
+3. Resolve the merged attributes for this record (see "Per-record attributes"
+   below): active scope `pendingAttributes` + entry-point attributes +
+   user-passed `attributes`.
+4. Build a `LogRecord` (timestamp now, severityNumber + severityText, body,
+   merged attributes), push to the buffer.
+5. Evaluate auto-flush triggers (below).
+
+### Per-record attributes
+
+Attributes are resolved and **frozen at capture time** (a later mutation of the
+scope must not retroactively change an already-buffered record), mirroring PHP,
+which merges the context recorder and entry-point resolver into each record
+before buffering. Merge order, last write wins:
+
+1. Active scope `pendingAttributes` (`scopeProvider.active().pendingAttributes`)
+   — the same custom context `addContext` / `addContextGroup` feed into reports.
+   In Node this is the per-request `NodeScope`, so request-scoped logs become
+   filterable by request context.
+2. Entry-point attributes from `scope.entryPoint`, emitted under the same
+   `flare.entry_point.handler.*` keys `buildReport` uses.
+3. User-passed `attributes` (highest precedence).
+
+This reuses the attribute-assembly logic `buildReport` already has; factor the
+shared part out rather than duplicating it.
 
 Auto-flush triggers (core-owned policy):
 
@@ -317,8 +336,11 @@ Constraints, all browser-enforced and browser-only:
 
 The log buffer is global per Flare instance, not per-request scope (matches PHP's
 singleton `Logger` and Sentry's per-client buffer). In Node, concurrent requests
-share one buffer; each record carries its own user-passed attributes. v1 does not
-auto-merge active-scope context or entry point into log attributes.
+share one buffer. Each record still captures the **active scope's** context +
+entry-point attributes at `record()` time (see "Per-record attributes"), so a
+record buffered during a request carries that request's context even though the
+buffer itself is shared. The buffer holds fully-resolved records, not references
+to live scopes.
 
 ## Testing
 
@@ -338,6 +360,8 @@ flush policy):
 - Envelope shape + OTel value encoding (string / number int vs double / bool /
   array / object / null-drop).
 - Level helpers map to the right severity number/text.
+- Per-record attributes: scope context + entry-point merged at capture, frozen
+  (later scope mutation does not change a buffered record), user attributes win.
 - Teardown flush chunks to `keepaliveMaxBytes` (multiple envelopes when over).
 - `flush()` starts sends into `inflight`; `flare.flush(timeoutMs)` stays bounded.
 
