@@ -32,7 +32,10 @@ and POST them to `/v1/logs` as their own entity, viewable independent of errors.
 - Attaching standalone logs onto error reports — glows already cover
   breadcrumbs-on-report.
 - Monolog/console-bridge style auto-capture of existing log calls.
-- e2e playground triggers + Playwright coverage (follow-up).
+- Broad e2e playground triggers + Playwright coverage across all four frameworks
+  (follow-up). The one exception is a single cross-origin unload test that backs
+  the keepalive/preflight guarantee (see Testing) — that one is in scope because
+  it verifies correctness, not just coverage.
 
 ## Architecture
 
@@ -110,44 +113,84 @@ default like `"unknown"` would just be noise in the Flare UI.
 1. If `!config.enableLogs`, return.
 2. If `config.minimumLogLevel` is set and `level` is below it (by severity
    number), drop.
-3. Resolve the merged attributes for this record (see "Per-record attributes"
-   below): active scope `pendingAttributes` + entry-point attributes +
+3. Resolve this record's attributes (see "Resource vs record attributes" below):
+   run the context collector, partition out resource-level keys, merge the
+   record-level keys with scope custom context, entry-point overrides, and
    user-passed `attributes`.
 4. Build a `LogRecord` (timestamp now, severityNumber + severityText, body,
-   merged attributes), push to the buffer.
+   record-level attributes), push to the buffer; stash the partitioned
+   resource-level attributes for the envelope.
 5. Evaluate auto-flush triggers (below).
 
-### Per-record attributes
+### Resource vs record attributes
 
-Attributes are resolved and **frozen at capture time** (a later mutation of the
-scope must not retroactively change an already-buffered record), mirroring PHP,
-which merges the context recorder and entry-point resolver into each record
-before buffering. Merge order, last write wins:
+The OTel logs envelope has two attribute homes: the **resource** (once per
+envelope) and each **logRecord** (per log line). PHP keeps these separate — the
+`Resource` exports static service / SDK / host / process data, while each log
+record carries the per-call context + entry point. The JS report path does NOT
+make this distinction (a report is a single entity with one flat `attributes`
+bag), so the existing `contextCollector` returns everything mixed: identity +
+process (`collectNode.ts:45`) alongside per-request `http.*` / `url.*` / `user.*`
+(`collectNode.ts:52+`). Putting that whole bag on every record would both
+duplicate process/host across all N records and diverge from PHP's placement.
 
-1. `contextCollector(config)` output — the **injected env collector**, same one
-   `buildReport` calls. This is the load-bearing source for Node request/user
-   data: `NodeScope.request` / `NodeScope.user` are separate buckets
-   (`packages/node/src/scope/NodeScope.ts:6`) that do **not** live in
-   `pendingAttributes`; they only become attributes when `makeNodeContextCollector`
-   projects them (`packages/node/src/context/collectNode.ts:52`). Merging just
-   `pendingAttributes` would silently miss request/user context. So `record()`
-   must run the same collector reports do.
-2. Active scope `pendingAttributes` (`scopeProvider.active().pendingAttributes`)
-   — the custom context `addContext` / `addContextGroup` feed into reports.
-3. Entry-point attributes from `scope.entryPoint`, emitted under the same
-   `flare.entry_point.handler.*` keys `buildReport` uses (entry-point overrides
-   applied after the collector, matching `buildReport`).
+The split is done in core by **partitioning the collector output by key**, so no
+new platform seam is needed:
+
+- Resource-level key prefixes: `service.`, `telemetry.`, `host.`, `os.`,
+  `process.`, `flare.framework.`, `flare.language.`.
+- Everything else is record-level: `http.`, `url.`, `request.`, `user.`,
+  `context.`, `flare.entry_point.`.
+
+`flare.entry_point.*` is intentionally placed at **record** level even though the
+resources protocol lists it as a resource attribute: in a batched envelope the
+records can come from different requests, so entry point must travel per-record
+to stay accurate. Process/host are instance-static, so merging them into the one
+resource (last write wins across records) dedupes them correctly.
+
+#### Per-record assembly (in `record()`, frozen at capture time)
+
+Resolved once and stored on the buffered record; a later scope mutation must not
+change an already-buffered record. Merge order, last write wins:
+
+1. Run `contextCollector(config)` (the injected env collector — the only source
+   of Node `NodeScope.request` / `user`, which are separate buckets at
+   `NodeScope.ts:6`, not in `pendingAttributes`). Partition its output: the
+   record-level keys stay on this record; the resource-level keys are handed to
+   the envelope builder (below).
+2. Active scope `pendingAttributes` (custom context from `addContext` /
+   `addContextGroup`).
+3. Entry-point overrides from `scope.entryPoint` (`flare.entry_point.handler.*`),
+   applied after the collector — matching `buildReport`'s ordering.
 4. User-passed `attributes` (highest precedence).
 
-This is exactly `buildReport`'s attribute assembly minus the report-only base
-attributes. Factor the shared assembly into a method both call rather than
-duplicating it.
+`context.custom` gets the **same special handling `buildReport` has**
+(`Flare.ts:470`), which the earlier "exactly buildReport's assembly" wording
+glossed over: when both the scope's `pendingAttributes['context.custom']` and the
+user-passed `attributes['context.custom']` are objects, deep-merge them (user
+keys win per-key) instead of letting the user bag clobber `addContext()` data;
+and inject `context.custom.framework` from the framework name when set. Factor
+this shared merge out of `buildReport` into a helper both call.
+
+#### Resource assembly (in `flush()`, read lazily)
+
+The envelope resource is built at flush time from the **current** Flare state, not
+captured at `Logger` construction. This matters because `setSdkInfo(...)` /
+`setFramework(...)` run AFTER `super(...)` in both platforms (`js/src/index.ts:23`,
+`node/src/Flare.ts:81`); a Logger that snapshotted `sdkInfo` at construction would
+emit `@flareapp/core` forever. The `Logger` therefore reads SDK/framework through
+getters into `Flare` (e.g. `() => this.sdkInfo`, `() => this.framework`) — or
+`Flare` builds the resource and hands it to `Logger.flush()`. Resource =
+identity (`service.name` when set, `service.version` / `service.stage` when set,
+`telemetry.sdk.*` from current `sdkInfo`, `flare.framework.*` from current
+framework) merged with the resource-level attributes partitioned out of the
+collector (process/host).
 
 Cost note: running the context collector per log re-reads env context (browser
-cookies/URL, Node process/request) on every `record()`. That matches PHP's
-per-record context behavior and keeps logs filterable, but it is real per-log
-work; if it shows up as a hotspot under high-volume logging, a later optimization
-can memoize the collector output per scope. Not optimized in v1.
+cookies/URL, Node process/request) on every `record()`. Matches PHP's per-record
+context behavior and keeps logs filterable, but it is real per-log work; if it
+becomes a hotspot under high-volume logging, a later optimization can memoize per
+scope. Not optimized in v1.
 
 Auto-flush triggers (core-owned policy):
 
@@ -312,13 +355,12 @@ severity number.
 
 ### Resource / scope attributes
 
-- Resource attributes: `service.name` (only when `config.serviceName` set,
-  see config table), `service.version` and `service.stage` (when set),
-  `telemetry.sdk.language: "javascript"`, `telemetry.sdk.name` and
-  `telemetry.sdk.version` from `sdkInfo`, framework attributes when set. Reuses
-  the same base-attribute logic `buildReport` already assembles. Null-valued
-  entries are dropped by the OTel mapper, so unset optionals never reach the wire.
-- Scope `name` / `version` come from `sdkInfo`.
+- Resource attributes: see "Resource assembly" above — identity (`service.name`
+  when set, `service.version` / `service.stage` when set, `telemetry.sdk.*` from
+  current `sdkInfo`, `flare.framework.*` from current framework) plus the
+  resource-level keys partitioned out of the collector (process/host). Built at
+  flush time from current Flare state (lazy), never snapshotted at construction.
+- Scope `name` / `version` come from the current `sdkInfo` (same lazy read).
 
 ### Api.logs
 
@@ -329,6 +371,21 @@ Api.logs(envelope, url, key, debug, keepalive?)
 Mirrors `Api.report`. Header `x-api-token`. `keepalive` is passed straight to
 `fetch` so a browser unload flush survives; Node's fetch accepts and ignores it
 harmlessly. Treats `201` as success (other codes logged when `debug`).
+
+CORS preflight: a cross-origin POST with `Content-Type: application/json` plus
+the custom `x-api-token` header is not a CORS-simple request, so the browser
+sends an `OPTIONS` preflight first. The report path already incurs this for every
+report, and the ingest answers it (the e2e fake server keeps CORS open). The new
+risk is specifically the **first log send firing on `visibilitychange:hidden`**
+when no preflight is cached: the unload-time fetch must complete both the
+preflight and the POST. `keepalive` keeps the whole fetch (preflight included)
+alive past document teardown, so this is expected to work — but it is the kind of
+thing that silently fails in one browser. The guarantee is therefore **backed by
+an explicit test** (below), not assumed. If that test shows preflight-on-unload
+is unreliable, the fallback is to lower the steady-state flush thresholds so a
+preflight is essentially always already cached by unload (a normal flush has run),
+rather than changing transport — sendBeacon is not an option (it cannot send the
+`x-api-token` header; see "Why `keepalive`").
 
 ## Platform schedulers
 
@@ -412,9 +469,17 @@ flush policy):
 - Envelope shape + OTel value encoding (string / number int vs double / bool /
   array / object / null-drop).
 - Level helpers map to the right severity number/text.
-- Per-record attributes: context-collector output + scope context + entry-point
-  merged at capture, frozen (later scope mutation does not change a buffered
-  record), user attributes win.
+- Per-record attributes: record-level collector keys + scope context +
+  entry-point merged at capture, frozen (later scope mutation does not change a
+  buffered record), user attributes win.
+- Resource/record partition: a collector emitting both `process.*` and `http.*`
+  puts `process.*` on the envelope resource (once, deduped) and `http.*` on the
+  record. Two records sharing one resource still carry their own request keys.
+- `context.custom` deep-merges scope + user values (user keys win per-key, no
+  clobber of `addContext` data); `context.custom.framework` injected from
+  framework name.
+- Lazy SDK identity: `setSdkInfo` after construction is reflected in the next
+  flush's resource/scope (not stuck at `@flareapp/core`).
 - OTel nested-null drop: `[1, null, 2]` and `{ a: 1, b: null }` drop nulls at
   depth, no null-holes in `arrayValue` / `kvlistValue`.
 - Teardown flush sends ONE keepalive envelope `<= keepaliveMaxBytes`; older
@@ -422,7 +487,11 @@ flush policy):
 - `flush()` starts sends into `inflight`; `flare.flush(timeoutMs)` stays bounded.
 
 `packages/js/tests/` — `BrowserFlushScheduler`: `visibilitychange:hidden`
-triggers a `keepalive` flush.
+triggers a `keepalive` flush. Plus an e2e (Playwright) test for the
+first-send-on-unload path against the **cross-origin** fake-flare-server: record
+a log, navigate away without any prior flush, and assert the server received the
+log (exercises the uncached preflight + keepalive POST on unload). If unsupported
+in a target browser, this test is what catches it.
 
 `packages/node/tests/` — `NodeFlushScheduler`: `beforeExit` triggers a flush;
 the fatal-handler path drains logs within `shutdownTimeoutMs`. Plus: a log
@@ -439,13 +508,18 @@ New in `@flareapp/core`:
 
 - `src/logging/Logger.ts`
 - `src/logging/SeverityMapper.ts`
-- `src/logging/otel.ts` (attribute/value encoding)
+- `src/logging/otel.ts` (attribute/value encoding + resource/record key
+  partition classifier)
 - `src/logging/FlushScheduler.ts` (interface + no-op default)
 - types added to `src/types.ts` (`LogRecord`, OTel envelope types, `Config`
   additions)
 - `Api.logs()` in `src/api/Api.ts`
+- the `context.custom` deep-merge + framework injection factored out of
+  `buildReport` into a shared helper `record()` and `buildReport` both call
 - exports in `src/index.ts`
-- `Logger` wired into `Flare` (new constructor seam: `flushScheduler`)
+- `Logger` wired into `Flare`: new constructor seam `flushScheduler`; `Logger`
+  reads SDK/framework lazily (getters into `Flare`), so `setSdkInfo` /
+  `setFramework` after `super(...)` are reflected at flush time
 
 New in `@flareapp/js`:
 
