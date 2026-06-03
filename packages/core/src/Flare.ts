@@ -1,7 +1,6 @@
 import { Api } from './api';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
-import { Logger, partitionAttributes } from './logging';
-import { FlushScheduler, NoopFlushScheduler } from './logging';
+import { Logger, NoopFlushScheduler, partitionAttributes, type FlushScheduler } from './logging';
 import { GlobalScopeProvider, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
@@ -271,6 +270,7 @@ export class Flare {
             config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
         );
 
+        // Only clear the buffer/timer on a real enabled->disabled transition.
         if (wasLogsEnabled && this._config.enableLogs === false) {
             this._logger.clear();
         }
@@ -449,6 +449,22 @@ export class Flare {
         });
     }
 
+    private buildBaseAttributes(): Attributes {
+        const baseAttributes: Attributes = {
+            'telemetry.sdk.language': 'javascript',
+            'telemetry.sdk.name': this.sdkInfo.name,
+            'telemetry.sdk.version': this.sdkInfo.version,
+            'flare.language.name': 'javascript',
+        };
+
+        if (this._config.stage) baseAttributes['service.stage'] = this._config.stage;
+        if (this._config.version) baseAttributes['service.version'] = this._config.version;
+        if (this.framework?.name) baseAttributes['flare.framework.name'] = this.framework.name;
+        if (this.framework?.version) baseAttributes['flare.framework.version'] = this.framework.version;
+
+        return baseAttributes;
+    }
+
     private assembleAttributes(
         collectorAttributes: Attributes,
         extraAttributes: Attributes,
@@ -456,19 +472,7 @@ export class Flare {
     ): Attributes {
         const activeScope = this.scopeProvider.active();
 
-        const baseAttributes: Attributes = includeBase
-            ? {
-                  'telemetry.sdk.language': 'javascript',
-                  'telemetry.sdk.name': this.sdkInfo.name,
-                  'telemetry.sdk.version': this.sdkInfo.version,
-                  'flare.language.name': 'javascript',
-              }
-            : {};
-
-        if (includeBase && this._config.stage) baseAttributes['service.stage'] = this._config.stage;
-        if (includeBase && this._config.version) baseAttributes['service.version'] = this._config.version;
-        if (includeBase && this.framework?.name) baseAttributes['flare.framework.name'] = this.framework.name;
-        if (includeBase && this.framework?.version) baseAttributes['flare.framework.version'] = this.framework.version;
+        const baseAttributes: Attributes = includeBase ? this.buildBaseAttributes() : {};
 
         const entryPoint = activeScope.entryPoint;
         const entryPointOverrides: Attributes = {};
@@ -477,6 +481,8 @@ export class Flare {
         if (entryPoint?.type !== undefined) entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
         if (entryPoint?.name !== undefined) entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
 
+        // entryPointOverrides come after the collector so explicitly-set entry-point values
+        // win over any defaults the collector provided.
         const attributes: Attributes = {
             ...baseAttributes,
             ...collectorAttributes,
@@ -485,6 +491,9 @@ export class Flare {
             ...extraAttributes,
         };
 
+        // Deep-merge context.custom: combine the scope's pendingAttributes['context.custom']
+        // with the user-supplied extra context.custom per-key (user wins) so scope-set context
+        // is not clobbered by the spread above.
         const pendingCustom = activeScope.pendingAttributes['context.custom'];
         const extraCustom = extraAttributes['context.custom'];
         if (
@@ -501,6 +510,8 @@ export class Flare {
             };
         }
 
+        // Inject the framework name into context.custom so it is emitted even inside a fresh
+        // request scope that carries no other custom context.
         if (this.framework?.name) {
             const existing = (attributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
             attributes['context.custom'] = { ...existing, framework: this.framework.name.toLowerCase() };

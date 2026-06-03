@@ -30,7 +30,6 @@ describe('Flare logging integration', () => {
         flare.logger.flush();
 
         const rl = api.logEnvelopes[0].resourceLogs[0];
-        const resourceKeys = rl.resource.attributes.map((a) => a.key);
         // user 'service.name' must NOT be promoted onto the shared resource
         expect(rl.resource.attributes).not.toContainEqual({
             key: 'service.name',
@@ -41,7 +40,6 @@ describe('Flare logging integration', () => {
             key: 'service.name',
             value: { stringValue: 'user-supplied' },
         });
-        void resourceKeys;
     });
 
     it('ships a backlog buffered before light() once the key is set', () => {
