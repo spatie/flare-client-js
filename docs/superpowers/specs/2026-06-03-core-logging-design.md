@@ -278,11 +278,19 @@ when no key was actually provided is a cheap no-op.
       is the **combined** limit across all in-flight keepalive requests, not
       per-request — so this is NOT chunked into several keepalive POSTs (two 60 KB
       keepalive POSTs sum to 120 KB and the browser rejects them). Send **one**
-      keepalive envelope holding the trailing records that fit under
-      `keepaliveMaxBytes`. If the buffer exceeds the budget, the older overflow is
-      dropped (logged when `debug`): unload is best-effort and the steady-state
-      timer/count flushes keep the buffer small, so overflow is the rare tail
-      case, not the norm. See "Why `keepalive`".
+      keepalive envelope, packing records **newest-first** while the running total
+      stays under `keepaliveMaxBytes`. A record that does not fit the remaining
+      budget is **skipped** (left behind, dropped on unload, logged when `debug`)
+      and packing continues with the next-older record — so one large record does
+      not block smaller ones from shipping. This also covers the single-record
+      case the `logFlushMaxBytes` capture guard does not: a record between
+      `keepaliveMaxBytes` and `logFlushMaxBytes` (e.g. 100 KB) is valid for a
+      normal flush but cannot fit a 60 KB unload envelope, so on teardown it is
+      skipped/dropped. Forcing a normal (non-keepalive) flush at unload is not an
+      option — the browser aborts it. Unload is best-effort, and the steady-state
+      timer/count flushes keep the buffer small (and ship the 100 KB record long
+      before unload in practice), so this drop is the rare tail case. See "Why
+      `keepalive`".
 - For each envelope, call `api.logs(envelope, …, opts?.keepalive)` and pass the
   returned promise to the injected `track` callback (below), which registers it
   in `Flare`'s `inflight` set. `flush()` itself does **not** await the HTTP
@@ -486,11 +494,13 @@ Constraints, all browser-enforced and browser-only:
   ~64 KB; past that it rejects the request. This is a shared budget, not a
   per-request one, so splitting a large teardown into several keepalive POSTs
   does **not** help: two 60 KB keepalive POSTs sum to 120 KB and get rejected.
-  The teardown therefore sends a **single** keepalive envelope holding the
-  trailing records that fit under `keepaliveMaxBytes` (~60 KB), and drops the
-  older overflow (logged when `debug`). Best-effort: the steady-state timer/count
-  flushes keep the live buffer small, so on a normal unload the whole buffer fits
-  in one keepalive POST and nothing is dropped.
+  The teardown therefore sends a **single** keepalive envelope, packing records
+  newest-first under `keepaliveMaxBytes` (~60 KB) and skipping any record that
+  does not fit the remaining budget — including a single record that is itself
+  larger than `keepaliveMaxBytes` (valid for a normal flush, too big for unload).
+  Skipped records are dropped (logged when `debug`). Best-effort: the steady-state
+  timer/count flushes keep the live buffer small, so on a normal unload the whole
+  buffer fits in one keepalive POST and nothing is dropped.
 - Only the **browser teardown flush** sets `keepalive: true`. Normal timer- and
   count-triggered flushes run while the page is alive, where a plain `fetch` is
   fine and not subject to the keepalive cap.
@@ -562,6 +572,9 @@ flush policy):
   depth, no null-holes in `arrayValue` / `kvlistValue`.
 - Teardown flush sends ONE keepalive envelope `<= keepaliveMaxBytes`; older
   overflow is dropped, not split into a second keepalive POST.
+- Teardown packs newest-first and skips an over-`keepaliveMaxBytes` record: a
+  buffer of [small, 100 KB, small] ships the two smalls in one keepalive envelope
+  and drops the 100 KB record (with `keepaliveMaxBytes` < 100 KB < `logFlushMaxBytes`).
 - `flush()` starts sends into `inflight`; `flare.flush(timeoutMs)` stays bounded.
 
 `packages/js/tests/` — `BrowserFlushScheduler`: `visibilitychange:hidden`
