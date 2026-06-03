@@ -92,11 +92,14 @@ flare.flush(timeoutMs?)   // now also drains the log buffer
 
 `service.name` has no current source in core config (reports do not emit it and
 are accepted, so the ingest does not require it). It is added here as an
-**optional** config key: when set, it is emitted in the logs resource
-attributes; when unset, the OTel mapper drops the null and the attribute is
-omitted. This is not given a hard default; the wire contract does not require it,
-and inventing a generic default (e.g. `"unknown"`) would just produce noise in
-the Flare UI.
+**optional** config key, default `undefined`. The resource builder adds the
+`service.name` attribute **only when `config.serviceName` is set** (a `truthy`
+guard, the same pattern `buildReport` uses for `service.version` / `service.stage`
+at `packages/core/src/Flare.ts:435`). It does not rely on the OTel mapper's
+null-drop: `undefined` is not part of `AttributeValue`, and putting `undefined`
+into an attribute bag is ill-typed. Build conditionally, never emit the key when
+unset. No hard default; the wire contract does not require it, and a generic
+default like `"unknown"` would just be noise in the Flare UI.
 
 ## Buffer, batching, flush
 
@@ -121,16 +124,30 @@ scope must not retroactively change an already-buffered record), mirroring PHP,
 which merges the context recorder and entry-point resolver into each record
 before buffering. Merge order, last write wins:
 
-1. Active scope `pendingAttributes` (`scopeProvider.active().pendingAttributes`)
-   — the same custom context `addContext` / `addContextGroup` feed into reports.
-   In Node this is the per-request `NodeScope`, so request-scoped logs become
-   filterable by request context.
-2. Entry-point attributes from `scope.entryPoint`, emitted under the same
-   `flare.entry_point.handler.*` keys `buildReport` uses.
-3. User-passed `attributes` (highest precedence).
+1. `contextCollector(config)` output — the **injected env collector**, same one
+   `buildReport` calls. This is the load-bearing source for Node request/user
+   data: `NodeScope.request` / `NodeScope.user` are separate buckets
+   (`packages/node/src/scope/NodeScope.ts:6`) that do **not** live in
+   `pendingAttributes`; they only become attributes when `makeNodeContextCollector`
+   projects them (`packages/node/src/context/collectNode.ts:52`). Merging just
+   `pendingAttributes` would silently miss request/user context. So `record()`
+   must run the same collector reports do.
+2. Active scope `pendingAttributes` (`scopeProvider.active().pendingAttributes`)
+   — the custom context `addContext` / `addContextGroup` feed into reports.
+3. Entry-point attributes from `scope.entryPoint`, emitted under the same
+   `flare.entry_point.handler.*` keys `buildReport` uses (entry-point overrides
+   applied after the collector, matching `buildReport`).
+4. User-passed `attributes` (highest precedence).
 
-This reuses the attribute-assembly logic `buildReport` already has; factor the
-shared part out rather than duplicating it.
+This is exactly `buildReport`'s attribute assembly minus the report-only base
+attributes. Factor the shared assembly into a method both call rather than
+duplicating it.
+
+Cost note: running the context collector per log re-reads env context (browser
+cookies/URL, Node process/request) on every `record()`. That matches PHP's
+per-record context behavior and keeps logs filterable, but it is real per-log
+work; if it shows up as a hotspot under high-volume logging, a later optimization
+can memoize the collector output per scope. Not optimized in v1.
 
 Auto-flush triggers (core-owned policy):
 
@@ -146,21 +163,31 @@ Auto-flush triggers (core-owned policy):
 
 - Empty buffer -> no-op.
 - Clear the timer / active flag.
-- Split the buffered records into one or more envelopes, then snapshot-and-clear
-  the buffer:
+- Build the envelope(s) and snapshot-and-clear the buffer:
     - Normal flush (`keepalive` falsy): a single envelope with all buffered
       records. The buffer is already bounded by `logFlushMaxBytes` (~0.8 MB), fine
       for a normal `fetch`.
-    - Teardown flush (`keepalive: true`): chunk the records into envelopes each
-      estimated `<= keepaliveMaxBytes` (~60 KB) before clearing. Browsers cap the
-      combined body of in-flight keepalive requests at ~64 KB and reject anything
-      over, so a single oversized unload POST would be dropped along with its logs.
-      Chunking keeps each teardown POST under the cap. See "Why `keepalive`".
-- For each envelope, call `api.logs(envelope, …, opts?.keepalive)` and register
-  the returned send in the existing `inflight` set via the same `track`
-  mechanism reports use. `flush()` itself does **not** await the HTTP round-trip;
-  it starts the send(s) and returns. This is what lets `flare.flush(timeoutMs)`
-  bound the wait (below).
+    - Teardown flush (`keepalive: true`): the `keepaliveMaxBytes` (~60 KB) budget
+      is the **combined** limit across all in-flight keepalive requests, not
+      per-request — so this is NOT chunked into several keepalive POSTs (two 60 KB
+      keepalive POSTs sum to 120 KB and the browser rejects them). Send **one**
+      keepalive envelope holding the trailing records that fit under
+      `keepaliveMaxBytes`. If the buffer exceeds the budget, the older overflow is
+      dropped (logged when `debug`): unload is best-effort and the steady-state
+      timer/count flushes keep the buffer small, so overflow is the rare tail
+      case, not the norm. See "Why `keepalive`".
+- For each envelope, call `api.logs(envelope, …, opts?.keepalive)` and pass the
+  returned promise to the injected `track` callback (below), which registers it
+  in `Flare`'s `inflight` set. `flush()` itself does **not** await the HTTP
+  round-trip; it starts the send(s) and returns. This is what lets
+  `flare.flush(timeoutMs)` bound the wait (below).
+
+`track` seam: `track` is private on `Flare` (`packages/core/src/Flare.ts:116`).
+`Flare` owns the `Logger` and injects `this.track.bind(this)` into it at
+construction, so the `Logger`'s own auto-flushes (timer/count, which fire inside
+`record()` without going through `Flare.flush`) still enroll their sends in
+`inflight`. `track` stays private on `Flare`; the `Logger` only holds the bound
+callback. No new public surface on `Flare`.
 
 `FlushScheduler` interface:
 
@@ -240,18 +267,32 @@ Protocol divergences from the PHP client, locked to the protocol doc:
 Ported from PHP `OpenTelemetryAttributeMapper`, with the JS-specific decisions
 made explicit:
 
-| Input                        | Output                                             |
-| ---------------------------- | -------------------------------------------------- |
-| `string`                     | `{ stringValue }`                                  |
-| `boolean`                    | `{ boolValue }`                                    |
-| `number`, `Number.isInteger` | `{ intValue }`                                     |
-| `number`, otherwise          | `{ doubleValue }`                                  |
-| array                        | `{ arrayValue: { values: [...recurse] } }`         |
-| plain object                 | `{ kvlistValue: { values: [{ key, value }...] } }` |
-| `null`                       | dropped (filtered out of the attributes array)     |
+| Input                        | Output                                                           |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `string`                     | `{ stringValue }`                                                |
+| `boolean`                    | `{ boolValue }`                                                  |
+| `number`, `Number.isInteger` | `{ intValue }`                                                   |
+| `number`, otherwise          | `{ doubleValue }`                                                |
+| array                        | `{ arrayValue: { values: [...recurse, null-dropped] } }`         |
+| plain object                 | `{ kvlistValue: { values: [{ key, value }...], null-dropped } }` |
+| `null`                       | dropped (no OTel `anyValue` null type exists)                    |
 
-`attributesToOpenTelemetry(attrs)` maps each entry to `{ key, value }`, dropping
-null-valued entries.
+`AttributeValue` permits nested nulls (`packages/core/src/types.ts:3`:
+`{ foo: [null] }`, `{ foo: { bar: null } }`). OTel `anyValue` has no null
+variant, so a nested `null` cannot be encoded as a value. The drop rule is
+therefore **recursive and applied at every level**, not just the top:
+
+- `attributesToOpenTelemetry(attrs)`: map each entry to `{ key, value }`, drop
+  entries whose value encodes to `null`.
+- `arrayValue.values`: encode each item, drop items that encode to `null`
+  (so `[1, null, 2]` -> two values, not a value-with-null hole).
+- `kvlistValue.values`: encode each entry, drop keys whose value encodes to
+  `null`.
+
+This diverges intentionally from PHP, which only `array_filter`s the top level
+and would emit nested-null holes; the recursive drop keeps every emitted
+`anyValue` well-formed. A test asserts `[1, null, 2]` and `{ a: 1, b: null }`
+drop the nulls at depth.
 
 ### SeverityMapper
 
@@ -312,15 +353,18 @@ transport instead of a second code path.
 
 Constraints, all browser-enforced and browser-only:
 
-- The browser caps the combined body of all in-flight keepalive requests at
-  ~64 KB; past that it rejects the request. Sentry stops setting `keepalive`
-  above ~60 KB in-flight for this reason. Our per-flush envelopes are small
-  (capped well under the weight limit), so this is not a practical concern for
-  v1, but it is why `keepalive` is set only on the teardown flush, not on every
-  flush.
+- The browser caps the **combined body of all in-flight keepalive requests** at
+  ~64 KB; past that it rejects the request. This is a shared budget, not a
+  per-request one, so splitting a large teardown into several keepalive POSTs
+  does **not** help: two 60 KB keepalive POSTs sum to 120 KB and get rejected.
+  The teardown therefore sends a **single** keepalive envelope holding the
+  trailing records that fit under `keepaliveMaxBytes` (~60 KB), and drops the
+  older overflow (logged when `debug`). Best-effort: the steady-state timer/count
+  flushes keep the live buffer small, so on a normal unload the whole buffer fits
+  in one keepalive POST and nothing is dropped.
 - Only the **browser teardown flush** sets `keepalive: true`. Normal timer- and
   count-triggered flushes run while the page is alive, where a plain `fetch` is
-  fine and not subject to the 64 KB cap.
+  fine and not subject to the keepalive cap.
 - In Node there is no page-unload concept, so `keepalive` is a no-op (undici
   accepts and ignores it). Node durability comes from the `beforeExit` flush
   plus the existing shutdown-timeout drain, not from `keepalive`.
@@ -360,16 +404,23 @@ flush policy):
 - Envelope shape + OTel value encoding (string / number int vs double / bool /
   array / object / null-drop).
 - Level helpers map to the right severity number/text.
-- Per-record attributes: scope context + entry-point merged at capture, frozen
-  (later scope mutation does not change a buffered record), user attributes win.
-- Teardown flush chunks to `keepaliveMaxBytes` (multiple envelopes when over).
+- Per-record attributes: context-collector output + scope context + entry-point
+  merged at capture, frozen (later scope mutation does not change a buffered
+  record), user attributes win.
+- OTel nested-null drop: `[1, null, 2]` and `{ a: 1, b: null }` drop nulls at
+  depth, no null-holes in `arrayValue` / `kvlistValue`.
+- Teardown flush sends ONE keepalive envelope `<= keepaliveMaxBytes`; older
+  overflow is dropped, not split into a second keepalive POST.
 - `flush()` starts sends into `inflight`; `flare.flush(timeoutMs)` stays bounded.
 
 `packages/js/tests/` — `BrowserFlushScheduler`: `visibilitychange:hidden`
 triggers a `keepalive` flush.
 
 `packages/node/tests/` — `NodeFlushScheduler`: `beforeExit` triggers a flush;
-the fatal-handler path drains logs within `shutdownTimeoutMs`.
+the fatal-handler path drains logs within `shutdownTimeoutMs`. Plus: a log
+recorded inside a `runWithContext` request scope carries that request's
+`http.*` / user attributes (proves the context-collector merge, not just
+`pendingAttributes`).
 
 The core `FakeApi` test helper is extended to capture `logs()` sends alongside
 `report()`.
