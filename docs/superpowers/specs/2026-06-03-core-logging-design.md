@@ -81,14 +81,24 @@ flare.flush(timeoutMs?)   // now also drains the log buffer
 
 ### Config additions (`Config`)
 
-| Key                  | Type            | Default                               | Meaning                                            |
-| -------------------- | --------------- | ------------------------------------- | -------------------------------------------------- |
-| `enableLogs`         | `boolean`       | `false`                               | Opt-in. No surprise log traffic until switched on. |
-| `logsIngestUrl`      | `string`        | `https://ingress.flareapp.io/v1/logs` | Logs endpoint (sibling of `ingestUrl`).            |
-| `minimumLogLevel`    | `MessageLevel?` | `undefined`                           | Drop logs below this level at capture time.        |
-| `maxLogBufferSize`   | `number`        | `100`                                 | Flush when buffer reaches this count.              |
-| `logFlushIntervalMs` | `number`        | `5000`                                | One-shot timer flush interval.                     |
-| `logFlushMaxBytes`   | `number`        | `800_000`                             | Flush when estimated buffer bytes reach this.      |
+| Key                  | Type            | Default                               | Meaning                                                                       |
+| -------------------- | --------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| `enableLogs`         | `boolean`       | `false`                               | Opt-in. No surprise log traffic until switched on.                            |
+| `logsIngestUrl`      | `string`        | `https://ingress.flareapp.io/v1/logs` | Logs endpoint (sibling of `ingestUrl`).                                       |
+| `minimumLogLevel`    | `MessageLevel?` | `undefined`                           | Drop logs below this level at capture time.                                   |
+| `serviceName`        | `string?`       | `undefined`                           | Emitted as the `service.name` resource attribute when set; omitted otherwise. |
+| `maxLogBufferSize`   | `number`        | `100`                                 | Flush when buffer reaches this count.                                         |
+| `logFlushIntervalMs` | `number`        | `5000`                                | One-shot timer flush interval.                                                |
+| `logFlushMaxBytes`   | `number`        | `800_000`                             | Flush when estimated buffer bytes reach this.                                 |
+| `keepaliveMaxBytes`  | `number`        | `60_000`                              | Max estimated bytes per teardown (keepalive) envelope chunk.                  |
+
+`service.name` has no current source in core config (reports do not emit it and
+are accepted, so the ingest does not require it). It is added here as an
+**optional** config key: when set, it is emitted in the logs resource
+attributes; when unset, the OTel mapper drops the null and the attribute is
+omitted. This is not given a hard default; the wire contract does not require it,
+and inventing a generic default (e.g. `"unknown"`) would just produce noise in
+the Flare UI.
 
 ## Buffer, batching, flush
 
@@ -115,11 +125,23 @@ Auto-flush triggers (core-owned policy):
 
 `flush(opts?: { keepalive?: boolean })`:
 
-- Snapshot and clear the buffer; clear the timer / active flag.
 - Empty buffer -> no-op.
-- Build the envelope, call `api.logs(envelope, …, opts?.keepalive)`.
-- Register the send in the existing `inflight` set (via the same `track`
-  mechanism reports use) so `flare.flush()` awaits in-flight log sends too.
+- Clear the timer / active flag.
+- Split the buffered records into one or more envelopes, then snapshot-and-clear
+  the buffer:
+    - Normal flush (`keepalive` falsy): a single envelope with all buffered
+      records. The buffer is already bounded by `logFlushMaxBytes` (~0.8 MB), fine
+      for a normal `fetch`.
+    - Teardown flush (`keepalive: true`): chunk the records into envelopes each
+      estimated `<= keepaliveMaxBytes` (~60 KB) before clearing. Browsers cap the
+      combined body of in-flight keepalive requests at ~64 KB and reject anything
+      over, so a single oversized unload POST would be dropped along with its logs.
+      Chunking keeps each teardown POST under the cap. See "Why `keepalive`".
+- For each envelope, call `api.logs(envelope, …, opts?.keepalive)` and register
+  the returned send in the existing `inflight` set via the same `track`
+  mechanism reports use. `flush()` itself does **not** await the HTTP round-trip;
+  it starts the send(s) and returns. This is what lets `flare.flush(timeoutMs)`
+  bound the wait (below).
 
 `FlushScheduler` interface:
 
@@ -134,8 +156,14 @@ interface FlushScheduler {
 - The count/weight/timer caps stay in core regardless of which scheduler is
   injected.
 
-`flare.flush(timeoutMs?)` is extended to drain the log buffer (await
-`logger.flush()`) in addition to waiting on in-flight reports.
+`flare.flush(timeoutMs?)` is extended to drain the log buffer. It calls
+`logger.flush()` first, which **starts** the buffered log send(s) and registers
+them in `inflight` (it does not await them). The existing timeout-bounded
+`Promise.allSettled(inflight)` race then covers in-flight log sends and reports
+together under the same `timeoutMs`. This preserves the Node fatal handler's
+guarantee at `packages/node/src/process/fatal.ts:33,49`
+(`await flare.flush(opts.shutdownTimeoutMs)`): a hung log POST cannot extend
+shutdown past `shutdownTimeoutMs`.
 
 ## Wire format (OTel envelope)
 
@@ -224,10 +252,12 @@ severity number.
 
 ### Resource / scope attributes
 
-- Resource attributes: `service.name`, `service.version` and `service.stage`
-  (when set), `telemetry.sdk.language: "javascript"`, `telemetry.sdk.name` and
+- Resource attributes: `service.name` (only when `config.serviceName` set,
+  see config table), `service.version` and `service.stage` (when set),
+  `telemetry.sdk.language: "javascript"`, `telemetry.sdk.name` and
   `telemetry.sdk.version` from `sdkInfo`, framework attributes when set. Reuses
-  the same base-attribute logic `buildReport` already assembles.
+  the same base-attribute logic `buildReport` already assembles. Null-valued
+  entries are dropped by the OTel mapper, so unset optionals never reach the wire.
 - Scope `name` / `version` come from `sdkInfo`.
 
 ### Api.logs
@@ -292,18 +322,33 @@ auto-merge active-scope context or entry point into log attributes.
 
 ## Testing
 
-Vitest, in `packages/js/tests/`. New `logs.test.ts`:
+Each package has its own Vitest suite (`packages/<pkg>/tests/`,
+`packages/<pkg>/vitest.config.ts`). Tests go where the behavior lives, not all
+in `packages/js`.
+
+`packages/core/tests/logs.test.ts` (the bulk — core owns buffer, encoding, API,
+flush policy):
 
 - Opt-in gating: nothing recorded/sent when `enableLogs` is false.
 - `minimumLogLevel` drops below-threshold records at capture.
 - Count-cap flush at `maxLogBufferSize`.
-- Timer flush via fake timers at `logFlushIntervalMs`.
-- Envelope shape + OTel value encoding (string/number int vs double/bool/
-  array/object/null-drop).
+- Weight-cap flush at `logFlushMaxBytes`.
+- Timer flush via fake timers at `logFlushIntervalMs` (one-shot, not reset per
+  log).
+- Envelope shape + OTel value encoding (string / number int vs double / bool /
+  array / object / null-drop).
 - Level helpers map to the right severity number/text.
-- `flush()` drains the buffer and awaits the send.
+- Teardown flush chunks to `keepaliveMaxBytes` (multiple envelopes when over).
+- `flush()` starts sends into `inflight`; `flare.flush(timeoutMs)` stays bounded.
 
-`FakeApi` (test helper) extended to capture `logs()` sends alongside `report()`.
+`packages/js/tests/` — `BrowserFlushScheduler`: `visibilitychange:hidden`
+triggers a `keepalive` flush.
+
+`packages/node/tests/` — `NodeFlushScheduler`: `beforeExit` triggers a flush;
+the fatal-handler path drains logs within `shutdownTimeoutMs`.
+
+The core `FakeApi` test helper is extended to capture `logs()` sends alongside
+`report()`.
 
 ## Files (anticipated)
 
