@@ -59,10 +59,6 @@ export class Logger {
         return this.buffer.length;
     }
 
-    hasBuffered(): boolean {
-        return this.buffer.length > 0;
-    }
-
     private record(level: MessageLevel, message: string, userAttributes: Attributes): void {
         const config = this.deps.getConfig();
         if (!config.enableLogs) return;
@@ -87,6 +83,13 @@ export class Logger {
         }
 
         this.buffer.push(buffered);
+        // Last-write-wins: the envelope stamps ALL batched records with this single
+        // most-recent resource map. That is correct ONLY because every
+        // resource-prefixed key in the partition allowlist is instance-static for the
+        // process lifetime (the one varying process.* key, process.uptime, is held
+        // back to record-level via the partition's exception set). A future collector
+        // emitting a request-varying resource-prefixed key would silently mis-stamp
+        // batched records.
         this.resourceAttributes = resource;
 
         // Triggers run BEFORE the trim: a keyed over-cap push flushes-and-clears
