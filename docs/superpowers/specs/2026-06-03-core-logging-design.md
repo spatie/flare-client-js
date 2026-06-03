@@ -117,31 +117,53 @@ default like `"unknown"` would just be noise in the Flare UI.
    run the context collector, partition out resource-level keys, merge the
    record-level keys with scope custom context, entry-point overrides, and
    user-passed `attributes`.
-4. Build a `LogRecord` (timestamp now, severityNumber + severityText, body,
+4. **Oversized-record guard:** if this single record's estimated bytes exceed
+   `logFlushMaxBytes`, drop it now (logged when `debug`) and return. It cannot be
+   shipped — it does not fit a normal envelope's weight budget, and the trim
+   below could never satisfy the byte cap while keeping it (dropping older records
+   leaves the one oversized record behind). Dropping at capture is deterministic;
+   truncating attributes/body would silently corrupt the log. See "Oversized
+   records" below.
+5. Build a `LogRecord` (timestamp now, severityNumber + severityText, body,
    record-level attributes), push to the buffer; stash the partitioned
    resource-level attributes for the envelope.
-5. **Trim the buffer** (below) — an unconditional bound, independent of whether a
-   flush happens.
-6. Evaluate auto-flush triggers (below).
+6. Evaluate auto-flush triggers (below). With a key, an over-cap push
+   **flushes-and-clears here**, so data is shipped, not trimmed away.
+7. **Trim the buffer** (below) — a safety net that only bites when step 6 did not
+   clear (no API key yet, so the flush no-op'd).
 
-### Buffer trim (hard bound)
+### Buffer trim (hard bound, safety net)
 
-`maxLogBufferSize` and `logFlushMaxBytes` are _flush triggers_, but a trigger that
-fires a flush which then no-ops (the key gate fails, no API key yet) would leave
-the buffer growing without bound — exactly the keyless-retention case. So the
-buffer also has an **independent trim**, applied on every `record()` push
-regardless of flush outcome, the same shape as the glow cap
-(`Scope.addGlow` → `slice(length - max)`):
+`maxLogBufferSize` and `logFlushMaxBytes` are _flush triggers_ first: step 6
+flushes-and-clears when the buffer crosses either cap and a key is set, which is
+the path that actually preserves the data (it gets sent). The trim exists only
+because a triggered flush can **no-op** (the key gate fails, no API key yet),
+which would otherwise let the buffer grow without bound. The trim therefore runs
+**after** the triggers, not before — running it first would pull the buffer back
+under `logFlushMaxBytes` and rob the weight trigger of its chance to fire, turning
+a flush into silent data loss. Same shape as the glow cap (`Scope.addGlow` →
+`slice(length - max)`):
 
 - Drop oldest records until the buffer holds `<= maxLogBufferSize` records, AND
 - Drop oldest records until the estimated buffer bytes are `<= logFlushMaxBytes`.
 
-Trailing records (the most recent) are kept, matching glows and the teardown
-behavior. With a key present this trim almost never bites, because the count /
-weight triggers flush-and-clear first; with no key (or repeated send failure) the
-trim is what guarantees the buffer is bounded. Dropped-on-trim records are lost
-(logged when `debug`); this is the intended back-pressure for "logging enabled
-but never authenticated."
+Because the oversized-record guard (step 4) already removed any single record
+bigger than the byte cap, "drop oldest until under the byte cap" is always
+satisfiable. Trailing records (the most recent) are kept, matching glows and the
+teardown behavior. With a key the trim almost never bites (step 6 flushed first);
+with no key (or repeated send failure) the trim is what bounds the buffer.
+Dropped-on-trim records are lost (logged when `debug`) — intended back-pressure
+for "logging enabled but never authenticated."
+
+### Oversized records
+
+A single record larger than `logFlushMaxBytes` (~0.8 MB of estimated attributes +
+body) is pathological — far past any reasonable log line. It is **dropped at
+capture** (step 4), never buffered, and `debug`-logged. The client does not
+truncate it: a half-attributes log is more misleading than an absent one, and the
+drop keeps every buffered record guaranteed-shippable (fits a normal envelope, and
+fits a keepalive teardown envelope when under `keepaliveMaxBytes`). A test asserts
+an over-cap single record is dropped and does not wedge the buffer.
 
 ### Resource vs record attributes
 
@@ -514,6 +536,12 @@ flush policy):
 - `minimumLogLevel` drops below-threshold records at capture.
 - Count-cap flush at `maxLogBufferSize`.
 - Weight-cap flush at `logFlushMaxBytes`.
+- Weight-cap with a key **flushes-and-clears, does not trim**: crossing
+  `logFlushMaxBytes` ships the records via `api.logs` (no records silently dropped
+  by the trim when keyed).
+- Oversized single record (> `logFlushMaxBytes`) is dropped at capture, never
+  buffered, and does not wedge the buffer (a subsequent normal record still
+  records and flushes).
 - Timer flush via fake timers at `logFlushIntervalMs` (one-shot, not reset per
   log).
 - Envelope shape + OTel value encoding (string / number int vs double / bool /
