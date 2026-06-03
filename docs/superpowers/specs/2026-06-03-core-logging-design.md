@@ -165,6 +165,23 @@ drop keeps every buffered record guaranteed-shippable (fits a normal envelope, a
 fits a keepalive teardown envelope when under `keepaliveMaxBytes`). A test asserts
 an over-cap single record is dropped and does not wedge the buffer.
 
+### Disable semantics
+
+`enableLogs` is a master switch, not just a capture gate. `record()` returns early
+when it is false (nothing buffered), and `flush()` returns early when it is false
+(nothing sent) — so a user who buffers logs while enabled and then
+`configure({ enableLogs: false })` before the timer fires (or before `light(key)`)
+gets **no log traffic**, which is the intuitive meaning of "disable logging."
+
+The disable transition also **clears the buffer**: when `configure(...)` flips
+`enableLogs` from true to false, the `Logger` drops its buffered records (the same
+`clearGlows`-style reset). Rationale: a disabled logger that silently retained a
+backlog would either leak it on a later re-enable (surprising) or pin memory
+indefinitely. Clear-on-disable makes "off" mean off. Re-enabling starts a fresh
+buffer; it does not resurrect pre-disable records. A test covers: buffer while
+enabled, `configure({ enableLogs: false })`, assert no `api.logs` call on any
+subsequent flush path and the buffer is empty.
+
 ### Resource vs record attributes
 
 The OTel logs envelope has two attribute homes: the **resource** (once per
@@ -173,23 +190,41 @@ envelope) and each **logRecord** (per log line). PHP keeps these separate — th
 record carries the per-call context + entry point. The JS report path does NOT
 make this distinction (a report is a single entity with one flat `attributes`
 bag), so the existing `contextCollector` returns everything mixed: identity +
-process (`collectNode.ts:45`) alongside per-request `http.*` / `url.*` / `user.*`
-(`collectNode.ts:52+`). Putting that whole bag on every record would both
+process (`collectNode.ts:45`) alongside per-request `http.*` / `url.*` /
+`enduser.*` (`collectNode.ts:52+`). Putting that whole bag on every record would both
 duplicate process/host across all N records and diverge from PHP's placement.
 
 The split is done in core by **partitioning the collector output by key**, so no
-new platform seam is needed:
+new platform seam is needed. The rule is an **resource-prefix allowlist; every
+other key — known or unknown — is record-level**. This default direction matters:
+the collectors emit more keys than any prefix list will enumerate, and a new key
+added to a collector later must land somewhere safe without a spec change.
+Record-level is that safe default (request-varying data belongs on the record;
+mis-placing a static key on the record only costs a little duplication, whereas
+mis-placing a request key on the resource corrupts batched envelopes).
 
-- Resource-level key prefixes: `service.`, `telemetry.`, `host.`, `os.`,
-  `process.`, `flare.framework.`, `flare.language.`.
-- Everything else is record-level: `http.`, `url.`, `request.`, `user.`,
-  `context.`, `flare.entry_point.`.
+- Resource-level prefixes (the allowlist): `service.`, `telemetry.`, `host.`,
+  `os.`, `process.`, `flare.framework.`, `flare.language.`.
+- Everything else → record-level. The keys the collectors actually emit that fall
+  here, verified against source: `http.*`, `url.*`, `enduser.*`, `client.address`
+  (`collectNode.ts:104-111` — note it is `enduser.*` / `client.address`, NOT
+  `user.*`), `user_agent.original`, `document.ready_state` (browser collector),
+  `context.*`, and `flare.entry_point.*`. (Earlier drafts listed `user.` /
+  `request.` prefixes that no collector emits — do not rely on them; the
+  allowlist-plus-default rule is what's load-bearing.)
 
-`flare.entry_point.*` is intentionally placed at **record** level even though the
-resources protocol lists it as a resource attribute: in a batched envelope the
-records can come from different requests, so entry point must travel per-record
-to stay accurate. Process/host are instance-static, so merging them into the one
-resource (last write wins across records) dedupes them correctly.
+`flare.entry_point.*` is intentionally record-level even though the resources
+protocol lists it as a resource attribute: in a batched envelope the records can
+come from different requests, so entry point must travel per-record to stay
+accurate. Two sub-families coexist on the record without clobbering — the
+collector emits `flare.entry_point.type` / `.value`, and `buildReport`'s
+entry-point overrides emit `flare.entry_point.handler.*`; different sub-keys,
+both kept.
+
+Process/host are instance-static, so merging them into the one resource (last
+write wins across records) dedupes them correctly. This dedupe is only valid for
+**instance-static** attributes; see the resource-static assumption under "Resource
+assembly".
 
 #### Per-record assembly (in `record()`, frozen at capture time)
 
@@ -229,6 +264,19 @@ identity (`service.name` when set, `service.version` / `service.stage` when set,
 framework) merged with the resource-level attributes partitioned out of the
 collector (process/host).
 
+Resource-static assumption: one envelope carries one resource shared by all its
+batched records, so resource attributes are assumed **instance-static for the
+buffer's lifetime**. Identity (`sdkInfo`, `framework`, `serviceName`) and
+process/host are stable in normal use, so this holds. The known sharp edge:
+reconfiguring `serviceName` or calling `setFramework(...)` **between** buffering
+records and the flush will tag every already-buffered record in that envelope
+with the new resource value (last-write-wins at flush), not the value in effect
+when each was recorded. This is acceptable — reconfiguring identity mid-batch is
+not a real workflow — but it is a real divergence from the per-record freezing
+that record-level attributes get. If it ever becomes a problem, snapshot the
+resource at the first record after each flush instead of at flush time. Not done
+in v1.
+
 Cost note: running the context collector per log re-reads env context (browser
 cookies/URL, Node process/request) on every `record()`. Matches PHP's per-record
 context behavior and keeps logs filterable, but it is real per-log work; if it
@@ -248,6 +296,10 @@ Auto-flush triggers (core-owned policy):
 `flush(opts?: { keepalive?: boolean })`:
 
 - Empty buffer -> no-op.
+- **Enabled gate (master switch):** if `!config.enableLogs`, no-op — never call
+  `api.logs`. `enableLogs` gates BOTH capture (`record()`) and send (`flush()`),
+  so logs buffered while enabled are not shipped after the user turns logging off.
+  See "Disable semantics" below for what happens to the already-buffered records.
 - **Key gate:** if `assertKey(config.key, config.debug)` is false (no API key
   set yet), reset the timer-active flag (the one-shot has fired) but **leave the
   buffer intact**, then return. This mirrors `sendReport`'s `assertKey` guard
@@ -372,25 +424,54 @@ Protocol divergences from the PHP client, locked to the protocol doc:
 
 - Timestamps are **strings** (nanoseconds-as-string). This sidesteps the
   `Number.MAX_SAFE_INTEGER` nanosecond-precision loss the client already
-  documents for `seenAtUnixNano`. Compute as `String(Date.now()) + '000000'`
-  (ms -> ns, no float math, no precision loss).
+  documents for `seenAtUnixNano`. Compute once as `String(Date.now()) + '000000'`
+  (ms -> ns, no float math, no precision loss), and write that **same value** to
+  both `timeUnixNano` and `observedTimeUnixNano` (the protocol requires at least
+  one; we emit both with the capture time).
 - `flags` is integer `0` (PHP used string `'01'`/`'00'`).
 - `severityText` is uppercase (`"INFO"`, `"ERROR"`).
+- `droppedAttributesCount` is emitted as a literal `0` on resource / scope /
+  record. The client DOES drop attributes (recursive null-drop) and records (trim,
+  oversized, keepalive overflow), but it does not count them into this field — the
+  field is optional per protocol and a hard `0` is simpler than threading a count
+  through. Documented so the `0` is understood as "not tracked," not "nothing was
+  ever dropped."
 
 ### OTel value encoding (`valueToOpenTelemetry`)
 
 Ported from PHP `OpenTelemetryAttributeMapper`, with the JS-specific decisions
 made explicit:
 
-| Input                        | Output                                                           |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `string`                     | `{ stringValue }`                                                |
-| `boolean`                    | `{ boolValue }`                                                  |
-| `number`, `Number.isInteger` | `{ intValue }`                                                   |
-| `number`, otherwise          | `{ doubleValue }`                                                |
-| array                        | `{ arrayValue: { values: [...recurse, null-dropped] } }`         |
-| plain object                 | `{ kvlistValue: { values: [{ key, value }...], null-dropped } }` |
-| `null`                       | dropped (no OTel `anyValue` null type exists)                    |
+| Input                                   | Output                                                           |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| `string`                                | `{ stringValue }`                                                |
+| `boolean`                               | `{ boolValue }`                                                  |
+| non-finite `number` (`NaN`/`±Infinity`) | dropped (see below)                                              |
+| finite `number`, `Number.isInteger`     | `{ intValue }`                                                   |
+| finite `number`, otherwise              | `{ doubleValue }`                                                |
+| array                                   | `{ arrayValue: { values: [...recurse, null-dropped] } }`         |
+| plain object                            | `{ kvlistValue: { values: [{ key, value }...], null-dropped } }` |
+| `null` / `undefined`                    | dropped (no OTel `anyValue` null type exists)                    |
+
+Number edge cases (JS has one `number` type; PHP had distinct int/float, so these
+are JS-specific decisions, not inherited from the PHP mapper):
+
+- **Non-finite (`NaN`, `Infinity`, `-Infinity`):** encode to `null` (i.e.
+  dropped, same as `null`). Critical: the send path is `flatJsonStringify` →
+  `JSON.stringify`, which turns `NaN`/`Infinity` into the JSON literal `null`. So
+  emitting `{ doubleValue: NaN }` would serialize to `{ "doubleValue": null }` — a
+  malformed OTel `anyValue` the ingest can reject. The encoder must detect
+  `!Number.isFinite(n)` BEFORE choosing `intValue`/`doubleValue` and drop it.
+- **`intValue` representation:** a bare JSON number, matching PHP (`json_encode`
+  of a PHP int is a bare number) and what the Flare ingest already accepts from
+  the PHP client. Not stringified. (Contrast timestamps, which are forced to
+  strings because they are ALWAYS ~19 digits; ordinary integer attributes are
+  not.)
+- **Beyond `Number.MAX_SAFE_INTEGER`:** a JS `number` that large has already lost
+  integer precision before it reaches the encoder, so no special handling — it is
+  emitted as the (already-imprecise) `intValue`. Callers needing exact large
+  integers must pass them as strings. Documented, not guarded.
+- **`-0`:** serializes to `0`; harmless, no special case.
 
 `AttributeValue` permits nested nulls (`packages/core/src/types.ts:3`:
 `{ foo: [null] }`, `{ foo: { bar: null } }`). OTel `anyValue` has no null
@@ -515,6 +596,18 @@ Constraints, all browser-enforced and browser-only:
   logs too, so a crash path also ships buffered logs (best-effort within the
   shutdown timeout).
 
+Known `beforeExit` gap: `beforeExit` fires only when the event loop drains
+naturally. It does **not** fire on `process.exit()`, nor on `SIGTERM` / `SIGINT`
+unless the app installs handlers that let the loop empty. So a graceful container
+shutdown that calls `process.exit(0)` from a signal handler bypasses both
+`beforeExit` and the fatal handler, and buffered logs are lost. v1 does **not**
+auto-install `SIGTERM`/`SIGINT` handlers — doing so would silently take over
+signals the host app likely manages itself, a worse surprise than a few dropped
+logs. The documented guidance is: call `await flare.flush()` in your own shutdown
+hook (the same call that already drains reports). This is called out so the
+limitation is a known, documented contract rather than a silent gap. Revisit if
+users report lost logs on graceful shutdown.
+
 ## Scope semantics
 
 The log buffer is global per Flare instance, not per-request scope (matches PHP's
@@ -535,6 +628,9 @@ in `packages/js`.
 flush policy):
 
 - Opt-in gating: nothing recorded/sent when `enableLogs` is false.
+- Disable semantics: buffer logs while `enableLogs: true`, then
+  `configure({ enableLogs: false })`; assert no `api.logs` call on any subsequent
+  flush path AND the buffer was cleared on the disable transition.
 - Key gate: `enableLogs: true` + `key: null` records into the buffer but no flush
   path (manual, timer, count, unload) calls `api.logs`; buffer is retained.
 - Keyless backlog ships on `light(key)`: record several logs with no key (no
@@ -543,7 +639,8 @@ flush policy):
 - Keyless trim bound: with `enableLogs: true` + `key: null`, recording far more
   than `maxLogBufferSize` keeps the buffer at the cap (oldest dropped), does not
   grow unbounded.
-- `minimumLogLevel` drops below-threshold records at capture.
+- `minimumLogLevel` drops below-threshold records at capture; strict `<` by
+  severity number (a record exactly at the threshold is kept, matching PHP).
 - Count-cap flush at `maxLogBufferSize`.
 - Weight-cap flush at `logFlushMaxBytes`.
 - Weight-cap with a key **flushes-and-clears, does not trim**: crossing
@@ -570,6 +667,12 @@ flush policy):
   flush's resource/scope (not stuck at `@flareapp/core`).
 - OTel nested-null drop: `[1, null, 2]` and `{ a: 1, b: null }` drop nulls at
   depth, no null-holes in `arrayValue` / `kvlistValue`.
+- Non-finite numbers: `NaN` / `Infinity` / `-Infinity` attribute values are
+  dropped (never emitted as `{ doubleValue: null }`); a real-number sibling in the
+  same object/array survives.
+- Resource/record partition default: an unknown key (no resource prefix) lands at
+  record level; `enduser.*` / `client.address` / `user_agent.original` are
+  record-level (verified against real collector keys, not the dead `user.*`).
 - Teardown flush sends ONE keepalive envelope `<= keepaliveMaxBytes`; older
   overflow is dropped, not split into a second keepalive POST.
 - Teardown packs newest-first and skips an over-`keepaliveMaxBytes` record: a
@@ -611,9 +714,15 @@ New in `@flareapp/core`:
 - `Logger` wired into `Flare`: new constructor seam `flushScheduler`; `Logger`
   reads SDK/framework lazily (getters into `Flare`), so `setSdkInfo` /
   `setFramework` after `super(...)` are reflected at flush time
-- `Flare.light(...)` (and `configure(...)` when it sets a key) calls
-  `logger.flush()` after applying the key, when the buffer is non-empty, so a
-  backlog buffered before authentication ships as soon as a key arrives
+- `Flare.light(...)` (and `configure(...)` when it sets a key, gated on
+  `config.key !== undefined`, not on any `configure` call) calls `logger.flush()`
+  after applying the key, when the buffer is non-empty, so a backlog buffered
+  before authentication ships as soon as a key arrives
+- `configure(...)` detects an `enableLogs` true->false transition and clears the
+  log buffer (disable semantics)
+- the OTel encoder mirrors `flatJsonStringify`'s `JSON.stringify` reality: drop
+  non-finite numbers BEFORE choosing `intValue`/`doubleValue`, so no
+  `{ doubleValue: null }` reaches the wire
 
 New in `@flareapp/js`:
 
