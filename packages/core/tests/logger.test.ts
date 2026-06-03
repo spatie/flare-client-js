@@ -4,6 +4,7 @@ import { Api } from '../src/api';
 import { NoopFlushScheduler } from '../src/logging/FlushScheduler';
 import { Logger } from '../src/logging/Logger';
 import type { Attributes, Config, Framework, SdkInfo } from '../src/types';
+import { FakeApi } from './helpers/FakeApi';
 
 function makeConfig(overrides: Partial<Config> = {}): Config {
     return {
@@ -78,5 +79,53 @@ describe('Logger record/buffer', () => {
         const logger = makeLogger(makeConfig({ key: null, maxLogBufferSize: 3, logFlushIntervalMs: 999_999 }));
         for (let i = 0; i < 10; i++) logger.info(`m${i}`);
         expect(logger.bufferLength()).toBe(3);
+    });
+});
+
+describe('Logger flush', () => {
+    it('sends a buffered log to /v1/logs with the key', () => {
+        const api = new FakeApi();
+        const logger = makeLogger(makeConfig({ logFlushIntervalMs: 999_999 }), api);
+        logger.info('hello');
+        logger.flush();
+        expect(api.logEnvelopes).toHaveLength(1);
+        expect(api.lastLogUrl).toBe('https://ingress.test/v1/logs');
+        expect(api.lastLogKey).toBe('KEY');
+        const rec = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords[0];
+        expect(rec.body).toEqual({ stringValue: 'hello' });
+    });
+
+    it('does not send when there is no key, but retains the buffer', () => {
+        const api = new FakeApi();
+        const logger = makeLogger(makeConfig({ key: null, logFlushIntervalMs: 999_999 }), api);
+        logger.info('hello');
+        logger.flush();
+        expect(api.logEnvelopes).toHaveLength(0);
+        expect(logger.bufferLength()).toBe(1);
+    });
+
+    it('emits identity resource attributes', () => {
+        const api = new FakeApi();
+        const logger = makeLogger(
+            makeConfig({ serviceName: 'svc', version: '1.2.3', logFlushIntervalMs: 999_999 }),
+            api,
+        );
+        logger.info('hello');
+        logger.flush();
+        const attrs = api.logEnvelopes[0].resourceLogs[0].resource.attributes;
+        const byKey = Object.fromEntries(attrs.map((a) => [a.key, a.value]));
+        expect(byKey['service.name']).toEqual({ stringValue: 'svc' });
+        expect(byKey['service.version']).toEqual({ stringValue: '1.2.3' });
+        expect(byKey['telemetry.sdk.name']).toEqual({ stringValue: '@flareapp/core' });
+    });
+
+    it('clears the buffer on clear()', () => {
+        const api = new FakeApi();
+        const logger = makeLogger(makeConfig({ logFlushIntervalMs: 999_999 }), api);
+        logger.info('hello');
+        logger.clear();
+        expect(logger.bufferLength()).toBe(0);
+        logger.flush();
+        expect(api.logEnvelopes).toHaveLength(0);
     });
 });
