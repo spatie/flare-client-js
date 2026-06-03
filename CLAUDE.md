@@ -49,7 +49,7 @@ package, and a Playwright-based e2e suite:
 
 - **Language:** TypeScript 5.7, target ES2022, strict mode
 - **Build:** tsdown (outputs CJS + ESM + .d.ts declarations)
-- **Test:** Vitest (tests only in `packages/js/tests/`)
+- **Test:** Vitest, per-package suites in `packages/<pkg>/tests/` (each package has its own `vitest.config.ts`)
 - **Linting:** oxlint (per-package configs extending root `.oxlintrc.json`)
 - **Formatting:** oxfmt (config in `.oxfmtrc.json`, replaces Prettier)
 - **Git hooks:** Husky + lint-staged (pre-commit runs oxlint --fix + oxfmt)
@@ -84,13 +84,19 @@ npm run playgrounds:svelte # Boot the SvelteKit playground on http://localhost:5
 
 ## Tests
 
-All tests are in `packages/js/tests/`:
+Tests live next to the code they cover, in each package's own `tests/` dir. Put a test where its behavior
+lives, not all in one package.
 
-- `configure.test.ts`, `context.test.ts`, `glows.test.ts`, `hooks.test.ts`
-- `light.test.ts`, `report.test.ts`, `solutions.test.ts`
-- `helpers/FakeApi.ts` — Test helper for mocking the API
+- `packages/core/tests/` — the bulk (~22 files): buffer/report/context/encoding/flush logic, plus
+  `helpers/FakeApi.ts` (the shared API mock).
+- `packages/js/tests/` — browser-specific (window listeners, fetch reader, browser context). Has its own
+  `helpers/FakeApi.ts`.
+- `packages/node/tests/` — Node-specific (~16 files): async-scope provider, fatal handlers, lifecycle,
+  disk file reader, Node context.
+- `packages/{react,vue,svelte}/tests/` — framework integration tests.
 
-Run tests: `npm run test` from root, or `npx vitest run` from `packages/js`.
+Run tests: `npm run test` from root (runs every workspace's suite), or `npx vitest run` from a single
+`packages/<pkg>`.
 
 ## Playgrounds
 
