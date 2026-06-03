@@ -1,11 +1,16 @@
 export type {
+    AnyValue,
     AttributeValue,
     Attributes,
+    BufferedLog,
     Config,
     EntryPointHandler,
     Framework,
     Glow,
+    KeyValue,
+    LogsEnvelope,
     MessageLevel,
+    OtelLogRecord,
     OverriddenGrouping,
     Report,
     SdkInfo,
@@ -33,6 +38,9 @@ export type { ContextCollector } from './Flare';
 
 export { Scope, GlobalScopeProvider } from './Scope';
 export type { ScopeProvider } from './Scope';
+
+export { Logger, NoopFlushScheduler } from './logging';
+export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
 export type { FileReader } from './stacktrace/fileReader';
