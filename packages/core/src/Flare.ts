@@ -1,5 +1,7 @@
 import { Api } from './api';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
+import { Logger, partitionAttributes } from './logging';
+import { FlushScheduler, NoopFlushScheduler } from './logging';
 import { GlobalScopeProvider, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
@@ -23,6 +25,8 @@ const DEFAULT_SDK_NAME = '@flareapp/core';
 
 export class Flare {
     private inflight = new Set<Promise<void>>();
+
+    private _logger!: Logger;
 
     private _config: Config = {
         key: null,
@@ -66,7 +70,18 @@ export class Flare {
         private contextCollector: ContextCollector = () => ({}),
         private fileReader: FileReader = new NullFileReader(),
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
-    ) {}
+        scheduler: FlushScheduler = new NoopFlushScheduler(),
+    ) {
+        this._logger = new Logger({
+            api: this.api,
+            getConfig: () => this._config,
+            getSdkInfo: () => this.sdkInfo,
+            getFramework: () => this.framework,
+            buildLogAttributes: (userAttributes) => this.buildLogAttributes(userAttributes),
+            track: (p) => this.track(p),
+            scheduler,
+        });
+    }
 
     /**
      * Register an in-flight report so `flush()` can wait for it. Called by
@@ -209,6 +224,7 @@ export class Flare {
      *     again if you need to wait for those too.
      */
     flush(timeoutMs = 2000): Promise<void> {
+        this._logger.flush();
         const pending = [...this.inflight];
         if (pending.length === 0) return Promise.resolve();
         return new Promise<void>((resolve) => {
@@ -228,15 +244,22 @@ export class Flare {
         return this.scopeProvider.active().glows;
     }
 
+    get logger(): Logger {
+        return this._logger;
+    }
+
     light(key: string = KEY, debug?: boolean): this {
         this._config.key = key;
         if (debug !== undefined) {
             this._config.debug = debug;
         }
+        this._logger.flush();
         return this;
     }
 
     configure(config: Partial<Config>): this {
+        const wasLogsEnabled = this._config.enableLogs;
+
         this._config = { ...this._config, ...config };
 
         if (config.sampleRate !== undefined) {
@@ -247,6 +270,13 @@ export class Flare {
             config.urlDenylist,
             config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
         );
+
+        if (wasLogsEnabled && this._config.enableLogs === false) {
+            this._logger.clear();
+        }
+        if (config.key !== undefined) {
+            this._logger.flush();
+        }
 
         return this;
     }
@@ -419,65 +449,44 @@ export class Flare {
         });
     }
 
-    private buildReport(input: {
-        exceptionClass: string;
-        message: string;
-        stacktrace: Report['stacktrace'];
-        isLog: boolean;
-        level: MessageLevel | undefined;
-        extraAttributes: Attributes;
-        code: string | undefined;
-        seenAtUnixNano: number;
-    }): Report {
+    private assembleAttributes(
+        collectorAttributes: Attributes,
+        extraAttributes: Attributes,
+        includeBase: boolean,
+    ): Attributes {
         const activeScope = this.scopeProvider.active();
 
-        const baseAttributes: Attributes = {
-            'telemetry.sdk.language': 'javascript',
-            'telemetry.sdk.name': this.sdkInfo.name,
-            'telemetry.sdk.version': this.sdkInfo.version,
-            'flare.language.name': 'javascript',
-        };
+        const baseAttributes: Attributes = includeBase
+            ? {
+                  'telemetry.sdk.language': 'javascript',
+                  'telemetry.sdk.name': this.sdkInfo.name,
+                  'telemetry.sdk.version': this.sdkInfo.version,
+                  'flare.language.name': 'javascript',
+              }
+            : {};
 
-        if (this._config.stage) {
-            baseAttributes['service.stage'] = this._config.stage;
-        }
-        if (this._config.version) {
-            baseAttributes['service.version'] = this._config.version;
-        }
-        if (this.framework?.name) {
-            baseAttributes['flare.framework.name'] = this.framework.name;
-        }
-        if (this.framework?.version) {
-            baseAttributes['flare.framework.version'] = this.framework.version;
-        }
+        if (includeBase && this._config.stage) baseAttributes['service.stage'] = this._config.stage;
+        if (includeBase && this._config.version) baseAttributes['service.version'] = this._config.version;
+        if (includeBase && this.framework?.name) baseAttributes['flare.framework.name'] = this.framework.name;
+        if (includeBase && this.framework?.version) baseAttributes['flare.framework.version'] = this.framework.version;
 
-        // Scope entryPoint overrides are applied after the context collector so that
-        // explicitly set values (via setEntryPoint) win over collector-provided defaults.
         const entryPoint = activeScope.entryPoint;
         const entryPointOverrides: Attributes = {};
-        if (entryPoint?.identifier !== undefined) {
+        if (entryPoint?.identifier !== undefined)
             entryPointOverrides['flare.entry_point.handler.identifier'] = entryPoint.identifier;
-        }
-        if (entryPoint?.type !== undefined) {
-            entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
-        }
-        if (entryPoint?.name !== undefined) {
-            entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
-        }
+        if (entryPoint?.type !== undefined) entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
+        if (entryPoint?.name !== undefined) entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
 
         const attributes: Attributes = {
             ...baseAttributes,
-            ...this.contextCollector(this._config),
+            ...collectorAttributes,
             ...entryPointOverrides,
             ...activeScope.pendingAttributes,
-            ...input.extraAttributes,
+            ...extraAttributes,
         };
 
-        // Merge `context.custom` from extraAttributes into pendingAttributes' value
-        // instead of overwriting, so framework adapters can attach custom context
-        // without clobbering user-set context from addContext().
         const pendingCustom = activeScope.pendingAttributes['context.custom'];
-        const extraCustom = input.extraAttributes['context.custom'];
+        const extraCustom = extraAttributes['context.custom'];
         if (
             pendingCustom &&
             extraCustom &&
@@ -492,13 +501,34 @@ export class Flare {
             };
         }
 
-        // Emit context.custom.framework from instance state so it is present even
-        // inside a fresh request scope (where pendingAttributes starts empty).
-        // This mirrors the pre-refactor behavior: setFramework always set framework.
         if (this.framework?.name) {
             const existing = (attributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
             attributes['context.custom'] = { ...existing, framework: this.framework.name.toLowerCase() };
         }
+
+        return attributes;
+    }
+
+    private buildLogAttributes(userAttributes: Attributes): { record: Attributes; resource: Attributes } {
+        const { resource, record: collectorRecord } = partitionAttributes(this.contextCollector(this._config));
+        return {
+            resource,
+            record: this.assembleAttributes(collectorRecord, userAttributes, false),
+        };
+    }
+
+    private buildReport(input: {
+        exceptionClass: string;
+        message: string;
+        stacktrace: Report['stacktrace'];
+        isLog: boolean;
+        level: MessageLevel | undefined;
+        extraAttributes: Attributes;
+        code: string | undefined;
+        seenAtUnixNano: number;
+    }): Report {
+        const activeScope = this.scopeProvider.active();
+        const attributes = this.assembleAttributes(this.contextCollector(this._config), input.extraAttributes, true);
 
         // seenAtUnixNano: real nanoseconds. Date.now() * 1_000_000 exceeds Number.MAX_SAFE_INTEGER
         // by ~3 bits (~256 ns of drift), but browser clocks are millisecond-precision so the lost
