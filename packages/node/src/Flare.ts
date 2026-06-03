@@ -3,6 +3,7 @@ import { Api, Flare as CoreFlare } from '@flareapp/core';
 import { DEFAULT_BODY_CONTENT_TYPES, DEFAULT_BODY_KEY_DENYLIST } from './context/body';
 import { makeNodeContextCollector } from './context/collectNode';
 import { DEFAULT_HEADER_DENYLIST, resolveHeaderDenylist } from './context/headers';
+import { NodeFlushScheduler } from './logging/NodeFlushScheduler';
 import { buildFatalCallbacks } from './process/fatal';
 import { ProcessHandlerManager } from './process/handlers';
 import { AsyncLocalStorageScopeProvider } from './scope/AsyncLocalStorageScopeProvider';
@@ -76,7 +77,7 @@ export class NodeFlare extends CoreFlare {
         // value) so subsequent `configureNode(...)` calls take effect on
         // future reports without reinjecting the collector.
         const collector = makeNodeContextCollector(scopeProvider, () => this.nodeOptions);
-        super(new Api(), collector, new DiskFileReader(), scopeProvider);
+        super(new Api(), collector, new DiskFileReader(), scopeProvider, new NodeFlushScheduler());
         this.nodeScopeProvider = scopeProvider;
         this.setSdkInfo({ name: NODE_SDK_NAME, version: NODE_SDK_VERSION });
 
