@@ -173,14 +173,24 @@ when it is false (nothing buffered), and `flush()` returns early when it is fals
 `configure({ enableLogs: false })` before the timer fires (or before `light(key)`)
 gets **no log traffic**, which is the intuitive meaning of "disable logging."
 
-The disable transition also **clears the buffer**: when `configure(...)` flips
-`enableLogs` from true to false, the `Logger` drops its buffered records (the same
-`clearGlows`-style reset). Rationale: a disabled logger that silently retained a
+The disable transition also **clears the buffer AND the timer**: when
+`configure(...)` flips `enableLogs` from true to false, the `Logger` drops its
+buffered records (the same `clearGlows`-style reset) AND clears any pending
+`setTimeout` plus resets the timer-active flag. Clearing the timer flag is not
+optional bookkeeping: if a timer is active when logs are disabled and logs are
+later re-enabled, a stale `isTimerActive === true` would make the next `record()`
+believe a flush is already scheduled and never arm a new one, so the buffer would
+sit until a count/weight trigger or manual flush. Resetting the flag on disable
+means the first `record()` after re-enable arms a fresh timer normally.
+
+Rationale for clearing the buffer: a disabled logger that silently retained a
 backlog would either leak it on a later re-enable (surprising) or pin memory
 indefinitely. Clear-on-disable makes "off" mean off. Re-enabling starts a fresh
-buffer; it does not resurrect pre-disable records. A test covers: buffer while
+buffer; it does not resurrect pre-disable records. Tests cover: (1) buffer while
 enabled, `configure({ enableLogs: false })`, assert no `api.logs` call on any
-subsequent flush path and the buffer is empty.
+subsequent flush path and the buffer is empty; (2) timer active, disable,
+re-enable, `record()`, assert a timer flush still fires (the flag was not left
+stuck).
 
 ### Resource vs record attributes
 
@@ -293,6 +303,14 @@ Auto-flush triggers (core-owned policy):
   bounded at the interval. Call `timer.unref?.()` so Node is not held open;
   harmless no-op in the browser.
 
+Byte accounting: these triggers and the buffer trim use a **cheap estimate**
+(e.g. summed per-record sizes) — they are soft heuristics, so an approximation is
+fine and avoids re-serializing the whole buffer on every `record()`. The
+**keepalive teardown cap is the exception**: it is a hard, browser-enforced limit,
+so it is checked against the **actual serialized body bytes**
+(`TextEncoder().encode(flatJsonStringify(envelope)).length`, see "Teardown
+flush"), not the estimate.
+
 `flush(opts?: { keepalive?: boolean })`:
 
 - Empty buffer -> no-op.
@@ -330,19 +348,24 @@ when no key was actually provided is a cheap no-op.
       is the **combined** limit across all in-flight keepalive requests, not
       per-request — so this is NOT chunked into several keepalive POSTs (two 60 KB
       keepalive POSTs sum to 120 KB and the browser rejects them). Send **one**
-      keepalive envelope, packing records **newest-first** while the running total
-      stays under `keepaliveMaxBytes`. A record that does not fit the remaining
-      budget is **skipped** (left behind, dropped on unload, logged when `debug`)
-      and packing continues with the next-older record — so one large record does
-      not block smaller ones from shipping. This also covers the single-record
-      case the `logFlushMaxBytes` capture guard does not: a record between
-      `keepaliveMaxBytes` and `logFlushMaxBytes` (e.g. 100 KB) is valid for a
-      normal flush but cannot fit a 60 KB unload envelope, so on teardown it is
-      skipped/dropped. Forcing a normal (non-keepalive) flush at unload is not an
-      option — the browser aborts it. Unload is best-effort, and the steady-state
-      timer/count flushes keep the buffer small (and ship the 100 KB record long
-      before unload in practice), so this drop is the rare tail case. See "Why
-      `keepalive`".
+      keepalive envelope, packing records **newest-first**. The budget is measured
+      on the **actual serialized body**, not summed per-record estimates:
+      `TextEncoder().encode(flatJsonStringify(envelope)).length <= keepaliveMaxBytes`.
+      This matters because the envelope wrapper (`resourceLogs` / `resource` /
+      `scopeLogs` overhead) and JSON escaping add bytes that per-record estimates
+      miss; the browser cap is on the real body, so the gate must be too. Build up
+      the envelope newest-first and back off when adding the next record would push
+      the serialized body over the cap. A record that does not fit is **skipped**
+      (left behind, dropped on unload, logged when `debug`) and packing continues
+      with the next-older record — so one large record does not block smaller ones.
+      This also covers the single-record case the `logFlushMaxBytes` capture guard
+      does not: a record between `keepaliveMaxBytes` and `logFlushMaxBytes` (e.g.
+      100 KB) is valid for a normal flush but cannot fit a 60 KB unload envelope,
+      so on teardown it is skipped/dropped. Forcing a normal (non-keepalive) flush
+      at unload is not an option — the browser aborts it. Unload is best-effort,
+      and the steady-state timer/count flushes keep the buffer small (and ship the
+      100 KB record long before unload in practice), so this drop is the rare tail
+      case. See "Why `keepalive`".
 - For each envelope, call `api.logs(envelope, …, opts?.keepalive)` and pass the
   returned promise to the injected `track` callback (below), which registers it
   in `Flare`'s `inflight` set. `flush()` itself does **not** await the HTTP
@@ -484,6 +507,21 @@ therefore **recursive and applied at every level**, not just the top:
   (so `[1, null, 2]` -> two values, not a value-with-null hole).
 - `kvlistValue.values`: encode each entry, drop keys whose value encodes to
   `null`.
+
+**Cycle safety.** `valueToOpenTelemetry` recurses into arrays and plain objects,
+so a cyclic attribute value (a realistic case — user context can hold Vue/React
+instances or self-referential objects) would infinite-loop and stack-overflow
+**inside the encoder**, before the value ever reaches `flatJsonStringify`. The
+existing `flatJsonStringify` decycles (`flatJsonStringify.ts:1`), but only at
+serialize time — and the encoder runs first, transforming attributes into the
+OTel `keyValue` shape, so that decycle is too late. The encoder must do its own
+cycle detection, mirroring `decycle`'s approach: track ancestors on the current
+branch with a `WeakSet` (add on enter, remove on exit — a branch-local path set,
+not a global "seen" set, so the same object referenced twice in sibling branches
+is not falsely flagged), and replace a back-edge with the same `'[Circular]'`
+sentinel `flatJsonStringify` uses, encoded as `{ stringValue: '[Circular]' }`. A
+test asserts a self-referential object attribute encodes with `'[Circular]'` and
+does not throw.
 
 This diverges intentionally from PHP, which only `array_filter`s the top level
 and would emit nested-null holes; the recursive drop keeps every emitted
@@ -670,6 +708,13 @@ flush policy):
 - Non-finite numbers: `NaN` / `Infinity` / `-Infinity` attribute values are
   dropped (never emitted as `{ doubleValue: null }`); a real-number sibling in the
   same object/array survives.
+- Cyclic attribute: a self-referential object value encodes with a `'[Circular]'`
+  sentinel and does not throw / stack-overflow.
+- Keepalive boundary: a teardown envelope whose **serialized** body (envelope
+  overhead + escaping included) would exceed `keepaliveMaxBytes` packs fewer
+  records so the actual `TextEncoder` byte length stays `<= keepaliveMaxBytes`.
+- Disable clears the timer: timer active, `configure({ enableLogs: false })`, then
+  re-enable and `record()`; a timer flush still fires (flag not left stuck).
 - Resource/record partition default: an unknown key (no resource prefix) lands at
   record level; `enduser.*` / `client.address` / `user_agent.original` are
   record-level (verified against real collector keys, not the dead `user.*`).
@@ -719,10 +764,15 @@ New in `@flareapp/core`:
   after applying the key, when the buffer is non-empty, so a backlog buffered
   before authentication ships as soon as a key arrives
 - `configure(...)` detects an `enableLogs` true->false transition and clears the
-  log buffer (disable semantics)
+  log buffer **and the timer** (disable semantics)
 - the OTel encoder mirrors `flatJsonStringify`'s `JSON.stringify` reality: drop
-  non-finite numbers BEFORE choosing `intValue`/`doubleValue`, so no
-  `{ doubleValue: null }` reaches the wire
+  non-finite numbers BEFORE choosing `intValue`/`doubleValue` (so no
+  `{ doubleValue: null }` reaches the wire), and carry its own branch-local
+  `WeakSet` cycle detection (the `flatJsonStringify` decycle runs too late — the
+  encoder recurses first)
+- keepalive teardown packing measures the **actual** serialized body
+  (`TextEncoder().encode(flatJsonStringify(envelope)).length`) against
+  `keepaliveMaxBytes`, not summed estimates
 
 New in `@flareapp/js`:
 
