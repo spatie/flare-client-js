@@ -120,7 +120,28 @@ default like `"unknown"` would just be noise in the Flare UI.
 4. Build a `LogRecord` (timestamp now, severityNumber + severityText, body,
    record-level attributes), push to the buffer; stash the partitioned
    resource-level attributes for the envelope.
-5. Evaluate auto-flush triggers (below).
+5. **Trim the buffer** (below) — an unconditional bound, independent of whether a
+   flush happens.
+6. Evaluate auto-flush triggers (below).
+
+### Buffer trim (hard bound)
+
+`maxLogBufferSize` and `logFlushMaxBytes` are _flush triggers_, but a trigger that
+fires a flush which then no-ops (the key gate fails, no API key yet) would leave
+the buffer growing without bound — exactly the keyless-retention case. So the
+buffer also has an **independent trim**, applied on every `record()` push
+regardless of flush outcome, the same shape as the glow cap
+(`Scope.addGlow` → `slice(length - max)`):
+
+- Drop oldest records until the buffer holds `<= maxLogBufferSize` records, AND
+- Drop oldest records until the estimated buffer bytes are `<= logFlushMaxBytes`.
+
+Trailing records (the most recent) are kept, matching glows and the teardown
+behavior. With a key present this trim almost never bites, because the count /
+weight triggers flush-and-clear first; with no key (or repeated send failure) the
+trim is what guarantees the buffer is bounded. Dropped-on-trim records are lost
+(logged when `debug`); this is the intended back-pressure for "logging enabled
+but never authenticated."
 
 ### Resource vs record attributes
 
@@ -211,13 +232,21 @@ Auto-flush triggers (core-owned policy):
   (`Flare.ts:527`), but for reports a dropped report is gone; logs are buffered,
   so the records must **survive** until `light()` sets a key — clearing here
   would silently destroy them. Resetting only the timer flag lets the next
-  `record()` re-arm a fresh timer, so once a key exists the buffered logs ship on
-  the following flush. The buffer stays capped by `maxLogBufferSize` (oldest
-  dropped), so a key that never arrives cannot grow it unbounded. Applies to
-  every flush path — manual `flush()`, timer, count/weight auto-flush, and the
+  `record()` re-arm a fresh timer. The buffer cannot grow unbounded while keyless
+  because the per-`record()` trim (above) still applies. Applies to every flush
+  path — manual `flush()`, timer, count/weight auto-flush, and the
   unload/`beforeExit` teardown — so none can emit an unauthenticated `api.logs`
   POST. (`assertKey` only warns when `debug`, so the periodic timer re-check is
   quiet in production.)
+
+The backlog ships when the key is set, not only on the next `record()`:
+`Flare.light(...)` (and `configure(...)` when it sets a key) calls
+`logger.flush()` after applying the key, **if** the buffer is non-empty. Without
+this, a keyless timer flush followed by `light(key)` with no further logging
+would leave the buffered records sitting until the next manual flush or
+unload/`beforeExit`. The post-`light` flush is itself key-gated, so calling it
+when no key was actually provided is a cheap no-op.
+
 - Otherwise (key present): clear the timer / active flag.
 - Build the envelope(s) and snapshot-and-clear the buffer:
     - Normal flush (`keepalive` falsy): a single envelope with all buffered
@@ -475,8 +504,13 @@ flush policy):
 
 - Opt-in gating: nothing recorded/sent when `enableLogs` is false.
 - Key gate: `enableLogs: true` + `key: null` records into the buffer but no flush
-  path (manual, timer, count, unload) calls `api.logs`; buffer is retained; after
-  `light(key)` the next flush ships the previously buffered logs.
+  path (manual, timer, count, unload) calls `api.logs`; buffer is retained.
+- Keyless backlog ships on `light(key)`: record several logs with no key (no
+  send), call `light(key)` with **no further `record()`**, assert the buffered
+  logs are flushed.
+- Keyless trim bound: with `enableLogs: true` + `key: null`, recording far more
+  than `maxLogBufferSize` keeps the buffer at the cap (oldest dropped), does not
+  grow unbounded.
 - `minimumLogLevel` drops below-threshold records at capture.
 - Count-cap flush at `maxLogBufferSize`.
 - Weight-cap flush at `logFlushMaxBytes`.
@@ -536,6 +570,9 @@ New in `@flareapp/core`:
 - `Logger` wired into `Flare`: new constructor seam `flushScheduler`; `Logger`
   reads SDK/framework lazily (getters into `Flare`), so `setSdkInfo` /
   `setFramework` after `super(...)` are reflected at flush time
+- `Flare.light(...)` (and `configure(...)` when it sets a key) calls
+  `logger.flush()` after applying the key, when the buffer is non-empty, so a
+  backlog buffered before authentication ships as soon as a key arrives
 
 New in `@flareapp/js`:
 
