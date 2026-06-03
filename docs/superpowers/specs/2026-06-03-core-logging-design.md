@@ -88,7 +88,7 @@ flare.flush(timeoutMs?)   // now also drains the log buffer
 | `maxLogBufferSize`   | `number`        | `100`                                 | Flush when buffer reaches this count.                                         |
 | `logFlushIntervalMs` | `number`        | `5000`                                | One-shot timer flush interval.                                                |
 | `logFlushMaxBytes`   | `number`        | `800_000`                             | Flush when estimated buffer bytes reach this.                                 |
-| `keepaliveMaxBytes`  | `number`        | `60_000`                              | Max estimated bytes per teardown (keepalive) envelope chunk.                  |
+| `keepaliveMaxBytes`  | `number`        | `60_000`                              | Combined keepalive budget; the single teardown envelope stays under this.     |
 
 `service.name` has no current source in core config (reports do not emit it and
 are accepted, so the ingest does not require it). It is added here as an
@@ -350,6 +350,14 @@ logs would be lost.
 completion in the background even after the page is gone. It is the modern
 replacement for `navigator.sendBeacon()` and lets us reuse the same `fetch`
 transport instead of a second code path.
+
+Why not `navigator.sendBeacon()`: it **cannot set custom request headers**, and
+the logs ingest authenticates via the `x-api-token` header. No header means no
+auth (401), so sendBeacon cannot deliver an authenticated log POST at all. It
+also shares the same ~64 KB queued-data limit and gives no access to the
+response. MDN steers callers who "need to change any request properties" to
+`fetch` with `keepalive` for exactly this reason; this is also why Sentry's SDK
+uses `fetch` keepalive rather than sendBeacon. Decision: keepalive, not beacon.
 
 Constraints, all browser-enforced and browser-only:
 
