@@ -205,7 +205,20 @@ Auto-flush triggers (core-owned policy):
 `flush(opts?: { keepalive?: boolean })`:
 
 - Empty buffer -> no-op.
-- Clear the timer / active flag.
+- **Key gate:** if `assertKey(config.key, config.debug)` is false (no API key
+  set yet), reset the timer-active flag (the one-shot has fired) but **leave the
+  buffer intact**, then return. This mirrors `sendReport`'s `assertKey` guard
+  (`Flare.ts:527`), but for reports a dropped report is gone; logs are buffered,
+  so the records must **survive** until `light()` sets a key — clearing here
+  would silently destroy them. Resetting only the timer flag lets the next
+  `record()` re-arm a fresh timer, so once a key exists the buffered logs ship on
+  the following flush. The buffer stays capped by `maxLogBufferSize` (oldest
+  dropped), so a key that never arrives cannot grow it unbounded. Applies to
+  every flush path — manual `flush()`, timer, count/weight auto-flush, and the
+  unload/`beforeExit` teardown — so none can emit an unauthenticated `api.logs`
+  POST. (`assertKey` only warns when `debug`, so the periodic timer re-check is
+  quiet in production.)
+- Otherwise (key present): clear the timer / active flag.
 - Build the envelope(s) and snapshot-and-clear the buffer:
     - Normal flush (`keepalive` falsy): a single envelope with all buffered
       records. The buffer is already bounded by `logFlushMaxBytes` (~0.8 MB), fine
@@ -461,6 +474,9 @@ in `packages/js`.
 flush policy):
 
 - Opt-in gating: nothing recorded/sent when `enableLogs` is false.
+- Key gate: `enableLogs: true` + `key: null` records into the buffer but no flush
+  path (manual, timer, count, unload) calls `api.logs`; buffer is retained; after
+  `light(key)` the next flush ships the previously buffered logs.
 - `minimumLogLevel` drops below-threshold records at capture.
 - Count-cap flush at `maxLogBufferSize`.
 - Weight-cap flush at `logFlushMaxBytes`.
