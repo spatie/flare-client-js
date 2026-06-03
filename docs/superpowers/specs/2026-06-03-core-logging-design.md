@@ -215,6 +215,16 @@ mis-placing a request key on the resource corrupts batched envelopes).
 
 - Resource-level prefixes (the allowlist): `service.`, `telemetry.`, `host.`,
   `os.`, `process.`, `flare.framework.`, `flare.language.`.
+- Record-level exceptions that override the allowlist: `process.uptime`. The Node
+  collector emits `process.uptime` (`process.ts:19`) as a **changing** per-capture
+  value, deliberately re-read each time. Promoting it to the shared resource would
+  tag every batched record with the flush-time uptime, not each record's
+  capture-time uptime — breaking the resource-static assumption. So `process.uptime`
+  is kept record-level despite the `process.` prefix (PHP's resource process data
+  is stable identity — pid / executable / command / owner — and excludes uptime;
+  this keeps the JS resource equally stable). The partition is therefore
+  "resource-prefix allowlist MINUS an explicit record-level exception set, then
+  everything else record-level."
 - Everything else → record-level. The keys the collectors actually emit that fall
   here, verified against source: `http.*`, `url.*`, `enduser.*`, `client.address`
   (`collectNode.ts:104-111` — note it is `enduser.*` / `client.address`, NOT
@@ -231,8 +241,10 @@ collector emits `flare.entry_point.type` / `.value`, and `buildReport`'s
 entry-point overrides emit `flare.entry_point.handler.*`; different sub-keys,
 both kept.
 
-Process/host are instance-static, so merging them into the one resource (last
-write wins across records) dedupes them correctly. This dedupe is only valid for
+Process/host identity (pid, runtime, hostname, arch, os) are instance-static, so
+merging them into the one resource (last write wins across records) dedupes them
+correctly. The one non-static `process.*` key, `process.uptime`, is excluded from
+the resource (kept record-level, above), so the dedupe is only applied to genuinely
 **instance-static** attributes; see the resource-static assumption under "Resource
 assembly".
 
