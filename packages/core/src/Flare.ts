@@ -38,6 +38,12 @@ export class Flare {
         sampleRate: 1,
         beforeEvaluate: (error) => error,
         beforeSubmit: (report) => report,
+        enableLogs: false,
+        logsIngestUrl: 'https://ingress.flareapp.io/v1/logs',
+        maxLogBufferSize: 100,
+        logFlushIntervalMs: 5000,
+        logFlushMaxBytes: 800_000,
+        keepaliveMaxBytes: 60_000,
     };
 
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };

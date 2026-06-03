@@ -16,6 +16,14 @@ export type Config = {
     urlDenylist: RegExp;
     replaceDefaultUrlDenylist: boolean;
     sampleRate: number;
+    enableLogs: boolean;
+    logsIngestUrl: string;
+    minimumLogLevel?: MessageLevel;
+    serviceName?: string;
+    maxLogBufferSize: number;
+    logFlushIntervalMs: number;
+    logFlushMaxBytes: number;
+    keepaliveMaxBytes: number;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };
@@ -79,3 +87,52 @@ export type EntryPointHandler = {
 export type SdkInfo = { name: string; version: string };
 
 export type Framework = { name: string; version?: string };
+
+// --- Logging ---
+
+export type AnyValue =
+    | { stringValue: string }
+    | { boolValue: boolean }
+    | { intValue: number }
+    | { doubleValue: number }
+    | { arrayValue: { values: AnyValue[] } }
+    | { kvlistValue: { values: KeyValue[] } };
+
+export type KeyValue = { key: string; value: AnyValue };
+
+export type OtelResource = { attributes: KeyValue[]; droppedAttributesCount: number };
+
+export type OtelScope = {
+    name: string;
+    version: string;
+    attributes: KeyValue[];
+    droppedAttributesCount: number;
+};
+
+export type OtelLogRecord = {
+    timeUnixNano: string;
+    observedTimeUnixNano: string;
+    severityNumber: number;
+    severityText: string;
+    body: AnyValue;
+    attributes: KeyValue[];
+    flags: number;
+    droppedAttributesCount: number;
+};
+
+export type LogsEnvelope = {
+    resourceLogs: Array<{
+        resource: OtelResource;
+        scopeLogs: Array<{ scope: OtelScope; logRecords: OtelLogRecord[] }>;
+    }>;
+};
+
+// Internal buffered shape (pre-encoding).
+export type BufferedLog = {
+    timeUnixNano: string;
+    severityNumber: number;
+    severityText: string;
+    message: string;
+    recordAttributes: Attributes;
+    resourceAttributes: Attributes;
+};
