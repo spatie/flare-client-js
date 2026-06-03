@@ -39,6 +39,10 @@ test.describe('js logging', () => {
         // Record a log; it is buffered (timer is 5s), not yet sent.
         await page.getByTestId('trigger-log').click();
 
+        // The log is buffered (5s timer), NOT sent on click. Prove it before unload.
+        await page.waitForTimeout(300);
+        expect(await fakeFlare.logs()).toHaveLength(0);
+
         // Navigate away with no prior flush — fires visibilitychange:hidden and the
         // BrowserFlushScheduler does a keepalive POST that must survive unload.
         await page.goto('about:blank');

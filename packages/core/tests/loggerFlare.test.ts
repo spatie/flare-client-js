@@ -104,4 +104,22 @@ describe('Flare logging integration', () => {
         expect(customOf(0)).toEqual({ stringValue: 'v1' });
         expect(customOf(1)).toEqual({ stringValue: 'v2' });
     });
+
+    it('freezes nested attribute values at capture (mutation after info() does not change the buffered log)', () => {
+        const api = new FakeApi();
+        const flare = new Flare(api);
+        flare.light('KEY');
+        flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
+
+        const nested = { count: 1 };
+        flare.logger.info('x', { 'context.scenario': nested });
+        nested.count = 999; // mutate AFTER capture, BEFORE flush
+        flare.logger.flush();
+
+        const attrs = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords[0].attributes;
+        const scenario = attrs.find((a) => a.key === 'context.scenario');
+        // must still reflect the value at capture time (1), not the mutated 999
+        expect(JSON.stringify(scenario?.value)).toContain('1');
+        expect(JSON.stringify(scenario?.value)).not.toContain('999');
+    });
 });

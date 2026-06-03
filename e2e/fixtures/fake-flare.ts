@@ -66,6 +66,7 @@ const waitForLog = async (options: WaitOptions = {}): Promise<FakeFlareRecord> =
 export type FakeFlare = {
     reset: typeof reset;
     reports: () => Promise<FakeFlareRecord[]>;
+    logs: () => Promise<FakeFlareRecord[]>;
     waitForReport: typeof waitForReport;
     waitForLog: typeof waitForLog;
     assertNoReports: typeof assertNoReports;
@@ -77,6 +78,7 @@ export const test = base.extend<{ fakeFlare: FakeFlare }>({
         await use({
             reset,
             reports: async () => (await fetchReports()).filter((r) => r.endpoint === 'reports'),
+            logs: async () => (await fetchReports()).filter((r) => r.endpoint === 'logs'),
             waitForReport,
             waitForLog,
             assertNoReports,

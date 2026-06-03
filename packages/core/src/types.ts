@@ -133,6 +133,6 @@ export type BufferedLog = {
     severityNumber: number;
     severityText: string;
     message: string;
-    recordAttributes: Attributes;
+    recordAttributes: KeyValue[];
     resourceAttributes: Attributes;
 };

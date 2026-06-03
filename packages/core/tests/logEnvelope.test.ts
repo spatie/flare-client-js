@@ -8,7 +8,7 @@ const record: BufferedLog = {
     severityNumber: 9,
     severityText: 'INFO',
     message: 'hello',
-    recordAttributes: { 'http.request.method': 'GET' },
+    recordAttributes: [{ key: 'http.request.method', value: { stringValue: 'GET' } }],
     resourceAttributes: {},
 };
 

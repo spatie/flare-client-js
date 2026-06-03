@@ -28,7 +28,7 @@ export function buildLogsEnvelope(
                             severityNumber: record.severityNumber,
                             severityText: record.severityText,
                             body: { stringValue: record.message },
-                            attributes: attributesToOpenTelemetry(record.recordAttributes),
+                            attributes: record.recordAttributes,
                             flags: 0,
                             droppedAttributesCount: 0,
                         })),

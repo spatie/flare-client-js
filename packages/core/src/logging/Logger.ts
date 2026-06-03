@@ -3,6 +3,7 @@ import type { Attributes, BufferedLog, Config, Framework, LogsEnvelope, MessageL
 import { assertKey, flatJsonStringify } from '../util';
 import { buildLogsEnvelope } from './envelope';
 import type { FlushFn, FlushScheduler } from './FlushScheduler';
+import { attributesToOpenTelemetry } from './otel';
 import { isAtOrAboveMinimum, severityNumber, severityText } from './severity';
 
 export type LoggerDeps = {
@@ -71,7 +72,7 @@ export class Logger {
             severityNumber: severityNumber(level),
             severityText: severityText(level),
             message,
-            recordAttributes: record,
+            recordAttributes: attributesToOpenTelemetry(record),
             resourceAttributes: resource,
         };
 
