@@ -258,11 +258,19 @@ change an already-buffered record. Merge order, last write wins:
    `NodeScope.ts:6`, not in `pendingAttributes`). Partition its output: the
    record-level keys stay on this record; the resource-level keys are handed to
    the envelope builder (below).
-2. Active scope `pendingAttributes` (custom context from `addContext` /
+2. Entry-point overrides from `scope.entryPoint` (`flare.entry_point.handler.*`),
+   applied after the collector.
+3. Active scope `pendingAttributes` (custom context from `addContext` /
    `addContextGroup`).
-3. Entry-point overrides from `scope.entryPoint` (`flare.entry_point.handler.*`),
-   applied after the collector — matching `buildReport`'s ordering.
 4. User-passed `attributes` (highest precedence).
+
+This order matches `buildReport` exactly (`Flare.ts:462-468`: collector ->
+entry-point overrides -> pending -> extra), so pending scope attrs win over
+entry-point overrides and user/extra attrs win last. This is **intentional
+report/log parity**: a log resolves a colliding key the same way a report would.
+The shared assembly is factored into one method both `buildReport` and the log
+path call (the log path partitions only the collector output first; see "Resource
+vs record attributes").
 
 `context.custom` gets the **same special handling `buildReport` has**
 (`Flare.ts:470`), which the earlier "exactly buildReport's assembly" wording
