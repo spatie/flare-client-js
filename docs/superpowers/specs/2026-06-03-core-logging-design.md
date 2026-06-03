@@ -248,6 +248,34 @@ harmlessly. Treats `201` as success (other codes logged when `debug`).
   `visibilityState === 'hidden'`, calls `flush({ keepalive: true })`.
 - Relies on `fetch` `keepalive` for unload-time delivery (no `sendBeacon`).
 
+### Why `keepalive`
+
+Logs live in an in-memory buffer until a flush. When the user closes the tab or
+navigates away, the buffer's last flush must still go out. The browser normally
+**aborts all in-flight `fetch` requests when a page unloads**, so a flush fired
+from the `visibilitychange:hidden` handler would be cancelled mid-send and those
+logs would be lost.
+
+`fetch(url, { keepalive: true })` tells the browser to let the request run to
+completion in the background even after the page is gone. It is the modern
+replacement for `navigator.sendBeacon()` and lets us reuse the same `fetch`
+transport instead of a second code path.
+
+Constraints, all browser-enforced and browser-only:
+
+- The browser caps the combined body of all in-flight keepalive requests at
+  ~64 KB; past that it rejects the request. Sentry stops setting `keepalive`
+  above ~60 KB in-flight for this reason. Our per-flush envelopes are small
+  (capped well under the weight limit), so this is not a practical concern for
+  v1, but it is why `keepalive` is set only on the teardown flush, not on every
+  flush.
+- Only the **browser teardown flush** sets `keepalive: true`. Normal timer- and
+  count-triggered flushes run while the page is alive, where a plain `fetch` is
+  fine and not subject to the 64 KB cap.
+- In Node there is no page-unload concept, so `keepalive` is a no-op (undici
+  accepts and ignores it). Node durability comes from the `beforeExit` flush
+  plus the existing shutdown-timeout drain, not from `keepalive`.
+
 `@flareapp/node` — `NodeFlushScheduler`:
 
 - `register(flush)` adds `process.on('beforeExit', () => flush())`.
