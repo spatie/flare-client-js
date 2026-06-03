@@ -59,6 +59,9 @@ export const renderBroken: RouteHandler = (_match, root) => {
             <h1 class="text-xl font-semibold mb-2">Error playground</h1>
             <p class="text-sm opacity-70 mb-6">Each button triggers a deterministic error scenario.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${buttons}</div>
+            <button data-testid="trigger-log" class="mt-4 rounded-lg border border-surface-border bg-surface px-4 py-3 text-sm hover:border-brand">
+                Record a log
+            </button>
         </section>`,
     );
 
@@ -69,5 +72,9 @@ export const renderBroken: RouteHandler = (_match, root) => {
             if (!trigger) return;
             void trigger();
         });
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-testid="trigger-log"]')?.addEventListener('click', () => {
+        flare.logger.info('e2e-unload-log', { 'context.scenario': { source: 'logger' } });
     });
 };

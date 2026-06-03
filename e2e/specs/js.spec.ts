@@ -28,3 +28,26 @@ test.describe('js playground', () => {
         }
     });
 });
+
+test.describe('js logging', () => {
+    test('ships a buffered log on page unload (cross-origin keepalive)', async ({ page, fakeFlare }) => {
+        await fakeFlare.reset();
+
+        await page.goto('/broken');
+        await page.waitForLoadState('networkidle');
+
+        // Record a log; it is buffered (timer is 5s), not yet sent.
+        await page.getByTestId('trigger-log').click();
+
+        // Navigate away with no prior flush — fires visibilitychange:hidden and the
+        // BrowserFlushScheduler does a keepalive POST that must survive unload.
+        await page.goto('about:blank');
+
+        const log = await fakeFlare.waitForLog({
+            predicate: (r) => JSON.stringify(r.bodyJson).includes('e2e-unload-log'),
+        });
+
+        expect(log.endpoint).toBe('logs');
+        expect(log.headers['x-api-token']).toBeTruthy();
+    });
+});
