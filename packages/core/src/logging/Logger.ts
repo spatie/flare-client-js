@@ -204,12 +204,26 @@ export class Logger {
     }
 
     private estimateBytes(log: BufferedLog): number {
+        // Intentionally approximate heuristic used ONLY for the soft batching caps
+        // (logFlushMaxBytes weight-flush, oversized-record drop guard, trim loop).
+        // Two known approximations:
+        //   1. .length counts UTF-16 code units, not UTF-8 bytes — multi-byte
+        //      characters may be under- or over-counted vs the real wire size.
+        //   2. BufferedLog includes resourceAttributes, which are hoisted to the
+        //      envelope resource object and sent once per request, not per record —
+        //      so repeated resource attributes are counted once per record here.
+        // Both are acceptable: these caps are soft batching heuristics and /v1/logs
+        // has no hard per-request byte limit.  The HARD keepalive cap is measured
+        // separately with exact UTF-8 bytes in packForKeepalive(), because that one
+        // is a real browser-enforced limit (~64 KB on keepalive request bodies).
+        //
         // flatJsonStringify (not JSON.stringify) because record attributes are raw
         // user data that can contain cycles.
         return flatJsonStringify(log).length;
     }
 
     private bufferBytes(): number {
+        // Uses estimateBytes() — see its comment for the deliberate approximations.
         return this.buffer.reduce((sum, log) => sum + this.estimateBytes(log), 0);
     }
 }
