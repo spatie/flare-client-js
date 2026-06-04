@@ -17,7 +17,7 @@ export type LogScenario = {
     label: string;
     level: LogLevel;
     message: string;
-    attributes?: Record<string, LogAttributeValue>;
+    context?: Record<string, LogAttributeValue>;
     count: number;
     flushOnTrigger: boolean;
 };
@@ -47,7 +47,7 @@ export const logScenarios: LogScenario[] = [
         message: 'playground-context',
         count: 1,
         flushOnTrigger: true,
-        attributes: { 'context.scenario': { source: 'logger', userId: 'usr_42' } },
+        context: { 'context.scenario': { source: 'logger', userId: 'usr_42' } },
     },
     {
         id: 'log-burst',

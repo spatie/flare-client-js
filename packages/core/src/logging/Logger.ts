@@ -31,40 +31,45 @@ export class Logger {
         this.deps.scheduler.register(flush);
     }
 
-    debug(message: string, attributes: Attributes = {}): void {
-        this.record('debug', message, attributes);
+    debug(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('debug', message, context, attributes);
     }
-    info(message: string, attributes: Attributes = {}): void {
-        this.record('info', message, attributes);
+    info(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('info', message, context, attributes);
     }
-    notice(message: string, attributes: Attributes = {}): void {
-        this.record('notice', message, attributes);
+    notice(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('notice', message, context, attributes);
     }
-    warning(message: string, attributes: Attributes = {}): void {
-        this.record('warning', message, attributes);
+    warning(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('warning', message, context, attributes);
     }
-    error(message: string, attributes: Attributes = {}): void {
-        this.record('error', message, attributes);
+    error(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('error', message, context, attributes);
     }
-    critical(message: string, attributes: Attributes = {}): void {
-        this.record('critical', message, attributes);
+    critical(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('critical', message, context, attributes);
     }
-    alert(message: string, attributes: Attributes = {}): void {
-        this.record('alert', message, attributes);
+    alert(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('alert', message, context, attributes);
     }
-    emergency(message: string, attributes: Attributes = {}): void {
-        this.record('emergency', message, attributes);
+    emergency(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
+        this.record('emergency', message, context, attributes);
     }
 
     bufferLength(): number {
         return this.buffer.length;
     }
 
-    private record(level: MessageLevel, message: string, userAttributes: Attributes): void {
+    // Mirrors the PHP client's Logger::record(message, level, context, attributes):
+    // the everyday `context` is nested under `log.context` (rendered as the "Context"
+    // section in Flare), while `attributes` is an advanced raw passthrough spread flat
+    // onto the record (subject to the same resource/record partitioning).
+    private record(level: MessageLevel, message: string, context: Attributes, attributes: Attributes): void {
         const config = this.deps.getConfig();
         if (!config.enableLogs) return;
         if (config.minimumLogLevel && !isAtOrAboveMinimum(level, config.minimumLogLevel)) return;
 
+        const userAttributes: Attributes = { 'log.context': context, ...attributes };
         const { record, resource } = this.deps.buildLogAttributes(userAttributes);
 
         const buffered: BufferedLog = {

@@ -35,7 +35,8 @@ export const runLogScenario = async (page: Page, fakeFlare: FakeFlare, scenario:
     expect(matching[0].severityText).toBe(scenario.level.toUpperCase());
 
     if (scenario.id === 'log-context') {
-        const scope = attr(matching[0], 'context.scenario');
+        // The second argument is PHP-style context: the SDK nests it under `log.context`.
+        const scope = kv(attr(matching[0], 'log.context'), 'context.scenario');
         expect(kv(scope, 'source')?.stringValue).toBe('logger');
         expect(kv(scope, 'userId')?.stringValue).toBe('usr_42');
     }

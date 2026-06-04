@@ -10,14 +10,51 @@ describe('Flare logging integration', () => {
         flare.light('KEY');
         flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
 
-        flare.logger.info('hello', { foo: 'bar' });
+        flare.logger.info('hello');
         expect(api.logEnvelopes).toHaveLength(0);
 
         await flare.flush();
         expect(api.logEnvelopes).toHaveLength(1);
         const rec = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords[0];
         expect(rec.body).toEqual({ stringValue: 'hello' });
-        expect(rec.attributes).toContainEqual({ key: 'foo', value: { stringValue: 'bar' } });
+    });
+
+    it('nests the second argument under log.context (PHP-style context)', () => {
+        const api = new FakeApi();
+        const flare = new Flare(api);
+        flare.light('KEY');
+        flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
+
+        flare.logger.info('checkout', { cartId: 'cart_8f21', total: 49.95 });
+        flare.logger.flush();
+
+        const attrs = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords[0].attributes;
+        const ctx = attrs.find((a) => a.key === 'log.context');
+        expect(ctx).toBeDefined();
+        const keys = (ctx!.value as { kvlistValue: { values: Array<{ key: string }> } }).kvlistValue.values.map(
+            (v) => v.key,
+        );
+        expect(keys).toContain('cartId');
+        expect(keys).toContain('total');
+        // The context keys must NOT leak to the top level of the record.
+        expect(attrs.find((a) => a.key === 'cartId')).toBeUndefined();
+    });
+
+    it('passes the third argument through as raw record attributes (advanced)', () => {
+        const api = new FakeApi();
+        const flare = new Flare(api);
+        flare.light('KEY');
+        flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
+
+        flare.logger.info('msg', {}, { 'service.name': 'user-supplied' });
+        flare.logger.flush();
+
+        const rl = api.logEnvelopes[0].resourceLogs[0];
+        // raw attributes land flat on the record, with the same partitioning rules
+        expect(rl.scopeLogs[0].logRecords[0].attributes).toContainEqual({
+            key: 'service.name',
+            value: { stringValue: 'user-supplied' },
+        });
     });
 
     it('keeps a user-supplied resource-prefixed attribute on the record, not the shared resource', () => {
@@ -26,7 +63,7 @@ describe('Flare logging integration', () => {
         flare.light('KEY');
         flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
 
-        flare.logger.info('hello', { 'service.name': 'user-supplied' });
+        flare.logger.info('hello', {}, { 'service.name': 'user-supplied' });
         flare.logger.flush();
 
         const rl = api.logEnvelopes[0].resourceLogs[0];
@@ -70,7 +107,7 @@ describe('Flare logging integration', () => {
         flare.light('KEY');
         flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
         flare.addContext('fromScope', 1);
-        flare.logger.info('x', { 'context.custom': { fromUser: 2 } });
+        flare.logger.info('x', {}, { 'context.custom': { fromUser: 2 } });
         flare.logger.flush();
 
         const attrs = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords[0].attributes;
@@ -112,7 +149,7 @@ describe('Flare logging integration', () => {
         flare.configure({ enableLogs: true, logFlushIntervalMs: 999_999 });
 
         const nested = { count: 1 };
-        flare.logger.info('x', { 'context.scenario': nested });
+        flare.logger.info('x', {}, { 'context.scenario': nested });
         nested.count = 999; // mutate AFTER capture, BEFORE flush
         flare.logger.flush();
 
