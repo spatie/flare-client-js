@@ -8,11 +8,15 @@ export const initFlare = (): void => {
         flare.configure({
             ingestUrl: url,
             logsIngestUrl: url.replace('/api/reports', '/api/logs'),
-            enableLogs: true,
         });
     }
 
     flare.configure({
+        // Logging is always on in the playground so the log buttons exercise the
+        // SDK even without a fake server (manual runs POST to the default ingest
+        // and fail like the error reports do). The fake-server logsIngestUrl
+        // override above only applies under e2e (VITE_FLARE_URL set).
+        enableLogs: true,
         beforeEvaluate: (error) => {
             if (error.message === 'hook-drop-report') return null;
             return error;
