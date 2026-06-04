@@ -4,7 +4,12 @@ export const initFlareClient = (): void => {
     const url = import.meta.env.VITE_FLARE_URL;
     const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-svelte';
 
-    if (url) flare.configure({ ingestUrl: url });
+    if (url)
+        flare.configure({
+            ingestUrl: url,
+            logsIngestUrl: url.replace('/api/reports', '/api/logs'),
+            enableLogs: true,
+        });
 
     flare.configure({
         beforeEvaluate: (error) => (error.message === 'hook-drop-report' ? null : error),

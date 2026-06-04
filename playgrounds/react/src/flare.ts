@@ -5,7 +5,11 @@ export const initFlare = (): void => {
     const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-react';
 
     if (url) {
-        flare.configure({ ingestUrl: url });
+        flare.configure({
+            ingestUrl: url,
+            logsIngestUrl: url.replace('/api/reports', '/api/logs'),
+            enableLogs: true,
+        });
     }
 
     flare.configure({
