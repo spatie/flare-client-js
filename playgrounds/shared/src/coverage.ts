@@ -1,5 +1,6 @@
 import type { ErrorScenario } from './errorScenarios';
 import { errorScenarios } from './errorScenarios';
+import { logScenarios, type LogScenario } from './logScenarios';
 
 export type Framework = 'js' | 'react' | 'vue' | 'svelte';
 
@@ -15,3 +16,13 @@ export const coverageFor = (framework: Framework): ErrorScenario[] =>
 
 export const supportsScenario = (framework: Framework, scenarioId: string): boolean =>
     !exclude[framework].includes(scenarioId);
+
+const excludeLogs: Record<Framework, string[]> = {
+    js: [],
+    react: ['log-unload'],
+    vue: ['log-unload'],
+    svelte: ['log-unload'],
+};
+
+export const logCoverageFor = (framework: Framework): LogScenario[] =>
+    logScenarios.filter((s) => !excludeLogs[framework].includes(s.id));
