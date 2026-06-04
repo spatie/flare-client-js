@@ -1,4 +1,4 @@
-import { coverageFor, testIds } from '@flareapp/playgrounds-shared';
+import { coverageFor, fireLogScenario, logCoverageFor, testIds } from '@flareapp/playgrounds-shared';
 import { createRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 
@@ -51,6 +51,7 @@ const eventTriggers: Record<string, () => void | Promise<void>> = {
 
 const BrokenPage = () => {
     const scenarios = coverageFor('react');
+    const logScenarios = logCoverageFor('react');
     const [renderTrigger, setRenderTrigger] = useState<RenderTrigger>(null);
 
     const onClick = (id: string) => {
@@ -74,6 +75,22 @@ const BrokenPage = () => {
                         type="button"
                         data-testid={testIds.brokenTrigger(scenario.id)}
                         onClick={() => onClick(scenario.id)}
+                        className="rounded-lg border border-surface-border bg-surface px-4 py-3 text-left text-sm hover:border-brand"
+                    >
+                        <div className="font-medium">{scenario.label}</div>
+                        <div className="text-xs opacity-60 font-mono">{scenario.id}</div>
+                    </button>
+                ))}
+            </div>
+            <h2 className="text-lg font-semibold mt-8 mb-2">Logging</h2>
+            <p className="text-sm opacity-70 mb-4">Each button records one or more structured logs.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {logScenarios.map((scenario) => (
+                    <button
+                        key={scenario.id}
+                        type="button"
+                        data-testid={testIds.logTrigger(scenario.id)}
+                        onClick={() => fireLogScenario(flare, scenario)}
                         className="rounded-lg border border-surface-border bg-surface px-4 py-3 text-left text-sm hover:border-brand"
                     >
                         <div className="font-medium">{scenario.label}</div>
