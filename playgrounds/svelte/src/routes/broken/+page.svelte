@@ -1,12 +1,13 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { FlareErrorBoundary } from '@flareapp/svelte';
-    import { coverageFor, testIds } from '@flareapp/playgrounds-shared';
+    import { coverageFor, fireLogScenario, logCoverageFor, testIds } from '@flareapp/playgrounds-shared';
     import { flare } from '$lib/flare.client';
     import MaybeThrowing from '$lib/MaybeThrowing.svelte';
     import Fallback from '$lib/Fallback.svelte';
 
     const scenarios = coverageFor('svelte');
+    const logScenarios = logCoverageFor('svelte');
 
     let renderTrigger: string | null = $state(null);
 
@@ -67,6 +68,22 @@
                 type="button"
                 data-testid={testIds.brokenTrigger(scenario.id)}
                 onclick={() => run(scenario.id)}
+                class="rounded-lg border border-surface-border bg-surface px-4 py-3 text-left text-sm hover:border-brand"
+            >
+                <div class="font-medium">{scenario.label}</div>
+                <div class="text-xs opacity-60 font-mono">{scenario.id}</div>
+            </button>
+        {/each}
+    </div>
+
+    <h2 class="text-lg font-semibold mt-8 mb-2">Logging</h2>
+    <p class="text-sm opacity-70 mb-4">Each button records one or more structured logs.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {#each logScenarios as scenario (scenario.id)}
+            <button
+                type="button"
+                data-testid={testIds.logTrigger(scenario.id)}
+                onclick={() => fireLogScenario(flare, scenario)}
                 class="rounded-lg border border-surface-border bg-surface px-4 py-3 text-left text-sm hover:border-brand"
             >
                 <div class="font-medium">{scenario.label}</div>

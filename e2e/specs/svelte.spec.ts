@@ -1,5 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import { logScenariosFor, runLogScenario } from './logShared';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('svelte playground', () => {
@@ -29,4 +30,14 @@ test.describe('svelte playground', () => {
             });
         }
     });
+});
+
+test.describe('svelte logging', () => {
+    for (const scenario of logScenariosFor('svelte').filter((s) => s.flushOnTrigger)) {
+        test(scenario.id, async ({ page, fakeFlare }) => {
+            await page.goto('/broken');
+            await page.waitForLoadState('networkidle');
+            await runLogScenario(page, fakeFlare, scenario);
+        });
+    }
 });
