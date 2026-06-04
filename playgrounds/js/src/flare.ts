@@ -33,6 +33,10 @@ export const initFlare = (): void => {
     });
 
     flare.light(key, true);
+
+    // Expose the instance so the e2e suite can drive the logger directly (e.g. lower
+    // keepaliveMaxBytes and simulate visibilitychange:hidden). Playground-only.
+    (globalThis as { __flare?: typeof flare }).__flare = flare;
 };
 
 export { flare };

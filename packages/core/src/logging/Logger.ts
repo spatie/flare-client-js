@@ -114,12 +114,15 @@ export class Logger {
             this.flush();
             return;
         }
-        if (!this.timerActive) {
-            this.timerActive = true;
-            this.timer = setTimeout(() => this.flush(), config.logFlushIntervalMs);
-            // Node's Timeout has unref(); the browser's number does not.
-            (this.timer as { unref?: () => void }).unref?.();
-        }
+        this.armTimer(config);
+    }
+
+    private armTimer(config: Config): void {
+        if (this.timerActive) return;
+        this.timerActive = true;
+        this.timer = setTimeout(() => this.flush(), config.logFlushIntervalMs);
+        // Node's Timeout has unref(); the browser's number does not.
+        (this.timer as { unref?: () => void }).unref?.();
     }
 
     private trim(config: Config): void {
@@ -147,8 +150,22 @@ export class Logger {
 
         this.clearTimer();
 
-        const records = opts?.keepalive ? this.packForKeepalive(config) : this.buffer;
-        this.buffer = [];
+        // keepalive fires on visibilitychange:hidden, which also fires when a tab is
+        // merely backgrounded (not just on unload). packForKeepalive ships only what
+        // fits the browser's ~64KB keepalive budget, so retain the over-budget tail in
+        // the buffer instead of clearing it — a resumed tab can still send those records
+        // normally. A real unload discards the buffer with the page either way.
+        let records: BufferedLog[];
+        if (opts?.keepalive) {
+            records = this.packForKeepalive(config);
+            this.buffer = this.buffer.filter((log) => !records.includes(log));
+            // Re-arm the interval so retained records flush on resume without waiting
+            // for the next captured log.
+            if (this.buffer.length > 0) this.armTimer(config);
+        } else {
+            records = this.buffer;
+            this.buffer = [];
+        }
         if (records.length === 0) return;
 
         this.deps.track(
