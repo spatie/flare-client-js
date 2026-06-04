@@ -1,5 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import { logScenariosFor, runLogScenario } from './logShared';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('js playground', () => {
@@ -30,21 +31,26 @@ test.describe('js playground', () => {
 });
 
 test.describe('js logging', () => {
+    for (const scenario of logScenariosFor('js').filter((s) => s.flushOnTrigger)) {
+        test(scenario.id, async ({ page, fakeFlare }) => {
+            await page.goto('/broken');
+            await page.waitForLoadState('networkidle');
+            await runLogScenario(page, fakeFlare, scenario);
+        });
+    }
+
     test('ships a buffered log on page unload (cross-origin keepalive)', async ({ page, fakeFlare }) => {
         await fakeFlare.reset();
 
         await page.goto('/broken');
         await page.waitForLoadState('networkidle');
 
-        // Record a log; it is buffered (timer is 5s), not yet sent.
-        await page.getByTestId('trigger-log').click();
+        // log-unload is flushOnTrigger:false — buffered, not sent on click.
+        await page.getByTestId(testIds.logTrigger('log-unload')).click();
 
-        // The log is buffered (5s timer), NOT sent on click. Prove it before unload.
         await page.waitForTimeout(300);
         expect(await fakeFlare.logs()).toHaveLength(0);
 
-        // Navigate away with no prior flush — fires visibilitychange:hidden and the
-        // BrowserFlushScheduler does a keepalive POST that must survive unload.
         await page.goto('about:blank');
 
         const log = await fakeFlare.waitForLog({
