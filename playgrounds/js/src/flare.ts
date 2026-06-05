@@ -5,10 +5,18 @@ export const initFlare = (): void => {
     const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-js';
 
     if (url) {
-        flare.configure({ ingestUrl: url });
+        flare.configure({
+            ingestUrl: url,
+            logsIngestUrl: url.replace('/api/reports', '/api/logs'),
+        });
     }
 
     flare.configure({
+        // Logging is always on in the playground so the log buttons exercise the
+        // SDK even without a fake server (manual runs POST to the default ingest
+        // and fail like the error reports do). The fake-server logsIngestUrl
+        // override above only applies under e2e (VITE_FLARE_URL set).
+        enableLogs: true,
         beforeEvaluate: (error) => {
             if (error.message === 'hook-drop-report') return null;
             return error;
@@ -25,6 +33,10 @@ export const initFlare = (): void => {
     });
 
     flare.light(key, true);
+
+    // Expose the instance so the e2e suite can drive the logger directly (e.g. lower
+    // keepaliveMaxBytes and simulate visibilitychange:hidden). Playground-only.
+    (globalThis as { __flare?: typeof flare }).__flare = flare;
 };
 
 export { flare };

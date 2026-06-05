@@ -7,6 +7,7 @@ export const testIds = {
     checkoutSubmit: 'checkout-submit',
     confirmation: 'confirmation',
     brokenTrigger: (scenarioId: string) => `trigger-${scenarioId}`,
+    logTrigger: (scenarioId: string) => `log-trigger-${scenarioId}`,
     boundaryFallback: 'boundary-fallback',
     boundaryReset: 'boundary-reset',
 } as const;

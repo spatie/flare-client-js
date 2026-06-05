@@ -1,4 +1,4 @@
-import { Report } from '../types';
+import { LogsEnvelope, Report } from '../types';
 import { flatJsonStringify } from '../util';
 
 export class Api {
@@ -23,6 +23,36 @@ export class Api {
             (response) => {
                 if (debug && response.status !== 201) {
                     console.error(`Received response with status ${response.status} from Flare`);
+                }
+            },
+            (error) => {
+                if (debug) {
+                    console.error(error);
+                }
+            },
+        );
+    }
+
+    logs(
+        envelope: LogsEnvelope,
+        url: string,
+        key: string | null,
+        debug: boolean = false,
+        keepalive: boolean = false,
+    ): Promise<void> {
+        return fetch(url, {
+            method: 'POST',
+            keepalive,
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'x-api-token': key ?? '',
+            },
+            body: flatJsonStringify(envelope),
+        }).then(
+            (response) => {
+                if (debug && response.status !== 201) {
+                    console.error(`Received response with status ${response.status} from Flare logs`);
                 }
             },
             (error) => {

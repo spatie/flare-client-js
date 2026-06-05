@@ -5,6 +5,7 @@ import type { FakeFlareEndpoint, FakeFlareRecord, FakeFlareServer, WaitForOption
 
 const REPORTS_PATH = '/api/reports';
 const SOURCEMAPS_PATH = '/api/sourcemaps';
+const LOGS_PATH = '/api/logs';
 const INSPECT_REPORTS = '/__inspect/reports';
 const INSPECT_RESET = '/__inspect/reset';
 
@@ -102,6 +103,12 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
                 return;
             }
 
+            if (req.method === 'POST' && url.startsWith(LOGS_PATH)) {
+                await record(req, 'logs');
+                writeJson(res, 201, {});
+                return;
+            }
+
             if (req.method === 'GET' && url === INSPECT_REPORTS) {
                 writeJson(res, 200, records);
                 return;
@@ -166,6 +173,7 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
         records: () => [...records],
         reports: () => records.filter((r) => r.endpoint === 'reports'),
         sourcemaps: () => records.filter((r) => r.endpoint === 'sourcemaps'),
+        logs: () => records.filter((r) => r.endpoint === 'logs'),
         reset,
         waitForReport,
         stop,

@@ -1,4 +1,4 @@
-import { coverageFor } from '@flareapp/playgrounds-shared';
+import { coverageFor, fireLogScenario, logCoverageFor, logScenarioById, testIds } from '@flareapp/playgrounds-shared';
 
 import { flare } from '../flare';
 import { renderLayout } from '../layout';
@@ -42,6 +42,18 @@ const triggers: Record<string, () => void | Promise<void>> = {
 export const renderBroken: RouteHandler = (_match, root) => {
     const scenarios = coverageFor('js');
 
+    const logScenarios = logCoverageFor('js');
+    const logButtons = logScenarios
+        .map(
+            (scenario) => `
+            <button data-log-scenario="${scenario.id}" data-testid="${testIds.logTrigger(scenario.id)}" class="rounded-lg border border-surface-border bg-surface px-4 py-3 text-left text-sm hover:border-brand">
+                <div class="font-medium">${scenario.label}</div>
+                <div class="text-xs opacity-60 font-mono">${scenario.id}</div>
+            </button>
+        `,
+        )
+        .join('');
+
     const buttons = scenarios
         .map(
             (scenario) => `
@@ -59,6 +71,9 @@ export const renderBroken: RouteHandler = (_match, root) => {
             <h1 class="text-xl font-semibold mb-2">Error playground</h1>
             <p class="text-sm opacity-70 mb-6">Each button triggers a deterministic error scenario.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${buttons}</div>
+            <h2 class="text-lg font-semibold mt-8 mb-2">Logging</h2>
+            <p class="text-sm opacity-70 mb-4">Each button records one or more structured logs.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${logButtons}</div>
         </section>`,
     );
 
@@ -68,6 +83,13 @@ export const renderBroken: RouteHandler = (_match, root) => {
             const trigger = triggers[id];
             if (!trigger) return;
             void trigger();
+        });
+    });
+
+    root.querySelectorAll<HTMLButtonElement>('button[data-log-scenario]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const scenario = logScenarioById(button.dataset.logScenario ?? '');
+            if (scenario) fireLogScenario(flare, scenario);
         });
     });
 };

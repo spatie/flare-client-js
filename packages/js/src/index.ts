@@ -8,6 +8,7 @@ import {
 } from '@flareapp/core';
 
 import { catchWindowErrors } from './browser';
+import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
@@ -19,7 +20,7 @@ export class Flare extends CoreFlare {
         fileReader: FileReader = new FetchFileReader(),
         scopeProvider: ScopeProvider = new GlobalScopeProvider(),
     ) {
-        super(api, contextCollector, fileReader, scopeProvider);
+        super(api, contextCollector, fileReader, scopeProvider, new BrowserFlushScheduler());
         this.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
     }
 }
@@ -32,7 +33,7 @@ if (typeof window !== 'undefined' && window) {
     catchWindowErrors();
 }
 
-export { Scope, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
+export { Logger, Scope, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
 export type {
     AttributeValue,
     Attributes,
@@ -40,6 +41,8 @@ export type {
     ContextCollector,
     EntryPointHandler,
     FileReader,
+    FlushFn,
+    FlushScheduler,
     Framework,
     Glow,
     MessageLevel,
