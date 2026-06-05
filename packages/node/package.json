@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/node",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "description": "Node.js SDK for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": {
@@ -44,7 +44,7 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/core": "2.2.1"
+        "@flareapp/core": "2.3.0"
     },
     "devDependencies": {
         "tsdown": "^0.20.3",

@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/webpack",
-    "version": "2.2.1",
+    "version": "2.3.0",
     "description": "Webpack plugin for uploading sourcemaps to Flare",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
