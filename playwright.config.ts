@@ -11,7 +11,7 @@ const sharedEnv = {
 export default defineConfig({
     testDir: './e2e/specs',
     timeout: 30_000,
-    retries: 0,
+    retries: process.env.CI ? 2 : 0,
     fullyParallel: false,
     workers: 1,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
