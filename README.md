@@ -1,12 +1,10 @@
 # Flare JavaScript Client
 
-The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking
+The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking and logging
 by [Spatie](https://spatie.be). Captures frontend errors, collects browser context (cookies, request data, query
-params), and reports them to the Flare backend. Includes framework integrations for React, Vue, Svelte, SvelteKit, and build plugins for Vite, webpack, and Next.js
-for sourcemap uploads.
+params), and reports them to the Flare backend. Includes framework integrations for React, Vue, Svelte, SvelteKit, and build plugins for Vite, webpack, and Next.js for sourcemap uploads.
 
-Read the JavaScript error tracking section
-in [the Flare documentation](https://flareapp.io/docs/javascript-error-tracking/installation) for more information.
+Read [the Flare documentation](https://flareapp.io/docs/javascript/general/installation) to get started.
 
 ## Looking for v1?
 
