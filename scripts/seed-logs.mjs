@@ -34,10 +34,9 @@ if (!key) {
 const { Flare } = await import('../packages/js/dist/index.mjs');
 
 // Custom context collector: a genuine WEB entry point for the current route, plus
-// `host.name` (resource-level, so it lands in the Logs "Hostname" column). The
-// stock browser collector does not set host.name today; this mimics what it would
-// look like if it took window.location.hostname the way the PHP SDK takes the
-// machine hostname.
+// `host.name` (resource-level, so it lands in the Logs "Hostname" column). The stock
+// browser collector now sets host.name from window.location.hostname; this collector
+// pins deterministic values for the seed run and mirrors that behavior.
 const collector = () => ({
     'flare.entry_point.type': 'web',
     'flare.entry_point.value': globalThis.window.location.href,

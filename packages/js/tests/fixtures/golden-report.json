@@ -37,6 +37,7 @@
         "flare.entry_point.value": "https://app.test/users/42",
         "flare.entry_point.handler.identifier": "/users/:id",
         "flare.entry_point.handler.type": "browser",
+        "host.name": "app.test",
         "url.full": "https://app.test/users/42",
         "user_agent.original": "GoldenAgent/1.0",
         "http.request.referrer": "https://example.com/from",

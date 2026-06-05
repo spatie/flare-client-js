@@ -21,4 +21,9 @@ describe('collectBrowser', () => {
         const attrs = collectBrowser({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
         expect(attrs['flare.entry_point.type']).toBe('web');
     });
+
+    it('sets host.name from window.location.hostname so logs get a Hostname', () => {
+        const attrs = collectBrowser({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
+        expect(attrs['host.name']).toBe(window.location.hostname);
+    });
 });
