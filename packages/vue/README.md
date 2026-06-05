@@ -1,6 +1,6 @@
 # @flareapp/vue
 
-Vue integration for [Flare](https://flareapp.io) error tracking. Installs a Vue error handler that catches component errors and reports them to Flare with Vue-specific context (component name, lifecycle info).
+Vue integration for [Flare](https://flareapp.io) error tracking and logging. Installs a Vue error handler that catches component errors and reports them to Flare with Vue-specific context (component name, lifecycle info).
 
 ## Installation
 
@@ -26,6 +26,18 @@ const app = createApp(App);
 flareVue(app);
 
 app.mount('#app');
+```
+
+## Logging
+
+Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of the eight syslog levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+
+```js
+import { flare } from '@flareapp/js';
+
+flare.configure({ enableLogs: true });
+
+flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 ```
 
 ## Documentation

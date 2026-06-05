@@ -1,8 +1,9 @@
 # @flareapp/node
 
 Node.js SDK for [flareapp.io](https://flareapp.io). Capture uncaught
-exceptions, unhandled rejections, and explicit `flare.report(err)` calls in
-your Node servers. Per-request context isolation via AsyncLocalStorage.
+exceptions, unhandled rejections, explicit `flare.report(err)` calls, and
+structured logs in your Node servers. Per-request context isolation via
+AsyncLocalStorage.
 
 > **Status: unstable (0.x).** This package is pre-1.0 and its API may change
 > between minor releases. Pin an exact version in production
@@ -27,6 +28,23 @@ flare.light('your-flare-api-key');
 
 That's it. Crashes and unhandled rejections are reported automatically (the
 default behavior is to report, flush, and exit with code 1).
+
+## Logging
+
+Beyond errors, the SDK can send structured logs. Logs are opt-in: enable them
+with `enableLogs`, then call any of the eight syslog levels (`debug`, `info`,
+`notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+
+```ts
+flare.configure({ enableLogs: true });
+
+flare.logger.info('Order processed', { orderId: order.id, total: order.total });
+```
+
+Logs are buffered and batched, and flushed on `beforeExit`. A log recorded
+inside a `runWithContext` scope carries that request's context. `beforeExit`
+does not fire on `SIGTERM` or `process.exit()`, so call `flare.flush()` during
+graceful shutdown to drain buffered logs.
 
 ## Per-request context
 

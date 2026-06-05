@@ -1,7 +1,8 @@
 # @flareapp/js
 
-The core JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking. Captures frontend errors, parses
-stack traces, collects browser context, and reports everything to the Flare backend.
+The core JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking and logging. Captures frontend
+errors, parses stack traces, collects browser context, sends structured logs, and reports everything to the Flare
+backend.
 
 ## Installation
 
@@ -19,6 +20,20 @@ flare.light('YOUR_FLARE_API_KEY');
 
 That is all you need. The client automatically listens for uncaught exceptions and unhandled promise rejections,
 collects browser context, and sends error reports to Flare.
+
+## Logging
+
+Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of
+the eight syslog levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+
+```js
+flare.configure({ enableLogs: true });
+
+flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
+```
+
+Logs are buffered and batched, and flushed when the tab is hidden so buffered logs survive a page unload. The optional
+second argument is structured, searchable attributes.
 
 ## Documentation
 

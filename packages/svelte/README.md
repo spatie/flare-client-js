@@ -1,7 +1,8 @@
 # @flareapp/svelte
 
-Svelte 5 integration for [Flare](https://flareapp.io) error tracking. Provides an error boundary component that catches
-component errors and reports them to Flare with Svelte-specific context (component name, hierarchy, error origin).
+Svelte 5 integration for [Flare](https://flareapp.io) error tracking and logging. Provides an error boundary component
+that catches component errors and reports them to Flare with Svelte-specific context (component name, hierarchy, error
+origin).
 
 ## Installation
 
@@ -33,6 +34,21 @@ Initialize the Flare client and wrap your component tree with the error boundary
         <button onclick={reset}>Try again</button>
     {/snippet}
 </FlareErrorBoundary>
+```
+
+## Logging
+
+Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of the
+eight syslog levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+
+```svelte
+<script lang="ts">
+    import { flare } from '@flareapp/js';
+
+    flare.configure({ enableLogs: true });
+
+    flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
+</script>
 ```
 
 ## Documentation

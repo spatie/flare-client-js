@@ -1,8 +1,8 @@
 # @flareapp/sveltekit
 
-SvelteKit integration for [Flare](https://flareapp.io) error tracking. Wraps SvelteKit's client and server `handleError`
-hooks to report unexpected errors with route context. Also provides manual capture helpers and route tracking for
-browser-side reports.
+SvelteKit integration for [Flare](https://flareapp.io) error tracking and logging. Wraps SvelteKit's client and server
+`handleError` hooks to report unexpected errors with route context. Also provides manual capture helpers and route
+tracking for browser-side reports.
 
 ## Installation
 
@@ -38,6 +38,19 @@ if (!dev) {
 }
 
 export const handleError = handleErrorWithFlare();
+```
+
+## Logging
+
+Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of the
+eight syslog levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+
+```ts
+import { flare } from '@flareapp/js';
+
+flare.configure({ enableLogs: true });
+
+flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 ```
 
 ## Documentation

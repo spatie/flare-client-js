@@ -12,9 +12,12 @@ the official SDKs use.
 
 - `Flare` — the core class. Takes three optional injection points: `ScopeProvider`,
   `ContextCollector`, `FileReader`.
+- `Logger` — structured logging (`flare.logger`). Eight syslog levels, opt-in via
+  `enableLogs`; owns the log buffer, batching policy, and OTel envelope. A
+  `FlushScheduler` seam is injected per platform.
 - `Scope`, `GlobalScopeProvider`, `ScopeProvider` — per-call mutable state.
 - `FileReader`, `NullFileReader` — source-snippet reading abstraction.
-- `Api` — the HTTP client used to send reports.
+- `Api` — the HTTP client used to send reports and logs.
 - Types: `Config`, `Report`, `Attributes`, `Glow`, `StackFrame`, etc.
 - Util: `redactUrlQuery`, `resolveDenylist`, `convertToError`, `DEFAULT_URL_DENYLIST`.
 

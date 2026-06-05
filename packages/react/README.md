@@ -1,7 +1,7 @@
 # @flareapp/react
 
-React integration for [Flare](https://flareapp.io) error tracking. Provides an error boundary component and a React 19+
-error handler for catching and reporting React component errors to Flare.
+React integration for [Flare](https://flareapp.io) error tracking and logging. Provides an error boundary component and
+a React 19+ error handler for catching and reporting React component errors to Flare.
 
 ## Installation
 
@@ -26,6 +26,19 @@ function App() {
         </FlareErrorBoundary>
     );
 }
+```
+
+## Logging
+
+Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of the
+eight syslog levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+
+```tsx
+import { flare } from '@flareapp/js';
+
+flare.configure({ enableLogs: true });
+
+flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 ```
 
 ## Documentation
