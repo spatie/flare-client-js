@@ -348,4 +348,34 @@ describe('flareReactErrorHandler', () => {
             expect(afterSubmit.mock.calls[0][0].context.react.componentStack).toEqual(['at App']);
         });
     });
+
+    describe('minified React errors', () => {
+        test('forwards minifiedError and version in the reported attributes', () => {
+            const handler = flareReactErrorHandler();
+            const error = new Error(
+                'Minified React error #418; visit https://react.dev/errors/418?args[]=Foo for the full message',
+            );
+
+            handler(error, { componentStack: '    at App' });
+
+            const attributes = mockReport.mock.calls[0][1];
+            const react = (attributes['context.custom'] as any).react;
+
+            expect(react.minifiedError).toEqual({
+                number: 418,
+                args: ['Foo'],
+                url: 'https://react.dev/errors/418?args[]=Foo',
+            });
+            expect(typeof react.version).toBe('string');
+        });
+
+        test('omits minifiedError for a plain error', () => {
+            const handler = flareReactErrorHandler();
+
+            handler(new Error('plain error'), { componentStack: '    at App' });
+
+            const attributes = mockReport.mock.calls[0][1];
+            expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
+        });
+    });
 });
