@@ -5,6 +5,12 @@ export type ComponentStackFrame = {
     column: number | null;
 };
 
+export type MinifiedReactError = {
+    number: number;
+    args: string[];
+    url: string | null;
+};
+
 export type FlareReactContext = {
     react: {
         componentStack: string[];
