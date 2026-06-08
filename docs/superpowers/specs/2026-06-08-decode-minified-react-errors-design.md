@@ -84,6 +84,13 @@ export function parseMinifiedReactError(error: Error): MinifiedReactError | null
 React exports `version` in all peer-supported majors (16/17/18/19). Negligible
 bundle impact — the peer dep is already loaded by the host app.
 
+**Assumption:** minified errors are thrown by `react-dom`, but we send `react`'s
+`version`. React and React DOM are released in lockstep with identical version
+numbers; mismatched installs are unsupported by React itself. We therefore treat
+`react.version` as a valid proxy for the codes-map version and do not import from
+`react-dom` (which this package does not declare as a peer dependency). If
+mismatched installs ever need supporting, add a separate `reactDom.version` signal.
+
 ### 3. `buildReactContext.ts` (new, shared helper)
 
 Today `FlareErrorBoundary.componentDidCatch` and `flareReactErrorHandler` build an
@@ -113,11 +120,16 @@ export type FlareReactContext = {
     react: {
         componentStack: string[];
         componentStackFrames: ComponentStackFrame[];
-        version: string; // always sent
+        version?: string; // optional in the type (non-breaking), always populated at runtime by buildReactContext
         minifiedError?: MinifiedReactError; // only when parse matches
     };
 };
 ```
+
+`version` is optional in the exported type on purpose. `FlareReactContext` is part
+of the public `beforeSubmit`/`afterSubmit` contracts; making the field required
+would break any consumer returning a context literal, forcing a major release.
+`buildReactContext` always sets it, so it is present on every real report.
 
 ### 5. `contextToAttributes.ts`
 

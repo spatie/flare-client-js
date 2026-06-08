@@ -21,7 +21,9 @@
 - Modify: `packages/react/src/index.ts` — export `MinifiedReactError` type.
 - Create: `packages/react/tests/parseMinifiedReactError.test.ts`
 - Create: `packages/react/tests/buildReactContext.test.ts`
-- Modify: `packages/react/tests/contextToAttributes.test.ts` — add required `version`, assert forwarding.
+- Modify: `packages/react/tests/contextToAttributes.test.ts` — add `version`, assert forwarding.
+- Modify: `packages/react/tests/FlareErrorBoundary.test.tsx` — end-to-end boundary assertion.
+- Modify: `packages/react/README.md` — document the new context fields.
 
 Run all react tests with: `cd packages/react && npx vitest run`
 Type-check with: `cd packages/react && npx tsc --noEmit`
@@ -113,6 +115,20 @@ describe('parseMinifiedReactError', () => {
     test('returns null for an empty message without throwing', () => {
         expect(parseMinifiedReactError(new Error(''))).toBeNull();
     });
+
+    test('falls back to the raw arg value when percent-decoding fails', () => {
+        const error = new Error(
+            'Minified React error #418; visit https://react.dev/errors/418?args[]=%E0%A4%A&args[]=ok for the full message',
+        );
+
+        // `%E0%A4%A` is a malformed percent escape; decodeURIComponent would throw.
+        // The parser must not throw mid-error-handling and keeps the raw value instead.
+        expect(parseMinifiedReactError(error)).toEqual({
+            number: 418,
+            args: ['%E0%A4%A', 'ok'],
+            url: 'https://react.dev/errors/418?args[]=%E0%A4%A&args[]=ok',
+        });
+    });
 });
 ```
 
@@ -132,6 +148,17 @@ const NUMBER_PATTERN = /Minified React error #(\d+)/;
 const ARG_PATTERN = /args\[\]=([^&\s]*)/g;
 const URL_PATTERN = /(https?:\/\/\S+)/;
 
+// decodeURIComponent throws on malformed percent escapes (e.g. "%E0%A4%A"). This
+// runs while the boundary/handler is already processing an error, so a throw here
+// must not escape. Fall back to the raw value instead.
+function safeDecode(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
 export function parseMinifiedReactError(error: Error): MinifiedReactError | null {
     const message = error?.message;
 
@@ -148,7 +175,7 @@ export function parseMinifiedReactError(error: Error): MinifiedReactError | null
     const args: string[] = [];
 
     for (const match of message.matchAll(ARG_PATTERN)) {
-        args.push(decodeURIComponent(match[1]));
+        args.push(safeDecode(match[1]));
     }
 
     const urlMatch = message.match(URL_PATTERN);
@@ -166,7 +193,7 @@ Note: `\S+` stops the URL capture at the first whitespace, so the trailing " for
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `cd packages/react && npx vitest run tests/parseMinifiedReactError.test.ts`
-Expected: PASS (6 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 6: Commit**
 
@@ -256,11 +283,15 @@ export type FlareReactContext = {
     react: {
         componentStack: string[];
         componentStackFrames: ComponentStackFrame[];
-        version: string;
+        version?: string;
         minifiedError?: MinifiedReactError;
     };
 };
 ```
+
+`version` is optional in the type to avoid breaking the public `beforeSubmit`/`afterSubmit`
+contracts (a required field would break consumers returning a context literal, forcing a
+major). `buildReactContext` always populates it, so it is present on every real report.
 
 - [ ] **Step 4: Create `buildReactContext.ts`**
 
@@ -460,15 +491,16 @@ git commit -m "feat(react): attach React version and minified error to report co
 
 ---
 
-## Task 3: End-to-end assertion through the handler
+## Task 3: End-to-end assertions through both error paths
 
 **Files:**
 
 - Modify: `packages/react/tests/flareReactErrorHandler.test.ts`
+- Modify: `packages/react/tests/FlareErrorBoundary.test.tsx`
 
-Lock in that a minified React error thrown through the real handler path surfaces `minifiedError` and `version` in the reported attributes. This guards the wiring, not just the unit.
+The spec scopes both React paths. Lock in that a minified React error surfaces `minifiedError` and `version` in the reported attributes through the handler AND through the boundary. This guards the wiring, not just the unit.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the handler test**
 
 Append this `describe` block inside the top-level `describe('flareReactErrorHandler', ...)` in `packages/react/tests/flareReactErrorHandler.test.ts`:
 
@@ -504,21 +536,81 @@ describe('minified React errors', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it passes**
+- [ ] **Step 2: Write the boundary test**
 
-Run: `cd packages/react && npx vitest run tests/flareReactErrorHandler.test.ts`
-Expected: PASS. (The wiring already exists from Task 2, so this test confirms it rather than driving new code. If it fails, the handler is not calling `buildReactContext` with the converted error — revisit Task 2 Step 7.)
+Append this `describe` block inside the top-level `describe('FlareErrorBoundary', ...)` in `packages/react/tests/FlareErrorBoundary.test.tsx`. It reuses the file's existing `testError`/`ThrowingComponent`/`mockReport` setup (see the top of the file); reassigning `testError` before render makes `ThrowingComponent` throw the minified error.
 
-- [ ] **Step 3: Commit**
+```ts
+    describe('minified React errors', () => {
+        test('forwards minifiedError and version in the reported attributes', () => {
+            testError = new Error(
+                'Minified React error #418; visit https://react.dev/errors/418?args[]=Foo for the full message',
+            );
+
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>,
+            );
+
+            const attributes = mockReport.mock.calls[0][1];
+            const react = (attributes['context.custom'] as any).react;
+
+            expect(react.minifiedError).toEqual({
+                number: 418,
+                args: ['Foo'],
+                url: 'https://react.dev/errors/418?args[]=Foo',
+            });
+            expect(typeof react.version).toBe('string');
+        });
+
+        test('omits minifiedError for a plain error', () => {
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>,
+            );
+
+            const attributes = mockReport.mock.calls[0][1];
+            expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
+        });
+    });
+```
+
+- [ ] **Step 3: Run both test files to verify they pass**
+
+Run: `cd packages/react && npx vitest run tests/flareReactErrorHandler.test.ts tests/FlareErrorBoundary.test.tsx`
+Expected: PASS. (The wiring already exists from Task 2, so these tests confirm it rather than driving new code. If the handler test fails, the handler is not calling `buildReactContext` with the converted error — revisit Task 2 Step 7.)
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add packages/react/tests/flareReactErrorHandler.test.ts
-git commit -m "test(react): assert minified error reaches reported attributes end-to-end"
+git add packages/react/tests/flareReactErrorHandler.test.ts packages/react/tests/FlareErrorBoundary.test.tsx
+git commit -m "test(react): assert minified error reaches reported attributes via both paths"
 ```
 
 ---
 
-## Task 4: Full verification
+## Task 4: Document the new context fields
+
+**Files:**
+
+- Modify: `packages/react/README.md`
+
+- [ ] **Step 1: Add a README section**
+
+Add a short note to `packages/react/README.md` documenting that the client now attaches `react.version` and, for minified production errors, `react.minifiedError` (`{ number, args, url }`) to the report context, which the Flare backend uses to decode the message. Match the README's existing section style and heading level.
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add packages/react/README.md
+git commit -m "docs(react): document minified error decoding context"
+```
+
+---
+
+## Task 5: Full verification
 
 **Files:** none (verification only)
 
@@ -537,21 +629,10 @@ Expected: all PASS.
 Run: `cd packages/react && npm run build`
 Expected: clean CJS + ESM + d.ts output. This confirms `import { version } from 'react'` resolves through tsdown/rollup against the React peer dependency (named CJS export interop).
 
-- [ ] **Step 4: Update the README**
-
-Add a short note to `packages/react/README.md` documenting that the client now attaches `react.version` and, for minified production errors, `react.minifiedError` (`{ number, args, url }`) to the report context, which the Flare backend uses to decode the message. Match the README's existing section style.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/react/README.md
-git commit -m "docs(react): document minified error decoding context"
-```
-
 ---
 
 ## Notes for the implementer
 
 - Do not bundle React's `codes.json`. The decoding happens on the Flare backend; the client only ships the structured fields.
-- `import { version } from 'react'` relies on React's named CJS export `version`, present in all peer-supported majors (16/17/18/19). Task 4 Step 3 verifies the build resolves it.
+- `import { version } from 'react'` relies on React's named CJS export `version`, present in all peer-supported majors (16/17/18/19). Task 5 Step 3 verifies the build resolves it.
 - The global `window.onerror` path in `@flareapp/js` is intentionally out of scope. Only the boundary and handler paths get the parse.
