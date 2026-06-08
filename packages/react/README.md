@@ -41,6 +41,26 @@ flare.configure({ enableLogs: true });
 flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 ```
 
+## Minified production errors
+
+In production, React throws minified errors like `Minified React error #418; visit https://react.dev/errors/418?args[]=Foo`.
+The client parses these into structured fields and attaches them, along with the running React version, to the report
+context:
+
+```ts
+react: {
+    version: '19.0.0',
+    minifiedError: {
+        number: 418,
+        args: ['Foo', 'Bar'],
+        url: 'https://react.dev/errors/418?args[]=Foo&args[]=Bar',
+    },
+}
+```
+
+Flare uses `react.minifiedError` and `react.version` on the backend to look up React's error-code map and surface the
+full, human-readable message. No error-code map is bundled into the client. Non-minified errors are reported unchanged.
+
 ## Documentation
 
 Full documentation on the error boundary, the React 19+ error handler, lifecycle callbacks, and more is available
