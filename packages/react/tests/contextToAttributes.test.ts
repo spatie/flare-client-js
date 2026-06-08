@@ -4,11 +4,12 @@ import { contextToAttributes } from '../src/contextToAttributes';
 import { FlareReactContext } from '../src/types';
 
 describe('contextToAttributes', () => {
-    test('wraps react context under context.custom', () => {
+    test('wraps react context (with version) under context.custom', () => {
         const context: FlareReactContext = {
             react: {
                 componentStack: ['at App', 'at div'],
                 componentStackFrames: [{ component: 'App', file: 'App.tsx', line: 5, column: 3 }],
+                version: '19.0.0',
             },
         };
 
@@ -19,12 +20,46 @@ describe('contextToAttributes', () => {
                 react: {
                     componentStack: ['at App', 'at div'],
                     componentStackFrames: [{ component: 'App', file: 'App.tsx', line: 5, column: 3 }],
+                    version: '19.0.0',
                 },
             },
         });
     });
 
-    test('handles empty component stack', () => {
+    test('forwards minifiedError when present', () => {
+        const context: FlareReactContext = {
+            react: {
+                componentStack: [],
+                componentStackFrames: [],
+                version: '19.0.0',
+                minifiedError: { number: 418, args: ['Foo'], url: 'https://react.dev/errors/418?args[]=Foo' },
+            },
+        };
+
+        const attributes = contextToAttributes(context);
+
+        expect((attributes['context.custom'] as any).react.minifiedError).toEqual({
+            number: 418,
+            args: ['Foo'],
+            url: 'https://react.dev/errors/418?args[]=Foo',
+        });
+    });
+
+    test('omits minifiedError when absent', () => {
+        const context: FlareReactContext = {
+            react: {
+                componentStack: [],
+                componentStackFrames: [],
+                version: '19.0.0',
+            },
+        };
+
+        const attributes = contextToAttributes(context);
+
+        expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
+    });
+
+    test('omits version when a context has none (e.g. a beforeSubmit literal)', () => {
         const context: FlareReactContext = {
             react: {
                 componentStack: [],
@@ -34,11 +69,6 @@ describe('contextToAttributes', () => {
 
         const attributes = contextToAttributes(context);
 
-        expect(attributes['context.custom']).toEqual({
-            react: {
-                componentStack: [],
-                componentStackFrames: [],
-            },
-        });
+        expect((attributes['context.custom'] as any).react).not.toHaveProperty('version');
     });
 });
