@@ -71,9 +71,11 @@ export function parseMinifiedReactError(error: Error): MinifiedReactError | null
 - Match `/Minified React error #(\d+)/` against `error.message`. No match →
   return `null`. This is the common path (most errors are not minified React
   errors), so it exits cheap.
-- Args: match all occurrences of `args[]=<value>` in the message, `decodeURIComponent`
-  each value. Both URL formats use `args[]=` — react.dev (React 18/19) and
-  reactjs.org/docs/error-decoder.html (React 16/17).
+- Args: match all occurrences of `args[]=<value>` in the message and percent-decode
+  each value. Decoding is wrapped in a safe helper: a malformed escape (e.g.
+  `%E0%A4%A`) must not throw, since this runs while an error is already being
+  handled; on failure the raw value is kept. Both URL formats use `args[]=` —
+  react.dev (React 18/19) and reactjs.org/docs/error-decoder.html (React 16/17).
 - URL: extract the first `https?://\S+` substring from the message; `null` if absent.
 - Guard against a missing/undefined `error.message`.
 - Pure, side-effect free, independently testable.
@@ -139,7 +141,7 @@ Forward the two new fields under `context.custom.react`:
 react: {
     componentStack: context.react.componentStack as AttributeValue,
     componentStackFrames: context.react.componentStackFrames as AttributeValue,
-    version: context.react.version as AttributeValue,
+    ...(context.react.version ? { version: context.react.version as AttributeValue } : {}),
     ...(context.react.minifiedError
         ? { minifiedError: context.react.minifiedError as AttributeValue }
         : {}),

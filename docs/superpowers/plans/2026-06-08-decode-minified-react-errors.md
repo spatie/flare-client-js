@@ -391,7 +391,7 @@ export function contextToAttributes(context: FlareReactContext): Attributes {
             react: {
                 componentStack: context.react.componentStack as AttributeValue,
                 componentStackFrames: context.react.componentStackFrames as AttributeValue,
-                version: context.react.version as AttributeValue,
+                ...(context.react.version ? { version: context.react.version as AttributeValue } : {}),
                 ...(context.react.minifiedError
                     ? { minifiedError: context.react.minifiedError as AttributeValue }
                     : {}),
@@ -473,6 +473,19 @@ describe('contextToAttributes', () => {
         const attributes = contextToAttributes(context);
 
         expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
+    });
+
+    test('omits version when a context has none (e.g. a beforeSubmit literal)', () => {
+        const context: FlareReactContext = {
+            react: {
+                componentStack: [],
+                componentStackFrames: [],
+            },
+        };
+
+        const attributes = contextToAttributes(context);
+
+        expect((attributes['context.custom'] as any).react).not.toHaveProperty('version');
     });
 });
 ```
@@ -599,14 +612,40 @@ git commit -m "test(react): assert minified error reaches reported attributes vi
 
 - [ ] **Step 1: Add a README section**
 
-Add a short note to `packages/react/README.md` documenting that the client now attaches `react.version` and, for minified production errors, `react.minifiedError` (`{ number, args, url }`) to the report context, which the Flare backend uses to decode the message. Match the README's existing section style and heading level.
+In `packages/react/README.md`, insert this new `##` section between the existing `## Logging` section and the `## Documentation` section (so it sits among the feature sections, before the docs/compatibility/license tail):
+
+````markdown
+## Minified production errors
+
+In production, React throws minified errors like `Minified React error #418; visit https://react.dev/errors/418?args[]=…`.
+The client parses these into structured fields and attaches them, along with the running React version, to the report
+context:
+
+```ts
+react: {
+    version: '19.0.0',
+    minifiedError: {
+        number: 418,
+        args: ['Foo', 'Bar'],
+        url: 'https://react.dev/errors/418?args[]=Foo&args[]=Bar',
+    },
+}
+```
+````
+
+Flare uses `react.minifiedError` and `react.version` on the backend to look up React's error-code map and surface the
+full, human-readable message. No error-code map is bundled into the client. Non-minified errors are reported unchanged.
+
+`````
+
+Note the inner ```` ```ts ```` block is nested inside the markdown example; when editing the README directly the outer fences are not literal — paste only the section content (heading, prose, and the single `ts` code block).
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add packages/react/README.md
 git commit -m "docs(react): document minified error decoding context"
-```
+`````
 
 ---
 
