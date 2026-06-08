@@ -409,7 +409,7 @@ In `packages/react/src/index.ts`, update the type export line:
 export type { ComponentStackFrame, FlareReactContext, MinifiedReactError } from './types';
 ```
 
-- [ ] **Step 10: Update `contextToAttributes.test.ts` for the required `version` and forwarding**
+- [ ] **Step 10: Update `contextToAttributes.test.ts` for the `version` field and forwarding**
 
 Replace the file `packages/react/tests/contextToAttributes.test.ts` with:
 
@@ -612,12 +612,12 @@ git commit -m "test(react): assert minified error reaches reported attributes vi
 
 - [ ] **Step 1: Add a README section**
 
-In `packages/react/README.md`, insert this new `##` section between the existing `## Logging` section and the `## Documentation` section (so it sits among the feature sections, before the docs/compatibility/license tail):
+In `packages/react/README.md`, insert this new `##` section between the existing `## Logging` section and the `## Documentation` section (so it sits among the feature sections, before the docs/compatibility/license tail). The block below is shown in a four-backtick wrapper so its inner three-backtick `ts` fence renders; paste only the section content (the `## Minified production errors` heading through the final prose paragraph) into the README.
 
 ````markdown
 ## Minified production errors
 
-In production, React throws minified errors like `Minified React error #418; visit https://react.dev/errors/418?args[]=…`.
+In production, React throws minified errors like `Minified React error #418; visit https://react.dev/errors/418?args[]=Foo`.
 The client parses these into structured fields and attaches them, along with the running React version, to the report
 context:
 
@@ -631,21 +631,17 @@ react: {
     },
 }
 ```
-````
 
 Flare uses `react.minifiedError` and `react.version` on the backend to look up React's error-code map and surface the
 full, human-readable message. No error-code map is bundled into the client. Non-minified errors are reported unchanged.
-
-`````
-
-Note the inner ```` ```ts ```` block is nested inside the markdown example; when editing the README directly the outer fences are not literal — paste only the section content (heading, prose, and the single `ts` code block).
+````
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add packages/react/README.md
 git commit -m "docs(react): document minified error decoding context"
-`````
+```
 
 ---
 

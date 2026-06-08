@@ -167,10 +167,12 @@ react: {
     - Non-minified error message → `null`.
     - Minified message with no args → empty `args`, number + url set.
     - URL-encoded arg values → decoded.
+    - Malformed percent escape (e.g. `%E0%A4%A`) → raw value kept, no throw.
     - Missing/empty `error.message` → `null`, no throw.
 - `buildReactContext`: minified error present → `minifiedError` set + `version`
   present; plain error → no `minifiedError`, `version` present.
-- `contextToAttributes`: new fields forwarded; `minifiedError` omitted when absent.
+- `contextToAttributes`: new fields forwarded; `minifiedError` and `version` each
+  omitted when absent.
 - Existing boundary/handler tests still pass (context shape additive, not breaking).
 
 ## Out of scope
