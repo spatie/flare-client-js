@@ -1,9 +1,8 @@
 import { flare } from '@flareapp/js';
 import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 
+import { buildReactContext } from './buildReactContext';
 import { contextToAttributes } from './contextToAttributes';
-import { formatComponentStack } from './formatComponentStack';
-import { parseComponentStack } from './parseComponentStack';
 import { FlareReactContext } from './types';
 
 export type FlareErrorBoundaryFallbackProps = {
@@ -41,12 +40,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         const rawStack = errorInfo.componentStack ?? '';
 
-        const context: FlareReactContext = {
-            react: {
-                componentStack: formatComponentStack(rawStack),
-                componentStackFrames: parseComponentStack(rawStack),
-            },
-        };
+        const context = buildReactContext(rawStack, error);
 
         const finalContext =
             this.props.beforeSubmit?.({

@@ -1,8 +1,7 @@
 import { convertToError, flare } from '@flareapp/js';
 
+import { buildReactContext } from './buildReactContext';
 import { contextToAttributes } from './contextToAttributes';
-import { formatComponentStack } from './formatComponentStack';
-import { parseComponentStack } from './parseComponentStack';
 import { FlareReactContext } from './types';
 
 export type FlareReactErrorHandlerCallback = (error: unknown, errorInfo: { componentStack?: string }) => void;
@@ -31,12 +30,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
 
         const rawStack = errorInfo.componentStack ?? '';
 
-        const context: FlareReactContext = {
-            react: {
-                componentStack: formatComponentStack(rawStack),
-                componentStackFrames: parseComponentStack(rawStack),
-            },
-        };
+        const context = buildReactContext(rawStack, errorObject);
 
         const finalContext =
             options?.beforeSubmit?.({

@@ -15,5 +15,7 @@ export type FlareReactContext = {
     react: {
         componentStack: string[];
         componentStackFrames: ComponentStackFrame[];
+        version?: string;
+        minifiedError?: MinifiedReactError;
     };
 };
