@@ -25,7 +25,9 @@ export class RendererFlare extends BrowserFlare {
     }
 
     configure(config: Partial<Config>): this {
-        if (config.beforeSubmit !== undefined) this.rendererBeforeSubmit = config.beforeSubmit;
+        if (config.beforeSubmit !== undefined) {
+            this.rendererBeforeSubmit = config.beforeSubmit;
+        }
         return super.configure(config);
     }
 
@@ -35,7 +37,9 @@ export class RendererFlare extends BrowserFlare {
      */
     async sendReport(report: Report): Promise<void> {
         const scrubbed = await this.rendererBeforeSubmit(report);
-        if (!scrubbed) return;
+        if (!scrubbed) {
+            return;
+        }
 
         const payload = flatJsonStringify(scrubbed);
         if (byteLength(payload) > this.maxReportBytes) {

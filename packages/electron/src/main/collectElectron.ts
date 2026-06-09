@@ -44,11 +44,21 @@ export function collectElectronAppAttributes(app: AppLike): Attributes {
 /** Project a user into OTel enduser.* / client.address keys. */
 export function projectUser(user: ElectronUser | null): Attributes {
     const attrs: Attributes = {};
-    if (!user) return attrs;
-    if (user.id !== undefined) attrs['enduser.id'] = String(user.id);
-    if (user.email !== undefined) attrs['enduser.email'] = user.email;
-    if (user.username !== undefined) attrs['enduser.username'] = user.username;
-    if (user.ipAddress !== undefined) attrs['client.address'] = user.ipAddress;
+    if (!user) {
+        return attrs;
+    }
+    if (user.id !== undefined) {
+        attrs['enduser.id'] = String(user.id);
+    }
+    if (user.email !== undefined) {
+        attrs['enduser.email'] = user.email;
+    }
+    if (user.username !== undefined) {
+        attrs['enduser.username'] = user.username;
+    }
+    if (user.ipAddress !== undefined) {
+        attrs['client.address'] = user.ipAddress;
+    }
     return attrs;
 }
 

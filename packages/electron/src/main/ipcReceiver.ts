@@ -28,14 +28,22 @@ export function defaultTrustPolicy(frame: SenderFrame, opts: ResolvedElectronOpt
     }
     const isLoopback =
         parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]';
-    if ((scheme === 'http' || scheme === 'https') && isLoopback) return true;
-    if (opts.trustedProtocols.includes(scheme)) return true;
+    if ((scheme === 'http' || scheme === 'https') && isLoopback) {
+        return true;
+    }
+    if (opts.trustedProtocols.includes(scheme)) {
+        return true;
+    }
     return false;
 }
 
 function isTrusted(frame: SenderFrame | undefined, opts: ResolvedElectronOptions): boolean {
-    if (!frame || typeof frame.url !== 'string') return false;
-    if (opts.trustSender) return opts.trustSender(frame);
+    if (!frame || typeof frame.url !== 'string') {
+        return false;
+    }
+    if (opts.trustSender) {
+        return opts.trustSender(frame);
+    }
     return defaultTrustPolicy(frame, opts);
 }
 
@@ -46,7 +54,9 @@ function isTrusted(frame: SenderFrame | undefined, opts: ResolvedElectronOptions
  * is the sender-trust check plus the byte-size cap; this guard only rejects obviously-wrong payloads.
  */
 function isReportShape(value: unknown): value is Report {
-    if (typeof value !== 'object' || value === null) return false;
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
     const r = value as Record<string, unknown>;
     return (
         typeof r.seenAtUnixNano === 'number' &&
@@ -59,28 +69,42 @@ function isReportShape(value: unknown): value is Report {
 }
 
 export function registerIpcReceiver(ipcMain: IpcMain, owner: object, deps: ReceiverDeps): void {
-    if (currentOwner === owner) return; // idempotent for same owner
-    if (currentOwner !== null) ipcMain.removeHandler(FLARE_IPC_CHANNEL); // take over from a previous owner
+    if (currentOwner === owner) {
+        return; // idempotent for same owner
+    }
+    if (currentOwner !== null) {
+        ipcMain.removeHandler(FLARE_IPC_CHANNEL); // take over from a previous owner
+    }
     currentOwner = owner;
 
     ipcMain.handle(FLARE_IPC_CHANNEL, (async (event: { senderFrame?: SenderFrame }, payload: unknown) => {
         const opts = deps.getOptions();
-        if (!isTrusted(event.senderFrame, opts)) return;
-        if (typeof payload !== 'string') return;
-        if (Buffer.byteLength(payload, 'utf8') > opts.maxReportBytes) return;
+        if (!isTrusted(event.senderFrame, opts)) {
+            return;
+        }
+        if (typeof payload !== 'string') {
+            return;
+        }
+        if (Buffer.byteLength(payload, 'utf8') > opts.maxReportBytes) {
+            return;
+        }
         let parsed: unknown;
         try {
             parsed = JSON.parse(payload);
         } catch {
             return;
         }
-        if (!isReportShape(parsed)) return;
+        if (!isReportShape(parsed)) {
+            return;
+        }
         await deps.onReport(parsed);
     }) as any);
 }
 
 export function disposeIpcReceiver(ipcMain: IpcMain, owner: object): void {
-    if (currentOwner !== owner) return; // only the current owner may remove the live handler
+    if (currentOwner !== owner) {
+        return; // only the current owner may remove the live handler
+    }
     ipcMain.removeHandler(FLARE_IPC_CHANNEL);
     currentOwner = null;
 }

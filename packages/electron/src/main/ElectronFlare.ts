@@ -74,9 +74,15 @@ export class ElectronFlare extends CoreFlare {
     }
 
     configure(config: Partial<Config>): this {
-        if (config.stage !== undefined) this.mainStage = config.stage;
-        if (config.version !== undefined) this.mainVersion = config.version;
-        if (config.sourcemapVersionId !== undefined) this.mainSourcemapVersionId = config.sourcemapVersionId;
+        if (config.stage !== undefined) {
+            this.mainStage = config.stage;
+        }
+        if (config.version !== undefined) {
+            this.mainVersion = config.version;
+        }
+        if (config.sourcemapVersionId !== undefined) {
+            this.mainSourcemapVersionId = config.sourcemapVersionId;
+        }
         return super.configure(config);
     }
 
@@ -88,21 +94,30 @@ export class ElectronFlare extends CoreFlare {
     }
 
     configureElectron(partial: ElectronOptions): this {
-        if (partial.uncaughtExceptionMode !== undefined)
+        if (partial.uncaughtExceptionMode !== undefined) {
             this.options.uncaughtExceptionMode = partial.uncaughtExceptionMode;
-        if (partial.unhandledRejectionMode !== undefined)
+        }
+        if (partial.unhandledRejectionMode !== undefined) {
             this.options.unhandledRejectionMode = partial.unhandledRejectionMode;
-        if (partial.shutdownTimeoutMs !== undefined) this.options.shutdownTimeoutMs = partial.shutdownTimeoutMs;
-        if (partial.captureRenderProcessGone !== undefined)
+        }
+        if (partial.shutdownTimeoutMs !== undefined) {
+            this.options.shutdownTimeoutMs = partial.shutdownTimeoutMs;
+        }
+        if (partial.captureRenderProcessGone !== undefined) {
             this.options.captureRenderProcessGone = partial.captureRenderProcessGone;
+        }
         if (partial.trustedProtocols !== undefined) {
             this.options.trustedProtocols = Array.isArray(partial.trustedProtocols) ? partial.trustedProtocols : [];
         }
-        if (partial.trustSender !== undefined) this.options.trustSender = partial.trustSender;
+        if (partial.trustSender !== undefined) {
+            this.options.trustSender = partial.trustSender;
+        }
         if (partial.maxReportBytes !== undefined && Number.isFinite(partial.maxReportBytes)) {
             this.options.maxReportBytes = partial.maxReportBytes;
         }
-        if (this.isLit) this.handlerManager.reconcile(this.options);
+        if (this.isLit) {
+            this.handlerManager.reconcile(this.options);
+        }
         this.reconcileCrashListeners();
         return this;
     }
@@ -165,10 +180,18 @@ export class ElectronFlare extends CoreFlare {
             'electron.process_gone.kind': kind,
             'electron.process_gone.reason': reason,
         };
-        if (details.exitCode !== undefined) attrs['electron.process_gone.exit_code'] = details.exitCode;
-        if (details.type !== undefined) attrs['electron.process_gone.type'] = details.type;
-        if (details.serviceName !== undefined) attrs['electron.process_gone.service_name'] = details.serviceName;
-        if (webContentsId !== undefined) attrs['electron.process_gone.web_contents_id'] = webContentsId;
+        if (details.exitCode !== undefined) {
+            attrs['electron.process_gone.exit_code'] = details.exitCode;
+        }
+        if (details.type !== undefined) {
+            attrs['electron.process_gone.type'] = details.type;
+        }
+        if (details.serviceName !== undefined) {
+            attrs['electron.process_gone.service_name'] = details.serviceName;
+        }
+        if (webContentsId !== undefined) {
+            attrs['electron.process_gone.web_contents_id'] = webContentsId;
+        }
         return this.report(error, attrs);
     }
 
@@ -191,9 +214,15 @@ export class ElectronFlare extends CoreFlare {
     /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */
     private receiveRendererReport(report: Report): Promise<void> {
         Object.assign(report.attributes, collectElectronAppAttributes(this.app), projectUser(this.user));
-        if (this.mainStage) report.attributes['service.stage'] = this.mainStage;
-        if (this.mainVersion) report.attributes['service.version'] = this.mainVersion;
-        if (this.mainSourcemapVersionId) report.sourcemapVersionId = this.mainSourcemapVersionId;
+        if (this.mainStage) {
+            report.attributes['service.stage'] = this.mainStage;
+        }
+        if (this.mainVersion) {
+            report.attributes['service.version'] = this.mainVersion;
+        }
+        if (this.mainSourcemapVersionId) {
+            report.sourcemapVersionId = this.mainSourcemapVersionId;
+        }
         const sent = this.sendReport(report).finally(() => {
             this.forwardedInFlight.delete(sent);
         });
