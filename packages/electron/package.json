@@ -58,6 +58,7 @@
         "build": "tsdown src/main.ts src/preload.ts src/renderer.ts --format cjs,esm --dts --env.FLARE_ELECTRON_CLIENT_VERSION=$(node -p \"require('./package.json').version\") --clean",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
+        "verify:exports": "node scripts/verify-exports.mjs",
         "release": "release-it"
     },
     "dependencies": {
