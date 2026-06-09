@@ -33,25 +33,28 @@ main, preload, and renderer).
    (the `Flare` class + browser collectors + `FetchFileReader` + window
    listeners) via a NEW side-effect-free subpath export on `@flareapp/js`. It
    does NOT import `@flareapp/js`'s package root, which has import-time side
-   effects (see "Required changes to existing packages"). The electron package
-   depends on both `@flareapp/core` and `@flareapp/js`.
+   effects (see "Required changes to existing packages").
+7. **Main base class:** `ElectronFlare extends CoreFlare` directly — NOT
+   `NodeFlare`. NodeFlare's surface is web-server-shaped (`runWithContext`,
+   header/body redaction, AsyncLocalStorage scope) and hardcodes `process.exit`,
+   which is wrong for Electron (main should exit via `app.exit`/`app.quit`).
+   Electron implements its own thin process handling, disk file reader, and flush
+   scheduler. Consequence: the package depends ONLY on `@flareapp/core` and
+   `@flareapp/js` — NO `@flareapp/node` dependency. Tradeoff: a small amount of
+   code is duplicated from node (process handlers, fs snippet reader, timer-based
+   flush scheduler); these are modeled on node's implementations and kept minimal
+   to limit divergence.
 
 ## Required changes to existing packages
 
-These three findings from spec review mean v1 is not purely additive; it needs
-small, contained changes to `core` and `js`. Each is called out so the
-implementation plan treats them as first-class work, not incidental edits.
+v1 is not purely additive; it needs one small, contained change to `js`, called
+out so the plan treats it as first-class work, not an incidental edit.
 
-### `@flareapp/core` — composable context collector
+### `@flareapp/core` — no change
 
-`CoreFlare` stores a single `contextCollector` privately and offers no way to
-extend it. `NodeFlare` hardcodes its collector in its constructor, so a subclass
-(`ElectronFlare`) cannot layer Electron metadata onto inherited main-process
-reports. Add a `protected appendContextCollector(collector: ContextCollector)`
-to `CoreFlare` that composes additional collectors (their attributes merge on top
-of the base collector's, last-write-wins). `ElectronFlare` calls it in its
-constructor after `super()`. Covered by a core unit test (two collectors compose;
-later keys win). This is a `core` minor bump.
+Because `ElectronFlare extends CoreFlare` directly (Decision 7) and passes its own
+Electron context collector to `CoreFlare`'s constructor, no collector-composition
+hook is needed. Core is untouched.
 
 ### `@flareapp/js` — side-effect-free browser assembly export
 
@@ -64,15 +67,23 @@ top-level instantiation or `window` mutation. The package root keeps its current
 behavior for existing consumers. This is a `js` minor bump, and `@flareapp/js`
 gains its first subpath export.
 
-### `@flareapp/node` — re-export internals the main process reuses
+### `@flareapp/node` — no change
 
-`ElectronFlare extends NodeFlare`, but the main process also needs node internals
-that the node package does not currently export (`DiskFileReader`,
-`ProcessHandlerManager`, `NodeFlushScheduler`) if any are referenced directly.
-Where reuse is via inheritance alone, no export is needed; where electron
-references a node internal directly, add it to `@flareapp/node`'s public exports.
-Audit during planning; only export what electron actually imports. Possible `node`
-patch/minor bump.
+Decision 7 (extend `CoreFlare`, zero node dependency) means electron does NOT
+import or depend on `@flareapp/node`. Electron reimplements the three small
+node-flavored pieces it needs:
+
+- **Disk file reader** — reads source snippets for main-process stack frames via
+  `node:fs/promises`. Modeled on node's `DiskFileReader`.
+- **Flush scheduler** — timer-based, modeled on node's `NodeFlushScheduler`.
+- **Process handlers** — `uncaughtException` / `unhandledRejection` attach/detach
+  with fatal modes, BUT exit via Electron's `app.exit(code)` (not `process.exit`),
+  so Electron's shutdown path runs. Modeled on node's `ProcessHandlerManager` +
+  `buildFatalCallbacks` (whose `exit` parameter is already injectable).
+
+Keep these minimal and reference node's versions as the source pattern to limit
+divergence. If duplication becomes painful later, the shared primitives can be
+extracted into `core` in a follow-up; out of scope for v1.
 
 ## Architecture
 
@@ -84,7 +95,8 @@ seams: `(api, contextCollector, fileReader, scopeProvider, scheduler)`.
 `BrowserFlushScheduler`). `@flareapp/node` subclasses it for Node
 (`AsyncLocalStorageScopeProvider`, `DiskFileReader`, `ProcessHandlerManager`,
 `NodeFlushScheduler`). `@flareapp/electron` adds a third platform that spans two
-runtimes.
+runtimes. It subclasses `CoreFlare` directly (NOT `NodeFlare`) and supplies its
+own Electron-flavored seams, so it does not inherit node's web-server surface.
 
 ### Package shape
 
@@ -99,23 +111,36 @@ one entry per subpath.)
 | `@flareapp/electron/preload`  | preload     | `exposeFlare()` — sets up the `contextBridge` bridge            |
 | `@flareapp/electron/renderer` | renderer    | `RendererFlare` + `flare` instance; catches and forwards errors |
 
-Dependencies: `@flareapp/core` (hard-pinned, same as node/js), `@flareapp/js`
-(hard-pinned, used by the renderer entry). `electron` is a peer dependency.
+Dependencies: `@flareapp/core` (hard-pinned), `@flareapp/js` (hard-pinned, used by
+the renderer entry). NO `@flareapp/node` dependency (Decision 7). `electron` is a
+**peer dependency AND a devDependency** — the repo does not currently have
+`electron` installed, and the package needs Electron's bundled types for its own
+typecheck and tests (matching how the framework peer packages keep their peer in
+`devDependencies` too, e.g. `@flareapp/react`).
 
-### Main process — `ElectronFlare extends NodeFlare`
+### Main process — `ElectronFlare extends CoreFlare`
 
-Reuses node's fatal-handler machinery unchanged: `uncaughtException` /
-`unhandledRejection` capture, fatal modes (`report` / `report-and-exit` / `off`),
-shutdown timeout, `DiskFileReader` for main-process stack snippets. On top of
-that:
+Supplies its own Electron-flavored seams to `CoreFlare`'s constructor: an Electron
+context collector, the reimplemented disk file reader, a `GlobalScopeProvider`
+(Electron main has no per-request scoping), and the reimplemented flush scheduler.
+Adds:
 
-- **Electron context collector.** Layered on top of node's collector via the new
-  `appendContextCollector` core hook (see "Required changes"). Without that hook
-  inherited main-process reports would carry node metadata only. Adds: app name
-  and version (`app.getName()`, `app.getVersion()`), Electron / Chrome / Node
+- **Process handlers.** Attach/detach `uncaughtException` / `unhandledRejection`
+  with fatal modes (`report` / `report-and-exit` / `off`) and a shutdown timeout,
+  exiting via `app.exit(code)` so Electron's shutdown runs. Reimplemented in
+  electron (see "Required changes"); not inherited from node.
+- **Electron context collector.** The collector passed to `CoreFlare`. Adds: app
+  name and version (`app.getName()`, `app.getVersion()`), Electron / Chrome / Node
   versions (`process.versions`), OS platform + arch, locale (`app.getLocale()`),
-  `app.isPackaged`, and `process.type` (`'browser'` for main). Merged on top of
-  the node context.
+  `app.isPackaged`, and `process.type` (`'browser'` for main).
+
+    **Ready-safety (required).** `app.getLocale()` returns a reliable value only
+    after the `ready` event, but the SDK is typically initialized before
+    `app.whenReady()` and early main-process errors must still report. The collector
+    guards locale (and any other ready-only field) with `app.isReady()` (or
+    try/catch), omitting the field pre-ready rather than throwing. A unit test
+    exercises the pre-ready path.
+
 - **Renderer-crash listeners.** Attach `app.on('render-process-gone', ...)` and
   `app.on('child-process-gone', ...)`. Each turns into a synthetic structured
   Report carrying `reason`, `exitCode`, and an identifier for the affected window
@@ -139,10 +164,19 @@ that:
       compromised/buggy renderer from sending oversized bodies.
       Reference: Electron "Validate the sender of all IPC messages".
 
-API surface inherits everything from `NodeFlare` (`light`, `configureNode`,
-`runWithContext`, `setUser`, `glow`, `addContext`, etc.) plus an
-electron-specific options object (toggling crash listeners, sender-trust policy,
-max IPC payload size).
+    **Registration lifecycle (required).** `ipcMain.handle(channel, ...)` throws if a
+    handler is already registered for the channel, so registration must be
+    idempotent: call `ipcMain.removeHandler('flare:report')` before `handle(...)`,
+    or guard with a registered flag. `ElectronFlare` exposes a `dispose()` that
+    detaches process handlers, removes the crash listeners, and calls
+    `ipcMain.removeHandler('flare:report')` — so tests, app-reload paths, and
+    multiple instances don't leak or collide on duplicate handlers.
+
+API surface (on `CoreFlare`): `light`, `configure`, `setUser`, `glow`,
+`addContext`, `report`, `flush`, etc., plus electron-specific:
+`configureElectron(options)` (fatal modes, shutdown timeout, toggling crash
+listeners, sender-trust policy, max IPC payload size) and `dispose()`. It does NOT
+expose node's `runWithContext` / `configureNode` / header-body redaction.
 
 ### Preload — `exposeFlare()`
 
@@ -178,6 +212,15 @@ It never checks for a key and never fetches Flare directly. No API key, no
 `ingestUrl` in the renderer. If `window.__flare` is missing (preload not wired),
 it logs a clear one-time warning rather than throwing.
 
+**Global error-listener wiring (required).** `catchWindowErrors()` reports through
+the `window.flare` global, not a passed-in instance — it reads `window.flare` and
+calls `reportSilently` / `reportUnhandledRejection` on it. So `RendererFlare`'s
+setup MUST assign `window.flare = <the RendererFlare instance>` before calling
+`catchWindowErrors()`; otherwise global renderer errors are silently dropped.
+`RendererFlare` exposes the `reportSilently` / `reportUnhandledRejection` surface
+`catchWindowErrors` expects (inherited from the js `Flare`). A unit test asserts
+that a `window` `error` event reaches the renderer transport.
+
 **`beforeSubmit` semantics (resolved).** Both hooks apply, in order: the renderer's
 `beforeSubmit` runs in the renderer before forwarding (scrub close to the source);
 main's `beforeSubmit` runs in main before `api.report` (final egress gate).
@@ -196,8 +239,8 @@ renderer error
   → Api.report() → Flare backend
 
 main-process error
-  → ElectronFlare (inherited node fatal handlers)
-  → Api.report() → Flare backend
+  → ElectronFlare's own process handlers (uncaught / unhandledRejection)
+  → Api.report() → Flare backend   (exit via app.exit in report-and-exit mode)
 
 renderer / GPU crash
   → app 'render-process-gone' / 'child-process-gone' listener
@@ -220,11 +263,16 @@ Vitest, per-package, following the repo pattern (tests next to the code, package
 has its own `vitest.config.ts`). Coverage:
 
 - **Main collector** — Electron context projection, with `app` / `process.versions`
-  mocked.
-- **IPC receiver** — `ipcMain.handle` registration, metadata merge, send via a
-  `FakeApi`, with `ipcMain` mocked.
+  mocked, INCLUDING the pre-ready path (`app.isReady()` false → locale omitted, no
+  throw).
+- **Process handlers** — `uncaughtException` / `unhandledRejection` report and, in
+  `report-and-exit` mode, call the injected `app.exit` (not `process.exit`);
+  `report` / `off` modes behave correctly. `app.exit` mocked.
+- **IPC receiver** — idempotent registration (re-register does not throw; uses
+  `removeHandler`), metadata merge, send via a `FakeApi`; `dispose()` removes the
+  handler; with `ipcMain` mocked.
 - **Crash listeners** — `render-process-gone` / `child-process-gone` produce the
-  expected synthetic Reports.
+  expected synthetic Reports; `dispose()` detaches them.
 - **Preload bridge** — `exposeFlare()` calls `contextBridge.exposeInMainWorld` with
   a `report` function that invokes the right channel; `contextBridge` /
   `ipcRenderer` mocked.
@@ -232,11 +280,12 @@ has its own `vitest.config.ts`). Coverage:
   serializes, and forwards to `window.__flare.report`; keyless renderer still
   emits (regression guard for the `assertKey` short-circuit); missing-bridge path
   warns once instead of throwing; `window.__flare` mocked.
+- **Renderer global wiring** — `RendererFlare` setup assigns `window.flare` so a
+  dispatched `window` `error` event reaches the transport (regression guard for the
+  `catchWindowErrors` global dependency).
 - **IPC sender trust** — handler rejects unknown `senderFrame`, drops malformed
   payloads, and rejects oversized payloads; accepts a valid report and sends via
   `FakeApi`.
-- **Core collector composition** (in `core`) — `appendContextCollector` merges
-  attributes over the base collector, later keys win.
 - **js browser export** (in `js`) — importing `@flareapp/js/browser` does NOT set
   `window.flare` or install window listeners (no import-time side effects), and
   exposes the expected symbols.
