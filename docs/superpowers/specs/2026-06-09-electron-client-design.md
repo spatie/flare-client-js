@@ -195,58 +195,59 @@ version })` in its constructor. `CoreFlare` otherwise defaults to `@flareapp/cor
   `flare.light(key)`. The handler does NOT call the keyless renderer path; it
   injects the received report into main's send pipeline (which has the key).
 
-    **Main-authoritative config fields (required).** The renderer builds the report
-    with its OWN config, so config-derived fields are baked from renderer values at
-    build time: `service.stage` and `service.version` (from `configure({ stage,
-  version })`) and `report.sourcemapVersionId`. `CoreFlare.sendReport()` does NOT
+        **Main-authoritative config fields (required).** The renderer builds the report
+        with its OWN config, so config-derived fields are baked from renderer values at
+        build time: `service.stage` and `service.version` (from `configure({ stage,
+
+    version })`) and `report.sourcemapVersionId`. `CoreFlare.sendReport()`does NOT
     re-run base-attribute assembly, so without intervention a forwarded report would
     carry renderer-local (usually empty) values for these even though the user
     configured them in main. To keep the "configure once, in main" model consistent
     with the key story, the IPC receiver OVERLAYS main's config-derived fields onto
-    the received report before send: `service.stage`, `service.version`, and
-    `sourcemapVersionId` (taken from main's config when set). Renderer-specific data
+    the received report before send:`service.stage`, `service.version`, and
+    `sourcemapVersionId`(taken from main's config when set). Renderer-specific data
     (browser context, URL, the stack/snippets) is preserved as-is. Consequence: the
-    renderer does NOT need to call `configure({ stage, version })` or set sourcemap
+    renderer does NOT need to call`configure({ stage, version })`or set sourcemap
     config — main is the single source of truth. (The renderer may still set its own
-    `beforeSubmit` for scrubbing; see below.)
+   `beforeSubmit` for scrubbing; see below.)
 
-        **Sender trust + payload validation (required, per Electron security guidance).**
-        The handler must not blindly trust renderer input. It:
-        - Validates the sender via a trust policy with a **working default** (so a
-          copy-paste setup is not silently dropped). The default accepts EXACTLY two
-          cases and nothing else: (1) `senderFrame` URL scheme is `file:` (packaged
-          build), and (2) host is `localhost` or `127.0.0.1` over `http(s)` (vite/dev
-          server). Everything else — including custom protocols and any remote origin
-          — is rejected by default. Custom protocols are NOT auto-trusted: an app that
-          serves its renderer over a custom protocol (e.g. `app://`) in production must
-          opt in. Two override knobs on `configureElectron`: `trustedProtocols:
+              **Sender trust + payload validation (required, per Electron security guidance).**
+              The handler must not blindly trust renderer input. It:
+              - Validates the sender via a trust policy with a **working default** (so a
+                copy-paste setup is not silently dropped). The default accepts EXACTLY two
+                cases and nothing else: (1) `senderFrame` URL scheme is `file:` (packaged
+                build), and (2) host is `localhost` or `127.0.0.1` over `http(s)` (vite/dev
+                server). Everything else — including custom protocols and any remote origin
+                — is rejected by default. Custom protocols are NOT auto-trusted: an app that
+                serves its renderer over a custom protocol (e.g. `app://`) in production must
+                opt in. Two override knobs on `configureElectron`: `trustedProtocols:
 
-    string[]`(add exact scheme names like`'app'`) and/or `trustSender: (frame)
-    => boolean`(full predicate, replaces the default check). The README main
-      setup documents both for production custom-protocol and remote-content apps.
-    - Re-checks the payload byte size BEFORE`JSON.parse`(the renderer already
-      size-checks before sending — see Renderer transport — but main must not trust
-      that; an oversized string is rejected without parsing). Configurable max,
-      sane default.
-    - Validates the payload shape after parse: the object must match the`Report`
-    contract (required fields present, correct types). Malformed payloads are
-    dropped, optionally logged in debug.
-    Reference: Electron "Validate the sender of all IPC messages".
+        string[]`(add exact scheme names like`'app'`) and/or `trustSender: (frame)
+        => boolean`(full predicate, replaces the default check). The README main
+        setup documents both for production custom-protocol and remote-content apps.
+        - Re-checks the payload byte size BEFORE`JSON.parse`(the renderer already
+          size-checks before sending — see Renderer transport — but main must not trust
+          that; an oversized string is rejected without parsing). Configurable max,
+          sane default.
+        - Validates the payload shape after parse: the object must match the`Report`
+          contract (required fields present, correct types). Malformed payloads are
+          dropped, optionally logged in debug.
+          Reference: Electron "Validate the sender of all IPC messages".
 
-        **Registration lifecycle + ownership (required).** `ipcMain.handle(channel, ...)`
-        throws if a handler is already registered, and with multiple instances a naive
-        `removeHandler`-before-`handle` lets an older instance's `dispose()` tear down
-        a newer instance's handler. Guard with a module-level ownership token: a single
-        `currentOwner` reference for the `flare:report` channel.
-        - On register: if `currentOwner` is set and is not `this`, the new instance
-          takes over (`removeHandler` then `handle`) and becomes `currentOwner`;
-          re-register by the same instance is a no-op.
-        - `dispose()` removes the handler ONLY if `currentOwner === this`, then clears
-          `currentOwner` (in addition to detaching process handlers and crash
-          listeners). An older instance's `dispose()` after a newer one took ownership
-          does nothing to the live handler.
-          The package's normal usage is the exported singleton, so multi-instance is
-          mainly a test / hot-reload concern; the token makes those paths safe.
+                **Registration lifecycle + ownership (required).** `ipcMain.handle(channel, ...)`
+                throws if a handler is already registered, and with multiple instances a naive
+                `removeHandler`-before-`handle` lets an older instance's `dispose()` tear down
+                a newer instance's handler. Guard with a module-level ownership token: a single
+                `currentOwner` reference for the `flare:report` channel.
+                - On register: if `currentOwner` is set and is not `this`, the new instance
+                  takes over (`removeHandler` then `handle`) and becomes `currentOwner`;
+                  re-register by the same instance is a no-op.
+                - `dispose()` removes the handler ONLY if `currentOwner === this`, then clears
+                  `currentOwner` (in addition to detaching process handlers and crash
+                  listeners). An older instance's `dispose()` after a newer one took ownership
+                  does nothing to the live handler.
+                  The package's normal usage is the exported singleton, so multi-instance is
+                  mainly a test / hot-reload concern; the token makes those paths safe.
 
 API surface: inherited from `CoreFlare` — `light`, `configure`, `glow`,
 `addContext`, `report`, `flush`, etc. Electron-owned additions:

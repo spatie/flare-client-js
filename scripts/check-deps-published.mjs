@@ -12,8 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const SKIP_DEP_CHECK =
-    process.argv.includes('--skip-dep-check') || process.env.SKIP_DEP_CHECK === '1';
+const SKIP_DEP_CHECK = process.argv.includes('--skip-dep-check') || process.env.SKIP_DEP_CHECK === '1';
 
 function fail(msg) {
     console.error(`\n  ERROR: ${msg}\n`);
@@ -49,8 +48,7 @@ function main() {
     // Accept an explicit package path as the first non-flag argument, or fall
     // back to the current working directory (standard when invoked from a
     // release-it hook inside a package directory).
-    const pkgPath = process.argv.slice(2).find((a) => !a.startsWith('-'))
-        ?? process.cwd();
+    const pkgPath = process.argv.slice(2).find((a) => !a.startsWith('-')) ?? process.cwd();
 
     const pkgJsonPath = join(resolve(pkgPath), 'package.json');
 
@@ -75,8 +73,8 @@ function main() {
         if (!isDepPublishedOnNpm(dep, pinnedVersion)) {
             fail(
                 `${pkgJson.name} depends on ${dep}@${pinnedVersion} but that version is not published on npm.\n` +
-                `  Publish ${dep} first, then re-run the release.\n` +
-                `  To bypass this check (offline / private registry), pass --skip-dep-check or set SKIP_DEP_CHECK=1.`,
+                    `  Publish ${dep} first, then re-run the release.\n` +
+                    `  To bypass this check (offline / private registry), pass --skip-dep-check or set SKIP_DEP_CHECK=1.`,
             );
         }
         info(`${dep}@${pinnedVersion} is published on npm`);
