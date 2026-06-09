@@ -157,7 +157,8 @@ function checkIndependentDepsPublished(releaseSet) {
         const externalDeps = flareDeps.filter((dep) => !releaseSet.has(shortName(dep)));
         if (externalDeps.length === 0) continue;
 
-        const result = spawnSync('node', [CHECK_DEPS_SCRIPT, pkgDir(name)], {
+        const exclude = [...releaseSet].map((n) => `@flareapp/${n}`).join(',');
+        const result = spawnSync('node', [CHECK_DEPS_SCRIPT, pkgDir(name), `--exclude=${exclude}`], {
             encoding: 'utf-8',
             stdio: ['ignore', 'pipe', 'pipe'],
             env,

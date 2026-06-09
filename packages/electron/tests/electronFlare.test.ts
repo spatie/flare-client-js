@@ -139,6 +139,21 @@ describe('ElectronFlare', () => {
         expect(flushed).toBe(true);
     });
 
+    it('flush() clears its timeout when reports settle first (no dangling timer)', async () => {
+        const { flare } = makeFlare();
+        vi.useFakeTimers();
+        try {
+            // No in-flight forwarded reports and core has nothing pending, so settled resolves fast.
+            const p = flare.flush(5000);
+            // Let the microtask (allSettled.then) run, then assert the timer was cleared.
+            await vi.advanceTimersByTimeAsync(0);
+            await p;
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('configureElectron ignores explicit undefined and preserves resolved defaults', async () => {
         const { flare, sent, ipcMain } = makeFlare();
         // Spread-built config with explicit undefined fields must not clobber defaults.

@@ -174,14 +174,18 @@ export class ElectronFlare extends CoreFlare {
 
     /**
      * Wait for both core's tracked reports AND forwarded renderer reports (which bypass core's
-     * private track()), bounded by timeoutMs. Without this, a fatal report-and-exit flush could
-     * exit before an in-flight forwarded renderer report lands.
+     * private track()), bounded by timeoutMs. The timeout is cleared when all reports settle
+     * first, so the event loop is not kept alive unnecessarily.
      */
-    async flush(timeoutMs = 2000): Promise<void> {
-        await Promise.race([
-            Promise.allSettled([super.flush(timeoutMs), ...this.forwardedInFlight]),
-            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
-        ]);
+    flush(timeoutMs = 2000): Promise<void> {
+        const settled = Promise.allSettled([super.flush(timeoutMs), ...this.forwardedInFlight]);
+        return new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, timeoutMs);
+            settled.then(() => {
+                clearTimeout(timer);
+                resolve();
+            });
+        });
     }
 
     /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */

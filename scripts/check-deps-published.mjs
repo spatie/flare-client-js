@@ -7,12 +7,16 @@
 //   node ../../scripts/check-deps-published.mjs [package-path]
 //
 // Flags:
-//   --skip-dep-check   Skip the check entirely (also honoured via SKIP_DEP_CHECK=1).
+//   --skip-dep-check          Skip the check entirely (also honoured via SKIP_DEP_CHECK=1).
+//   --exclude=<dep1>,<dep2>   Comma-separated full dep names to skip (e.g. --exclude=@flareapp/js).
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const SKIP_DEP_CHECK = process.argv.includes('--skip-dep-check') || process.env.SKIP_DEP_CHECK === '1';
+
+const excludeArg = process.argv.find((a) => a.startsWith('--exclude='));
+const EXCLUDE = new Set(excludeArg ? excludeArg.slice('--exclude='.length).split(',').filter(Boolean) : []);
 
 function fail(msg) {
     console.error(`\n  ERROR: ${msg}\n`);
@@ -60,7 +64,7 @@ function main() {
     }
 
     const deps = pkgJson.dependencies ?? {};
-    const flareAppDeps = Object.entries(deps).filter(([dep]) => dep.startsWith('@flareapp/'));
+    const flareAppDeps = Object.entries(deps).filter(([dep]) => dep.startsWith('@flareapp/') && !EXCLUDE.has(dep));
 
     if (flareAppDeps.length === 0) {
         // Nothing to check — not an error, just a no-op.
