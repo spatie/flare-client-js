@@ -1,3 +1,5 @@
+import os from 'node:os';
+
 import type { Attributes, Config, ContextCollector } from '@flareapp/core';
 import type { App } from 'electron';
 
@@ -15,12 +17,12 @@ export function collectElectronAppAttributes(app: AppLike): Attributes {
         'app.packaged': app.isPackaged,
         'process.type': (process as { type?: string }).type ?? 'browser',
         'process.runtime.name': 'electron',
-        'process.runtime.version': versions.electron ?? process.version,
+        'process.runtime.version': versions.electron ?? '',
         'process.versions.electron': versions.electron ?? '',
         'process.versions.chrome': versions.chrome ?? '',
         'process.versions.node': versions.node ?? process.version,
         'host.arch': process.arch,
-        'os.type': process.platform,
+        'os.type': os.type(),
     };
 
     // getLocale() is only reliable after the 'ready' event. Omit it pre-ready rather than throw.
