@@ -26,6 +26,8 @@ describe('buildFatalCallbacks', () => {
         expect(flare.report).toHaveBeenCalledTimes(1);
         expect(flare.flush).toHaveBeenCalledWith(50);
         expect(exit).toHaveBeenCalledWith(1);
+        // flush must complete before exit is called
+        expect(flare.flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0]);
     });
 
     it('report mode: reports but does NOT exit or flush', async () => {
