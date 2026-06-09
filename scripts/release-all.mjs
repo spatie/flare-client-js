@@ -13,6 +13,9 @@
 //     whether to (re)release them and at which version, so a plain lockstep
 //     release does not drag them along. core must publish before js/node,
 //     which carry an exact pin on it.
+//   - @flareapp/electron also versions INDEPENDENTLY. It hard-pins both
+//     @flareapp/core (exact) and @flareapp/js (exact), so it must publish
+//     AFTER both core (tier 0) and js (tier 1) are visible on npm.
 import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,7 +41,7 @@ const NPM_POLL_TIMEOUT_MS = Number(process.env.NPM_POLL_TIMEOUT_MS ?? 10 * 60_00
 const LOCKSTEP_PACKAGES = ['js', 'react', 'vue', 'svelte', 'webpack', 'vite', 'sveltekit', 'nextjs'];
 
 // Independently versioned packages, prompted separately each run.
-const INDEPENDENT_PACKAGES = ['core', 'node'];
+const INDEPENDENT_PACKAGES = ['core', 'node', 'electron'];
 
 // Publish tiers, ordered by dependency. A package may only publish once every
 // package it hard-depends on has been published AND has become visible on npm.
@@ -50,7 +53,7 @@ const INDEPENDENT_PACKAGES = ['core', 'node'];
 const PUBLISH_ORDER = [
     ['core'],
     ['js', 'node'],
-    ['react', 'vue', 'svelte', 'webpack', 'vite'],
+    ['react', 'vue', 'svelte', 'webpack', 'vite', 'electron'],
     ['sveltekit', 'nextjs'],
 ];
 
@@ -70,6 +73,13 @@ const LOCKSTEP_REFS = [
 const CORE_REFS = [
     { pkg: 'js', field: 'dependencies', dep: '@flareapp/core' },
     { pkg: 'node', field: 'dependencies', dep: '@flareapp/core' },
+    { pkg: 'electron', field: 'dependencies', dep: '@flareapp/core' },
+];
+
+// Lockstep deps that are hard-pinned EXACTLY (not caret). electron pins @flareapp/js exactly,
+// the same way js/node pin core exactly. Rewritten to the exact lockstep version.
+const LOCKSTEP_EXACT_REFS = [
+    { pkg: 'electron', field: 'dependencies', dep: '@flareapp/js' },
 ];
 
 function run(cmd, opts = {}) {
@@ -259,11 +269,13 @@ async function planRelease() {
     const { newVersion: lockstepVersion } = await promptLockstepVersion();
     const coreVersion = await promptIndependentVersion('core');
     const nodeVersion = await promptIndependentVersion('node');
+    const electronVersion = await promptIndependentVersion('electron');
 
     const versions = {};
     for (const name of LOCKSTEP_PACKAGES) versions[name] = lockstepVersion;
     if (coreVersion) versions['core'] = coreVersion;
     if (nodeVersion) versions['node'] = nodeVersion;
+    if (electronVersion) versions['electron'] = electronVersion;
 
     const releaseSet = new Set(Object.keys(versions));
     const tiers = PUBLISH_ORDER.map((tier) => tier.filter((n) => releaseSet.has(n))).filter((t) => t.length > 0);
@@ -283,7 +295,11 @@ async function confirmPlan(plan) {
     }
     if (plan.releaseSet.has('core')) {
         console.log('');
-        info(`@flareapp/core@${plan.versions['core']} will be released first; js/node pins rewritten to it.`);
+        info(`@flareapp/core@${plan.versions['core']} will be released first; js/node/electron pins rewritten to it.`);
+    }
+    if (plan.releaseSet.has('electron')) {
+        console.log('');
+        info(`@flareapp/electron@${plan.versions['electron']} publishes after core + js; its exact js pin will be rewritten to ${plan.lockstepVersion}.`);
     }
     console.log('');
     const confirm = await ask('  Proceed with this plan? [y/N]: ');
@@ -343,6 +359,18 @@ function updateCrossReferences(plan) {
             pkgJson[field][dep] = newRange;
             writePkgJson(pkg, pkgJson);
             info(`@flareapp/${pkg} ${field}.${dep}: ${oldRange} -> ${newRange}`);
+        }
+    }
+
+    // Lockstep deps that are pinned exactly (electron -> js).
+    for (const { pkg, field, dep } of LOCKSTEP_EXACT_REFS) {
+        if (!plan.releaseSet.has(pkg)) continue;
+        const pkgJson = readPkgJson(pkg);
+        if (pkgJson[field]?.[dep]) {
+            const oldRange = pkgJson[field][dep];
+            pkgJson[field][dep] = plan.lockstepVersion; // exact pin
+            writePkgJson(pkg, pkgJson);
+            info(`@flareapp/${pkg} ${field}.${dep}: ${oldRange} -> ${plan.lockstepVersion}`);
         }
     }
 
@@ -702,6 +730,7 @@ async function main() {
         `\n  Done! Released v${plan.lockstepVersion}` +
             (plan.releaseSet.has('core') ? ` + core@${plan.versions['core']}` : '') +
             (plan.releaseSet.has('node') ? ` + node@${plan.versions['node']}` : '') +
+            (plan.releaseSet.has('electron') ? ` + electron@${plan.versions['electron']}` : '') +
             '\n',
     );
 }
