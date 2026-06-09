@@ -32,6 +32,8 @@ export class ElectronFlare extends CoreFlare {
     private user: ElectronUser | null = null;
     private isLit = false;
     private handlerManager: ProcessHandlerManager;
+    private renderGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
+    private childGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
 
     // Captured from configure() because CoreFlare._config is private.
     private mainStage = '';
@@ -63,6 +65,8 @@ export class ElectronFlare extends CoreFlare {
             getOptions: () => this.options,
             onReport: (report) => this.receiveRendererReport(report),
         });
+
+        this.reconcileCrashListeners();
     }
 
     configure(config: Partial<Config>): this {
@@ -82,6 +86,7 @@ export class ElectronFlare extends CoreFlare {
     configureElectron(partial: ElectronOptions): this {
         this.options = { ...this.options, ...partial };
         if (this.isLit) this.handlerManager.reconcile(this.options);
+        this.reconcileCrashListeners();
         return this;
     }
 
@@ -91,7 +96,63 @@ export class ElectronFlare extends CoreFlare {
 
     dispose(): void {
         this.handlerManager.detach();
+        this.detachCrashListeners();
         disposeIpcReceiver(this.ipcMain, this);
+    }
+
+    /** Attach or detach the process-gone listeners to match options.captureRenderProcessGone. Idempotent. */
+    private reconcileCrashListeners(): void {
+        const want = this.options.captureRenderProcessGone;
+        const attached = this.renderGoneHandler !== null;
+        if (want && !attached) {
+            this.renderGoneHandler = (
+                _event: unknown,
+                webContents: { id?: number } | undefined,
+                details: { reason?: string; exitCode?: number },
+            ) => {
+                return this.reportProcessGone('renderer', details, webContents?.id);
+            };
+            this.childGoneHandler = (
+                _event: unknown,
+                details: { reason?: string; exitCode?: number; type?: string; serviceName?: string },
+            ) => {
+                return this.reportProcessGone('child', details);
+            };
+            this.app.on('render-process-gone', this.renderGoneHandler as any);
+            this.app.on('child-process-gone', this.childGoneHandler as any);
+        } else if (!want && attached) {
+            this.detachCrashListeners();
+        }
+    }
+
+    private detachCrashListeners(): void {
+        if (this.renderGoneHandler) {
+            this.app.off('render-process-gone', this.renderGoneHandler as any);
+            this.renderGoneHandler = null;
+        }
+        if (this.childGoneHandler) {
+            this.app.off('child-process-gone', this.childGoneHandler as any);
+            this.childGoneHandler = null;
+        }
+    }
+
+    private reportProcessGone(
+        kind: 'renderer' | 'child',
+        details: { reason?: string; exitCode?: number; type?: string; serviceName?: string },
+        webContentsId?: number,
+    ): Promise<void> {
+        const reason = details.reason ?? 'unknown';
+        const label = kind === 'renderer' ? 'Renderer process gone' : 'Child process gone';
+        const error = new Error(`${label}: ${reason}`);
+        const attrs: Record<string, string | number> = {
+            'electron.process_gone.kind': kind,
+            'electron.process_gone.reason': reason,
+        };
+        if (details.exitCode !== undefined) attrs['electron.process_gone.exit_code'] = details.exitCode;
+        if (details.type !== undefined) attrs['electron.process_gone.type'] = details.type;
+        if (details.serviceName !== undefined) attrs['electron.process_gone.service_name'] = details.serviceName;
+        if (webContentsId !== undefined) attrs['electron.process_gone.web_contents_id'] = webContentsId;
+        return this.report(error, attrs);
     }
 
     /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */
