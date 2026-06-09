@@ -68,6 +68,15 @@ top-level instantiation or `window` mutation. The package root keeps its current
 behavior for existing consumers. This is a `js` minor bump, and `@flareapp/js`
 gains its first subpath export.
 
+This requires real build + packaging work, not just a source file: `@flareapp/js`
+currently builds ONLY `src/index.ts` (`tsdown src/index.ts ... --dts`) and
+declares a single `"."` export. The new export needs (a) a second build entry
+(e.g. `src/browser.ts` that re-exports the side-effect-free symbols) added to the
+tsdown invocation, and (b) an `exports["./browser"]` map entry mirroring the dual
+CJS+ESM+`.d.ts` shape of `"."`. The export/build verification below covers BOTH
+`@flareapp/electron`'s subpaths AND this new `@flareapp/js/browser` subpath — a
+source-level test would pass even if the published subpath were missing.
+
 ### `@flareapp/node` — no change
 
 Decision 7 (extend `CoreFlare`, zero node dependency) means electron does NOT
@@ -160,9 +169,16 @@ version })` in its constructor. `CoreFlare` otherwise defaults to `@flareapp/cor
     exercises the pre-ready path.
 
 - **Renderer-crash listeners.** Attach `app.on('render-process-gone', ...)` and
-  `app.on('child-process-gone', ...)`. Each turns into a synthetic structured
-  Report carrying `reason`, `exitCode`, and an identifier for the affected window
-  / child. No Crashpad, no minidumps.
+  `app.on('child-process-gone', ...)`. `CoreFlare`'s report assembly (`buildReport`,
+  base attributes, glows) is private and core is unchanged, so electron does NOT
+  hand-build a `Report`. Instead each listener synthesizes an `Error`
+  (e.g. `new Error('Renderer process gone: ' + details.reason)`) and calls the
+  public `this.report(error, { ... })` with crash attributes (`reason`,
+  `exitCode`, affected window/frame id, `process.type`). This routes through the
+  normal pipeline so the report gets base attributes, glows, the Electron context
+  collector, and `beforeSubmit` for free. The synthetic stack points at the
+  listener (no real JS frame exists for a native crash); that is acceptable and
+  noted. No Crashpad, no minidumps.
 - **IPC receiver.** Registers `ipcMain.handle('flare:report', handler)`. The
   handler receives a serialized Report from a renderer, merges Electron/app
   metadata into it, runs main's `beforeSubmit`, and sends via the shared `Api`.
@@ -173,15 +189,16 @@ version })` in its constructor. `CoreFlare` otherwise defaults to `@flareapp/cor
     **Sender trust + payload validation (required, per Electron security guidance).**
     The handler must not blindly trust renderer input. It:
     - Validates the sender via a trust policy with a **working default** (so a
-      copy-paste setup is not silently dropped). The default policy accepts frames
-      whose `senderFrame` URL is local to the app — `file:` (packaged build),
-      custom app protocols (`app:`, etc.), and localhost dev-server origins
-      (`http://localhost:*` / `127.0.0.1`) — and rejects arbitrary remote
-      `http(s)` origins (e.g. third-party content loaded into a window). Users can
-      override with a predicate (`trustSender: (frame) => boolean`) via
-      `configureElectron` to add production custom-protocol or known remote
-      origins, or to tighten further. The README main setup documents this for
-      apps that load remote content.
+      copy-paste setup is not silently dropped). The default accepts EXACTLY two
+      cases and nothing else: (1) `senderFrame` URL scheme is `file:` (packaged
+      build), and (2) host is `localhost` or `127.0.0.1` over `http(s)` (vite/dev
+      server). Everything else — including custom protocols and any remote origin
+      — is rejected by default. Custom protocols are NOT auto-trusted: an app that
+      serves its renderer over a custom protocol (e.g. `app://`) in production must
+      opt in. Two override knobs on `configureElectron`: `trustedProtocols:
+string[]` (add exact scheme names like `'app'`) and/or `trustSender: (frame)
+=> boolean` (full predicate, replaces the default check). The README main
+      setup documents both for production custom-protocol and remote-content apps.
     - Validates the payload shape: the deserialized object must match the `Report`
       contract (required fields present, correct types). Malformed payloads are
       dropped, optionally logged in debug.
@@ -189,13 +206,20 @@ version })` in its constructor. `CoreFlare` otherwise defaults to `@flareapp/cor
       compromised/buggy renderer from sending oversized bodies.
       Reference: Electron "Validate the sender of all IPC messages".
 
-    **Registration lifecycle (required).** `ipcMain.handle(channel, ...)` throws if a
-    handler is already registered for the channel, so registration must be
-    idempotent: call `ipcMain.removeHandler('flare:report')` before `handle(...)`,
-    or guard with a registered flag. `ElectronFlare` exposes a `dispose()` that
-    detaches process handlers, removes the crash listeners, and calls
-    `ipcMain.removeHandler('flare:report')` — so tests, app-reload paths, and
-    multiple instances don't leak or collide on duplicate handlers.
+    **Registration lifecycle + ownership (required).** `ipcMain.handle(channel, ...)`
+    throws if a handler is already registered, and with multiple instances a naive
+    `removeHandler`-before-`handle` lets an older instance's `dispose()` tear down
+    a newer instance's handler. Guard with a module-level ownership token: a single
+    `currentOwner` reference for the `flare:report` channel.
+    - On register: if `currentOwner` is set and is not `this`, the new instance
+      takes over (`removeHandler` then `handle`) and becomes `currentOwner`;
+      re-register by the same instance is a no-op.
+    - `dispose()` removes the handler ONLY if `currentOwner === this`, then clears
+      `currentOwner` (in addition to detaching process handlers and crash
+      listeners). An older instance's `dispose()` after a newer one took ownership
+      does nothing to the live handler.
+      The package's normal usage is the exported singleton, so multi-instance is
+      mainly a test / hot-reload concern; the token makes those paths safe.
 
 API surface: inherited from `CoreFlare` — `light`, `configure`, `glow`,
 `addContext`, `report`, `flush`, etc. Electron-owned additions:
@@ -274,8 +298,8 @@ main-process error
 
 renderer / GPU crash
   → app 'render-process-gone' / 'child-process-gone' listener
-  → ElectronFlare builds synthetic Report (reason, exitCode, window id)
-  → Api.report() → Flare backend
+  → ElectronFlare calls public report(syntheticError, {reason, exitCode, window id})
+  → normal assembly + beforeSubmit → Api.report() → Flare backend
 ```
 
 ## Packaging
@@ -303,14 +327,18 @@ has its own `vitest.config.ts`). Coverage:
   `sdkInfo.name === '@flareapp/electron'` (not core/js defaults).
 - **setUser projection** — `setUser({...})` surfaces `enduser.*` on the next
   report; `setUser(null)` clears it.
-- **Sender trust default** — default policy accepts `file:`, custom-protocol, and
-  `localhost` senders and rejects a remote `https` origin; a custom `trustSender`
-  predicate overrides both directions.
-- **IPC receiver** — idempotent registration (re-register does not throw; uses
-  `removeHandler`), metadata merge, send via a `FakeApi`; `dispose()` removes the
-  handler; with `ipcMain` mocked.
-- **Crash listeners** — `render-process-gone` / `child-process-gone` produce the
-  expected synthetic Reports; `dispose()` detaches them.
+- **Sender trust default** — default accepts `file:` and `localhost`/`127.0.0.1`
+  only; rejects a custom protocol AND a remote `https` origin; adding the scheme
+  via `trustedProtocols` accepts it; a custom `trustSender` predicate replaces the
+  default check.
+- **IPC receiver + ownership** — idempotent registration (re-register by the same
+  instance is a no-op; a second instance takes over via `removeHandler`+`handle`);
+  metadata merge; send via a `FakeApi`; an OLD instance's `dispose()` after a newer
+  instance took ownership does NOT remove the live handler; the owning instance's
+  `dispose()` does. `ipcMain` mocked.
+- **Crash listeners** — `render-process-gone` / `child-process-gone` route through
+  public `report(...)` and produce reports carrying `reason` / `exitCode` / window
+  id and Electron context; `dispose()` detaches them.
 - **Preload bridge** — `exposeFlare()` calls `contextBridge.exposeInMainWorld` with
   a `report` function that invokes the right channel; `contextBridge` /
   `ipcRenderer` mocked.
@@ -328,11 +356,15 @@ has its own `vitest.config.ts`). Coverage:
   `window.flare` or install window listeners (no import-time side effects), and
   exposes the expected symbols.
 
-**Export/build verification.** Because this is the repo's first subpath-export
-package, add a build-output check that runs after `npm run build`: assert each
-subpath (`/main`, `/preload`, `/renderer`) resolves in CJS and ESM and its `.d.ts`
-exists, and a smoke import of each entry in both formats. (Mocks alone cannot catch
-a broken `exports` map.) Use the repo's existing tooling; if a publish-linter like
+**Export/build verification.** Because subpath exports are new to the repo, add a
+build-output check that runs after `npm run build` and covers BOTH new subpath
+surfaces: `@flareapp/electron`'s `/main`, `/preload`, `/renderer` AND the new
+`@flareapp/js/browser`. For each, assert the entry resolves in CJS and ESM, its
+`.d.ts` exists, and a smoke import in both formats succeeds. This specifically
+guards the `@flareapp/js` build-script change (it must emit the browser entry, not
+just `src/index.ts`) and its `exports["./browser"]` map — a source-level test would
+pass even if the published subpath were missing. (Mocks cannot catch a broken
+`exports` map.) Use the repo's existing tooling; if a publish-linter like
 `publint`/`arethetypeswrong` is not already present, a small script that imports
 each built entry is sufficient for v1.
 
@@ -354,9 +386,9 @@ Long and instructive because there is no docs page yet. Must include:
 - A short report-flow diagram so users understand why the API key lives only in
   main.
 - The two-stage `beforeSubmit` (renderer scrubs first, main is final gate).
-- The sender-trust default and how to configure `trustSender` for apps that load
-  remote content or use a production custom protocol (default accepts `file:`,
-  custom protocols, and localhost; rejects arbitrary remote origins).
+- The sender-trust default (accepts `file:` and `localhost` only; rejects custom
+  protocols and remote origins) and how to opt in via `trustedProtocols` /
+  `trustSender` for production custom-protocol or remote-content apps.
 - `setUser` usage for attaching the logged-in user.
 
 ## Out of scope (v1)
