@@ -26,7 +26,9 @@ describe('electron context collector', () => {
         expect(attrs['app.locale']).toBe('en-US');
         expect(attrs['app.packaged']).toBe(true);
         expect(attrs['process.runtime.name']).toBe('electron');
-        expect(attrs['flare.entry_point.type']).toBe('server');
+        // per-process fields must NOT be present; they belong only on main-origin reports
+        expect(attrs['flare.entry_point.type']).toBeUndefined();
+        expect(attrs['process.type']).toBeUndefined();
         expect(typeof attrs['process.versions.electron']).toBe('string');
     });
 
@@ -34,6 +36,15 @@ describe('electron context collector', () => {
         const attrs = collectElectronAppAttributes(fakeApp(false) as any);
         expect(attrs['app.locale']).toBeUndefined();
         expect(attrs['service.name']).toBe('TestApp');
+    });
+
+    it('collector adds per-process fields for main-origin reports', () => {
+        const collector = makeElectronContextCollector(fakeApp(true) as any, () => null);
+        const attrs = collector(cfg);
+        expect(attrs['flare.entry_point.type']).toBe('server');
+        expect(typeof attrs['process.type']).toBe('string');
+        expect(attrs['service.name']).toBe('TestApp');
+        expect(attrs['process.runtime.name']).toBe('electron');
     });
 
     it('projects the current user via the getter', () => {

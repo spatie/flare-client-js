@@ -81,7 +81,11 @@ describe('ElectronFlare', () => {
             seenAtUnixNano: 5,
             stacktrace: [],
             events: [],
-            attributes: { 'service.stage': '', 'flare.entry_point.value': 'http://localhost/page' },
+            attributes: {
+                'service.stage': '',
+                'flare.entry_point.value': 'http://localhost/page',
+                'flare.entry_point.type': 'web',
+            },
         });
         await handler({ senderFrame: { url: 'file:///index.html' } }, rendererReport);
 
@@ -91,6 +95,8 @@ describe('ElectronFlare', () => {
         expect(sentOut[0].sourcemapVersionId).toBe('sm-1');
         // renderer browser context preserved
         expect(sentOut[0].attributes['flare.entry_point.value']).toBe('http://localhost/page');
+        // renderer entry_point.type must NOT be overwritten to 'server' by the main overlay
+        expect(sentOut[0].attributes['flare.entry_point.type']).toBe('web');
         // electron app metadata merged
         expect(sentOut[0].attributes['service.name']).toBe('TestApp');
         // main-side user merged onto forwarded report

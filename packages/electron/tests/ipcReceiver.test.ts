@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { FLARE_IPC_CHANNEL } from '../src/constants';
 import { defaultTrustPolicy, registerIpcReceiver, disposeIpcReceiver } from '../src/main/ipcReceiver';
@@ -43,12 +43,17 @@ describe('defaultTrustPolicy', () => {
 
 describe('ipc receiver', () => {
     let owner: any;
+    let ipcMain: ReturnType<typeof fakeIpcMain>;
     beforeEach(() => {
         owner = { id: 'A' };
+        ipcMain = fakeIpcMain();
+    });
+    afterEach(() => {
+        // Dispose the current test's owner so module-level currentOwner is reset between tests.
+        disposeIpcReceiver(ipcMain as any, owner);
     });
 
     it('rejects unknown sender, oversized, and malformed; accepts valid', async () => {
-        const ipcMain = fakeIpcMain();
         const sent: any[] = [];
         const deps = {
             getOptions: () => ({ ...DEFAULT_ELECTRON_OPTIONS }),
@@ -76,7 +81,6 @@ describe('ipc receiver', () => {
     });
 
     it('ownership: a second owner takes over; old owner dispose is a no-op', () => {
-        const ipcMain = fakeIpcMain();
         const deps = { getOptions: () => ({ ...DEFAULT_ELECTRON_OPTIONS }), onReport: () => Promise.resolve() };
         const a = { id: 'A' };
         const b = { id: 'B' };
@@ -91,5 +95,7 @@ describe('ipc receiver', () => {
 
         disposeIpcReceiver(ipcMain as any, b); // current owner removes
         expect(ipcMain.handlers[FLARE_IPC_CHANNEL]).toBeUndefined();
+        // Update shared owner to b so afterEach's dispose call is a no-op (b already disposed).
+        owner = b;
     });
 });
