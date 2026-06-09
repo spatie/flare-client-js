@@ -15,6 +15,8 @@ export class RendererFlare extends BrowserFlare {
     private maxReportBytes: number;
     private rendererBeforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null> = (r) => r;
     private warnedNoBridge = false;
+    private warnedOversized = false;
+    private warnedSendFailed = false;
 
     constructor(options: RendererFlareOptions = {}) {
         super();
@@ -37,7 +39,10 @@ export class RendererFlare extends BrowserFlare {
 
         const payload = flatJsonStringify(scrubbed);
         if (byteLength(payload) > this.maxReportBytes) {
-            console.warn('[flare] Renderer report exceeds maxReportBytes; dropping.');
+            if (!this.warnedOversized) {
+                this.warnedOversized = true;
+                console.warn('[flare] Renderer report exceeds maxReportBytes; dropping.');
+            }
             return;
         }
 
@@ -51,7 +56,14 @@ export class RendererFlare extends BrowserFlare {
             }
             return;
         }
-        await bridge.report(payload);
+        try {
+            await bridge.report(payload);
+        } catch (error) {
+            if (!this.warnedSendFailed) {
+                this.warnedSendFailed = true;
+                console.warn('[flare] Failed to forward a report to the main process.', error);
+            }
+        }
     }
 }
 

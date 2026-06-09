@@ -81,4 +81,13 @@ describe('RendererFlare', () => {
         await flare.report(new Error('still no bridge'));
         expect(warn).toHaveBeenCalledTimes(1);
     });
+
+    it('does not throw when the bridge.report call rejects', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        (window as any).__flare = { report: () => Promise.reject(new Error('IPC boom')) };
+        const flare = new RendererFlare();
+        await expect(flare.report(new Error('x'))).resolves.toBeUndefined();
+        await flare.report(new Error('y'));
+        expect(warn).toHaveBeenCalledTimes(1); // warn-once on send failure
+    });
 });
