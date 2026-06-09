@@ -33,17 +33,10 @@ for (const sub of ['main', 'preload']) {
     assertExt(esm, '.mjs', `import.meta.resolve @flareapp/electron/${sub}`);
 }
 
-// renderer CJS: resolution only.
-// NOTE: renderer.cjs contains a spurious `require('./main.cjs')` emitted by tsdown as a shared
-// chunk reference, even though no exported symbol from main is consumed by renderer. That dead
-// require pulls in the electron package, which throws in plain Node. The ESM output (renderer.mjs)
-// does not have this issue; it imports only env and constants chunks. This is a known tsdown
-// bundling artifact; the renderer source itself has zero electron imports.
+// renderer: resolve + EXECUTE in both module systems (no electron import)
 assertExt(require.resolve('@flareapp/electron/renderer'), '.cjs', 'require.resolve renderer');
-const rendererEsmUrl = import.meta.resolve('@flareapp/electron/renderer');
-assertExt(rendererEsmUrl, '.mjs', 'import.meta.resolve renderer');
-
-// renderer ESM: execute to confirm RendererFlare is exported (safe - renderer.mjs omits main.mjs)
+const rendererCjs = require('@flareapp/electron/renderer');
+assert.equal(typeof rendererCjs.RendererFlare, 'function', 'CJS renderer RendererFlare');
 const rendererEsm = await import('@flareapp/electron/renderer');
 assert.equal(typeof rendererEsm.RendererFlare, 'function', 'ESM renderer RendererFlare');
 
