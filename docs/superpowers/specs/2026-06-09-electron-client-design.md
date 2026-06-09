@@ -37,7 +37,8 @@ main, preload, and renderer).
 7. **Main base class:** `ElectronFlare extends CoreFlare` directly — NOT
    `NodeFlare`. NodeFlare's surface is web-server-shaped (`runWithContext`,
    header/body redaction, AsyncLocalStorage scope) and hardcodes `process.exit`,
-   which is wrong for Electron (main should exit via `app.exit`/`app.quit`).
+   which is wrong for Electron (the fatal path should exit via `app.exit` after
+   flushing; see Process handlers for why not `app.quit`).
    Electron implements its own thin process handling, disk file reader, and flush
    scheduler. Consequence: the package depends ONLY on `@flareapp/core` and
    `@flareapp/js` — NO `@flareapp/node` dependency. Tradeoff: a small amount of
@@ -126,13 +127,29 @@ context collector, the reimplemented disk file reader, a `GlobalScopeProvider`
 Adds:
 
 - **Process handlers.** Attach/detach `uncaughtException` / `unhandledRejection`
-  with fatal modes (`report` / `report-and-exit` / `off`) and a shutdown timeout,
-  exiting via `app.exit(code)` so Electron's shutdown runs. Reimplemented in
-  electron (see "Required changes"); not inherited from node.
+  with fatal modes (`report` / `report-and-exit` / `off`) and a shutdown timeout.
+  In `report-and-exit` mode the handler reports, flushes in-flight reports
+  itself (up to the shutdown timeout), THEN calls `app.exit(code)`. `app.exit()`
+  is deliberate: it exits immediately and skips `before-quit` / `will-quit`,
+  which is correct after an uncaught exception (the process is in an undefined
+  state) and mirrors node's `process.exit` semantics. We do NOT use `app.quit()`
+  for the fatal path: it is graceful but can be blocked or stalled by app
+  `before-quit` handlers, which is wrong when crashing. The flush happens before
+  the exit, so reports are not lost. `app.exit` is injectable for tests.
+  Reimplemented in electron (see "Required changes"); not inherited from node.
+- **SDK identity.** `ElectronFlare` calls `setSdkInfo({ name: '@flareapp/electron',
+version })` in its constructor. `CoreFlare` otherwise defaults to `@flareapp/core`,
+  which would misattribute reports. (The renderer does the same — see Renderer.)
+- **User context.** `CoreFlare` has no user state (only `NodeScope` does).
+  `ElectronFlare` owns a `setUser(user | null)` that stores the user and is
+  projected to `enduser.id` / `enduser.email` / `enduser.username` (and
+  `client.address` if present) by the Electron collector, mirroring node's
+  projection. Per-app, not per-request (Electron main has no request scope).
 - **Electron context collector.** The collector passed to `CoreFlare`. Adds: app
   name and version (`app.getName()`, `app.getVersion()`), Electron / Chrome / Node
   versions (`process.versions`), OS platform + arch, locale (`app.getLocale()`),
-  `app.isPackaged`, and `process.type` (`'browser'` for main).
+  `app.isPackaged`, `process.type` (`'browser'` for main), and the current user's
+  `enduser.*` attributes when set.
 
     **Ready-safety (required).** `app.getLocale()` returns a reliable value only
     after the `ready` event, but the SDK is typically initialized before
@@ -154,9 +171,16 @@ Adds:
 
     **Sender trust + payload validation (required, per Electron security guidance).**
     The handler must not blindly trust renderer input. It:
-    - Validates the sender: rejects messages whose `event.senderFrame` is not a
-      frame this app owns (origin check against the app's own URLs; reject
-      `file://` vs remote mismatch as configured). Default-deny on unknown senders.
+    - Validates the sender via a trust policy with a **working default** (so a
+      copy-paste setup is not silently dropped). The default policy accepts frames
+      whose `senderFrame` URL is local to the app — `file:` (packaged build),
+      custom app protocols (`app:`, etc.), and localhost dev-server origins
+      (`http://localhost:*` / `127.0.0.1`) — and rejects arbitrary remote
+      `http(s)` origins (e.g. third-party content loaded into a window). Users can
+      override with a predicate (`trustSender: (frame) => boolean`) via
+      `configureElectron` to add production custom-protocol or known remote
+      origins, or to tighten further. The README main setup documents this for
+      apps that load remote content.
     - Validates the payload shape: the deserialized object must match the `Report`
       contract (required fields present, correct types). Malformed payloads are
       dropped, optionally logged in debug.
@@ -172,11 +196,12 @@ Adds:
     `ipcMain.removeHandler('flare:report')` — so tests, app-reload paths, and
     multiple instances don't leak or collide on duplicate handlers.
 
-API surface (on `CoreFlare`): `light`, `configure`, `setUser`, `glow`,
-`addContext`, `report`, `flush`, etc., plus electron-specific:
-`configureElectron(options)` (fatal modes, shutdown timeout, toggling crash
-listeners, sender-trust policy, max IPC payload size) and `dispose()`. It does NOT
-expose node's `runWithContext` / `configureNode` / header-body redaction.
+API surface: inherited from `CoreFlare` — `light`, `configure`, `glow`,
+`addContext`, `report`, `flush`, etc. Electron-owned additions:
+`setUser(user | null)` (projects `enduser.*`), `configureElectron(options)` (fatal
+modes, shutdown timeout, toggling crash listeners, `trustSender` predicate, max IPC
+payload size), and `dispose()`. It does NOT expose node's `runWithContext` /
+`configureNode` / header-body redaction.
 
 ### Preload — `exposeFlare()`
 
@@ -202,6 +227,10 @@ renderer's own context, where the bundle files are actually reachable (over
 and `window.onerror` / `window.onunhandledrejection` listeners — imported from the
 new side-effect-free `@flareapp/js/browser` export, NOT the package root (which
 would install a second, fetch-based reporter on import).
+
+**SDK identity.** `RendererFlare` calls `setSdkInfo({ name: '@flareapp/electron',
+version })` in its constructor, after `super()`. The js `Flare` base sets
+`@flareapp/js`; without the override, renderer reports would be misattributed.
 
 **Transport: override `sendReport`, not `Api`.** The core `sendReport()` short-
 circuits when no API key is set (`assertKey`), so a keyless renderer with only a
@@ -265,9 +294,17 @@ has its own `vitest.config.ts`). Coverage:
 - **Main collector** — Electron context projection, with `app` / `process.versions`
   mocked, INCLUDING the pre-ready path (`app.isReady()` false → locale omitted, no
   throw).
-- **Process handlers** — `uncaughtException` / `unhandledRejection` report and, in
-  `report-and-exit` mode, call the injected `app.exit` (not `process.exit`);
-  `report` / `off` modes behave correctly. `app.exit` mocked.
+- **Process handlers** — `uncaughtException` / `unhandledRejection` report; in
+  `report-and-exit` mode they flush THEN call the injected `app.exit(1)` (not
+  `process.exit`, not `app.quit`); `report` / `off` modes do not exit. `app.exit`
+  mocked.
+- **SDK identity** — both `ElectronFlare` and `RendererFlare` report
+  `sdkInfo.name === '@flareapp/electron'` (not core/js defaults).
+- **setUser projection** — `setUser({...})` surfaces `enduser.*` on the next
+  report; `setUser(null)` clears it.
+- **Sender trust default** — default policy accepts `file:`, custom-protocol, and
+  `localhost` senders and rejects a remote `https` origin; a custom `trustSender`
+  predicate overrides both directions.
 - **IPC receiver** — idempotent registration (re-register does not throw; uses
   `removeHandler`), metadata merge, send via a `FakeApi`; `dispose()` removes the
   handler; with `ipcMain` mocked.
@@ -315,6 +352,11 @@ Long and instructive because there is no docs page yet. Must include:
   process-gone; NOT native minidumps).
 - A short report-flow diagram so users understand why the API key lives only in
   main.
+- The two-stage `beforeSubmit` (renderer scrubs first, main is final gate).
+- The sender-trust default and how to configure `trustSender` for apps that load
+  remote content or use a production custom protocol (default accepts `file:`,
+  custom protocols, and localhost; rejects arbitrary remote origins).
+- `setUser` usage for attaching the logged-in user.
 
 ## Out of scope (v1)
 
