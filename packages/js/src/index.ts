@@ -1,29 +1,7 @@
-import {
-    Api,
-    Flare as CoreFlare,
-    GlobalScopeProvider,
-    type ContextCollector,
-    type FileReader,
-    type ScopeProvider,
-} from '@flareapp/core';
-
+import { Flare } from './browser';
 import { catchWindowErrors } from './browser';
-import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
-import { collectBrowser } from './browser/context/collectBrowser';
-import { FetchFileReader } from './browser/FetchFileReader';
-import { CLIENT_VERSION } from './env';
 
-export class Flare extends CoreFlare {
-    constructor(
-        api: Api = new Api(),
-        contextCollector: ContextCollector = collectBrowser,
-        fileReader: FileReader = new FetchFileReader(),
-        scopeProvider: ScopeProvider = new GlobalScopeProvider(),
-    ) {
-        super(api, contextCollector, fileReader, scopeProvider, new BrowserFlushScheduler());
-        this.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
-    }
-}
+export { Flare } from './browser';
 
 export const flare = new Flare();
 
