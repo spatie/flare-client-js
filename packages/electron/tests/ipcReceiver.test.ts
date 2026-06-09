@@ -34,6 +34,11 @@ describe('defaultTrustPolicy', () => {
     it('accepts a configured custom protocol', () => {
         expect(defaultTrustPolicy({ url: 'app://index.html' }, { ...opts, trustedProtocols: ['app'] })).toBe(true);
     });
+    it('accepts IPv6 loopback and rejects file: with a foreign host', () => {
+        expect(defaultTrustPolicy({ url: 'http://[::1]:5180/' }, opts)).toBe(true);
+        expect(defaultTrustPolicy({ url: 'file:///app/index.html' }, opts)).toBe(true);
+        expect(defaultTrustPolicy({ url: 'file://evil.com/app/index.html' }, opts)).toBe(false);
+    });
 });
 
 describe('ipc receiver', () => {

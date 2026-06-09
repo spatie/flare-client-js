@@ -22,13 +22,13 @@ export function defaultTrustPolicy(frame: SenderFrame, opts: ResolvedElectronOpt
         return false;
     }
     const scheme = parsed.protocol.replace(/:$/, '');
-    if (scheme === 'file') return true;
-    if (
-        (scheme === 'http' || scheme === 'https') &&
-        (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')
-    ) {
-        return true;
+    if (scheme === 'file') {
+        // file: with a foreign host is unusual and untrusted; accept only host-less or localhost file URLs.
+        return parsed.hostname === '' || parsed.hostname === 'localhost';
     }
+    const isLoopback =
+        parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]';
+    if ((scheme === 'http' || scheme === 'https') && isLoopback) return true;
     if (opts.trustedProtocols.includes(scheme)) return true;
     return false;
 }
