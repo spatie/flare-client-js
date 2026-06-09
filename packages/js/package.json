@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/js",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "description": "JavaScript client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": {
@@ -39,11 +39,21 @@
                 "types": "./dist/index.d.cts",
                 "default": "./dist/index.cjs"
             }
+        },
+        "./browser": {
+            "import": {
+                "types": "./dist/browser.d.mts",
+                "default": "./dist/browser.mjs"
+            },
+            "require": {
+                "types": "./dist/browser.d.cts",
+                "default": "./dist/browser.cjs"
+            }
         }
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=$(node -p \"require('./package.json').version\") --clean",
+        "build": "tsdown src/index.ts src/browser.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=$(node -p \"require('./package.json').version\") --clean",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
         "release": "release-it"

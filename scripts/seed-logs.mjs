@@ -57,21 +57,91 @@ flare.configure({
 // A plausible shopping session. Each entry sets the route it happened on so the
 // "Entry point" column varies like a real app. Ordered roughly as a user journey.
 const events = [
-    { level: 'info', path: '/', message: 'Product catalog loaded', attributes: { productCount: 48, durationMs: 124, cacheHit: true } },
+    {
+        level: 'info',
+        path: '/',
+        message: 'Product catalog loaded',
+        attributes: { productCount: 48, durationMs: 124, cacheHit: true },
+    },
     { level: 'debug', path: '/', message: 'Cart restored from localStorage', attributes: { items: 2 } },
-    { level: 'info', path: '/products/wireless-headphones', message: 'Product viewed', attributes: { sku: 'WH-1000', price: 279.0, inStock: true } },
-    { level: 'warning', path: '/products/wireless-headphones', message: 'Product image failed to load, using fallback', attributes: { sku: 'WH-1000', status: 404, asset: 'wh-1000-hero.webp' } },
-    { level: 'info', path: '/cart', message: 'Item added to cart', attributes: { sku: 'WH-1000', quantity: 1, cartTotal: 279.0 } },
-    { level: 'notice', path: '/cart', message: 'Discount code applied', attributes: { code: 'SUMMER10', discount: 27.9, cartTotal: 251.1 } },
-    { level: 'info', path: '/checkout', message: 'Checkout started', attributes: { cartId: 'cart_8f21a3', itemCount: 3, total: 251.1, currency: 'EUR' } },
-    { level: 'info', path: '/checkout', message: 'Payment intent created', attributes: { provider: 'stripe', amountCents: 25110, method: 'card' } },
-    { level: 'warning', path: '/checkout', message: 'Payment requires additional authentication', attributes: { provider: 'stripe', reason: '3ds_required' } },
-    { level: 'warning', path: '/api/inventory', message: 'Slow inventory response', attributes: { endpoint: '/api/inventory', durationMs: 2143, threshold: 1000 } },
-    { level: 'error', path: '/checkout', message: 'Payment declined by issuer', attributes: { provider: 'stripe', code: 'card_declined', cartId: 'cart_8f21a3' } },
-    { level: 'info', path: '/checkout', message: 'Payment retried with new card', attributes: { provider: 'stripe', attempt: 2 } },
-    { level: 'info', path: '/checkout/confirmation', message: 'Order placed', attributes: { orderId: 'ord_4471c9', total: 251.1, currency: 'EUR', items: 3 } },
-    { level: 'notice', path: '/checkout/confirmation', message: 'Confirmation email queued', attributes: { orderId: 'ord_4471c9', template: 'order_confirmation' } },
-    { level: 'error', path: '/account', message: 'Failed to refresh session token', attributes: { status: 401, reason: 'expired' } },
+    {
+        level: 'info',
+        path: '/products/wireless-headphones',
+        message: 'Product viewed',
+        attributes: { sku: 'WH-1000', price: 279.0, inStock: true },
+    },
+    {
+        level: 'warning',
+        path: '/products/wireless-headphones',
+        message: 'Product image failed to load, using fallback',
+        attributes: { sku: 'WH-1000', status: 404, asset: 'wh-1000-hero.webp' },
+    },
+    {
+        level: 'info',
+        path: '/cart',
+        message: 'Item added to cart',
+        attributes: { sku: 'WH-1000', quantity: 1, cartTotal: 279.0 },
+    },
+    {
+        level: 'notice',
+        path: '/cart',
+        message: 'Discount code applied',
+        attributes: { code: 'SUMMER10', discount: 27.9, cartTotal: 251.1 },
+    },
+    {
+        level: 'info',
+        path: '/checkout',
+        message: 'Checkout started',
+        attributes: { cartId: 'cart_8f21a3', itemCount: 3, total: 251.1, currency: 'EUR' },
+    },
+    {
+        level: 'info',
+        path: '/checkout',
+        message: 'Payment intent created',
+        attributes: { provider: 'stripe', amountCents: 25110, method: 'card' },
+    },
+    {
+        level: 'warning',
+        path: '/checkout',
+        message: 'Payment requires additional authentication',
+        attributes: { provider: 'stripe', reason: '3ds_required' },
+    },
+    {
+        level: 'warning',
+        path: '/api/inventory',
+        message: 'Slow inventory response',
+        attributes: { endpoint: '/api/inventory', durationMs: 2143, threshold: 1000 },
+    },
+    {
+        level: 'error',
+        path: '/checkout',
+        message: 'Payment declined by issuer',
+        attributes: { provider: 'stripe', code: 'card_declined', cartId: 'cart_8f21a3' },
+    },
+    {
+        level: 'info',
+        path: '/checkout',
+        message: 'Payment retried with new card',
+        attributes: { provider: 'stripe', attempt: 2 },
+    },
+    {
+        level: 'info',
+        path: '/checkout/confirmation',
+        message: 'Order placed',
+        attributes: { orderId: 'ord_4471c9', total: 251.1, currency: 'EUR', items: 3 },
+    },
+    {
+        level: 'notice',
+        path: '/checkout/confirmation',
+        message: 'Confirmation email queued',
+        attributes: { orderId: 'ord_4471c9', template: 'order_confirmation' },
+    },
+    {
+        level: 'error',
+        path: '/account',
+        message: 'Failed to refresh session token',
+        attributes: { status: 401, reason: 'expired' },
+    },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

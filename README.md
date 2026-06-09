@@ -23,6 +23,7 @@ This is an npm workspaces monorepo containing the following packages:
 | [`packages/svelte`](packages/svelte)       | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)       | Svelte 5 error boundary component and boundary handler factory                      |
 | [`packages/sveltekit`](packages/sveltekit) | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit) | SvelteKit client/server error hooks and route context                               |
 | [`packages/node`](packages/node)           | [`@flareapp/node`](https://www.npmjs.com/package/@flareapp/node)           | Node.js SDK with process handlers and AsyncLocalStorage scope                       |
+| [`packages/electron`](packages/electron)   | [`@flareapp/electron`](https://www.npmjs.com/package/@flareapp/electron)   | Electron SDK (main + preload + renderer)                                            |
 | [`packages/vite`](packages/vite)           | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)           | Vite build plugin for sourcemap uploads                                             |
 | [`packages/webpack`](packages/webpack)     | [`@flareapp/webpack`](https://www.npmjs.com/package/@flareapp/webpack)     | Webpack 5 plugin for sourcemap uploads                                              |
 | [`packages/nextjs`](packages/nextjs)       | [`@flareapp/nextjs`](https://www.npmjs.com/package/@flareapp/nextjs)       | Next.js wrapper for sourcemap uploads via webpack                                   |
@@ -59,20 +60,20 @@ npm run build
 
 All commands are run from the repository root:
 
-| Command                      | Description                                                      |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `npm run build`              | Build all packages to their respective `dist` folders            |
-| `npm run test`               | Run tests for all packages that have them                        |
-| `npm run typescript`         | Type-check all packages                                          |
-| `npm run format`             | Run oxfmt across all files                                       |
-| `npm run lint`               | Run oxlint across all packages                                   |
-| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds   |
-| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180) |
-| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)      |
-| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)        |
-| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)  |
-| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)    |
-| `npm run release:all`        | Lockstep-release all 8 public packages at one shared version     |
+| Command                      | Description                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `npm run build`              | Build all packages to their respective `dist` folders                            |
+| `npm run test`               | Run tests for all packages that have them                                        |
+| `npm run typescript`         | Type-check all packages                                                          |
+| `npm run format`             | Run oxfmt across all files                                                       |
+| `npm run lint`               | Run oxlint across all packages                                                   |
+| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds                   |
+| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180)                 |
+| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)                      |
+| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)                        |
+| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)                  |
+| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)                    |
+| `npm run release:all`        | Lockstep-release the 8 public packages; optionally includes core, node, electron |
 
 ### Playgrounds
 
@@ -136,11 +137,11 @@ GitHub Actions runs on every push:
 
 ## Versioning and releasing
 
-Each package can be versioned and published independently using [release-it](https://github.com/release-it/release-it), or all 8 public packages can be released in lockstep with a single command via `scripts/release-all.mjs`.
+Each package can be versioned and published independently using [release-it](https://github.com/release-it/release-it), or the public packages can be released in lockstep with a single command via `scripts/release-all.mjs`. `@flareapp/core`, `@flareapp/node`, and `@flareapp/electron` version independently but can be included in the same run.
 
 ### Releasing all packages in lockstep (recommended)
 
-For coordinated releases that span multiple packages, use `npm run release:all` from the repo root. This orchestrates a single-version release across all 8 published packages and produces one release commit instead of eight.
+For coordinated releases that span multiple packages, use `npm run release:all` from the repo root. This orchestrates a single-version release across the 8 lockstep-published packages and produces one release commit. `@flareapp/core`, `@flareapp/node`, and `@flareapp/electron` version independently and are prompted separately each run.
 
 ```bash
 npm run release:all
@@ -148,7 +149,7 @@ npm run release:all
 
 The script will:
 
-1. **Pre-flight**: verify clean working tree, on `main`, npm authenticated, then run `build`, `test`, and `typescript` for the 8 published packages and the internal `flare-api` workspace.
+1. **Pre-flight**: verify clean working tree, on `main`, npm authenticated, then run `build`, `test`, and `typescript` for all packages in the release set and the internal `flare-api` workspace.
 2. **Prompt for the next version** (patch, minor, major, or custom). The same version is applied to every public package.
 3. **Bump** each package via `release-it` (no commit/tag/publish at this stage). The svelte and sveltekit `after:bump` hooks regenerate their `src/version.ts`.
 4. **Update cross-package references**: peer-dep and dependency ranges that point at `@flareapp/js`, `@flareapp/svelte`, or `@flareapp/webpack` are bumped to `^<new version>`.
@@ -200,14 +201,17 @@ Prefer `npm run release:all` for any release that spans more than one package - 
 
 If you do release packages individually for some reason, the dependency order is:
 
-1. `@flareapp/js` (core, no internal dependencies)
-2. `@flareapp/vite` (no internal dependencies)
-3. `@flareapp/webpack` (no internal dependencies)
-4. `@flareapp/nextjs` (depends on `@flareapp/webpack`)
-5. `@flareapp/react` (depends on `@flareapp/js`)
-6. `@flareapp/vue` (depends on `@flareapp/js`)
-7. `@flareapp/svelte` (depends on `@flareapp/js`)
-8. `@flareapp/sveltekit` (depends on `@flareapp/js` and `@flareapp/svelte`)
+1. `@flareapp/core` (independent; must publish before js, node, electron)
+2. `@flareapp/js` (hard-pins core)
+3. `@flareapp/node` (hard-pins core; independent versioning)
+4. `@flareapp/vite` (no internal dependencies)
+5. `@flareapp/webpack` (no internal dependencies)
+6. `@flareapp/nextjs` (depends on `@flareapp/webpack`)
+7. `@flareapp/react` (depends on `@flareapp/js`)
+8. `@flareapp/vue` (depends on `@flareapp/js`)
+9. `@flareapp/svelte` (depends on `@flareapp/js`)
+10. `@flareapp/sveltekit` (depends on `@flareapp/js` and `@flareapp/svelte`)
+11. `@flareapp/electron` (independent versioning; hard-pins both core and js exactly)
 
 ## Project structure
 
