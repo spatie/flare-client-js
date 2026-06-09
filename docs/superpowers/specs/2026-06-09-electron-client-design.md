@@ -59,23 +59,32 @@ hook is needed. Core is untouched.
 
 ### `@flareapp/js` — side-effect-free browser assembly export
 
-`@flareapp/js`'s package root (`src/index.ts`) instantiates the `flare` singleton,
-assigns `window.flare`, and calls `catchWindowErrors()` at import time. The
-renderer must NOT trigger any of that. Add a new subpath export (e.g.
-`@flareapp/js/browser`) that re-exports the `Flare` class, `collectBrowser`,
-`FetchFileReader`, `BrowserFlushScheduler`, and `catchWindowErrors` with NO
-top-level instantiation or `window` mutation. The package root keeps its current
-behavior for existing consumers. This is a `js` minor bump, and `@flareapp/js`
-gains its first subpath export.
+`@flareapp/js`'s package root (`src/index.ts`) defines the browser `Flare` class
+RIGHT NEXT TO `export const flare = new Flare()`, `window.flare = flare`, and
+`catchWindowErrors()`. Because the class and the side effects live in the same
+module, a side-effect-free subpath cannot just re-export from `src/index.ts` —
+importing that module runs the side effects regardless of which symbol you pull.
 
-This requires real build + packaging work, not just a source file: `@flareapp/js`
-currently builds ONLY `src/index.ts` (`tsdown src/index.ts ... --dts`) and
-declares a single `"."` export. The new export needs (a) a second build entry
-(e.g. `src/browser.ts` that re-exports the side-effect-free symbols) added to the
-tsdown invocation, and (b) an `exports["./browser"]` map entry mirroring the dual
-CJS+ESM+`.d.ts` shape of `"."`. The export/build verification below covers BOTH
-`@flareapp/electron`'s subpaths AND this new `@flareapp/js/browser` subpath — a
-source-level test would pass even if the published subpath were missing.
+So the change is a real extraction, in this order:
+
+1. Move the browser `Flare` class assembly (the class + its use of `collectBrowser`,
+   `FetchFileReader`, `BrowserFlushScheduler`) into a NEW side-effect-free module,
+   e.g. `src/browser.ts`, that also re-exports `catchWindowErrors` and the browser
+   collectors. This module must have NO top-level instantiation and NO `window`
+   mutation.
+2. Make `src/index.ts` import `Flare` from that module and KEEP its current
+   behavior: create the `flare` singleton, assign `window.flare`, call
+   `catchWindowErrors()`. Existing `@flareapp/js` consumers see no change.
+3. Add the `@flareapp/js/browser` subpath that points at the built `src/browser.ts`.
+
+This is real build + packaging work: `@flareapp/js` currently builds ONLY
+`src/index.ts` (`tsdown src/index.ts ... --dts`) and declares a single `"."`
+export. The change needs (a) `src/browser.ts` added to the tsdown invocation, and
+(b) an `exports["./browser"]` map entry mirroring the dual CJS+ESM+`.d.ts` shape
+of `"."`. This is a `js` minor bump and its first subpath export. The
+export/build verification below covers BOTH `@flareapp/electron`'s subpaths AND
+`@flareapp/js/browser` — a source-level test would pass even if the published
+subpath were missing.
 
 ### `@flareapp/node` — no change
 
@@ -186,40 +195,58 @@ version })` in its constructor. `CoreFlare` otherwise defaults to `@flareapp/cor
   `flare.light(key)`. The handler does NOT call the keyless renderer path; it
   injects the received report into main's send pipeline (which has the key).
 
-    **Sender trust + payload validation (required, per Electron security guidance).**
-    The handler must not blindly trust renderer input. It:
-    - Validates the sender via a trust policy with a **working default** (so a
-      copy-paste setup is not silently dropped). The default accepts EXACTLY two
-      cases and nothing else: (1) `senderFrame` URL scheme is `file:` (packaged
-      build), and (2) host is `localhost` or `127.0.0.1` over `http(s)` (vite/dev
-      server). Everything else — including custom protocols and any remote origin
-      — is rejected by default. Custom protocols are NOT auto-trusted: an app that
-      serves its renderer over a custom protocol (e.g. `app://`) in production must
-      opt in. Two override knobs on `configureElectron`: `trustedProtocols:
-string[]` (add exact scheme names like `'app'`) and/or `trustSender: (frame)
-=> boolean` (full predicate, replaces the default check). The README main
-      setup documents both for production custom-protocol and remote-content apps.
-    - Validates the payload shape: the deserialized object must match the `Report`
-      contract (required fields present, correct types). Malformed payloads are
-      dropped, optionally logged in debug.
-    - Enforces a max payload size (configurable, sane default) to prevent a
-      compromised/buggy renderer from sending oversized bodies.
-      Reference: Electron "Validate the sender of all IPC messages".
+    **Main-authoritative config fields (required).** The renderer builds the report
+    with its OWN config, so config-derived fields are baked from renderer values at
+    build time: `service.stage` and `service.version` (from `configure({ stage,
+  version })`) and `report.sourcemapVersionId`. `CoreFlare.sendReport()` does NOT
+    re-run base-attribute assembly, so without intervention a forwarded report would
+    carry renderer-local (usually empty) values for these even though the user
+    configured them in main. To keep the "configure once, in main" model consistent
+    with the key story, the IPC receiver OVERLAYS main's config-derived fields onto
+    the received report before send: `service.stage`, `service.version`, and
+    `sourcemapVersionId` (taken from main's config when set). Renderer-specific data
+    (browser context, URL, the stack/snippets) is preserved as-is. Consequence: the
+    renderer does NOT need to call `configure({ stage, version })` or set sourcemap
+    config — main is the single source of truth. (The renderer may still set its own
+    `beforeSubmit` for scrubbing; see below.)
 
-    **Registration lifecycle + ownership (required).** `ipcMain.handle(channel, ...)`
-    throws if a handler is already registered, and with multiple instances a naive
-    `removeHandler`-before-`handle` lets an older instance's `dispose()` tear down
-    a newer instance's handler. Guard with a module-level ownership token: a single
-    `currentOwner` reference for the `flare:report` channel.
-    - On register: if `currentOwner` is set and is not `this`, the new instance
-      takes over (`removeHandler` then `handle`) and becomes `currentOwner`;
-      re-register by the same instance is a no-op.
-    - `dispose()` removes the handler ONLY if `currentOwner === this`, then clears
-      `currentOwner` (in addition to detaching process handlers and crash
-      listeners). An older instance's `dispose()` after a newer one took ownership
-      does nothing to the live handler.
-      The package's normal usage is the exported singleton, so multi-instance is
-      mainly a test / hot-reload concern; the token makes those paths safe.
+        **Sender trust + payload validation (required, per Electron security guidance).**
+        The handler must not blindly trust renderer input. It:
+        - Validates the sender via a trust policy with a **working default** (so a
+          copy-paste setup is not silently dropped). The default accepts EXACTLY two
+          cases and nothing else: (1) `senderFrame` URL scheme is `file:` (packaged
+          build), and (2) host is `localhost` or `127.0.0.1` over `http(s)` (vite/dev
+          server). Everything else — including custom protocols and any remote origin
+          — is rejected by default. Custom protocols are NOT auto-trusted: an app that
+          serves its renderer over a custom protocol (e.g. `app://`) in production must
+          opt in. Two override knobs on `configureElectron`: `trustedProtocols:
+
+    string[]`(add exact scheme names like`'app'`) and/or `trustSender: (frame)
+    => boolean`(full predicate, replaces the default check). The README main
+      setup documents both for production custom-protocol and remote-content apps.
+    - Re-checks the payload byte size BEFORE`JSON.parse`(the renderer already
+      size-checks before sending — see Renderer transport — but main must not trust
+      that; an oversized string is rejected without parsing). Configurable max,
+      sane default.
+    - Validates the payload shape after parse: the object must match the`Report`
+    contract (required fields present, correct types). Malformed payloads are
+    dropped, optionally logged in debug.
+    Reference: Electron "Validate the sender of all IPC messages".
+
+        **Registration lifecycle + ownership (required).** `ipcMain.handle(channel, ...)`
+        throws if a handler is already registered, and with multiple instances a naive
+        `removeHandler`-before-`handle` lets an older instance's `dispose()` tear down
+        a newer instance's handler. Guard with a module-level ownership token: a single
+        `currentOwner` reference for the `flare:report` channel.
+        - On register: if `currentOwner` is set and is not `this`, the new instance
+          takes over (`removeHandler` then `handle`) and becomes `currentOwner`;
+          re-register by the same instance is a no-op.
+        - `dispose()` removes the handler ONLY if `currentOwner === this`, then clears
+          `currentOwner` (in addition to detaching process handlers and crash
+          listeners). An older instance's `dispose()` after a newer one took ownership
+          does nothing to the live handler.
+          The package's normal usage is the exported singleton, so multi-instance is
+          mainly a test / hot-reload concern; the token makes those paths safe.
 
 API surface: inherited from `CoreFlare` — `light`, `configure`, `glow`,
 `addContext`, `report`, `flush`, etc. Electron-owned additions:
@@ -238,8 +265,10 @@ exposeFlare();
 ```
 
 Internally:
-`contextBridge.exposeInMainWorld('__flare', { report: (r) => ipcRenderer.invoke('flare:report', r) })`.
-That is the entire preload surface. It respects `contextIsolation` and never needs
+`contextBridge.exposeInMainWorld('__flare', { report: (r) => ipcRenderer.invoke('flare:report', r) })`,
+where `r` is the already-serialized report STRING from the renderer (the preload
+does not serialize or inspect it; it just forwards). That is the entire preload
+surface. It respects `contextIsolation` and never needs
 `nodeIntegration`. The bridge channel name (`flare:report`) and the global key
 (`__flare`) are shared constants between the preload and renderer entries so they
 cannot drift.
@@ -261,10 +290,17 @@ version })` in its constructor, after `super()`. The js `Flare` base sets
 circuits when no API key is set (`assertKey`), so a keyless renderer with only a
 swapped `Api` would never emit. `RendererFlare` instead overrides `sendReport(report)`
 to: (1) run the renderer's own `beforeSubmit` (lets users scrub in the renderer),
-(2) serialize the finished Report, (3) call `window.__flare.report(serialized)`.
-It never checks for a key and never fetches Flare directly. No API key, no
-`ingestUrl` in the renderer. If `window.__flare` is missing (preload not wired),
-it logs a clear one-time warning rather than throwing.
+(2) serialize the finished Report to a STRING with `flatJsonStringify` (the core
+public export the HTTP path already uses — it tolerates cyclic user context / glow
+data that plain `JSON.stringify` would throw on), (3) enforce the max byte size on
+that string and drop+warn if it exceeds the limit, (4) call
+`window.__flare.report(serialized)` passing the STRING (not a structured-clone
+object — a string sidesteps clone limits and lets both sides size-check bytes).
+The preload bridge forwards the string verbatim through `ipcRenderer.invoke`; main
+re-checks size before `JSON.parse` (see IPC receiver). The renderer never checks
+for a key and never fetches Flare directly. No API key, no `ingestUrl` in the
+renderer. If `window.__flare` is missing (preload not wired), it logs a clear
+one-time warning rather than throwing.
 
 **Global error-listener wiring (required).** `catchWindowErrors()` reports through
 the `window.flare` global, not a passed-in instance — it reads `window.flare` and
@@ -286,11 +322,12 @@ the two-stage behavior is not surprising.
 ```
 renderer error
   → RendererFlare builds Report (stack + snippets + browser context)
-  → window.__flare.report(report)        [contextBridge]
+  → renderer beforeSubmit → flatJsonStringify → size-check
+  → window.__flare.report(jsonString)    [contextBridge, string]
   → ipcRenderer.invoke('flare:report')   [IPC]
-  → ipcMain handler in ElectronFlare
-  → merge Electron / app metadata
-  → Api.report() → Flare backend
+  → ipcMain handler: trust sender → size-check → JSON.parse → shape-validate
+  → overlay main config (stage/version/sourcemap) + Electron/app metadata
+  → main beforeSubmit → Api.report() → Flare backend
 
 main-process error
   → ElectronFlare's own process handlers (uncaught / unhandledRejection)
@@ -343,18 +380,25 @@ has its own `vitest.config.ts`). Coverage:
   a `report` function that invokes the right channel; `contextBridge` /
   `ipcRenderer` mocked.
 - **Renderer transport** — overridden `sendReport` runs renderer `beforeSubmit`,
-  serializes, and forwards to `window.__flare.report`; keyless renderer still
-  emits (regression guard for the `assertKey` short-circuit); missing-bridge path
-  warns once instead of throwing; `window.__flare` mocked.
+  serializes with `flatJsonStringify` (a report with a cyclic context object
+  serializes without throwing), enforces byte size (oversized report dropped +
+  warned BEFORE invoke), and forwards a STRING to `window.__flare.report`; keyless
+  renderer still emits (regression guard for the `assertKey` short-circuit);
+  missing-bridge path warns once instead of throwing; `window.__flare` mocked.
+- **Main config overlay** — a forwarded report built with empty renderer config
+  gets main's `service.stage` / `service.version` / `sourcemapVersionId` overlaid
+  before send; renderer browser context is preserved.
 - **Renderer global wiring** — `RendererFlare` setup assigns `window.flare` so a
   dispatched `window` `error` event reaches the transport (regression guard for the
   `catchWindowErrors` global dependency).
-- **IPC sender trust** — handler rejects unknown `senderFrame`, drops malformed
-  payloads, and rejects oversized payloads; accepts a valid report and sends via
-  `FakeApi`.
+- **IPC sender trust + size** — handler rejects unknown `senderFrame`, rejects an
+  oversized string BEFORE `JSON.parse`, drops malformed payloads after parse, and
+  accepts a valid report and sends via `FakeApi`.
 - **js browser export** (in `js`) — importing `@flareapp/js/browser` does NOT set
-  `window.flare` or install window listeners (no import-time side effects), and
-  exposes the expected symbols.
+  `window.flare` or install window listeners (no import-time side effects) and
+  exposes the expected symbols; importing the `@flareapp/js` ROOT still sets
+  `window.flare` and installs listeners (regression guard that the extraction did
+  not break existing consumers).
 
 **Export/build verification.** Because subpath exports are new to the repo, add a
 build-output check that runs after `npm run build` and covers BOTH new subpath
@@ -390,6 +434,9 @@ Long and instructive because there is no docs page yet. Must include:
   protocols and remote origins) and how to opt in via `trustedProtocols` /
   `trustSender` for production custom-protocol or remote-content apps.
 - `setUser` usage for attaching the logged-in user.
+- That `key`, `stage`, `version`, and sourcemap config are set ONCE in main (the
+  renderer needs none of them); main overlays stage/version/sourcemap onto
+  forwarded renderer reports.
 
 ## Out of scope (v1)
 
