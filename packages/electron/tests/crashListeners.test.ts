@@ -67,10 +67,31 @@ describe('crash listeners', () => {
         expect(offCalls.map((c) => c.event)).toContain('child-process-gone');
     });
 
-    it('dispose detaches the crash listeners', () => {
-        const { flare, offCalls } = makeFlare();
+    it('dispose detaches the crash listeners using the same refs that were attached', () => {
+        const { flare, appHandlers, offCalls } = makeFlare();
+        const attachedRender = appHandlers['render-process-gone'][0];
+        const attachedChild = appHandlers['child-process-gone'][0];
         flare.dispose();
-        expect(offCalls.map((c) => c.event)).toContain('render-process-gone');
-        expect(offCalls.map((c) => c.event)).toContain('child-process-gone');
+        const offRender = offCalls.find((c) => c.event === 'render-process-gone');
+        const offChild = offCalls.find((c) => c.event === 'child-process-gone');
+        expect(offRender?.cb).toBe(attachedRender);
+        expect(offChild?.cb).toBe(attachedChild);
+    });
+
+    it('toggling captureRenderProcessGone off then on re-attaches exactly one handler; redundant off is a no-op', () => {
+        const { flare, appHandlers, offCalls } = makeFlare();
+        expect(appHandlers['render-process-gone'].length).toBe(1);
+
+        flare.configureElectron({ captureRenderProcessGone: false });
+        const offCountAfterFirstDisable = offCalls.length;
+
+        // Redundant disable: should not call off again.
+        flare.configureElectron({ captureRenderProcessGone: false });
+        expect(offCalls.length).toBe(offCountAfterFirstDisable);
+
+        // Re-enable: exactly one more handler attached for each event (total 2, not 3).
+        flare.configureElectron({ captureRenderProcessGone: true });
+        expect(appHandlers['render-process-gone'].length).toBe(2);
+        expect(appHandlers['child-process-gone'].length).toBe(2);
     });
 });

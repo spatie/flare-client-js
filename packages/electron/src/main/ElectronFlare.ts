@@ -66,6 +66,9 @@ export class ElectronFlare extends CoreFlare {
             onReport: (report) => this.receiveRendererReport(report),
         });
 
+        // Crash observers (like the IPC receiver) attach immediately: they only observe, and any
+        // report they produce drops harmlessly until light() sets a key. The fatal process handlers,
+        // by contrast, gate on light() because they alter the process's crash behavior.
         this.reconcileCrashListeners();
     }
 
