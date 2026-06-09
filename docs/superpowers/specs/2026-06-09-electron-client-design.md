@@ -78,9 +78,10 @@ node-flavored pieces it needs:
   `node:fs/promises`. Modeled on node's `DiskFileReader`.
 - **Flush scheduler** — timer-based, modeled on node's `NodeFlushScheduler`.
 - **Process handlers** — `uncaughtException` / `unhandledRejection` attach/detach
-  with fatal modes, BUT exit via Electron's `app.exit(code)` (not `process.exit`),
-  so Electron's shutdown path runs. Modeled on node's `ProcessHandlerManager` +
-  `buildFatalCallbacks` (whose `exit` parameter is already injectable).
+  with fatal modes, flushing then exiting via Electron's `app.exit(code)` (not
+  `process.exit`, not `app.quit`; see the Main process section for the rationale).
+  Modeled on node's `ProcessHandlerManager` + `buildFatalCallbacks` (whose `exit`
+  parameter is already injectable).
 
 Keep these minimal and reference node's versions as the source pattern to limit
 divergence. If duplication becomes painful later, the shared primitives can be
