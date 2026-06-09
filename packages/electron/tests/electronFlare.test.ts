@@ -110,4 +110,46 @@ describe('ElectronFlare', () => {
         flare.dispose();
         expect(ipcMain.handlers['flare:report']).toBeUndefined();
     });
+
+    it('flush() waits for an in-flight forwarded renderer report', async () => {
+        const { flare, ipcMain } = makeFlare();
+        let resolveSend!: () => void;
+        const sendGate = new Promise<void>((r) => {
+            resolveSend = r;
+        });
+        // Make the egress hang so the forwarded send stays in-flight.
+        flare.api.report = () => sendGate;
+
+        const handler = ipcMain.handlers['flare:report'];
+        const reportJson = JSON.stringify({ seenAtUnixNano: 1, stacktrace: [], events: [], attributes: {} });
+        // Do NOT await: the receiver send is now pending.
+        void handler({ senderFrame: { url: 'file:///a.html' } }, reportJson);
+        // Let the handler reach the hanging send.
+        await new Promise((r) => setTimeout(r, 0));
+
+        let flushed = false;
+        const flushPromise = flare.flush(1000).then(() => {
+            flushed = true;
+        });
+        await new Promise((r) => setTimeout(r, 20));
+        expect(flushed).toBe(false); // still waiting on the forwarded send
+
+        resolveSend();
+        await flushPromise;
+        expect(flushed).toBe(true);
+    });
+
+    it('configureElectron ignores explicit undefined and preserves resolved defaults', async () => {
+        const { flare, sent, ipcMain } = makeFlare();
+        // Spread-built config with explicit undefined fields must not clobber defaults.
+        flare.configureElectron({ trustedProtocols: undefined, maxReportBytes: undefined } as any);
+
+        const handler = ipcMain.handlers['flare:report'];
+        const reportJson = JSON.stringify({ seenAtUnixNano: 2, stacktrace: [], events: [], attributes: {} });
+        // A report from a trusted file: sender should be accepted (trustedProtocols.includes must not throw,
+        // byte cap must still be active). If defaults were clobbered this line would throw.
+        await handler({ senderFrame: { url: 'file:///a.html' } }, reportJson);
+
+        expect(sent.length).toBe(1);
+    });
 });

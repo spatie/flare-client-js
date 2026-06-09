@@ -34,6 +34,7 @@ export class ElectronFlare extends CoreFlare {
     private handlerManager: ProcessHandlerManager;
     private renderGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
     private childGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
+    private forwardedInFlight = new Set<Promise<void>>();
 
     // Captured from configure() because CoreFlare._config is private.
     private mainStage = '';
@@ -87,7 +88,20 @@ export class ElectronFlare extends CoreFlare {
     }
 
     configureElectron(partial: ElectronOptions): this {
-        this.options = { ...this.options, ...partial };
+        if (partial.uncaughtExceptionMode !== undefined)
+            this.options.uncaughtExceptionMode = partial.uncaughtExceptionMode;
+        if (partial.unhandledRejectionMode !== undefined)
+            this.options.unhandledRejectionMode = partial.unhandledRejectionMode;
+        if (partial.shutdownTimeoutMs !== undefined) this.options.shutdownTimeoutMs = partial.shutdownTimeoutMs;
+        if (partial.captureRenderProcessGone !== undefined)
+            this.options.captureRenderProcessGone = partial.captureRenderProcessGone;
+        if (partial.trustedProtocols !== undefined) {
+            this.options.trustedProtocols = Array.isArray(partial.trustedProtocols) ? partial.trustedProtocols : [];
+        }
+        if (partial.trustSender !== undefined) this.options.trustSender = partial.trustSender;
+        if (partial.maxReportBytes !== undefined && Number.isFinite(partial.maxReportBytes)) {
+            this.options.maxReportBytes = partial.maxReportBytes;
+        }
         if (this.isLit) this.handlerManager.reconcile(this.options);
         this.reconcileCrashListeners();
         return this;
@@ -158,12 +172,28 @@ export class ElectronFlare extends CoreFlare {
         return this.report(error, attrs);
     }
 
+    /**
+     * Wait for both core's tracked reports AND forwarded renderer reports (which bypass core's
+     * private track()), bounded by timeoutMs. Without this, a fatal report-and-exit flush could
+     * exit before an in-flight forwarded renderer report lands.
+     */
+    async flush(timeoutMs = 2000): Promise<void> {
+        await Promise.race([
+            Promise.allSettled([super.flush(timeoutMs), ...this.forwardedInFlight]),
+            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
+    }
+
     /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */
     private receiveRendererReport(report: Report): Promise<void> {
         Object.assign(report.attributes, collectElectronAppAttributes(this.app), projectUser(this.user));
         if (this.mainStage) report.attributes['service.stage'] = this.mainStage;
         if (this.mainVersion) report.attributes['service.version'] = this.mainVersion;
         if (this.mainSourcemapVersionId) report.sourcemapVersionId = this.mainSourcemapVersionId;
-        return this.sendReport(report);
+        const sent = this.sendReport(report).finally(() => {
+            this.forwardedInFlight.delete(sent);
+        });
+        this.forwardedInFlight.add(sent);
+        return sent;
     }
 }
