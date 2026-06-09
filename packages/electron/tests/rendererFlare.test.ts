@@ -91,3 +91,24 @@ describe('RendererFlare', () => {
         expect(warn).toHaveBeenCalledTimes(1); // warn-once on send failure
     });
 });
+
+describe('renderer entry global wiring', () => {
+    it('a window error event reaches the bridge transport', async () => {
+        // @ts-expect-error test global
+        delete (window as any).__flare;
+        const forwarded: string[] = [];
+        (window as any).__flare = {
+            report: (s: string) => {
+                forwarded.push(s);
+                return Promise.resolve();
+            },
+        };
+        // Importing the entry installs window.flare and the error listeners.
+        await import('../src/renderer');
+        window.dispatchEvent(new ErrorEvent('error', { error: new Error('from window'), message: 'from window' }));
+        // Let the async report pipeline settle.
+        await new Promise((r) => setTimeout(r, 10));
+        expect(forwarded.length).toBeGreaterThanOrEqual(1);
+        expect(String(JSON.parse(forwarded[0]).message)).toContain('from window');
+    });
+});
