@@ -14,9 +14,9 @@ export type RendererFlareOptions = {
 export class RendererFlare extends BrowserFlare {
     private maxReportBytes: number;
     private rendererBeforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null> = (r) => r;
-    private warnedNoBridge = false;
-    private warnedOversized = false;
-    private warnedSendFailed = false;
+    private noBridgeCount = 0;
+    private oversizedCount = 0;
+    private sendFailedCount = 0;
 
     constructor(options: RendererFlareOptions = {}) {
         super();
@@ -43,19 +43,21 @@ export class RendererFlare extends BrowserFlare {
 
         const payload = flatJsonStringify(scrubbed);
         if (byteLength(payload) > this.maxReportBytes) {
-            if (!this.warnedOversized) {
-                this.warnedOversized = true;
-                console.warn('[flare] Renderer report exceeds maxReportBytes; dropping.');
+            this.oversizedCount += 1;
+            if (shouldWarn(this.oversizedCount)) {
+                console.warn(
+                    `[flare] Renderer report exceeds maxReportBytes; dropping. (count: ${this.oversizedCount})`,
+                );
             }
             return;
         }
 
         const bridge = (globalThis as unknown as Record<string, BridgeApi | undefined>)[FLARE_BRIDGE_KEY];
         if (!bridge) {
-            if (!this.warnedNoBridge) {
-                this.warnedNoBridge = true;
+            this.noBridgeCount += 1;
+            if (shouldWarn(this.noBridgeCount)) {
                 console.warn(
-                    '[flare] window.__flare is not available. Did you call exposeFlare() in your preload script?',
+                    `[flare] window.__flare is not available. Did you call exposeFlare() in your preload script? (count: ${this.noBridgeCount})`,
                 );
             }
             return;
@@ -63,9 +65,12 @@ export class RendererFlare extends BrowserFlare {
         try {
             await bridge.report(payload);
         } catch (error) {
-            if (!this.warnedSendFailed) {
-                this.warnedSendFailed = true;
-                console.warn('[flare] Failed to forward a report to the main process.', error);
+            this.sendFailedCount += 1;
+            if (shouldWarn(this.sendFailedCount)) {
+                console.warn(
+                    `[flare] Failed to forward a report to the main process. (count: ${this.sendFailedCount})`,
+                    error,
+                );
             }
         }
     }
@@ -73,4 +78,12 @@ export class RendererFlare extends BrowserFlare {
 
 function byteLength(s: string): number {
     return new TextEncoder().encode(s).length;
+}
+
+// Warn on 1, 10, 100, 1000, ... — first occurrence plus each power-of-ten milestone.
+function shouldWarn(count: number): boolean {
+    if (count < 1) {
+        return false;
+    }
+    return Math.log10(count) % 1 === 0;
 }
