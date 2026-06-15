@@ -43,13 +43,18 @@ export class ElectronFlare extends CoreFlare {
 
     constructor(deps: ElectronFlareDeps) {
         const app = deps.app;
-        const scopeProvider = new GlobalScopeProvider();
         // The collector closes over `() => this.user` (a getter, not a value) so later
         // setUser(...) calls are reflected on future reports without reinjecting the collector.
         // Capturing `this` inside a nested arrow before super() is legal TypeScript; only direct
         // `this` access before super() is an error. NodeFlare uses the same pattern.
         const collector = makeElectronContextCollector(app, () => this.user);
-        super(new Api(), collector, new ElectronDiskFileReader(), scopeProvider, new ElectronFlushScheduler(app));
+        super(
+            new Api(),
+            collector,
+            new ElectronDiskFileReader(),
+            new GlobalScopeProvider(),
+            new ElectronFlushScheduler(app),
+        );
         this.app = app;
         this.ipcMain = deps.ipcMain;
         this.setSdkInfo({ name: SDK_NAME, version: CLIENT_VERSION });
