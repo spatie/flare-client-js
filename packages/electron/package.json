@@ -63,7 +63,7 @@
     },
     "dependencies": {
         "@flareapp/core": "2.3.0",
-        "@flareapp/js": "2.4.0"
+        "@flareapp/js": "2.3.0"
     },
     "peerDependencies": {
         "electron": ">=28"
