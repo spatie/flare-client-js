@@ -84,6 +84,38 @@ export class Tracer {
         this.epoch++; // spans created before this point become stale (won't buffer on end)
     }
 
+    withSpan<T>(name: string, fn: (span: Span) => T, opts: SpanOptions = {}): T {
+        const span = this.startSpan(name, opts);
+
+        const finishError = (error: unknown): void => {
+            span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
+            span.end();
+        };
+
+        return this.holder.withActive(span, () => {
+            try {
+                const result = fn(span);
+                if (result && typeof (result as { then?: unknown }).then === 'function') {
+                    return (result as unknown as Promise<unknown>).then(
+                        (value) => {
+                            span.end();
+                            return value;
+                        },
+                        (error) => {
+                            finishError(error);
+                            throw error;
+                        },
+                    ) as unknown as T;
+                }
+                span.end();
+                return result;
+            } catch (error) {
+                finishError(error);
+                throw error;
+            }
+        });
+    }
+
     startSpan(name: string, opts: SpanOptions = {}): Span {
         const config = this.deps.getConfig();
         const spanId = makeSpanId();
