@@ -81,9 +81,17 @@ function byteLength(s: string): number {
 }
 
 // Warn on 1, 10, 100, 1000, ... — first occurrence plus each power-of-ten milestone.
+// Integer-only check; avoids the float precision pitfalls of Math.log10 on powers of ten.
 function shouldWarn(count: number): boolean {
     if (count < 1) {
         return false;
     }
-    return Math.log10(count) % 1 === 0;
+    let n = count;
+    while (n > 1) {
+        if (n % 10 !== 0) {
+            return false;
+        }
+        n /= 10;
+    }
+    return n === 1;
 }
