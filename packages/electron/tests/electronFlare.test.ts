@@ -104,6 +104,38 @@ describe('ElectronFlare', () => {
         expect(sentOut[0].attributes['enduser.email']).toBe('main@user.io');
     });
 
+    it('strips renderer-supplied stage/version/sourcemap when main never configured them', async () => {
+        const { flare, ipcMain } = makeFlare();
+        const sentOut: any[] = [];
+        flare.api.report = (r: any) => {
+            sentOut.push(r);
+            return Promise.resolve();
+        };
+        // No flare.configure(...) — main has no stage/version/sourcemap.
+
+        const handler = ipcMain.handlers['flare:report'];
+        const rendererReport = JSON.stringify({
+            seenAtUnixNano: 5,
+            stacktrace: [],
+            events: [],
+            sourcemapVersionId: 'renderer-forged',
+            attributes: {
+                'service.stage': 'renderer-forged',
+                'service.version': 'renderer-forged',
+                'flare.entry_point.type': 'web',
+            },
+        });
+        await handler({ senderFrame: { url: 'file:///index.html' } }, rendererReport);
+
+        expect(sentOut.length).toBe(1);
+        // Config-derived fields are main-authoritative: renderer values must not survive.
+        expect(sentOut[0].attributes['service.stage']).toBeUndefined();
+        expect(sentOut[0].attributes['service.version']).toBeUndefined();
+        expect(sentOut[0].sourcemapVersionId).toBeUndefined();
+        // Non-config renderer data still preserved.
+        expect(sentOut[0].attributes['flare.entry_point.type']).toBe('web');
+    });
+
     it('dispose removes the IPC handler and detaches process listeners', () => {
         const { flare, ipcMain } = makeFlare();
         expect(ipcMain.handlers['flare:report']).toBeDefined();

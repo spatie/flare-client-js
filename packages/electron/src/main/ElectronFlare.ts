@@ -25,6 +25,15 @@ export type ElectronFlareDeps = {
 
 const SDK_NAME = '@flareapp/electron';
 
+/** Write `value` under `key` when non-empty, otherwise remove any renderer-supplied value. */
+function overlayOrDelete(attributes: Record<string, unknown>, key: string, value: string): void {
+    if (value) {
+        attributes[key] = value;
+    } else {
+        delete attributes[key];
+    }
+}
+
 export class ElectronFlare extends CoreFlare {
     private app: AppLike;
     private ipcMain: IpcMain;
@@ -219,14 +228,17 @@ export class ElectronFlare extends CoreFlare {
     /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */
     private receiveRendererReport(report: Report): Promise<void> {
         Object.assign(report.attributes, collectElectronAppAttributes(this.app), projectUser(this.user));
-        if (this.mainStage) {
-            report.attributes['service.stage'] = this.mainStage;
-        }
-        if (this.mainVersion) {
-            report.attributes['service.version'] = this.mainVersion;
-        }
+
+        // Config-derived fields are main-authoritative. Always overlay them so a renderer can never
+        // supply its own value: write main's value when set, otherwise delete any renderer-supplied
+        // key. This makes the "configure once, in main" guarantee hold even when main left a field
+        // unset (an unconditional overlay; the renderer's value is never trusted for these).
+        overlayOrDelete(report.attributes, 'service.stage', this.mainStage);
+        overlayOrDelete(report.attributes, 'service.version', this.mainVersion);
         if (this.mainSourcemapVersionId) {
             report.sourcemapVersionId = this.mainSourcemapVersionId;
+        } else {
+            delete report.sourcemapVersionId;
         }
         const sent = this.sendReport(report).finally(() => {
             this.forwardedInFlight.delete(sent);
