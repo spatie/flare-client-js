@@ -1,0 +1,10 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "paths": {
+            "@flareapp/core": ["../core/src/index.ts"],
+            "@flareapp/js/browser": ["../js/src/browser.ts"]
+        }
+    },
+    "include": ["src"]
+}

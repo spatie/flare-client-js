@@ -1,0 +1,80 @@
+{
+    "name": "@flareapp/electron",
+    "version": "0.1.0",
+    "description": "Experimental Electron SDK for flareapp.io",
+    "homepage": "https://flareapp.io",
+    "bugs": {
+        "url": "https://github.com/spatie/flare-client-js/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/spatie/flare-client-js.git"
+    },
+    "license": "MIT",
+    "author": {
+        "name": "Spatie",
+        "email": "info@spatie.be"
+    },
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        "./main": {
+            "import": {
+                "types": "./dist/main.d.mts",
+                "default": "./dist/main.mjs"
+            },
+            "require": {
+                "types": "./dist/main.d.cts",
+                "default": "./dist/main.cjs"
+            }
+        },
+        "./preload": {
+            "import": {
+                "types": "./dist/preload.d.mts",
+                "default": "./dist/preload.mjs"
+            },
+            "require": {
+                "types": "./dist/preload.d.cts",
+                "default": "./dist/preload.cjs"
+            }
+        },
+        "./renderer": {
+            "import": {
+                "types": "./dist/renderer.d.mts",
+                "default": "./dist/renderer.mjs"
+            },
+            "require": {
+                "types": "./dist/renderer.d.cts",
+                "default": "./dist/renderer.cjs"
+            }
+        }
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "scripts": {
+        "prepublishOnly": "npm run build",
+        "build": "tsdown",
+        "test": "vitest run",
+        "typescript": "tsc --noEmit",
+        "verify:exports": "node scripts/verify-exports.mjs",
+        "release": "release-it"
+    },
+    "dependencies": {
+        "@flareapp/core": "2.3.0",
+        "@flareapp/js": "2.3.0"
+    },
+    "peerDependencies": {
+        "electron": ">=35"
+    },
+    "devDependencies": {
+        "electron": "^35.0.0",
+        "tsdown": "^0.20.3",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.18"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

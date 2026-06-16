@@ -1,0 +1,13 @@
+{
+    "git": {
+        "tagName": "@flareapp/electron@${version}",
+        "tagAnnotation": "Release @flareapp/electron@${version}",
+        "commitMessage": "chore: release @flareapp/electron@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": { "publish": true },
+    "github": { "release": false },
+    "hooks": { "before:release": "node ../../scripts/check-deps-published.mjs && npm test --if-present" }
+}

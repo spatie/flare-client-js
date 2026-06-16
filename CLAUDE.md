@@ -37,6 +37,7 @@ package, and a Playwright-based e2e suite:
 | `packages/webpack`   | `@flareapp/webpack`            | Webpack 5 plugin for sourcemap upload                             |
 | `packages/nextjs`    | `@flareapp/nextjs`             | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload      |
 | `packages/node`      | `@flareapp/node`               | Node.js SDK (process handlers, AsyncLocalStorage scope)           |
+| `packages/electron`  | `@flareapp/electron`           | Electron SDK (main + preload + renderer, IPC-unified)             |
 | `packages/flare-api` | `@flareapp/flare-api`          | Shared API client for sourcemap uploads (private, not published)  |
 | `playgrounds/shared` | `@flareapp/playgrounds-shared` | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens |
 | `playgrounds/js`     | `@flareapp/playgrounds-js`     | Vanilla TS + Vite webshop (port 5180)                             |
