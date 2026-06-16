@@ -7,7 +7,7 @@ let defaultProvider: (() => Flare) | null = null;
 export function registerDefaultFlare(provider: () => Flare): void {
     // Tripwire: registering a web default while the electron bridge exists means the
     // renderer pulled the package root. It must import `@flareapp/react/inject` instead.
-    if (typeof window !== 'undefined' && (window as Record<string, unknown>).__flare) {
+    if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__flare) {
         console.warn(
             '[flare] @flareapp/js default registered while the electron bridge is present. ' +
                 'In a renderer, import @flareapp/react/inject and pass the ' +

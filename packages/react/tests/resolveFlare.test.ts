@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 describe('resolveFlare', () => {
     beforeEach(() => {
         vi.resetModules();
-        // @ts-expect-error test global
         delete (window as any).__flare;
         vi.restoreAllMocks();
     });
@@ -28,7 +27,6 @@ describe('resolveFlare', () => {
 
     test('registerDefaultFlare warns when the electron bridge is already present', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        // @ts-expect-error test global
         (window as any).__flare = { report: () => {} };
         const { registerDefaultFlare } = await import('../src/resolveFlare');
         registerDefaultFlare(() => ({}) as any);
