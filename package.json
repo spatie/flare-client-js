@@ -29,6 +29,8 @@
         "lint": "oxlint",
         "prepare": "husky",
         "test:e2e": "playwright test",
+        "pretest:e2e:prod": "npm run build --workspace=@flareapp/core --workspace=@flareapp/js --workspace=@flareapp/react",
+        "test:e2e:prod": "E2E_PROD=1 playwright test --project=react-prod",
         "pretest:e2e:node": "npm run build --workspace=@flareapp/core --workspace=@flareapp/node",
         "test:e2e:node": "playwright test -c playwright.node.config.ts",
         "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",

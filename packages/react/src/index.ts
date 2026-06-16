@@ -14,4 +14,4 @@ export {
     type FlareReactErrorHandlerOptions,
 } from './flareReactErrorHandler';
 
-export type { ComponentStackFrame, FlareReactContext } from './types';
+export type { ComponentStackFrame, FlareReactContext, MinifiedReactError } from './types';

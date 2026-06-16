@@ -7,6 +7,7 @@ import { checkoutRoute } from './routes/checkout';
 import { confirmationRoute } from './routes/confirmation';
 import { indexRoute } from './routes/index';
 import { productRoute } from './routes/product.$id';
+import { reactInvariantRoute } from './routes/reactInvariant';
 
 const routeTree = rootRoute.addChildren([
     indexRoute,
@@ -15,6 +16,7 @@ const routeTree = rootRoute.addChildren([
     checkoutRoute,
     confirmationRoute,
     brokenRoute,
+    reactInvariantRoute,
 ]);
 
 // Disable TanStack Router's default per-route error component so render errors
