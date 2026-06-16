@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/vue",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "description": "Vue client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -57,7 +57,7 @@
         "vue-router": "^5.0.0"
     },
     "peerDependencies": {
-        "@flareapp/js": "^2.3.0",
+        "@flareapp/js": "^2.4.0",
         "vue": "^3.0.0",
         "vue-router": "^4.0.0 || ^5.0.0"
     },
