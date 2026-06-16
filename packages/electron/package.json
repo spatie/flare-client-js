@@ -66,10 +66,10 @@
         "@flareapp/js": "2.3.0"
     },
     "peerDependencies": {
-        "electron": ">=28"
+        "electron": ">=35"
     },
     "devDependencies": {
-        "electron": "^31.0.0",
+        "electron": "^35.0.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18"
