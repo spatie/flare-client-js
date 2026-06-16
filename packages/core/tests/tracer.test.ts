@@ -1,0 +1,184 @@
+import { describe, expect, it } from 'vitest';
+
+import { NoopFlushScheduler } from '../src/logging';
+import { Tracer } from '../src/tracing/Tracer';
+import type { Config, SdkInfo } from '../src/types';
+
+const config = (over: Partial<Config> = {}): Config =>
+    ({
+        key: 'k',
+        debug: false,
+        enableTracing: true,
+        tracesIngestUrl: 'https://x/v1/traces',
+        tracesSampleRate: 1,
+        maxSpanBufferSize: 1000,
+        spanFlushIntervalMs: 5000,
+        spanFlushMaxBytes: 800_000,
+        keepaliveMaxBytes: 60_000,
+        maxSpansPerTrace: 1024,
+        maxAttributesPerSpan: 128,
+        maxEventsPerSpan: 128,
+        maxAttributesPerSpanEvent: 128,
+        ...over,
+    }) as Config;
+
+const makeTracer = (cfg: Config, rng: () => number = () => 0, maxLiveTraces?: number) => {
+    const tracer = new Tracer({
+        api: {} as never,
+        getConfig: () => cfg,
+        getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
+        getFramework: () => null,
+        buildSpanAttributes: (userAttributes) => ({ record: userAttributes, resource: {} }),
+        track: (p) => p,
+        scheduler: new NoopFlushScheduler(),
+        now: () => 100,
+        rng,
+        maxLiveTraces,
+    });
+    return tracer;
+};
+
+const spyBuffer = (tracer: Tracer): unknown[] => {
+    const captured: unknown[] = [];
+    (tracer as unknown as { buffer: { add: (s: unknown) => void; clear: () => void } }).buffer = {
+        add: (s) => captured.push(s),
+        clear: () => {},
+    };
+    return captured;
+};
+
+const traceCount = (tracer: Tracer): number =>
+    (tracer as unknown as { traceStates: Map<string, unknown> }).traceStates.size;
+
+const hasTrace = (tracer: Tracer, traceId: string): boolean =>
+    (tracer as unknown as { traceStates: Map<string, unknown> }).traceStates.has(traceId);
+
+describe('Tracer.startSpan', () => {
+    it('creates a root with fresh ids and a null parent', () => {
+        const span = makeTracer(config()).startSpan('root');
+        expect(span.traceId).toMatch(/^[0-9a-f]{32}$/);
+        expect(span.spanId).toMatch(/^[0-9a-f]{16}$/);
+        expect(span.parentSpanId).toBeNull();
+        expect(span.isRecording).toBe(true);
+    });
+
+    it('parents a child under an explicit Span parent in the same trace', () => {
+        const tracer = makeTracer(config());
+        const root = tracer.startSpan('root');
+        const child = tracer.startSpan('child', { parent: root });
+        expect(child.traceId).toBe(root.traceId);
+        expect(child.parentSpanId).toBe(root.spanId);
+    });
+
+    it('returns inert (non-recording) spans when tracing is disabled', () => {
+        const span = makeTracer(config({ enableTracing: false })).startSpan('x');
+        expect(span.isRecording).toBe(false);
+    });
+
+    it('makes children non-recording in a sampled-out trace', () => {
+        const tracer = makeTracer(config({ tracesSampleRate: 0 }));
+        const root = tracer.startSpan('root');
+        expect(root.isRecording).toBe(false);
+        expect(tracer.startSpan('child', { parent: root }).isRecording).toBe(false);
+    });
+
+    it('a plain {traceId, spanId} parent inherits existing sampled-out state (lookup first)', () => {
+        const tracer = makeTracer(config({ tracesSampleRate: 0 }));
+        const root = tracer.startSpan('root'); // sampled out, state still live
+        const child = tracer.startSpan('child', { parent: { traceId: root.traceId, spanId: root.spanId } });
+        expect(child.traceId).toBe(root.traceId);
+        expect(child.parentSpanId).toBe(root.spanId);
+        expect(child.isRecording).toBe(false); // inherited, not defaulted to recording
+    });
+
+    it('re-seeds from parent.isRecording when the parent trace state was pruned', () => {
+        const tracer = makeTracer(config({ tracesSampleRate: 0 }));
+        const root = tracer.startSpan('root'); // sampled out
+        root.end(); // prunes the trace state (rootEnded + openSpanCount 0)
+        const child = tracer.startSpan('child', { parent: root });
+        expect(child.isRecording).toBe(false); // not resurrected as recording
+    });
+
+    it('records exactly maxSpansPerTrace spans, root counted as #1', () => {
+        const tracer = makeTracer(config({ maxSpansPerTrace: 2 }));
+        const root = tracer.startSpan('root');
+        const a = tracer.startSpan('a', { parent: root });
+        const b = tracer.startSpan('b', { parent: root });
+        expect(root.isRecording).toBe(true);
+        expect(a.isRecording).toBe(true);
+        expect(b.isRecording).toBe(false); // 3rd span exceeds cap of 2
+    });
+
+    it('buffers a finished recording span and sets flare.span_type from opts', () => {
+        const captured: unknown[] = [];
+        const tracer = makeTracer(config());
+        (tracer as unknown as { buffer: { add: (s: unknown) => void } }).buffer = {
+            add: (s) => captured.push(s),
+        };
+        const span = tracer.startSpan('op', { spanType: 'browser_pageload', attributes: { a: 1 } });
+        span.end();
+        expect(captured).toHaveLength(1);
+        const buffered = captured[0] as { name: string; recordAttributes: { key: string }[] };
+        expect(buffered.name).toBe('op');
+        const keys = buffered.recordAttributes.map((kv) => kv.key);
+        expect(keys).toContain('flare.span_type');
+        expect(keys).toContain('a');
+    });
+
+    it('does not buffer non-recording spans', () => {
+        const captured: unknown[] = [];
+        const tracer = makeTracer(config({ tracesSampleRate: 0 }));
+        (tracer as unknown as { buffer: { add: (s: unknown) => void } }).buffer = {
+            add: (s) => captured.push(s),
+        };
+        tracer.startSpan('op').end();
+        expect(captured).toHaveLength(0);
+    });
+
+    it('does not buffer a span ended after tracing was disabled, and does not throw', () => {
+        const cfg = config();
+        const tracer = makeTracer(cfg);
+        const captured = spyBuffer(tracer);
+        const span = tracer.startSpan('op'); // recording while enabled
+        cfg.enableTracing = false; // disabled before end
+        expect(() => span.end()).not.toThrow();
+        expect(captured).toHaveLength(0);
+    });
+
+    it('does not buffer a stale span ended after clear(), even with tracing still enabled', () => {
+        const tracer = makeTracer(config());
+        const captured = spyBuffer(tracer);
+        const span = tracer.startSpan('op'); // epoch 0
+        tracer.clear(); // epoch -> 1
+        expect(() => span.end()).not.toThrow();
+        expect(captured).toHaveLength(0);
+    });
+
+    it('evicts a trace state when over maxLiveTraces (bounded backstop)', () => {
+        const tracer = makeTracer(config(), () => 0, 2);
+        tracer.startSpan('r1'); // three distinct roots, never ended
+        tracer.startSpan('r2');
+        tracer.startSpan('r3');
+        expect(traceCount(tracer)).toBe(2);
+    });
+
+    it('evicts the least-recently-used trace, keeping a recently-touched one', () => {
+        const tracer = makeTracer(config(), () => 0, 2);
+        const a = tracer.startSpan('a'); // trace A
+        const b = tracer.startSpan('b'); // trace B
+        tracer.startSpan('a-child', { parent: a }); // touch A -> most recent
+        const c = tracer.startSpan('c'); // new trace C -> evicts LRU (B)
+        expect(hasTrace(tracer, a.traceId)).toBe(true);
+        expect(hasTrace(tracer, b.traceId)).toBe(false);
+        expect(hasTrace(tracer, c.traceId)).toBe(true);
+    });
+
+    it('ignores a stale Span parent after clear() (handle is inert)', () => {
+        const tracer = makeTracer(config());
+        const span = tracer.startSpan('op'); // epoch 0
+        tracer.clear(); // epoch -> 1; traceStates emptied
+        const child = tracer.startSpan('child', { parent: span });
+        expect(child.traceId).not.toBe(span.traceId); // not parented to the stale span
+        expect(child.parentSpanId).toBeNull(); // becomes a fresh root instead
+    });
+});
