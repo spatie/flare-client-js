@@ -456,11 +456,53 @@ git commit -m "feat(vue): inject optional flare instance into flareVue (resolve 
 
 Read `packages/vue/src/FlareErrorBoundary.ts` and its test first.
 
-- [ ] **Step 1: Add tests for injection + default**
+- [ ] **Step 1: Add tests for injection + default + resolve-at-setup**
 
-Mirror Task 4's mock setup at the top of `FlareErrorBoundary.test.ts` (mocked root with identity methods + `registerDefaultFlare(() => mockedRoot)`; keep `convertToError` on the mock). Add a test that mounts the boundary with an injected `flare` prop around a throwing child and asserts the injected instance received the report (and the default did not), plus a default-path test. Use the existing test's mounting helper / throwing-component pattern. Also add a resolve-once test that spies `resolveFlare` and asserts it is called once per setup (fix C).
+The existing `FlareErrorBoundary.test.ts` uses `@vue/test-utils` `mount`, a `ThrowingComponent`, `h`, `nextTick`, and mocks `@flareapp/js` via `vi.mock('@flareapp/js', async (importOriginal) => ({ ...actual, flare: { reportSilently: (...a) => mockReport(...a), setSdkInfo: vi.fn(), setFramework: vi.fn(), ... } }))`. That mock already exposes `setSdkInfo`/`setFramework`, so the only addition is registering the mocked singleton as the resolveFlare default. After the existing `vi.mock(...)` block, add:
 
-(Write concrete tests following the existing file's harness — `@vue/test-utils` `mount` if the file uses it, or the existing manual `onErrorCaptured` trigger. Keep the assertions: injected.reportSilently called once; mockReport not called; resolveFlare spy called once.)
+```ts
+import * as resolveModule from '../src/resolveFlare';
+import { registerDefaultFlare } from '../src/resolveFlare';
+import { flare as mockedRoot } from '@flareapp/js';
+registerDefaultFlare(() => mockedRoot as any);
+```
+
+Then add these three tests (reuse the file's existing `ThrowingComponent` and `mockReport`):
+
+```ts
+test('reports through an injected flare prop, not the default', async () => {
+    const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+    mount(FlareErrorBoundary, {
+        props: { flare: injected },
+        slots: { default: () => h(ThrowingComponent) },
+    });
+    await nextTick();
+    expect(injected.reportSilently).toHaveBeenCalledOnce();
+    expect(mockReport).not.toHaveBeenCalled();
+});
+
+test('falls back to the registered default when no flare prop', async () => {
+    mount(FlareErrorBoundary, {
+        slots: { default: () => h(ThrowingComponent) },
+    });
+    await nextTick();
+    expect(mockReport).toHaveBeenCalledOnce();
+});
+
+test('resolves at setup (before any error), not at capture time', () => {
+    // Zero errors thrown. If resolution happened in onErrorCaptured it would be 0; proving it
+    // is 1 here proves resolution is at setup/wiring time (fix C — and a single-error probe could
+    // not distinguish setup-time from capture-time, since both yield exactly one call).
+    const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+    const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
+    mount(FlareErrorBoundary, {
+        props: { flare: injected },
+        slots: { default: () => h('div', 'ok') }, // non-throwing child
+    });
+    expect(resolveSpy).toHaveBeenCalledTimes(1);
+    resolveSpy.mockRestore();
+});
+```
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -599,7 +641,13 @@ git commit -m "feat(vue): register js singleton as resolveFlare default in web e
 
 ```ts
 // packages/vue/tests/injectEntry.test.ts
+import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { createApp, h } from 'vue';
+
+// NOTE: this file registers NO resolveFlare default (it never imports the web entry). Vitest
+// isolates the module registry per file, so resolveFlare's defaultProvider stays null here —
+// which is exactly what lets the "throws without an instance" assertions hold.
 
 describe('@flareapp/vue/inject entry', () => {
     beforeEach(() => {
@@ -622,8 +670,23 @@ describe('@flareapp/vue/inject entry', () => {
         expect(typeof mod.flareVue).toBe('function');
         expect(mod.FlareErrorBoundary).toBeDefined();
     });
+
+    test('app.use(flareVue) from inject throws when no flare option and no default', async () => {
+        const { flareVue } = await import('../src/inject');
+        const app = createApp({ render: () => null });
+        expect(() => app.use(flareVue)).toThrow(/No Flare instance available/);
+    });
+
+    test('mounting FlareErrorBoundary from inject throws at setup when no flare prop and no default', async () => {
+        const { FlareErrorBoundary } = await import('../src/inject');
+        expect(() => mount(FlareErrorBoundary, { slots: { default: () => h('div', 'x') } })).toThrow(
+            /No Flare instance available/,
+        );
+    });
 });
 ```
+
+> The two throw tests exercise the wiring-time fail-fast (Decision 5) THROUGH the `/inject` entry — the behavior the electron README promises. They pass because no default is registered in this file's isolated module registry: `flareVue`'s install and the boundary's `setup` both call `resolveFlare(undefined)`, which throws synchronously.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -659,7 +722,7 @@ export type {
 
 - [ ] **Step 4: Run test + full suite + tsc**
 
-Run: `cd packages/vue && npx vitest run tests/injectEntry.test.ts` (2 pass)
+Run: `cd packages/vue && npx vitest run tests/injectEntry.test.ts` (4 pass)
 Run: `cd packages/vue && npx vitest run` (full suite green)
 Run: `cd packages/vue && npx tsc --noEmit` (0 errors)
 
