@@ -94,6 +94,13 @@ this._tracer = new Tracer({
 split, returning `{ record, resource }`. Resource attributes match `Logger.resourceForFlush()`
 (`telemetry.sdk.*`, `service.*`, `flare.framework.*`).
 
+The core `Flare` constructor gains an optional 6th positional parameter after `scheduler`:
+`activeSpanHolder: ActiveSpanHolder = new InMemoryActiveSpanHolder()`, which it forwards into the `Tracer` deps. The
+platform packages call `super(...)` positionally today (`@flareapp/node` `Flare.ts:80`, `@flareapp/js` `index.ts:23`,
+both passing 5 args); the default holder means **neither needs a signature change now**. When `@flareapp/node` later
+wants an AsyncLocalStorage-backed holder it passes a 6th arg — no other constructor change. Wiring the parameter in
+this slice is what makes that a one-line addition rather than a breaking constructor change.
+
 `Flare` exposes `get tracer(): Tracer` (parallel to `get logger()`) plus thin passthroughs `flare.startSpan(...)` and
 `flare.withSpan(...)`.
 
@@ -215,7 +222,7 @@ type TraceState = {
     localRootSpanId: string; // first span this tracer created in the trace (the local root)
     rootEnded: boolean; // set true when the local root span ends; gates pruning
     startedSpanCount: number; // monotonic; enforces maxSpansPerTrace
-    openSpanCount: number; // started-not-yet-ended; drives pruning
+    openSpanCount: number; // ALL local live spans (recording or not), started-not-yet-ended; drives pruning
 };
 ```
 
@@ -233,15 +240,23 @@ Rules:
   debug-logged; **else** `state.startedSpanCount++`. The root runs this same path, so it counts as span #1. With the
   default 1024 this records exactly 1024 spans (counts 0…1023 pass, the 1025th is rejected at count 1024) — never
   N + 1.
-- `openSpanCount` increments when a recording span starts and decrements on its `end()`.
+- `openSpanCount` increments when **any** local span starts (recording or sampled-out) and decrements on its `end()`.
+  Sampled-out spans are still live parent handles whose descendants must resolve trace state, so the trace must not be
+  pruned while any local handle — recording or not — is open. (Contrast `startedSpanCount`, which gates the cap and is
+  monotonic.)
 - A child reads `recording` from its trace's state — it does not call the sampler. A sampled-out trace yields
   non-recording children whose `end()` is a buffering no-op.
+- **Live `Span` parent** (`opts.parent` is a `Span`, or the active span): look up `TraceState` by the parent's
+  `traceId` and reuse it. If it was already pruned (e.g. a sampled-out span ended, then reused later as `opts.parent`),
+  re-seed a state for that `traceId` from **`parent.isRecording`** — never default to recording. So a sampled-out,
+  ended parent yields a sampled-out child; a recording parent yields a recording child. The `Span` carries its own
+  decision, so there is no ambiguity even after pruning.
 - **Plain parent object** (`opts.parent: { traceId, spanId }` with no live `Span`): **first look up an existing
   `TraceState` by `traceId`.** If one exists, inherit its `recording` (so a known, sampled-out trace cannot be
   resurrected into recording by passing a stripped parent). Only when no local state exists for that `traceId` create
-  a fresh one defaulting `recording: true` (the safe default for a genuinely-external parent — we cannot prove it was
-  sampled out). The continuation hook (below) is the path that carries a real upstream sampling decision; a bare parent
-  object does not.
+  a fresh one defaulting `recording: true` (the safe default for a genuinely-external parent — a bare object carries no
+  `isRecording`, and we cannot prove it was sampled out). The continuation hook (below) is the path that carries a real
+  upstream sampling decision; a bare parent object does not.
 - **Pruning.** When a span ends, if it is the `localRootSpanId`, set `rootEnded = true`. A `TraceState` is removed once
   `rootEnded === true` AND `openSpanCount === 0` (local root done, no live descendants). A bounded LRU backstop caps the
   number of concurrent live traces so a pathological app that never ends spans cannot grow the map without bound.
@@ -467,11 +482,14 @@ its `logs()` capture.
 - **sampler**: rate 0 / 1 / fractional with a seeded RNG, `tracesSampler` precedence over rate, inbound-traceparent
   inheritance, children inheriting the root decision (no re-roll). `configure()` clamps `tracesSampleRate`: negative → 0,
   above-one → 1 (parity with the existing `sampleRate` clamp tests).
-- **trace state**: child inherits root `recording` across an explicit `Span` parent; a plain `{traceId, spanId}`
-  parent inherits existing local state when present (a sampled-out trace stays non-recording) and defaults recording
-  only when no state exists; `maxSpansPerTrace: N` records **exactly N** spans including the root counted as #1 (the
-  N+1th is non-recording); sampled-out trace yields non-recording children; trace state pruned after the local root
-  ends with `openSpanCount === 0`, including a continued trace whose local root has an external parent.
+- **trace state**: child inherits root `recording` across an explicit `Span` parent; a **sampled-out ended `Span`
+  reused as `opts.parent` after its state was pruned re-seeds from `parent.isRecording` and yields a non-recording
+  child** (no resurrection); a plain `{traceId, spanId}` parent inherits existing local state when present (a
+  sampled-out trace stays non-recording) and defaults recording only when no state exists; `maxSpansPerTrace: N`
+  records **exactly N** spans including the root counted as #1 (the N+1th is non-recording); sampled-out trace yields
+  non-recording children; `openSpanCount` counts sampled-out spans too, so a trace with an open sampled-out parent is
+  not pruned; trace state pruned after the local root ends with `openSpanCount === 0`, including a continued trace
+  whose local root has an external parent.
 - **traceparent continuation (one-shot)**: a stored continuation is consumed by the next root only and cleared — a
   second root with no fresh continuation starts a brand-new trace and does NOT inherit the prior external parent or
   its sampling flag.
@@ -479,8 +497,8 @@ its `logs()` capture.
   event caps enforced with correct `droppedAttributesCount`/`droppedEventsCount`, **per-event** attribute cap enforced
   with the event's own `droppedAttributesCount`, an open span never buffered, a sampled-out span non-recording. Start
   a recording span → disable tracing (or `Tracer.clear()`) → `end()`: no buffer, no throw, no resurrected trace state.
-- **active-span holder**: `getActiveSpan()` reflects `withSpan` set/restore; a custom injected `ActiveSpanHolder` is
-  used in place of the default (verifies the seam).
+- **active-span holder**: `getActiveSpan()` reflects `withSpan` set/restore; a custom `ActiveSpanHolder` passed as the
+  core `Flare` 6th constructor arg is used in place of the default (verifies the seam end-to-end, constructor → Tracer).
 - **SpanBuffer**: each of the three triggers, oversized-span drop, trim, keepalive packing + tail retention + timer
   re-arm, key gate retains buffer. Lift the existing `Logger` test patterns.
 - **envelope**: byte-compatible OTLP output versus a recorded `OpenTelemetryJsonExporter` (PHP) payload for the same
