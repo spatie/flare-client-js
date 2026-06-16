@@ -12,9 +12,8 @@ vi.mock('@flareapp/js', () => ({
         setFramework: vi.fn(),
         setSdkInfo: vi.fn(),
     },
-    // Keep convertToError on the mock: BEFORE Step 3 the implementation still imports it from
-    // '@flareapp/js'. Without it, Step 2 fails with "convertToError is not a function" instead of
-    // the intended injected-instance assertion. Harmless to leave after the import moves to core.
+    // The production code imports convertToError from '@flareapp/core', not this mock. It is kept
+    // here only as a harmless safety net so the mocked '@flareapp/js' surface stays self-contained.
     convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
 }));
 import { flare as mockedRoot } from '@flareapp/js';
