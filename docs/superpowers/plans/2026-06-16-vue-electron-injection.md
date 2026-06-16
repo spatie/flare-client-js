@@ -328,7 +328,13 @@ registerDefaultFlare(() => mockedRoot as any);
 
 (Adapt to whatever the existing mock binding names are; preserve what existing tests rely on. If the existing file already mocks `@flareapp/js`, extend that mock rather than duplicating it.)
 
-Add these tests (use `createApp` from `vue` and a minimal component; mirror how existing tests trigger `app.config.errorHandler`):
+The current `flareVue.test.ts` imports only `import type { ComponentPublicInstance } from 'vue';`. These tests need `createApp` (a value import), so update that line to:
+
+```ts
+import { createApp, type ComponentPublicInstance } from 'vue';
+```
+
+Add these tests (use `createApp` and a minimal component; mirror how existing tests trigger `app.config.errorHandler`):
 
 ```ts
 test('reports through an injected flare instance, not the default', () => {
@@ -415,10 +421,31 @@ import { resolveFlare } from './resolveFlare';
 import { registerVueSdkInfo, tagVueFramework } from './identify';
 ```
 
-Inside the `flareVue` install function, AFTER the `installedApps` guard and BEFORE the current `flare.setSdkInfo(...)` / `flare.setFramework(...)` lines, resolve the instance and replace the identity block:
+Reorder the top of the install function so resolution happens BEFORE the app is marked installed. The current code is:
 
 ```ts
+if (installedApps.has(app)) {
+    return;
+}
+installedApps.add(app); // <- currently here, BEFORE identity
+
+flare.setSdkInfo({ name: '@flareapp/vue', version: PACKAGE_VERSION });
+flare.setFramework({ name: 'Vue', version: app.version });
+```
+
+Change it to (resolve, THEN add):
+
+```ts
+if (installedApps.has(app)) {
+    return;
+}
+
+// Resolve BEFORE marking the app installed. resolveFlare can throw (an /inject consumer that
+// forgot the `flare` option). If we added to installedApps first, a throw would poison the
+// WeakSet: a corrected retry would hit the `has(app)` guard and silently no-op.
 const flare = resolveFlare(options?.flare);
+
+installedApps.add(app);
 
 // Web default (no injected instance): set the SDK identity on the singleton, as before.
 // Injected instance: tag the framework only — never setSdkInfo (would clobber @flareapp/electron).
@@ -428,7 +455,7 @@ if (!options?.flare) {
 tagVueFramework(flare, app.version);
 ```
 
-Delete the old `flare.setSdkInfo({ name: '@flareapp/vue', version: PACKAGE_VERSION });` and `flare.setFramework({ name: 'Vue', version: app.version });` lines (now handled above). Remove the now-unused `PACKAGE_VERSION` import from flareVue.ts IF it becomes unused (check — it may still be used elsewhere in the file; only remove if oxlint flags it unused).
+The old `flare.setSdkInfo(...)` / `flare.setFramework(...)` lines are now replaced by the block above. Remove the now-unused `PACKAGE_VERSION` import from flareVue.ts IF oxlint flags it unused (it moved into identify.ts).
 
 Every other `flare.reportSilently(...)` / `flare.reportMessage(...)` in the install closure now refers to the locally-resolved `const flare` (block-scoped), so they automatically route through the resolved instance. Confirm there are no remaining references to a module-level `flare`.
 
@@ -684,10 +711,31 @@ describe('@flareapp/vue/inject entry', () => {
             /No Flare instance available/,
         );
     });
+
+    test('a failed install does not poison installedApps: a retry with a valid flare still installs', async () => {
+        const { flareVue } = await import('../src/inject');
+        const app = createApp({ render: () => null });
+
+        // Call the plugin function DIRECTLY (not via app.use) so Vue's own plugin-dedup does not
+        // shadow our installedApps WeakSet. First call has no instance -> resolveFlare throws.
+        expect(() => (flareVue as any)(app, undefined)).toThrow(/No Flare instance available/);
+
+        // Retry with a valid instance MUST install (the failed attempt must not have added the app
+        // to installedApps — that is the resolve-before-add ordering being verified).
+        const injected = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+        (flareVue as any)(app, { flare: injected });
+        app.config.errorHandler!(new Error('x'), null, 'render');
+        expect(injected.reportSilently).toHaveBeenCalledOnce();
+    });
 });
 ```
 
-> The two throw tests exercise the wiring-time fail-fast (Decision 5) THROUGH the `/inject` entry — the behavior the electron README promises. They pass because no default is registered in this file's isolated module registry: `flareVue`'s install and the boundary's `setup` both call `resolveFlare(undefined)`, which throws synchronously.
+> The throw tests exercise the wiring-time fail-fast (Decision 5) THROUGH the `/inject` entry — the behavior the electron README promises. They pass because no default is registered in this file's isolated module registry: `flareVue`'s install and the boundary's `setup` both call `resolveFlare(undefined)`, which throws synchronously. The retry test guards the resolve-before-`installedApps.add` ordering (Task 4 Step 4): it calls the plugin function directly because Vue's `app.use` adds the plugin to its own installed-set BEFORE calling `install`, which would otherwise mask our WeakSet behavior.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -723,7 +771,7 @@ export type {
 
 - [ ] **Step 4: Run test + full suite + tsc**
 
-Run: `cd packages/vue && npx vitest run tests/injectEntry.test.ts` (4 pass)
+Run: `cd packages/vue && npx vitest run tests/injectEntry.test.ts` (5 pass)
 Run: `cd packages/vue && npx vitest run` (full suite green)
 Run: `cd packages/vue && npx tsc --noEmit` (0 errors)
 
