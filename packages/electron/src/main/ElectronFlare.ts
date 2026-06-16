@@ -44,6 +44,7 @@ export class ElectronFlare extends CoreFlare {
     private renderGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
     private childGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
     private forwardedInFlight = new Set<Promise<void>>();
+    private flushScheduler: ElectronFlushScheduler;
 
     // Captured from configure() because CoreFlare._config is private.
     private mainStage = '';
@@ -57,15 +58,11 @@ export class ElectronFlare extends CoreFlare {
         // Capturing `this` inside a nested arrow before super() is legal TypeScript; only direct
         // `this` access before super() is an error. NodeFlare uses the same pattern.
         const collector = makeElectronContextCollector(app, () => this.user);
-        super(
-            new Api(),
-            collector,
-            new ElectronDiskFileReader(),
-            new GlobalScopeProvider(),
-            new ElectronFlushScheduler(app),
-        );
+        const flushScheduler = new ElectronFlushScheduler(app);
+        super(new Api(), collector, new ElectronDiskFileReader(), new GlobalScopeProvider(), flushScheduler);
         this.app = app;
         this.ipcMain = deps.ipcMain;
+        this.flushScheduler = flushScheduler;
         this.setSdkInfo({ name: SDK_NAME, version: CLIENT_VERSION });
 
         const cbs = buildFatalCallbacks(
@@ -144,6 +141,7 @@ export class ElectronFlare extends CoreFlare {
         this.handlerManager.detach();
         this.detachCrashListeners();
         disposeIpcReceiver(this.ipcMain, this);
+        this.flushScheduler.dispose();
     }
 
     /** Attach or detach the process-gone listeners to match options.captureRenderProcessGone. Idempotent. */
