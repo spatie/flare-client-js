@@ -5,6 +5,8 @@ import { GlobalScopeProvider, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
 import { NullFileReader } from './stacktrace/NullFileReader';
+import { ActiveSpanHolder, InMemoryActiveSpanHolder } from './tracing/context';
+import { Tracer } from './tracing/Tracer';
 import {
     AttributeValue,
     Attributes,
@@ -15,6 +17,8 @@ import {
     MessageLevel,
     Report,
     SdkInfo,
+    Span,
+    SpanOptions,
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
 
@@ -26,6 +30,7 @@ export class Flare {
     private inflight = new Set<Promise<void>>();
 
     private _logger!: Logger;
+    private _tracer!: Tracer;
 
     private _config: Config = {
         key: null,
@@ -80,6 +85,7 @@ export class Flare {
         private fileReader: FileReader = new NullFileReader(),
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
         scheduler: FlushScheduler = new NoopFlushScheduler(),
+        activeSpanHolder: ActiveSpanHolder = new InMemoryActiveSpanHolder(),
     ) {
         this._logger = new Logger({
             api: this.api,
@@ -89,6 +95,17 @@ export class Flare {
             buildLogAttributes: (userAttributes) => this.buildLogAttributes(userAttributes),
             track: (p) => this.track(p),
             scheduler,
+        });
+
+        this._tracer = new Tracer({
+            api: this.api,
+            getConfig: () => this._config,
+            getSdkInfo: () => this.sdkInfo,
+            getFramework: () => this.framework,
+            buildSpanAttributes: (userAttributes) => this.buildSpanAttributes(userAttributes),
+            track: (p) => this.track(p),
+            scheduler,
+            activeSpanHolder,
         });
     }
 
@@ -234,6 +251,7 @@ export class Flare {
      */
     flush(timeoutMs = 2000): Promise<void> {
         this._logger.flush();
+        this._tracer.flush();
         const pending = [...this.inflight];
         if (pending.length === 0) return Promise.resolve();
         return new Promise<void>((resolve) => {
@@ -257,22 +275,40 @@ export class Flare {
         return this._logger;
     }
 
+    get tracer(): Tracer {
+        return this._tracer;
+    }
+
+    startSpan(name: string, opts?: SpanOptions): Span {
+        return this._tracer.startSpan(name, opts);
+    }
+
+    withSpan<T>(name: string, fn: (span: Span) => T, opts?: SpanOptions): T {
+        return this._tracer.withSpan(name, fn, opts);
+    }
+
     light(key: string = KEY, debug?: boolean): this {
         this._config.key = key;
         if (debug !== undefined) {
             this._config.debug = debug;
         }
         this._logger.flush();
+        this._tracer.flush();
         return this;
     }
 
     configure(config: Partial<Config>): this {
         const wasLogsEnabled = this._config.enableLogs;
+        const wasTracingEnabled = this._config.enableTracing;
 
         this._config = { ...this._config, ...config };
 
         if (config.sampleRate !== undefined) {
             this._config.sampleRate = Math.max(0, Math.min(1, config.sampleRate));
+        }
+
+        if (config.tracesSampleRate !== undefined) {
+            this._config.tracesSampleRate = Math.max(0, Math.min(1, config.tracesSampleRate));
         }
 
         this._config.urlDenylist = resolveDenylist(
@@ -286,6 +322,13 @@ export class Flare {
         }
         if (config.key !== undefined) {
             this._logger.flush();
+        }
+
+        if (wasTracingEnabled && this._config.enableTracing === false) {
+            this._tracer.clear();
+        }
+        if (config.key !== undefined) {
+            this._tracer.flush();
         }
 
         return this;
@@ -531,6 +574,14 @@ export class Flare {
     }
 
     private buildLogAttributes(userAttributes: Attributes): { record: Attributes; resource: Attributes } {
+        const { resource, record: collectorRecord } = partitionAttributes(this.contextCollector(this._config));
+        return {
+            resource,
+            record: this.assembleAttributes(collectorRecord, userAttributes, false),
+        };
+    }
+
+    private buildSpanAttributes(userAttributes: Attributes): { record: Attributes; resource: Attributes } {
         const { resource, record: collectorRecord } = partitionAttributes(this.contextCollector(this._config));
         return {
             resource,
