@@ -284,14 +284,19 @@ auto-activate; the caller ends it manually.
 ```ts
 interface ActiveSpanHolder {
     getActive(): Span | undefined;
-    setActive(span: Span | undefined): void;
+    // Run `fn` with `span` active, restoring the prior active span afterward.
+    withActive<T>(span: Span, fn: () => T): T;
 }
 ```
 
 The holder is injected into `Tracer` via `TracerDeps.activeSpanHolder` (optional). `@flareapp/core` provides the
-default in-memory implementation (a single mutable slot) and uses it when none is passed. The injection point exists
-**now** so `@flareapp/node` can later substitute an AsyncLocalStorage-backed holder without changing the `Tracer`
-constructor or any caller — the seam is wired, not merely promised.
+default in-memory implementation (set-and-restore around the callback) and uses it when none is passed. `withActive` is
+modeled as a **callback**, not a bare setter, on purpose: it is the only shape that lets a future `@flareapp/node`
+holder back it with `AsyncLocalStorage.run(store, fn)` and preserve async-scoped context. A get/set-only holder could
+not — so the abstraction is honest about the seam, not just optimistic. The injection point exists **now** so Node can
+substitute the ALS holder without changing the `Tracer` constructor, `withSpan`, or any caller. The in-memory holder
+restores synchronously, so it does not preserve the active span across `await` (documented Sentry-style limitation);
+the ALS holder will.
 
 ### Status behavior in `withSpan`
 
