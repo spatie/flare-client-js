@@ -20,6 +20,7 @@ vi.mock('@flareapp/js', () => ({
 import { flare as mockedRoot } from '@flareapp/js';
 
 // Register the mocked singleton as the resolveFlare default so no-option handlers resolve it.
+import * as resolveModule from '../src/resolveFlare';
 import { registerDefaultFlare } from '../src/resolveFlare';
 registerDefaultFlare(() => mockedRoot as any);
 
@@ -400,10 +401,15 @@ describe('flareReactErrorHandler', () => {
 
         test('resolves the instance once at creation, not per call', () => {
             const injected = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
+            // Probe resolution directly. A setFramework-based probe is masked by the per-instance
+            // WeakSet in tagReactFramework (same instance dedupes to one call whether resolved at
+            // creation or per call), so it would pass even with the per-call bug.
+            const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
             const handler = flareReactErrorHandler({ flare: injected });
             handler(new Error('a'), {});
             handler(new Error('b'), {});
-            expect(injected.setFramework).toHaveBeenCalledOnce(); // tagged once, at creation
+            expect(resolveSpy).toHaveBeenCalledTimes(1);
+            resolveSpy.mockRestore();
         });
     });
 });
