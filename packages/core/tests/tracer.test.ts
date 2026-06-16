@@ -181,4 +181,19 @@ describe('Tracer.startSpan', () => {
         expect(child.traceId).not.toBe(span.traceId); // not parented to the stale span
         expect(child.parentSpanId).toBeNull(); // becomes a fresh root instead
     });
+
+    it('a plain parent for an unknown trace makes the child the local root and prunes on its end', () => {
+        const tracer = makeTracer(config());
+        const foreignTraceId = 'f'.repeat(32);
+        const foreignSpanId = 'e'.repeat(16);
+        const child = tracer.startSpan('child', {
+            parent: { traceId: foreignTraceId, spanId: foreignSpanId },
+        });
+        expect(child.traceId).toBe(foreignTraceId);
+        expect(child.parentSpanId).toBe(foreignSpanId);
+        expect(child.isRecording).toBe(true); // no local state -> default recording
+        expect(traceCount(tracer)).toBe(1);
+        child.end(); // child is the local root -> rootEnded -> trace state pruned
+        expect(hasTrace(tracer, foreignTraceId)).toBe(false);
+    });
 });
