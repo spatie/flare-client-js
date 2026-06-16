@@ -1,6 +1,7 @@
 // The REAL published inject entry (built dist). Importing it must not pull the js root.
+// Runs in electron's default `node` test environment — the inject path needs no DOM
+// (RendererFlare forwards via globalThis[FLARE_BRIDGE_KEY], not window).
 import { flareReactErrorHandler } from '@flareapp/react/inject';
-// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { FLARE_BRIDGE_KEY } from '../src/constants';
@@ -43,7 +44,8 @@ describe('@flareapp/react/inject reports through an injected RendererFlare', () 
         const reactCtx = parsed.attributes['context.custom'].react;
         expect(Array.isArray(reactCtx.componentStack)).toBe(true);
         expect(reactCtx.componentStack.join(' ')).toContain('App');
-        // Secondary signal only (Task 8's dist-grep is authoritative for no-root):
-        expect((window as Record<string, unknown>).flare).toBeUndefined();
+        // No-root is guarded authoritatively by react's dist-grep (verify:inject); importing
+        // the inject entry here additionally must not have installed any global flare singleton.
+        expect((globalThis as Record<string, unknown>).flare).toBeUndefined();
     });
 });
