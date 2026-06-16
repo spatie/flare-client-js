@@ -403,9 +403,10 @@ In `packages/vue/src/flareVue.ts`:
 Change the import line 1 `import { type AttributeValue, type Attributes, convertToError, flare } from '@flareapp/js';` to:
 
 ```ts
-import { convertToError } from '@flareapp/core';
-import type { AttributeValue, Attributes } from '@flareapp/js/browser';
+import { convertToError, type AttributeValue, type Attributes } from '@flareapp/core';
 ```
+
+(`AttributeValue`/`Attributes` are NOT exported from `@flareapp/js/browser` — only `Flare` + browser helpers are. They live in `@flareapp/core` alongside `convertToError`, so one import line covers all three.)
 
 Add these imports (with the other local imports):
 
@@ -794,7 +795,7 @@ Run: `npm install` (repo root). Expected: the only lockfile change is vue's new 
 
 - [ ] **Step 6: Build, verify entries, type-check**
 
-Run: `cd packages/vue && npm run build` — succeeds; `ls packages/vue/dist/inject.*` shows 4 files.
+Run: `cd packages/vue && npm run build` — succeeds; `ls dist/inject.*` (from `packages/vue`) shows 4 files (`inject.mjs`, `inject.cjs`, `inject.d.mts`, `inject.d.cts`).
 Run: `cd packages/vue && npx tsc --noEmit` — 0 errors.
 
 - [ ] **Step 7: Commit**
