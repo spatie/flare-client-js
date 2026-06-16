@@ -171,3 +171,86 @@ The user is attached to main-process reports and to forwarded renderer reports.
 - Errors that occur before `flare.light('your-key')` runs in the main process. The fatal process handlers are attached by `light()`, and no report is sent without a key, so call `light()` as early as possible in your main entry. Errors before that point (in any process) are not sent.
 
 This is an experimental release — see the note at the top.
+
+## Using `@flareapp/react` in the renderer
+
+In a plain web app, `@flareapp/react` reports through the `@flareapp/js` singleton you configure with `flare.light(key)`. In Electron that is wrong: the API key must live in the **main** process only, and reports must travel over IPC so main can enrich and gate them. So in the renderer you inject Electron's own Flare instance into the React boundary instead of letting it reach the web singleton.
+
+### Install
+
+```bash
+npm install @flareapp/electron @flareapp/react
+```
+
+`@flareapp/js` comes in transitively via `@flareapp/electron` — do **not** import it in the renderer.
+
+### 1. Main process — owns the key and the transport
+
+```ts
+// main.ts
+import { app } from 'electron';
+import { flare } from '@flareapp/electron/main';
+
+app.whenReady().then(() => {
+    flare.light('YOUR PROJECT KEY'); // key lives ONLY here
+});
+```
+
+### 2. Preload — bridges the renderer to main
+
+```ts
+// preload.ts
+import { exposeFlare } from '@flareapp/electron/preload';
+
+exposeFlare(); // exposes window.__flare.report() via contextBridge
+```
+
+Point your `BrowserWindow` at this preload with `contextIsolation: true` (the default).
+
+### 3. Renderer — get the IPC-forwarding instance
+
+```ts
+// flare.ts (renderer)
+import { flare } from '@flareapp/electron/renderer';
+
+export { flare };
+```
+
+### 4. React — inject that instance
+
+Import from `@flareapp/react/inject` (not the package root) and pass the renderer instance:
+
+```tsx
+// App.tsx
+import { flare } from './flare';
+import { FlareErrorBoundary } from '@flareapp/react/inject';
+
+export function App() {
+    return (
+        <FlareErrorBoundary flare={flare}>
+            <Root />
+        </FlareErrorBoundary>
+    );
+}
+```
+
+React 19 `createRoot` handler path:
+
+```tsx
+import { flare } from './flare';
+import { flareReactErrorHandler } from '@flareapp/react/inject';
+import { createRoot } from 'react-dom/client';
+
+createRoot(document.getElementById('root')!, {
+    onCaughtError: flareReactErrorHandler({ flare }),
+    onUncaughtError: flareReactErrorHandler({ flare }),
+});
+```
+
+### Rules
+
+- **Never `import { flare } from '@flareapp/js'` in the renderer.** That pulls the web singleton (keyed, fetch-direct) and a second global error listener.
+- Import the React SDK from `@flareapp/react/inject`, never the package root. If you import the root by mistake you will see a console warning that the default was registered while the Electron bridge is present.
+- Omitting the `flare` prop on the `/inject` entry throws at boundary construction (boot), not silently at error time.
+
+Reports from the renderer carry `sdk = @flareapp/electron` and `framework = React`. Your React component context (`context.custom.react`, component stack) rides along in the report attributes and survives the IPC trip intact.
