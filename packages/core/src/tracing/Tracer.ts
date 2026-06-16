@@ -20,7 +20,7 @@ import { parseTraceparent } from './traceparent';
 
 export const defaultNowNano = (): number => {
     const perf = (globalThis as { performance?: Performance }).performance;
-    const ms = perf && perf.timeOrigin ? perf.timeOrigin + perf.now() : Date.now();
+    const ms = perf && typeof perf.now === 'function' ? perf.timeOrigin + perf.now() : Date.now();
     return Math.round(ms * 1e6);
 };
 
