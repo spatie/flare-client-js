@@ -48,6 +48,16 @@ export class Flare {
         logFlushIntervalMs: 5000,
         logFlushMaxBytes: 800_000,
         keepaliveMaxBytes: 60_000,
+        enableTracing: false,
+        tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
+        tracesSampleRate: 1,
+        maxSpanBufferSize: 100,
+        spanFlushIntervalMs: 5000,
+        spanFlushMaxBytes: 800_000,
+        maxSpansPerTrace: 1024,
+        maxAttributesPerSpan: 128,
+        maxEventsPerSpan: 128,
+        maxAttributesPerSpanEvent: 128,
     };
 
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };

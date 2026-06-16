@@ -42,6 +42,17 @@ export type Config = {
     logFlushIntervalMs: number;
     logFlushMaxBytes: number;
     keepaliveMaxBytes: number;
+    enableTracing: boolean;
+    tracesIngestUrl: string;
+    tracesSampleRate: number;
+    tracesSampler?: TracesSampler;
+    maxSpanBufferSize: number;
+    spanFlushIntervalMs: number;
+    spanFlushMaxBytes: number;
+    maxSpansPerTrace: number;
+    maxAttributesPerSpan: number;
+    maxEventsPerSpan: number;
+    maxAttributesPerSpanEvent: number;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };
@@ -153,4 +164,83 @@ export type BufferedLog = {
     message: string;
     recordAttributes: KeyValue[];
     resourceAttributes: Attributes;
+};
+
+// --- Tracing ---
+
+export type SpanStatusCode = 0 | 1 | 2; // Unset | Ok | Error (OTel)
+
+export type SpanStatus = { code: SpanStatusCode; message?: string };
+
+export type SpanOptions = {
+    parent?: Span | { traceId: string; spanId: string };
+    attributes?: Attributes;
+    startTimeUnixNano?: number;
+    spanType?: string;
+};
+
+export interface Span {
+    readonly traceId: string;
+    readonly spanId: string;
+    readonly parentSpanId: string | null;
+    name: string;
+    readonly isRecording: boolean;
+    setAttribute(key: string, value: AttributeValue): this;
+    setStatus(status: SpanStatus): this;
+    addEvent(name: string, attributes?: Attributes): this;
+    end(endTimeUnixNano?: number): void;
+}
+
+export type SamplingContext = {
+    name: string;
+    parentSampled?: boolean;
+    attributes: Attributes;
+    spanType?: string;
+};
+
+export type TracesSampler = (ctx: SamplingContext) => number | boolean;
+
+export type BufferedSpanEvent = {
+    name: string;
+    timeUnixNano: number;
+    attributes: KeyValue[];
+    droppedAttributesCount: number;
+};
+
+export type BufferedSpan = {
+    traceId: string;
+    spanId: string;
+    parentSpanId: string | null;
+    name: string;
+    startTimeUnixNano: number;
+    endTimeUnixNano: number;
+    status: SpanStatus;
+    recordAttributes: KeyValue[];
+    resourceAttributes: Attributes;
+    droppedAttributesCount: number;
+    droppedEventsCount: number;
+    events: BufferedSpanEvent[];
+};
+
+export type OtelSpan = {
+    traceId: string;
+    spanId: string;
+    parentSpanId: string | null; // ALWAYS present; null for roots
+    name: string;
+    startTimeUnixNano: number;
+    endTimeUnixNano: number;
+    status: { code: number; message?: string };
+    attributes: KeyValue[];
+    events: BufferedSpanEvent[];
+    droppedAttributesCount: number;
+    droppedEventsCount: number;
+    links: never[];
+    droppedLinksCount: number;
+};
+
+export type TracesEnvelope = {
+    resourceSpans: Array<{
+        resource: OtelResource;
+        scopeSpans: Array<{ scope: OtelScope; spans: OtelSpan[] }>;
+    }>;
 };
