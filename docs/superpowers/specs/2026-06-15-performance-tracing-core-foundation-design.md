@@ -26,9 +26,10 @@ exercised and demoable on its own, not dead code awaiting the browser layer.
 - **Build in-house**, mirror the existing logging module rather than adopt the OTel web SDK (research §4.4).
 - **Wire format**: raw OTLP/JSON to `https://ingress.flareapp.io/v1/traces`, `x-api-token` auth, no Flare-specific
   wrapper. Cloudflare worker is transparent (research §2.7).
-- **Transport mirrors `Api.logs()` exactly.** Validated against `flare-client-php`: the PHP `Api`/`CurlSender` use one
-  API token for errors, traces, and logs identically (`x-api-token` header + `?key=` query fallback, OTLP/JSON body,
-  same base URL, only the path differs). The JS `Api.logs()` already ships an OTLP entity from the browser with the
+- **Transport mirrors `Api.logs()` exactly** — header-only auth, URL unchanged, no `?key=` query fallback (see
+  Transport). Validated against `flare-client-php`: the PHP `Api`/`CurlSender` use one API token for errors, traces,
+  and logs identically (OTLP/JSON body, same base URL, only the path differs; PHP's query-string `key` is a curl
+  convenience, not a contract). The JS `Api.logs()` already ships an OTLP entity from the browser with the
   configured (public) key. So `Api.traces()` is a clone of `Api.logs()` with path `/v1/traces`. The protocol-doc
   "private key only" wording for `/v1/traces` is not enforced by any client code and is treated as PHP-perspective
   wording; confirmed by a live test-POST before shipping (see External prerequisites).
@@ -95,6 +96,12 @@ split, returning `{ record, resource }`. Resource attributes match `Logger.resou
 `Flare` exposes `get tracer(): Tracer` (parallel to `get logger()`) plus thin passthroughs `flare.startSpan(...)` and
 `flare.withSpan(...)`.
 
+`Tracer` exposes a `flush()` (parallel to `Logger.flush()`). **`Flare.flush()` (`Flare.ts:225`) currently flushes
+only `_logger`; it must also call `this._tracer.flush()` before taking the in-flight snapshot**, so buffered spans
+drain on an explicit flush exactly like logs. Likewise `Flare.light()` (`Flare.ts:255`), which flushes the logger
+after a key is set (to drain records buffered while keyless), must also flush the tracer for spans buffered before
+the key. Both are covered by integration tests mirroring the existing logger ones.
+
 ## Data model
 
 The existing `SpanEvent` type (`core/src/types.ts:42`) is the **error-report breadcrumb** type, populated only by
@@ -130,7 +137,14 @@ type BufferedSpan = {
     status: SpanStatus;
     recordAttributes: KeyValue[]; // already OTLP-encoded via otel.ts
     resourceAttributes: Attributes; // raw; encoded at envelope build (matches BufferedLog)
-    events: { name: string; timeUnixNano: number; attributes: KeyValue[] }[];
+    droppedAttributesCount: number; // span attrs dropped over maxAttributesPerSpan
+    droppedEventsCount: number; // events dropped over maxEventsPerSpan
+    events: {
+        name: string;
+        timeUnixNano: number;
+        attributes: KeyValue[];
+        droppedAttributesCount: number; // event attrs dropped over maxAttributesPerSpanEvent
+    }[];
 };
 
 type TracesEnvelope = {
@@ -162,7 +176,11 @@ type OtelSpan = {
   (`startSpan`). The browser/framework layers set the real taxonomy values later.
 - Timestamps are integer nanoseconds: `Math.round((performance.timeOrigin + performance.now()) * 1e6)` where the
   Performance API is available; the time source is injected so Node/tests can substitute it.
-- Client-side caps (PHP parity, research §3.4): `maxSpansPerTrace` 1024, `maxAttributesPerSpan` 128, `maxEventsPerSpan` 128. Over-cap attributes/events are dropped and counted into `droppedAttributesCount`/`droppedEventsCount`.
+- Client-side caps (PHP parity, research §3.4): `maxSpansPerTrace` 1024, `maxAttributesPerSpan` 128, `maxEventsPerSpan`
+  128, `maxAttributesPerSpanEvent` 128. Over-cap span attributes/events drop into the span's
+  `droppedAttributesCount`/`droppedEventsCount`; over-cap event attributes drop into that event's own
+  `droppedAttributesCount`. Every count is preserved from the buffered shape through to the OTLP output (no silent
+  loss of the dropped totals).
 
 ## Public span API
 
@@ -180,13 +198,44 @@ withSpan<T>(name: string, fn: (span: Span) => T, opts?: SpanOptions): T;   // sy
 getActiveSpan(): Span | undefined;
 ```
 
+### Trace state (internal)
+
+The "decided once at the root, inherited by children" and `maxSpansPerTrace` requirements need a per-trace store. The
+`Tracer` holds a small internal map keyed by `traceId`:
+
+```ts
+type TraceState = {
+    traceId: string;
+    recording: boolean; // the head sampling decision; children read this, never re-sample
+    spanCount: number; // enforces maxSpansPerTrace
+};
+```
+
+Rules:
+
+- A new root creates its `TraceState`, runs the sampler once, stores `recording`, and seeds `spanCount = 0`.
+- Every `startSpan` that resolves to an existing trace increments `spanCount`. When `spanCount >= maxSpansPerTrace`, the
+  span is created but returned non-recording (it will not buffer), and the drop is debug-logged. This bounds a runaway
+  trace without throwing.
+- A child reads `recording` from its trace's state — it does not call the sampler. A sampled-out trace yields
+  non-recording children whose `end()` is a buffering no-op.
+- **Plain parent object** (`opts.parent: { traceId, spanId }` with no live `Span`): the parent's trace state is
+  unknown to this tracer (it came from outside — e.g. a continuation or a cross-context handoff). Treat it as
+  recording (`recording: true`, the safe default — we cannot prove it was sampled out) and create a fresh `TraceState`
+  for that `traceId` on first use, seeded `spanCount = 0`. The continuation hook (below) is the path that carries a
+  real upstream sampling decision; a bare parent object does not.
+- Trace states are pruned when their root span ends and `spanCount` work is settled (or via a bounded LRU) so the map
+  does not grow unbounded over a long-lived SPA session. Exact pruning policy is an implementation detail; the cap on
+  concurrent live traces is small in practice.
+
 ### Parenting
 
 Resolved at `startSpan`:
 
-1. `opts.parent` given → child of it (adopt its `traceId`, `parentSpanId` = its `spanId`).
+1. `opts.parent` given → child of it (adopt its `traceId`, `parentSpanId` = its `spanId`; see plain-parent-object rule
+   in Trace state).
 2. else an active span is set → child of the active span.
-3. else a continued traceparent exists (set via the continuation hook — see traceparent section) → adopt its
+3. else a continued traceparent exists (set via the continuation hook — see traceparent section, one-shot) → adopt its
    `traceId`, `parentSpanId` = its `spanId`.
 4. else → new root: fresh `traceId` + `spanId`, `parentSpanId = null`.
 
@@ -283,8 +332,12 @@ traces(
 ```
 
 - POST OTLP/JSON. Headers: `Accept: application/json`, `Content-Type: application/json`, `x-api-token: key ?? ''`.
-  `keepalive` passed through to `fetch`.
-- Append `?key=<key>` to the URL as a fallback (PHP `CurlSender` parity; cheap insurance).
+  `keepalive` passed through to `fetch`. URL sent unchanged.
+- **No `?key=` query fallback.** `Api.logs()` already ships OTLP from the browser with the header alone and works, so
+  the fallback adds nothing for traces while putting the key in a URL (access logs / referrers). The PHP `CurlSender`
+  uses the query form only because curl has no shared header default; it is not a contract. Decision: clone `logs()`
+  exactly — header only. (Resolves the review contradiction between "clone `logs()` exactly" and the earlier
+  `?key=` note.)
 - Body serialized with `flatJsonStringify` (same as `logs()` — span attributes are raw user data that can contain
   cycles).
 - v1 error handling matches `logs()`: in debug mode, log a non-201 response. Full status-code retry/backoff
@@ -308,6 +361,7 @@ spanFlushMaxBytes: number;         // default 800_000
 maxSpansPerTrace: number;          // default 1024  (PHP parity)
 maxAttributesPerSpan: number;      // default 128   (PHP parity)
 maxEventsPerSpan: number;          // default 128   (PHP parity)
+maxAttributesPerSpanEvent: number; // default 128   (PHP parity)
 // keepaliveMaxBytes is reused from the logging config (shared 60KB budget)
 ```
 
@@ -344,6 +398,13 @@ the sampler honor an upstream decision now, the `Tracer` exposes a single contin
 adopts it (parenting rule 3, sampler rule 1). The hook is part of the public surface; the code that calls it lives in
 later slices.
 
+**One-shot semantics (load-bearing).** The stored continuation is consumed by the **next** root span and cleared on
+read. It does NOT persist: a later, unrelated root must not inherit a stale external parent or its sampling decision.
+Concretely — `continueFromTraceparent(h)` overwrites any unconsumed pending continuation; the first `startSpan` that
+falls to parenting rule 3 reads it, adopts `traceId`/`parentSpanId`, seeds the trace state's `recording` from the
+upstream `sampled` flag, then nulls the pending slot. A subsequent root with no fresh continuation falls through to
+rule 4 (brand-new trace). Tested explicitly (see Testing).
+
 ## Testing
 
 TDD with Vitest in `packages/core/tests/`. Extend the shared `helpers/FakeApi.ts` with a `traces()` capture parallel to
@@ -354,13 +415,23 @@ its `logs()` capture.
 - **traceparent**: build format, parse of valid / malformed / wrong-version headers, `01`/`00` sampled round-trip.
 - **sampler**: rate 0 / 1 / fractional with a seeded RNG, `tracesSampler` precedence over rate, inbound-traceparent
   inheritance, children inheriting the root decision (no re-roll).
-- **Span lifecycle**: `end()` idempotent, status rules in `withSpan` (throw / clean / reject), attribute and event caps
-  enforced with correct dropped-counts, an open span never buffered, a sampled-out span non-recording.
+- **trace state**: child inherits root `recording` across an explicit `Span` parent AND a plain `{traceId, spanId}`
+  parent (latter defaults recording); `maxSpansPerTrace` bound returns non-recording spans past the cap; sampled-out
+  trace yields non-recording children.
+- **traceparent continuation (one-shot)**: a stored continuation is consumed by the next root only and cleared — a
+  second root with no fresh continuation starts a brand-new trace and does NOT inherit the prior external parent or
+  its sampling flag.
+- **Span lifecycle**: `end()` idempotent, status rules in `withSpan` (throw / clean / reject), span attribute and
+  event caps enforced with correct `droppedAttributesCount`/`droppedEventsCount`, **per-event** attribute cap enforced
+  with the event's own `droppedAttributesCount`, an open span never buffered, a sampled-out span non-recording.
 - **SpanBuffer**: each of the three triggers, oversized-span drop, trim, keepalive packing + tail retention + timer
   re-arm, key gate retains buffer. Lift the existing `Logger` test patterns.
 - **envelope**: byte-compatible OTLP output versus a recorded `OpenTelemetryJsonExporter` (PHP) payload for the same
-  logical span — golden fixture committed under `tests/fixtures/`.
-- **Api.traces**: header + key + `?key=` query, `keepalive` flag forwarded, non-201 debug logging.
+  logical span (incl. per-event dropped counts) — golden fixture committed under `tests/fixtures/`.
+- **Api.traces**: header + key (no `?key=` query — URL unchanged), `keepalive` flag forwarded, non-201 debug logging.
+- **Flare integration**: `Flare.flush()` drains buffered spans (not just logs) before resolving; `Flare.light()`
+  flushes spans buffered while keyless; public exports (`startSpan`/`withSpan`/`Tracer`/types) are reachable from the
+  package entry. Mirror the existing logger integration tests.
 
 Run: `npx vitest run` from `packages/core`, or `npm run test` from the repo root.
 
