@@ -86,6 +86,7 @@ this._tracer = new Tracer({
     buildSpanAttributes: (userAttributes) => this.buildSpanAttributes(userAttributes),
     track: (p) => this.track(p),
     scheduler, // SAME instance as Logger — one lifecycle seam drains both buffers
+    activeSpanHolder, // optional; defaults to the in-memory holder (see Active context)
 });
 ```
 
@@ -176,6 +177,10 @@ type OtelSpan = {
   (`startSpan`). The browser/framework layers set the real taxonomy values later.
 - Timestamps are integer nanoseconds: `Math.round((performance.timeOrigin + performance.now()) * 1e6)` where the
   Performance API is available; the time source is injected so Node/tests can substitute it.
+- `Span.end()` is always safe and idempotent. A second `end()` is a no-op. An `end()` after the tracer was cleared or
+  tracing disabled (`configure({ enableTracing: false })`) does not buffer, does not resurrect pruned trace state, and
+  does not throw — the span simply finalizes locally with no effect. A handle obtained before a disable/clear is inert
+  thereafter. (Same spirit as logging continuing to accept calls after `enableLogs` flips off.)
 - Client-side caps (PHP parity, research §3.4): `maxSpansPerTrace` 1024, `maxAttributesPerSpan` 128, `maxEventsPerSpan`
   128, `maxAttributesPerSpanEvent` 128. Over-cap span attributes/events drop into the span's
   `droppedAttributesCount`/`droppedEventsCount`; over-cap event attributes drop into that event's own
@@ -259,8 +264,19 @@ Resolved at `startSpan`:
 Explicit holder, no zone.js. `withSpan` sets the span active for the **synchronous** duration of `fn` (try/finally
 restore of the previous active span). If `fn` returns a Promise, the span ends on settle, but the active context is
 NOT held across the `await` — this is the documented Sentry-style limitation (research §4.4). `startSpan` does NOT
-auto-activate; the caller ends it manually. The holder is a small interface so Node can later substitute an
-AsyncLocalStorage-backed implementation without changing callers.
+auto-activate; the caller ends it manually.
+
+```ts
+interface ActiveSpanHolder {
+    getActive(): Span | undefined;
+    setActive(span: Span | undefined): void;
+}
+```
+
+The holder is injected into `Tracer` via `TracerDeps.activeSpanHolder` (optional). `@flareapp/core` provides the
+default in-memory implementation (a single mutable slot) and uses it when none is passed. The injection point exists
+**now** so `@flareapp/node` can later substitute an AsyncLocalStorage-backed holder without changing the `Tracer`
+constructor or any caller — the seam is wired, not merely promised.
 
 ### Status behavior in `withSpan`
 
@@ -417,8 +433,13 @@ parseTraceparent(header: string): { traceId: string; parentSpanId: string; sampl
 
 - Build emits the sampled flag as exactly `01` / `00` (interop with the PHP client's strict `=== '01'` parse,
   research §3.3 / P2).
-- Parse accepts only version `00`; reads sampled via strict `=== '01'`. Mirrors current PHP behavior. Moving both
-  sides to a bitmask is explicitly out of scope for v1.
+- Parse returns `null` (not a partial result) for any malformed header. "Malformed" is defined: not exactly 4
+  hyphen-delimited parts; version != `00`; `traceId` not 32 lowercase-hex chars or all-zero; `parentSpanId` not 16
+  lowercase-hex chars or all-zero. This is **stricter than the PHP parser** (which only checks version + part count),
+  deliberately: parse handles untrusted **inbound** data, so rejecting non-hex / wrong-length / all-zero IDs prevents a
+  bad upstream value from seeding our trace state with a junk `traceId`. We emit only valid IDs ourselves, so the
+  stricter inbound check never rejects our own output. Sampled flag still read via strict `=== '01'`. Moving to a
+  bitmask is out of scope for v1.
 
 Core ships build + parse as pure helpers only. **Inbound continuation** (reading a header or SSR meta tag and seeding
 the tracer) and **outbound injection** (the fetch/XHR patch) belong to the browser layer and are out of scope. To let
@@ -441,7 +462,8 @@ its `logs()` capture.
 
 - **ids**: hex length (32 / 16), lowercase, never all-zeroes, `Math.random` fallback path when `crypto` is stubbed
   absent.
-- **traceparent**: build format, parse of valid / malformed / wrong-version headers, `01`/`00` sampled round-trip.
+- **traceparent**: build format, `01`/`00` sampled round-trip; parse returns `null` for wrong part count, wrong
+  version, non-hex / wrong-length / all-zero trace or span IDs; parse accepts a well-formed header.
 - **sampler**: rate 0 / 1 / fractional with a seeded RNG, `tracesSampler` precedence over rate, inbound-traceparent
   inheritance, children inheriting the root decision (no re-roll). `configure()` clamps `tracesSampleRate`: negative → 0,
   above-one → 1 (parity with the existing `sampleRate` clamp tests).
@@ -455,7 +477,10 @@ its `logs()` capture.
   its sampling flag.
 - **Span lifecycle**: `end()` idempotent, status rules in `withSpan` (throw / clean / reject), span attribute and
   event caps enforced with correct `droppedAttributesCount`/`droppedEventsCount`, **per-event** attribute cap enforced
-  with the event's own `droppedAttributesCount`, an open span never buffered, a sampled-out span non-recording.
+  with the event's own `droppedAttributesCount`, an open span never buffered, a sampled-out span non-recording. Start
+  a recording span → disable tracing (or `Tracer.clear()`) → `end()`: no buffer, no throw, no resurrected trace state.
+- **active-span holder**: `getActiveSpan()` reflects `withSpan` set/restore; a custom injected `ActiveSpanHolder` is
+  used in place of the default (verifies the seam).
 - **SpanBuffer**: each of the three triggers, oversized-span drop, trim, keepalive packing + tail retention + timer
   re-arm, key gate retains buffer. Lift the existing `Logger` test patterns.
 - **envelope**: byte-compatible OTLP output versus a recorded `OpenTelemetryJsonExporter` (PHP) payload for the same
