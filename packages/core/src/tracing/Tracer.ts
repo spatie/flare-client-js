@@ -16,6 +16,7 @@ import { spanId as makeSpanId, traceId as makeTraceId } from './ids';
 import { resolveSampling } from './sampler';
 import { SpanImpl } from './Span';
 import { SpanBuffer } from './SpanBuffer';
+import { parseTraceparent } from './traceparent';
 
 export const defaultNowNano = (): number => {
     const perf = (globalThis as { performance?: Performance }).performance;
@@ -54,6 +55,7 @@ export class Tracer {
     private rng: () => number;
     private maxLiveTraces: number;
     private epoch = 0;
+    private pendingContinuation: { traceId: string; parentSpanId: string; sampled: boolean } | null = null;
 
     constructor(private deps: TracerDeps) {
         this.buffer = new SpanBuffer({
@@ -81,7 +83,12 @@ export class Tracer {
     clear(): void {
         this.buffer.clear();
         this.traceStates.clear();
+        this.pendingContinuation = null;
         this.epoch++; // spans created before this point become stale (won't buffer on end)
+    }
+
+    continueFromTraceparent(header: string): void {
+        this.pendingContinuation = parseTraceparent(header);
     }
 
     withSpan<T>(name: string, fn: (span: Span) => T, opts: SpanOptions = {}): T {
@@ -161,6 +168,21 @@ export class Tracer {
             const isRecordingKnown = 'isRecording' in parent ? (parent as Span).isRecording : true;
             const state = this.getOrSeedState(traceId, spanId, isRecordingKnown);
             return { traceId, parentSpanId: parent.spanId, state };
+        }
+
+        // Continued trace (one-shot): consume the pending continuation.
+        if (this.pendingContinuation) {
+            const cont = this.pendingContinuation;
+            this.pendingContinuation = null;
+            const ctx: SamplingContext = {
+                name,
+                parentSampled: cont.sampled,
+                attributes: opts.attributes ?? {},
+                spanType: opts.spanType,
+            };
+            const recording = resolveSampling(ctx, config, this.rng);
+            const state = this.createState(cont.traceId, spanId, recording);
+            return { traceId: cont.traceId, parentSpanId: cont.parentSpanId, state };
         }
 
         // New root.
