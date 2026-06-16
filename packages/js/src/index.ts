@@ -1,5 +1,4 @@
-import { Flare } from './browser';
-import { catchWindowErrors } from './browser';
+import { catchWindowErrors, Flare } from './browser';
 
 export { Flare } from './browser';
 
