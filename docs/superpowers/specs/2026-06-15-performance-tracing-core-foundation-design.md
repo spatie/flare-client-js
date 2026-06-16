@@ -207,18 +207,27 @@ The "decided once at the root, inherited by children" and `maxSpansPerTrace` req
 type TraceState = {
     traceId: string;
     recording: boolean; // the head sampling decision; children read this, never re-sample
+    localRootSpanId: string; // first span this tracer created in the trace (the local root)
+    rootEnded: boolean; // set true when the local root span ends; gates pruning
     startedSpanCount: number; // monotonic; enforces maxSpansPerTrace
     openSpanCount: number; // started-not-yet-ended; drives pruning
 };
 ```
 
+The **local root** is the first span this tracer creates in a trace, recorded as `localRootSpanId`. For a continued
+trace (parenting rule 3) the local root has an external `parentSpanId` but is still the local root for pruning — being
+a root is about "first local span in the trace", not about having a null parent.
+
 Rules:
 
-- A new root creates its `TraceState`, runs the sampler once, stores `recording`, seeds both counts to 0.
-- **Cap (exact).** At every `startSpan` resolving to an existing trace, check **before** incrementing:
+- A new root (or first local span of a continued trace) creates its `TraceState`, runs the sampler once, stores
+  `recording`, sets `localRootSpanId` to its own `spanId`, `rootEnded = false`, and seeds both counts to 0.
+- **Cap (exact), applied to every span including the root.** On each `startSpan` — after the trace's state exists
+  (creating it first for a root) — check **before** incrementing:
   `if (state.startedSpanCount >= maxSpansPerTrace)` → the span is created non-recording (will not buffer), drop
-  debug-logged; **else** `state.startedSpanCount++`. With the default 1024 this records exactly 1024 spans (counts
-  0…1023 pass, the 1025th is rejected at count 1024), not 1023.
+  debug-logged; **else** `state.startedSpanCount++`. The root runs this same path, so it counts as span #1. With the
+  default 1024 this records exactly 1024 spans (counts 0…1023 pass, the 1025th is rejected at count 1024) — never
+  N + 1.
 - `openSpanCount` increments when a recording span starts and decrements on its `end()`.
 - A child reads `recording` from its trace's state — it does not call the sampler. A sampled-out trace yields
   non-recording children whose `end()` is a buffering no-op.
@@ -228,10 +237,11 @@ Rules:
   a fresh one defaulting `recording: true` (the safe default for a genuinely-external parent — we cannot prove it was
   sampled out). The continuation hook (below) is the path that carries a real upstream sampling decision; a bare parent
   object does not.
-- **Pruning.** A `TraceState` is removed once its root span has ended AND `openSpanCount === 0` (no live descendants).
-  A bounded LRU backstop caps the number of concurrent live traces so a pathological app that never ends spans cannot
-  grow the map without bound. `startedSpanCount` (monotonic) is for the cap only; `openSpanCount` is what tells pruning
-  whether spans are still open — a cumulative count alone cannot.
+- **Pruning.** When a span ends, if it is the `localRootSpanId`, set `rootEnded = true`. A `TraceState` is removed once
+  `rootEnded === true` AND `openSpanCount === 0` (local root done, no live descendants). A bounded LRU backstop caps the
+  number of concurrent live traces so a pathological app that never ends spans cannot grow the map without bound.
+  `startedSpanCount` (monotonic) is for the cap only; `openSpanCount` + `rootEnded` are what tell pruning whether the
+  trace is finished — a cumulative count alone cannot.
 
 ### Parenting
 
@@ -383,6 +393,10 @@ one-shot continuation, and empties the trace-state map (parallel to `Logger.clea
 The key-set branch that flushes the logger also flushes the tracer (spans buffered while keyless drain once a key
 arrives).
 
+**Clamping.** `configure()` clamps `sampleRate` to `[0, 1]` (`Flare.ts:264`). `tracesSampleRate` gets the same
+treatment: `this._config.tracesSampleRate = Math.max(0, Math.min(1, tracesSampleRate))` when provided. Negative → 0,
+above-one → 1, in parity with `sampleRate` and its existing tests.
+
 ## IDs and traceparent
 
 `ids.ts` (port of the PHP `Ids`, research §4.4):
@@ -429,11 +443,13 @@ its `logs()` capture.
   absent.
 - **traceparent**: build format, parse of valid / malformed / wrong-version headers, `01`/`00` sampled round-trip.
 - **sampler**: rate 0 / 1 / fractional with a seeded RNG, `tracesSampler` precedence over rate, inbound-traceparent
-  inheritance, children inheriting the root decision (no re-roll).
+  inheritance, children inheriting the root decision (no re-roll). `configure()` clamps `tracesSampleRate`: negative → 0,
+  above-one → 1 (parity with the existing `sampleRate` clamp tests).
 - **trace state**: child inherits root `recording` across an explicit `Span` parent; a plain `{traceId, spanId}`
   parent inherits existing local state when present (a sampled-out trace stays non-recording) and defaults recording
-  only when no state exists; `maxSpansPerTrace: N` records **exactly N** spans (the N+1th is non-recording); sampled-out
-  trace yields non-recording children; trace state pruned after root end with `openSpanCount === 0`.
+  only when no state exists; `maxSpansPerTrace: N` records **exactly N** spans including the root counted as #1 (the
+  N+1th is non-recording); sampled-out trace yields non-recording children; trace state pruned after the local root
+  ends with `openSpanCount === 0`, including a continued trace whose local root has an external parent.
 - **traceparent continuation (one-shot)**: a stored continuation is consumed by the next root only and cleared — a
   second root with no fresh continuation starts a brand-new trace and does NOT inherit the prior external parent or
   its sampling flag.
@@ -473,7 +489,3 @@ These do not block building or unit-testing the core, but they block real end-to
 - **P4** — confirm the `spatie/laravel-flare` version customers run reads inbound `traceparent`
   (`FlareServiceProvider.php:197`). Determines whether `traceparent`-only correlation is safe in the later
   browser/SSR slices.
-
-```
-
-```
