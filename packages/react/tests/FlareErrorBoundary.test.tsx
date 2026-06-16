@@ -6,13 +6,21 @@ import { FlareErrorBoundary } from '../src/FlareErrorBoundary';
 import { FlareReactContext } from '../src/types';
 
 const mockReport = vi.fn();
-
 vi.mock('@flareapp/js', () => ({
     flare: {
-        report: (...args: unknown[]) => mockReport(...args),
-        reportSilently: (...args: unknown[]) => mockReport(...args),
+        report: (...a: unknown[]) => mockReport(...a),
+        reportSilently: (...a: unknown[]) => mockReport(...a),
+        // The boundary constructor calls tagReactFramework(resolved) on the default path,
+        // so the mocked singleton MUST expose setFramework (and setSdkInfo) or construction throws.
+        setFramework: vi.fn(),
+        setSdkInfo: vi.fn(),
     },
 }));
+import { flare as mockedRoot } from '@flareapp/js';
+
+// Register that mocked singleton as the resolveFlare default for the no-prop path.
+import { registerDefaultFlare } from '../src/resolveFlare';
+registerDefaultFlare(() => mockedRoot as any);
 
 let testError: Error;
 
@@ -490,6 +498,28 @@ describe('FlareErrorBoundary', () => {
         expect(beforeEvaluate).toHaveBeenCalledTimes(2);
         expect(beforeSubmit).toHaveBeenCalledTimes(2);
         expect(afterSubmit).toHaveBeenCalledTimes(2);
+    });
+
+    test('reports through an injected flare instance, not the default', () => {
+        const injected = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
+        testError = new Error('boom');
+        render(
+            <FlareErrorBoundary flare={injected} fallback={<div>fallback</div>}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>,
+        );
+        expect(injected.reportSilently).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('falls back to the registered default when no flare prop', () => {
+        testError = new Error('boom');
+        render(
+            <FlareErrorBoundary fallback={<div>fallback</div>}>
+                <ThrowingComponent />
+            </FlareErrorBoundary>,
+        );
+        expect(mockReport).toHaveBeenCalledOnce();
     });
 
     describe('minified React errors', () => {

@@ -1,8 +1,10 @@
-import { flare } from '@flareapp/js';
+import type { Flare } from '@flareapp/js/browser';
 import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
 
 import { buildReactContext } from './buildReactContext';
 import { contextToAttributes } from './contextToAttributes';
+import { tagReactFramework } from './identify';
+import { resolveFlare } from './resolveFlare';
 import { FlareReactContext } from './types';
 
 export type FlareErrorBoundaryFallbackProps = {
@@ -12,6 +14,7 @@ export type FlareErrorBoundaryFallbackProps = {
 };
 
 export type FlareErrorBoundaryProps = PropsWithChildren<{
+    flare?: Flare;
     fallback?: ReactNode | ((props: FlareErrorBoundaryFallbackProps) => ReactNode);
     resetKeys?: unknown[];
     beforeEvaluate?: (params: { error: Error; errorInfo: ErrorInfo }) => void;
@@ -26,6 +29,16 @@ export type FlareErrorBoundaryState = {
 };
 
 export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, FlareErrorBoundaryState> {
+    private readonly flare: Flare;
+
+    constructor(props: FlareErrorBoundaryProps) {
+        super(props);
+        // Resolve ONCE at construction (boot), not per error. Throws here if no
+        // instance and no registered default — a wiring bug fails fast.
+        this.flare = resolveFlare(props.flare);
+        tagReactFramework(this.flare);
+    }
+
     state: FlareErrorBoundaryState = { error: null, componentStack: [] };
 
     static getDerivedStateFromError(error: Error): Partial<FlareErrorBoundaryState> {
@@ -53,7 +66,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         // Swallow rejection from the report call. A network/transport failure in the error reporter
         // must not bubble up and cause a second render error inside the boundary itself.
-        flare.reportSilently(error, contextToAttributes(finalContext));
+        this.flare.reportSilently(error, contextToAttributes(finalContext));
 
         this.props.afterSubmit?.({
             error,
