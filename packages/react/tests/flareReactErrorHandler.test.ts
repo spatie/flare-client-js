@@ -5,12 +5,23 @@ import { flareReactErrorHandler } from '../src/flareReactErrorHandler';
 const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
-    convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         reportSilently: (...args: unknown[]) => mockReport(...args),
+        // Handler creation now tags the resolved instance — the default mock MUST have these.
+        setFramework: vi.fn(),
+        setSdkInfo: vi.fn(),
     },
+    // Keep convertToError on the mock: BEFORE Step 3 the implementation still imports it from
+    // '@flareapp/js'. Without it, Step 2 fails with "convertToError is not a function" instead of
+    // the intended injected-instance assertion. Harmless to leave after the import moves to core.
+    convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
 }));
+import { flare as mockedRoot } from '@flareapp/js';
+
+// Register the mocked singleton as the resolveFlare default so no-option handlers resolve it.
+import { registerDefaultFlare } from '../src/resolveFlare';
+registerDefaultFlare(() => mockedRoot as any);
 
 beforeEach(() => {
     mockReport.mockClear();
@@ -376,6 +387,23 @@ describe('flareReactErrorHandler', () => {
 
             const attributes = mockReport.mock.calls[0][1];
             expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
+        });
+    });
+
+    describe('injected flare instance', () => {
+        test('reports through an injected flare instance', () => {
+            const injected = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
+            const handler = flareReactErrorHandler({ flare: injected });
+            handler(new Error('boom'), { componentStack: 'at App' });
+            expect(injected.reportSilently).toHaveBeenCalledOnce();
+        });
+
+        test('resolves the instance once at creation, not per call', () => {
+            const injected = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
+            const handler = flareReactErrorHandler({ flare: injected });
+            handler(new Error('a'), {});
+            handler(new Error('b'), {});
+            expect(injected.setFramework).toHaveBeenCalledOnce(); // tagged once, at creation
         });
     });
 });
