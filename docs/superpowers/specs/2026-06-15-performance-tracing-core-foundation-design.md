@@ -157,7 +157,7 @@ type TracesEnvelope = {
 type OtelSpan = {
     traceId: string;
     spanId: string;
-    parentSpanId?: string; // omitted when root
+    parentSpanId: string | null; // ALWAYS emitted; null for roots
     name: string;
     startTimeUnixNano: number;
     endTimeUnixNano: number;
@@ -207,26 +207,31 @@ The "decided once at the root, inherited by children" and `maxSpansPerTrace` req
 type TraceState = {
     traceId: string;
     recording: boolean; // the head sampling decision; children read this, never re-sample
-    spanCount: number; // enforces maxSpansPerTrace
+    startedSpanCount: number; // monotonic; enforces maxSpansPerTrace
+    openSpanCount: number; // started-not-yet-ended; drives pruning
 };
 ```
 
 Rules:
 
-- A new root creates its `TraceState`, runs the sampler once, stores `recording`, and seeds `spanCount = 0`.
-- Every `startSpan` that resolves to an existing trace increments `spanCount`. When `spanCount >= maxSpansPerTrace`, the
-  span is created but returned non-recording (it will not buffer), and the drop is debug-logged. This bounds a runaway
-  trace without throwing.
+- A new root creates its `TraceState`, runs the sampler once, stores `recording`, seeds both counts to 0.
+- **Cap (exact).** At every `startSpan` resolving to an existing trace, check **before** incrementing:
+  `if (state.startedSpanCount >= maxSpansPerTrace)` → the span is created non-recording (will not buffer), drop
+  debug-logged; **else** `state.startedSpanCount++`. With the default 1024 this records exactly 1024 spans (counts
+  0…1023 pass, the 1025th is rejected at count 1024), not 1023.
+- `openSpanCount` increments when a recording span starts and decrements on its `end()`.
 - A child reads `recording` from its trace's state — it does not call the sampler. A sampled-out trace yields
   non-recording children whose `end()` is a buffering no-op.
-- **Plain parent object** (`opts.parent: { traceId, spanId }` with no live `Span`): the parent's trace state is
-  unknown to this tracer (it came from outside — e.g. a continuation or a cross-context handoff). Treat it as
-  recording (`recording: true`, the safe default — we cannot prove it was sampled out) and create a fresh `TraceState`
-  for that `traceId` on first use, seeded `spanCount = 0`. The continuation hook (below) is the path that carries a
-  real upstream sampling decision; a bare parent object does not.
-- Trace states are pruned when their root span ends and `spanCount` work is settled (or via a bounded LRU) so the map
-  does not grow unbounded over a long-lived SPA session. Exact pruning policy is an implementation detail; the cap on
-  concurrent live traces is small in practice.
+- **Plain parent object** (`opts.parent: { traceId, spanId }` with no live `Span`): **first look up an existing
+  `TraceState` by `traceId`.** If one exists, inherit its `recording` (so a known, sampled-out trace cannot be
+  resurrected into recording by passing a stripped parent). Only when no local state exists for that `traceId` create
+  a fresh one defaulting `recording: true` (the safe default for a genuinely-external parent — we cannot prove it was
+  sampled out). The continuation hook (below) is the path that carries a real upstream sampling decision; a bare parent
+  object does not.
+- **Pruning.** A `TraceState` is removed once its root span has ended AND `openSpanCount === 0` (no live descendants).
+  A bounded LRU backstop caps the number of concurrent live traces so a pathological app that never ends spans cannot
+  grow the map without bound. `startedSpanCount` (monotonic) is for the cap only; `openSpanCount` is what tells pruning
+  whether spans are still open — a cumulative count alone cannot.
 
 ### Parenting
 
@@ -309,8 +314,10 @@ resourceSpans[0].scopeSpans[0].scope        # { name: sdk.name, version: sdk.ver
 resourceSpans[0].scopeSpans[0].spans[]      # each BufferedSpan -> OtelSpan (above)
 ```
 
-- `parentSpanId` is omitted from the emitted span object when the span is a root (`parentSpanId === null`); OTLP treats
-  absent/null as no parent.
+- `parentSpanId` is **always present** in the emitted span object, set to `null` for roots. The Flare backend
+  validator requires the key (`ValidateTraceIngressPayloadAction.php:149` fails on a missing key, accepts string or
+  null), and the PHP exporter always emits it (`OpenTelemetryJsonExporter.php:105`). Do NOT omit it — omission fails
+  ingress validation and drops the report.
 - Resource attributes are built the same way as `Logger.resourceForFlush()`: `telemetry.sdk.language=javascript`,
   `telemetry.sdk.name`, `telemetry.sdk.version`, `flare.language.name=javascript`, plus `service.name/version/stage`
   and `flare.framework.name/version` when configured.
@@ -368,6 +375,14 @@ maxAttributesPerSpanEvent: number; // default 128   (PHP parity)
 Everything is gated on `enableTracing`: when false, `startSpan`/`withSpan` return inert (non-recording) spans and
 nothing is buffered or sent — exactly how `enableLogs` gates the logger.
 
+**Enabled→disabled transition.** `configure()` (`Flare.ts:262`) already captures `wasLogsEnabled` and calls
+`this._logger.clear()` on a real enabled→disabled flip (line 273), and flushes on a key set (line 277). Mirror both:
+capture `wasTracingEnabled` before the merge and, on `wasTracingEnabled && this._config.enableTracing === false`, call
+`this._tracer.clear()`. `Tracer.clear()` drops the buffered spans, cancels the flush timer, discards any pending
+one-shot continuation, and empties the trace-state map (parallel to `Logger.clear()`, which clears buffer + timer).
+The key-set branch that flushes the logger also flushes the tracer (spans buffered while keyless drain once a key
+arrives).
+
 ## IDs and traceparent
 
 `ids.ts` (port of the PHP `Ids`, research §4.4):
@@ -415,9 +430,10 @@ its `logs()` capture.
 - **traceparent**: build format, parse of valid / malformed / wrong-version headers, `01`/`00` sampled round-trip.
 - **sampler**: rate 0 / 1 / fractional with a seeded RNG, `tracesSampler` precedence over rate, inbound-traceparent
   inheritance, children inheriting the root decision (no re-roll).
-- **trace state**: child inherits root `recording` across an explicit `Span` parent AND a plain `{traceId, spanId}`
-  parent (latter defaults recording); `maxSpansPerTrace` bound returns non-recording spans past the cap; sampled-out
-  trace yields non-recording children.
+- **trace state**: child inherits root `recording` across an explicit `Span` parent; a plain `{traceId, spanId}`
+  parent inherits existing local state when present (a sampled-out trace stays non-recording) and defaults recording
+  only when no state exists; `maxSpansPerTrace: N` records **exactly N** spans (the N+1th is non-recording); sampled-out
+  trace yields non-recording children; trace state pruned after root end with `openSpanCount === 0`.
 - **traceparent continuation (one-shot)**: a stored continuation is consumed by the next root only and cleared — a
   second root with no fresh continuation starts a brand-new trace and does NOT inherit the prior external parent or
   its sampling flag.
@@ -427,11 +443,14 @@ its `logs()` capture.
 - **SpanBuffer**: each of the three triggers, oversized-span drop, trim, keepalive packing + tail retention + timer
   re-arm, key gate retains buffer. Lift the existing `Logger` test patterns.
 - **envelope**: byte-compatible OTLP output versus a recorded `OpenTelemetryJsonExporter` (PHP) payload for the same
-  logical span (incl. per-event dropped counts) — golden fixture committed under `tests/fixtures/`.
+  logical span (incl. per-event dropped counts) — golden fixture committed under `tests/fixtures/`. Assert a root span
+  emits `parentSpanId: null` (key present, not omitted).
 - **Api.traces**: header + key (no `?key=` query — URL unchanged), `keepalive` flag forwarded, non-201 debug logging.
 - **Flare integration**: `Flare.flush()` drains buffered spans (not just logs) before resolving; `Flare.light()`
-  flushes spans buffered while keyless; public exports (`startSpan`/`withSpan`/`Tracer`/types) are reachable from the
-  package entry. Mirror the existing logger integration tests.
+  flushes spans buffered while keyless; `configure({ enableTracing: false })` after it was enabled calls
+  `Tracer.clear()` (buffer + timer + pending continuation + trace state all dropped); public exports
+  (`startSpan`/`withSpan`/`Tracer`/types) are reachable from the package entry. Mirror the existing logger integration
+  tests.
 
 Run: `npx vitest run` from `packages/core`, or `npm run test` from the repo root.
 
