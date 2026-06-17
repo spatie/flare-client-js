@@ -857,6 +857,23 @@ describe('flareVue captureWarnings', () => {
         expect(context.vue.info).toBe('Missing required prop');
     });
 
+    test('warnings route through an injected flare instance, not the default', () => {
+        const injected = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+        const app = createMockApp();
+        (flareVue as Function)(app, { flare: injected, captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Invalid prop type', createMockInstance('Counter'), 'found in\n---> <Counter>');
+
+        expect(injected.reportMessage).toHaveBeenCalledOnce();
+        expect(injected.reportMessage).toHaveBeenCalledWith('Invalid prop type', 'warning', expect.anything());
+        expect(mockReportMessage).not.toHaveBeenCalled();
+    });
+
     test('uses AnonymousComponent when instance is null', () => {
         const app = createMockApp();
         (flareVue as Function)(app, { captureWarnings: true } satisfies FlareVueOptions);
