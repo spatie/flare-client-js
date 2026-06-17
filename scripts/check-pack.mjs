@@ -23,7 +23,19 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Every published package. flare-api is private and never published, so it
 // is intentionally absent.
-const PUBLISHED_PACKAGES = ['core', 'js', 'node', 'react', 'vue', 'svelte', 'sveltekit', 'vite', 'webpack', 'nextjs', 'electron'];
+const PUBLISHED_PACKAGES = [
+    'core',
+    'js',
+    'node',
+    'react',
+    'vue',
+    'svelte',
+    'sveltekit',
+    'vite',
+    'webpack',
+    'nextjs',
+    'electron',
+];
 
 function pkgDir(name) {
     return join(ROOT, 'packages', name);

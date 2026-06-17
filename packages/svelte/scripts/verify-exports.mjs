@@ -20,12 +20,12 @@ if (!inject) {
 // Assert the EXACT target for each condition. Existence alone is insufficient — a target of
 // ./dist/index.js (the web root) would exist and re-export the same names, yet pull the root.
 const expectedTargets = {
-    svelte: './dist/inject.js',
+    'svelte': './dist/inject.js',
     'import.types': './dist/inject.d.ts',
     'import.default': './dist/inject.js',
 };
 const actualTargets = {
-    svelte: inject.svelte,
+    'svelte': inject.svelte,
     'import.types': inject.import?.types,
     'import.default': inject.import?.default,
 };

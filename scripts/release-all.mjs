@@ -81,9 +81,7 @@ const CORE_REFS = [
 
 // Lockstep deps that are hard-pinned EXACTLY (not caret). electron pins @flareapp/js exactly,
 // the same way js/node pin core exactly. Rewritten to the exact lockstep version.
-const LOCKSTEP_EXACT_REFS = [
-    { pkg: 'electron', field: 'dependencies', dep: '@flareapp/js' },
-];
+const LOCKSTEP_EXACT_REFS = [{ pkg: 'electron', field: 'dependencies', dep: '@flareapp/js' }];
 
 function run(cmd, opts = {}) {
     const stdio = opts.stdio ?? ['ignore', 'pipe', 'inherit'];
@@ -303,7 +301,9 @@ async function confirmPlan(plan) {
     }
     if (plan.releaseSet.has('electron')) {
         console.log('');
-        info(`@flareapp/electron@${plan.versions['electron']} publishes after core + js; its exact js pin will be rewritten to ${plan.lockstepVersion}.`);
+        info(
+            `@flareapp/electron@${plan.versions['electron']} publishes after core + js; its exact js pin will be rewritten to ${plan.lockstepVersion}.`,
+        );
     }
     console.log('');
     const confirm = await ask('  Proceed with this plan? [y/N]: ');

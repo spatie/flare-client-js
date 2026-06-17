@@ -41,6 +41,4 @@ for (const entry of entries) {
 if (failed) {
     process.exit(1);
 }
-console.log(
-    `[verify-inject-no-root] OK — inject graph (${scanned.size} files) has no @flareapp/js root reference.`,
-);
+console.log(`[verify-inject-no-root] OK — inject graph (${scanned.size} files) has no @flareapp/js root reference.`);

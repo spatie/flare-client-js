@@ -1,4 +1,4 @@
-import type { AttributeValue, Attributes } from '@flareapp/js';
+import type { AttributeValue, Attributes } from '@flareapp/core';
 
 import type { FlareReactContext } from './types';
 

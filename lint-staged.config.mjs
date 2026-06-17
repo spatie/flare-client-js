@@ -1,5 +1,5 @@
 export default {
-    '*.{js,ts,tsx,vue,svelte}': [
+    '*.{js,mjs,cjs,ts,tsx,vue,svelte}': [
         'oxlint --fix --no-error-on-unmatched-pattern',
         'oxfmt --no-error-on-unmatched-pattern',
     ],
