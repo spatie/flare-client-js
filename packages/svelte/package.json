@@ -60,6 +60,7 @@
         "build": "npm run generate:version && svelte-package -i src -o dist",
         "test": "vitest run",
         "verify:exports": "node scripts/verify-exports.mjs",
+        "verify:inject": "node scripts/verify-inject-no-root.mjs",
         "typescript": "tsc --noEmit",
         "release": "release-it"
     },
