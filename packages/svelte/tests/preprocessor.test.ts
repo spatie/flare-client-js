@@ -1,3 +1,4 @@
+import { compile, preprocess } from 'svelte/compiler';
 import { describe, expect, test } from 'vitest';
 
 import { withFlareConfig } from '../src/config.js';
@@ -76,5 +77,33 @@ describe('withFlareConfig — importSource option', () => {
         const out = (pp as any).script({ content: 'let x = 1;', filename: FAKE_FILE, attributes: SCRIPT_ATTRS });
         expect(out.code).toContain("from '@flareapp/svelte'");
         expect(out.code).not.toContain("from '@flareapp/svelte/inject'");
+    });
+});
+
+// Run the preprocessor through Svelte's REAL pipeline (markup -> script in one pass), not the hooks
+// in isolation. This is the only way to catch the markup hook injecting a <script> that the script
+// hook then re-processes (double injection -> duplicate `__flare_node__` -> compile error).
+describe('flarePreprocessor — full preprocess() + compile() pipeline', () => {
+    test('a scriptless component injects exactly once and compiles', async () => {
+        const out = await preprocess('<p>hello</p>', flarePreprocessor(), { filename: FAKE_FILE });
+        expect((out.code.match(/__flare_node__/g) || []).length).toBe(1);
+        // Must compile — a duplicate `const __flare_node__` throws "already been declared".
+        expect(() => compile(out.code, { filename: FAKE_FILE })).not.toThrow();
+    });
+
+    test('a component WITH a <script> injects exactly once and compiles', async () => {
+        const out = await preprocess('<script>let x = 1;</script>\n<p>{x}</p>', flarePreprocessor(), {
+            filename: FAKE_FILE,
+        });
+        expect((out.code.match(/__flare_node__/g) || []).length).toBe(1);
+        expect(() => compile(out.code, { filename: FAKE_FILE })).not.toThrow();
+    });
+
+    test('scriptless component honors importSource end-to-end', async () => {
+        const out = await preprocess('<p>hello</p>', flarePreprocessor({ importSource: '@flareapp/svelte/inject' }), {
+            filename: FAKE_FILE,
+        });
+        expect(out.code).toContain("from '@flareapp/svelte/inject'");
+        expect((out.code.match(/__flare_node__/g) || []).length).toBe(1);
     });
 });
