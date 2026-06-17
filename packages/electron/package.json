@@ -1,7 +1,7 @@
 {
     "name": "@flareapp/electron",
     "version": "0.1.0",
-    "description": "Experimental Electron SDK for flareapp.io",
+    "description": "Electron SDK for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": {
         "url": "https://github.com/spatie/flare-client-js/issues"

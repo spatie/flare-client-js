@@ -1,7 +1,5 @@
 # @flareapp/electron
 
-> ⚠️ **Experimental (`0.1.0`).** This package is new and its API may change in a minor release. Feedback and bug reports are very welcome at https://github.com/spatie/flare-client-js/issues.
-
 Electron SDK for [Flare](https://flareapp.io) error tracking. It captures JavaScript errors in **both** Electron processes and routes every report through the main process, so your API key lives in exactly one place.
 
 ## What it captures
@@ -169,8 +167,6 @@ The user is attached to main-process reports and to forwarded renderer reports.
 
 - Native crashes / Crashpad minidumps.
 - Errors that occur before `flare.light('your-key')` runs in the main process. The fatal process handlers are attached by `light()`, and no report is sent without a key, so call `light()` as early as possible in your main entry. Errors before that point (in any process) are not sent.
-
-This is an experimental release — see the note at the top.
 
 ## Using `@flareapp/react` in the renderer
 
