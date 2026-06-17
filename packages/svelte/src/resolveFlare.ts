@@ -1,20 +1,36 @@
 import type { Flare } from '@flareapp/js/browser';
 
+declare const process: { env: Record<string, string | undefined> };
+
 let defaultProvider: (() => Flare) | null = null;
+
+// `process.env.NODE_ENV` is replaced inline by bundlers (vite/webpack). The try/catch keeps a
+// process-less environment safe: treat "undetermined" as production (warn, never crash).
+function isDevMode(): boolean {
+    try {
+        return process.env.NODE_ENV !== 'production';
+    } catch {
+        return false;
+    }
+}
 
 // Called once by the web entry (index.ts) as an import side effect.
 export function registerDefaultFlare(provider: () => Flare): void {
     // Tripwire: a web default registering while the Electron bridge exists means a renderer pulled
     // the package root — directly, or via component-tracking codegen emitting the root specifier
     // (set the preprocessor's importSource to '@flareapp/svelte/inject' to avoid that). It drags
-    // the keyed @flareapp/js singleton and its global side effects into the renderer. Fail loudly.
+    // the keyed @flareapp/js singleton and its global side effects into the renderer.
     if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__flare) {
-        throw new Error(
+        const message =
             '[flare] @flareapp/svelte (web root) was imported in a renderer where the Electron ' +
-                'bridge is present, pulling the keyed @flareapp/js singleton into the renderer. ' +
-                'Import @flareapp/svelte/inject (and set the preprocessor importSource to ' +
-                "'@flareapp/svelte/inject') instead.",
-        );
+            'bridge is present, pulling the keyed @flareapp/js singleton into the renderer. ' +
+            "Import @flareapp/svelte/inject (and set the preprocessor importSource to '@flareapp/svelte/inject') instead.";
+        // Dev: throw so the misconfiguration is impossible to miss. Production: warn instead, so a
+        // shipped app isn't crashed by a (recoverable) reporting-setup mistake.
+        if (isDevMode()) {
+            throw new Error(message);
+        }
+        console.warn(message);
     }
     defaultProvider = provider;
 }
