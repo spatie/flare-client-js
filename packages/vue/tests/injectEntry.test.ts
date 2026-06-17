@@ -45,12 +45,14 @@ describe('@flareapp/vue/inject entry', () => {
         const { flareVue } = await import('../src/inject');
         const app = createApp({ render: () => null });
 
-        // Call the plugin function DIRECTLY (not via app.use) so Vue's own plugin-dedup does not
-        // shadow our installedApps WeakSet. First call has no instance -> resolveFlare throws.
+        // Call the plugin function DIRECTLY (not via app.use). This verifies OUR installedApps
+        // ordering in isolation. It does NOT reflect the public `app.use` path: Vue adds the plugin
+        // to its own installed-set before invoking install, so a failed `app.use(flareVue)` can't be
+        // retried on the same app regardless of our ordering. First call has no instance -> throws.
         expect(() => (flareVue as any)(app, undefined)).toThrow(/No Flare instance available/);
 
         // Retry with a valid instance MUST install (the failed attempt must not have added the app
-        // to installedApps — that is the resolve-before-add ordering being verified).
+        // to installedApps — the resolve-before-add ordering, verified here via direct invocation).
         const injected = {
             reportSilently: vi.fn(),
             reportMessage: vi.fn(),

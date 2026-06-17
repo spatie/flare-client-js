@@ -35,6 +35,11 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
         super(props);
         // Resolve ONCE at construction (boot), not per error. Throws here if no
         // instance and no registered default — a wiring bug fails fast.
+        //
+        // Contract: resolved per BOUNDARY INSTANCE and cached for its lifetime. Changing the
+        // `flare` prop on an already-mounted boundary has NO effect — the instance resolved at
+        // construction keeps being used. `flare` is expected to be a stable singleton (the web
+        // default or one RendererFlare), not a value that varies across renders.
         this.flare = resolveFlare(props.flare);
         tagReactFramework(this.flare);
     }
