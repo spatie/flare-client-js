@@ -39,6 +39,7 @@
 - Modify `packages/svelte/package.json` — `./inject` export, `sideEffects`, `@flareapp/core` exact dep, `@flareapp/electron` devDep (for the cross-package test).
 - Modify `scripts/release-all.mjs` — add svelte to `CORE_REFS`.
 - Create `packages/svelte/scripts/verify-inject-no-root.mjs` — chunk-graph no-root guard (scans `.js`).
+- Create `packages/svelte/scripts/verify-exports.mjs` — post-build `./inject` export-map check (fs-based node script, NOT a vitest test — avoids a `dist`-dependent test in the bare `vitest run` suite).
 - Create `packages/svelte/tests/electronInjection.test.ts` — cross-package regression (lives in svelte, not electron, because electron's node vitest cannot load `.svelte`).
 - Tests: `resolveFlare.test.ts`, `identify.test.ts` (rewrite), `createFlareErrorHandler.test.ts` (extend), `FlareErrorBoundary.test.ts` (extend), `injectEntry.test.ts`, `webEntry.test.ts`, plus Task 11 SvelteKit-ordering regression.
 
@@ -438,7 +439,7 @@ git commit -m "feat(svelte): inject optional flare into createFlareErrorHandler 
 
 ## Task 5: `flare` prop on `FlareErrorBoundary.svelte`
 
-**Files:** Modify `packages/svelte/src/FlareErrorBoundary.svelte`, Modify `packages/svelte/tests/FlareErrorBoundary.test.ts`
+**Files:** Modify `packages/svelte/src/FlareErrorBoundary.svelte`, Modify `packages/svelte/tests/fixtures/BoundaryWithBuggyChild.svelte`, Modify `packages/svelte/tests/FlareErrorBoundary.test.ts`
 
 The boundary delegates to `createFlareErrorHandler`. Add a `flare?` prop and forward it.
 
@@ -533,7 +534,7 @@ Run: `cd packages/svelte && npm run typescript` (expect only the index.ts stale 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/svelte/src/FlareErrorBoundary.svelte packages/svelte/tests/FlareErrorBoundary.test.ts
+git add packages/svelte/src/FlareErrorBoundary.svelte packages/svelte/tests/fixtures/BoundaryWithBuggyChild.svelte packages/svelte/tests/FlareErrorBoundary.test.ts
 git commit -m "feat(svelte): forward optional flare prop from FlareErrorBoundary to the handler"
 ```
 
@@ -738,37 +739,88 @@ Run: `cd packages/svelte && npm run build` — succeeds.
 Run (from packages/svelte): `ls dist/inject.js dist/inject.d.ts` — both exist.
 Run: `cd packages/svelte && npm run typescript` — 0 errors.
 
-- [ ] **Step 4: Add an export-map smoke test (exercises the PUBLISHED subpath, not the source)**
+- [ ] **Step 4: Add a post-build export-map check (a node script, NOT a vitest test)**
 
-The unit tests import `../src/inject.js`; nothing exercises the published `@flareapp/svelte/inject` subpath, so a typo in the `exports` map (wrong path / missing condition) could ship broken. This test resolves the subpath through the package `exports` and asserts the public surface. It must run AFTER the build (dist must exist).
+The unit tests import `../src/inject.js` (source); nothing exercises the published `@flareapp/svelte/inject` subpath, so a typo in the `exports` map (wrong path) could ship broken. This must NOT be a vitest test: it depends on `dist`, and `packages/svelte`'s `test` script is a bare `vitest run` with no prebuild — a `dist`-dependent test would break `cd packages/svelte && npm test` on a clean checkout. It also must not statically `import '@flareapp/svelte/inject'` (a static import that fails to compile the built `.svelte` re-export aborts module load before any fallback can run). Instead use a deterministic fs-based node script (same pattern as `verify-inject-no-root.mjs` and electron's existing `verify-exports.mjs`): assert the export-map paths resolve to real files AND that `dist/inject.js` exposes the expected names.
 
-```ts
-// packages/svelte/tests/injectExportMap.test.ts
-import { describe, expect, test } from 'vitest';
+Create `packages/svelte/scripts/verify-exports.mjs`:
 
-// Resolves via the package `exports["./inject"]` map → dist/inject.js. A typo in the export map
-// (wrong path or missing condition) makes this import fail, catching a broken publish.
-import * as injectEntry from '@flareapp/svelte/inject';
+```js
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-describe('@flareapp/svelte/inject published export map', () => {
-    test('the subpath resolves and exposes the expected public surface', () => {
-        expect(typeof injectEntry.createFlareErrorHandler).toBe('function');
-        expect(injectEntry.FlareErrorBoundary).toBeDefined();
-        expect(typeof injectEntry.__flareRegisterComponent).toBe('function');
-        expect(typeof injectEntry.withFlareConfig).toBe('function');
-        expect(typeof injectEntry.flarePreprocessor).toBe('function');
-    });
-});
+const pkgDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const pkg = JSON.parse(readFileSync(resolve(pkgDir, 'package.json'), 'utf8'));
+
+const inject = pkg.exports?.['./inject'];
+let failed = false;
+
+if (!inject) {
+    console.error('[verify-exports] package.json exports["./inject"] is missing');
+    process.exit(1);
+}
+
+// Collect every leaf path string from the (possibly nested) export condition object.
+const paths = [];
+(function collect(node) {
+    if (typeof node === 'string') {
+        paths.push(node);
+    } else if (node && typeof node === 'object') {
+        for (const v of Object.values(node)) collect(v);
+    }
+})(inject);
+
+for (const p of paths) {
+    if (!existsSync(resolve(pkgDir, p))) {
+        console.error(`[verify-exports] exports["./inject"] points at a missing file: ${p}`);
+        failed = true;
+    }
+}
+
+// The runtime entry must expose the expected public surface.
+const entry = resolve(pkgDir, 'dist/inject.js');
+if (!existsSync(entry)) {
+    console.error('[verify-exports] dist/inject.js does not exist (build first)');
+    failed = true;
+} else {
+    const src = readFileSync(entry, 'utf8');
+    for (const name of [
+        'createFlareErrorHandler',
+        'FlareErrorBoundary',
+        '__flareRegisterComponent',
+        'withFlareConfig',
+        'flarePreprocessor',
+    ]) {
+        if (!new RegExp(`\\b${name}\\b`).test(src)) {
+            console.error(`[verify-exports] dist/inject.js is missing export: ${name}`);
+            failed = true;
+        }
+    }
+}
+
+if (failed) {
+    process.exit(1);
+}
+console.log(
+    `[verify-exports] OK — exports["./inject"] resolves (${paths.length} paths) and dist/inject.js exposes the expected surface.`,
+);
 ```
 
-Run: `cd packages/svelte && npm run build && npx vitest run tests/injectExportMap.test.ts`
-Expected: PASS. If the import fails to RESOLVE, the `exports["./inject"]` map is wrong. If it fails to LOAD because svelte's vitest cannot compile the built `dist/FlareErrorBoundary.svelte` re-export, fall back to asserting the export-map paths resolve to existing files (read `package.json` `exports["./inject"]`, resolve each path relative to the package, assert `existsSync`) and report that you used the fallback.
+Add the npm script to `packages/svelte/package.json` (next to the build/test scripts; do NOT wire it into `test`):
+
+```json
+        "verify:exports": "node scripts/verify-exports.mjs",
+```
+
+Run: `cd packages/svelte && npm run build && npm run verify:exports`
+Expected: `[verify-exports] OK ...`. To confirm it bites, temporarily change the `./inject` `default` path to a wrong filename, run it (expects non-zero + "missing file"), then revert.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/svelte/package.json packages/svelte/tests/injectExportMap.test.ts
-git commit -m "build(svelte): publish /inject export + sideEffects; smoke-test the export map"
+git add packages/svelte/package.json packages/svelte/scripts/verify-exports.mjs
+git commit -m "build(svelte): publish /inject export + sideEffects; verify the export map"
 ```
 
 ---
@@ -1010,7 +1062,7 @@ git commit -m "test(svelte): guard the import-time identity + export surface sve
 
 - [ ] **Step 1: Full verification gate**
 
-Run: `cd packages/svelte && npm run build && npm test && npm run typescript && npm run verify:inject` — all pass.
+Run: `cd packages/svelte && npm run build && npm test && npm run typescript && npm run verify:inject && npm run verify:exports` — all pass.
 Run: `cd packages/sveltekit && npx vitest run` — all pass.
 Run: `cd packages/electron && npm test` — all pass (unchanged, but confirm no breakage).
 If anything fails, STOP and report.
