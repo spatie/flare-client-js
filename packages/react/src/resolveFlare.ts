@@ -5,13 +5,16 @@ let defaultProvider: (() => Flare) | null = null;
 // Called once by the web entry (index.ts) as an import side effect. Registers the
 // js-root singleton as the fallback used when no instance is injected.
 export function registerDefaultFlare(provider: () => Flare): void {
-    // Tripwire: registering a web default while the electron bridge exists means the
-    // renderer pulled the package root. It must import `@flareapp/react/inject` instead.
+    // Tripwire: registering a web default while the Electron bridge exists means a renderer
+    // pulled the package root (e.g. importing @flareapp/react instead of @flareapp/react/inject,
+    // or component-tracking codegen emitting the root specifier). That drags the keyed @flareapp/js
+    // singleton and its global side effects into the renderer. Fail loudly rather than silently —
+    // a warning here is too easy to miss.
     if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__flare) {
-        console.warn(
-            '[flare] @flareapp/js default registered while the electron bridge is present. ' +
-                'In a renderer, import @flareapp/react/inject and pass the ' +
-                '@flareapp/electron/renderer instance instead.',
+        throw new Error(
+            '[flare] @flareapp/react (web root) was imported in a renderer where the Electron ' +
+                'bridge is present, pulling the keyed @flareapp/js singleton into the renderer. ' +
+                'Import @flareapp/react/inject and pass the @flareapp/electron/renderer instance instead.',
         );
     }
     defaultProvider = provider;

@@ -25,18 +25,14 @@ describe('resolveFlare', () => {
         expect(() => resolveFlare()).toThrow(/No Flare instance available/);
     });
 
-    test('registerDefaultFlare warns when the electron bridge is already present', async () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    test('registerDefaultFlare THROWS when the electron bridge is already present', async () => {
         (window as any).__flare = { report: () => {} };
         const { registerDefaultFlare } = await import('../src/resolveFlare.js');
-        registerDefaultFlare(() => ({}) as any);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('/inject'));
+        expect(() => registerDefaultFlare(() => ({}) as any)).toThrow(/\/inject/);
     });
 
-    test('registerDefaultFlare does NOT warn without the bridge', async () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    test('registerDefaultFlare does NOT throw without the bridge', async () => {
         const { registerDefaultFlare } = await import('../src/resolveFlare.js');
-        registerDefaultFlare(() => ({}) as any);
-        expect(warn).not.toHaveBeenCalled();
+        expect(() => registerDefaultFlare(() => ({}) as any)).not.toThrow();
     });
 });
