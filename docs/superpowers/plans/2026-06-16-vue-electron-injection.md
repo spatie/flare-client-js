@@ -303,36 +303,26 @@ Read `packages/vue/src/flareVue.ts` and `packages/vue/tests/flareVue.test.ts` fi
 
 - [ ] **Step 1: Add tests for injection + resolve-at-install**
 
-In `flareVue.test.ts`: the existing suite installs `flareVue` and asserts reports through the mocked root. Update the top-of-file `@flareapp/js` mock so the mocked singleton exposes `setSdkInfo`+`setFramework`+`reportSilently`+`reportMessage`, and register it as the default. Match the React branch's `flareReactErrorHandler.test.ts` mock pattern:
+Do NOT rewrite the existing `@flareapp/js` mock. The current `flareVue.test.ts` already mocks it via `vi.mock('@flareapp/js', async (importOriginal) => ({ ...actual, flare: { report, reportSilently: (...a) => mockReport(...a), reportMessage: (...a) => mockReportMessage(...a), setSdkInfo: vi.fn(), setFramework: vi.fn(), setEntryPoint: vi.fn() } }))` and the existing tests depend on that exact shape (`mockReport`, `mockReportMessage`, `...actual`, `setEntryPoint`). Make ONLY these three additive edits:
+
+1. **Register the mocked singleton as the resolveFlare default.** After the existing `vi.mock(...)` block, add:
 
 ```ts
-// Top-of-file: ensure the mocked root singleton has the identity methods AND is the resolveFlare default.
-const mockReport = vi.fn();
-const mockMessage = vi.fn();
-vi.mock('@flareapp/js', () => ({
-    flare: {
-        reportSilently: (...a: unknown[]) => mockReport(...a),
-        reportMessage: (...a: unknown[]) => mockMessage(...a),
-        setSdkInfo: vi.fn(),
-        setFramework: vi.fn(),
-    },
-    // convertToError now comes from @flareapp/core in the implementation; kept here only as a
-    // self-contained safety net for the mocked '@flareapp/js' surface.
-    convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
-}));
 import * as resolveModule from '../src/resolveFlare';
 import { registerDefaultFlare } from '../src/resolveFlare';
 import { flare as mockedRoot } from '@flareapp/js';
 registerDefaultFlare(() => mockedRoot as any);
 ```
 
-(Adapt to whatever the existing mock binding names are; preserve what existing tests rely on. If the existing file already mocks `@flareapp/js`, extend that mock rather than duplicating it.)
+(`mockedRoot` is the mocked `flare` object — its `reportSilently` routes to the existing `mockReport`, so the no-option/default-path tests assert against `mockReport` exactly as the existing tests do.)
 
-The current `flareVue.test.ts` imports only `import type { ComponentPublicInstance } from 'vue';`. These tests need `createApp` (a value import), so update that line to:
+2. **Add `createApp` to the vue import.** The current line is `import type { ComponentPublicInstance } from 'vue';`. Change it to:
 
 ```ts
 import { createApp, type ComponentPublicInstance } from 'vue';
 ```
+
+3. **Add the three new tests** below (they reuse the existing `mockReport` binding for the negative assertion).
 
 Add these tests (use `createApp` and a minimal component; mirror how existing tests trigger `app.config.errorHandler`):
 
