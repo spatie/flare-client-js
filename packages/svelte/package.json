@@ -65,6 +65,7 @@
         "release": "release-it"
     },
     "devDependencies": {
+        "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@sveltejs/package": "^2.5.7",
         "@sveltejs/vite-plugin-svelte": "^5.0.0",
