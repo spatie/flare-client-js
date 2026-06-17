@@ -403,16 +403,35 @@ Confirm the `flare.reportSilently(error, contextToAttributes(context))` line now
 Run: `cd packages/svelte && npx vitest run tests/createFlareErrorHandler.test.ts`
 Expected: PASS (existing + 3 new).
 
-- [ ] **Step 5: Type-check**
+- [ ] **Step 5: Declare the `@flareapp/core` runtime dependency (it is imported now, not in Task 8)**
+
+This task introduces the first RUNTIME import from `@flareapp/core` (`convertToError`). Declare the dependency in the same commit so no intermediate commit has an undeclared runtime dep. svelte already has a `dependencies` block (`error-stack-parser`). Add `@flareapp/core` pinned EXACT to the current core version (check `node -p "require('./packages/core/package.json').version"`):
+
+```json
+    "dependencies": {
+        "@flareapp/core": "2.4.0",
+        "error-stack-parser": "^2.1.4"
+    },
+```
+
+Also add svelte to `CORE_REFS` in `scripts/release-all.mjs` (after the `vue` entry added on the stacked Vue branch):
+
+```js
+    { pkg: 'svelte', field: 'dependencies', dep: '@flareapp/core' },
+```
+
+Then `npm install` from repo root. Confirm the only lockfile change is svelte's new `@flareapp/core` dep (`git --no-pager diff --stat`).
+
+- [ ] **Step 6: Type-check**
 
 Run: `cd packages/svelte && npm run typescript`
 Expected: the ONLY remaining error (if any) is `index.ts` still calling `registerSvelteSdkIdentity()` no-arg (Task 6). createFlareErrorHandler.ts adds none.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add packages/svelte/src/createFlareErrorHandler.ts packages/svelte/tests/createFlareErrorHandler.test.ts
-git commit -m "feat(svelte): inject optional flare into createFlareErrorHandler (resolve at creation)"
+git add packages/svelte/src/createFlareErrorHandler.ts packages/svelte/tests/createFlareErrorHandler.test.ts packages/svelte/package.json scripts/release-all.mjs package-lock.json
+git commit -m "feat(svelte): inject optional flare into createFlareErrorHandler (resolve at creation); declare core dep"
 ```
 
 ---
@@ -423,30 +442,48 @@ git commit -m "feat(svelte): inject optional flare into createFlareErrorHandler 
 
 The boundary delegates to `createFlareErrorHandler`. Add a `flare?` prop and forward it.
 
-- [ ] **Step 1: Add tests (extend existing harness — `@testing-library/svelte`)**
+- [ ] **Step 1a: Add a `flare` prop to the test fixture so it can be forwarded**
 
-Read the existing `FlareErrorBoundary.test.ts` for its harness (mock of `@flareapp/js`, `render`, a throwing child, how it triggers `svelte:boundary`). Make additive edits: register the mocked singleton as the default (mirroring Task 4), then add a test mounting the boundary with a `flare` prop pointing at an injected instance and asserting the injected instance receives the report (and the default does not). Concrete shape (adapt to the file's actual render/throw helper):
+The boundary tests render fixture wrappers (e.g. `tests/fixtures/BoundaryWithBuggyChild.svelte`) that wrap `FlareErrorBoundary` and provoke a render error. That fixture does NOT currently accept or forward a `flare` prop, so a `render(BoundaryWithBuggyChild, { props: { flare } })` would never reach the boundary. Make the fixture forward it additively (default `undefined`, so existing tests are unaffected).
+
+In `packages/svelte/tests/fixtures/BoundaryWithBuggyChild.svelte`:
+
+- Add to the `Props` interface: `flare?: import('../../src/createFlareErrorHandler').FlareErrorHandlerOptions['flare'];`
+- Add `flare` to the `$props()` destructure.
+- Forward it on the wrapped boundary: `<FlareErrorBoundary {flare} {beforeEvaluate} {beforeSubmit} {afterSubmit} {onReset} {resetKeys}>`.
+
+- [ ] **Step 1b: Add the injection tests to `FlareErrorBoundary.test.ts`**
+
+The existing mock uses `vi.mock('@flareapp/js', async (importOriginal) => ({ ...actual, flare: { report, reportSilently: (...a)=>mockReport(...a), setSdkInfo: vi.fn(), setFramework: vi.fn(), addContext: vi.fn() } }))`. Keep it. After that block, register the mocked singleton as the default:
 
 ```ts
-import * as resolveModule from '../src/resolveFlare.js';
 import { registerDefaultFlare } from '../src/resolveFlare.js';
 import { flare as mockedRoot } from '@flareapp/js';
 registerDefaultFlare(() => mockedRoot as any);
-
-test('forwards an injected flare prop into the handler', async () => {
-    const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
-    // render FlareErrorBoundary with props: { flare: injected, children: <throwing snippet> }
-    // trigger the throw (same mechanism the existing tests use), then:
-    expect(injected.reportSilently).toHaveBeenCalled();
-});
 ```
 
-(If rendering a throwing child through `svelte:boundary` in the test harness is awkward, follow exactly the pattern the existing boundary tests already use to provoke `onerror`.)
+Then add these two tests (reuse the file's `mockReport`, `render`, and the `BoundaryWithBuggyChild` fixture; existing tests wait `await new Promise((r) => setTimeout(r, 0))` after render to let the async handler run):
+
+```ts
+test('forwards an injected flare prop into the handler (reports through injected, not default)', async () => {
+    const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+    render(BoundaryWithBuggyChild, { props: { flare: injected } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(injected.reportSilently).toHaveBeenCalledOnce();
+    expect(mockReport).not.toHaveBeenCalled();
+});
+
+test('falls back to the registered default when no flare prop', async () => {
+    render(BoundaryWithBuggyChild);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockReport).toHaveBeenCalledOnce();
+});
+```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/svelte && npx vitest run tests/FlareErrorBoundary.test.ts`
-Expected: FAIL — no `flare` prop; injected instance unused.
+Expected: FAIL — `FlareErrorBoundary` has no `flare` prop, so the forwarded prop is ignored and `injected.reportSilently` is never called (the default mock receives it instead).
 
 - [ ] **Step 3: Add the `flare` prop and forward it**
 
@@ -667,11 +704,11 @@ git commit -m "feat(svelte): add @flareapp/svelte/inject electron-safe entry"
 
 ---
 
-## Task 8: Package wiring — export map, sideEffects, core dep
+## Task 8: Package wiring — `./inject` export map, sideEffects, export smoke test
 
-NOTE: NO build-command change — `svelte-package` auto-compiles `src/inject.ts`.
+NOTE: NO build-command change — `svelte-package` auto-compiles `src/inject.ts`. The `@flareapp/core` dependency + `CORE_REFS` were already declared in Task 4 (where the runtime import lands), so they are NOT repeated here.
 
-**Files:** Modify `packages/svelte/package.json`, Modify `scripts/release-all.mjs`, Modify `package-lock.json`
+**Files:** Modify `packages/svelte/package.json`, Create `packages/svelte/tests/injectExportMap.test.ts`
 
 - [ ] **Step 1: Add the `./inject` export**
 
@@ -695,40 +732,43 @@ Only the index dist file has the registerDefaultFlare + import-time identity sid
     "sideEffects": ["./dist/index.js"],
 ```
 
-- [ ] **Step 3: Add `@flareapp/core` to dependencies (EXACT pin)**
-
-svelte already has a `dependencies` block (`error-stack-parser`). Add `@flareapp/core` pinned EXACT to the current core version (check `node -p "require('./packages/core/package.json').version"`):
-
-```json
-    "dependencies": {
-        "@flareapp/core": "2.4.0",
-        "error-stack-parser": "^2.1.4"
-    },
-```
-
-- [ ] **Step 4: Add svelte to `CORE_REFS` in `scripts/release-all.mjs`**
-
-After the `vue` entry (added on the stacked Vue branch):
-
-```js
-    { pkg: 'svelte', field: 'dependencies', dep: '@flareapp/core' },
-```
-
-- [ ] **Step 5: Regenerate the lockfile**
-
-Run `npm install` from repo root. Expected: only svelte's new `@flareapp/core` dep recorded. Verify with `git --no-pager diff --stat`.
-
-- [ ] **Step 6: Build, verify entries, type-check**
+- [ ] **Step 3: Build and verify the entry files exist**
 
 Run: `cd packages/svelte && npm run build` — succeeds.
 Run (from packages/svelte): `ls dist/inject.js dist/inject.d.ts` — both exist.
 Run: `cd packages/svelte && npm run typescript` — 0 errors.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 4: Add an export-map smoke test (exercises the PUBLISHED subpath, not the source)**
+
+The unit tests import `../src/inject.js`; nothing exercises the published `@flareapp/svelte/inject` subpath, so a typo in the `exports` map (wrong path / missing condition) could ship broken. This test resolves the subpath through the package `exports` and asserts the public surface. It must run AFTER the build (dist must exist).
+
+```ts
+// packages/svelte/tests/injectExportMap.test.ts
+import { describe, expect, test } from 'vitest';
+
+// Resolves via the package `exports["./inject"]` map → dist/inject.js. A typo in the export map
+// (wrong path or missing condition) makes this import fail, catching a broken publish.
+import * as injectEntry from '@flareapp/svelte/inject';
+
+describe('@flareapp/svelte/inject published export map', () => {
+    test('the subpath resolves and exposes the expected public surface', () => {
+        expect(typeof injectEntry.createFlareErrorHandler).toBe('function');
+        expect(injectEntry.FlareErrorBoundary).toBeDefined();
+        expect(typeof injectEntry.__flareRegisterComponent).toBe('function');
+        expect(typeof injectEntry.withFlareConfig).toBe('function');
+        expect(typeof injectEntry.flarePreprocessor).toBe('function');
+    });
+});
+```
+
+Run: `cd packages/svelte && npm run build && npx vitest run tests/injectExportMap.test.ts`
+Expected: PASS. If the import fails to RESOLVE, the `exports["./inject"]` map is wrong. If it fails to LOAD because svelte's vitest cannot compile the built `dist/FlareErrorBoundary.svelte` re-export, fall back to asserting the export-map paths resolve to existing files (read `package.json` `exports["./inject"]`, resolve each path relative to the package, assert `existsSync`) and report that you used the fallback.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add packages/svelte/package.json scripts/release-all.mjs package-lock.json
-git commit -m "build(svelte): publish /inject export, pin core dep, sideEffects"
+git add packages/svelte/package.json packages/svelte/tests/injectExportMap.test.ts
+git commit -m "build(svelte): publish /inject export + sideEffects; smoke-test the export map"
 ```
 
 ---
@@ -871,12 +911,16 @@ describe('@flareapp/svelte/inject reports through an injected RendererFlare', ()
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
         expect(parsed.attributes['flare.framework.name']).toBe('Svelte');
         expect(parsed.attributes['context.custom'].svelte).toBeDefined();
-        expect((globalThis as Record<string, unknown>).flare).toBeUndefined();
+        // NOTE: do NOT assert window.flare/globalThis.flare is undefined here. Importing the public
+        // `@flareapp/electron/renderer` entry runs renderer.ts, which legitimately assigns
+        // `window.flare` and installs the global catch — that is the renderer entry's job, not a
+        // leak from the svelte inject path. The no-root guarantee is covered by Task 9 (dist-grep)
+        // and Task 7 (runtime mock-factory check), not by this assertion.
     });
 });
 ```
 
-> If an assertion path is wrong, `console.log(payload)` and adjust ONLY the test path (never production). Keep the intent: electron sdk preserved, framework=Svelte, svelte context.custom survives, payload is a string. Svelte's context key is `context.custom.svelte` (see `contextToAttributes.ts`). Confirm `@flareapp/electron/renderer` exports `RendererFlare` + `FLARE_BRIDGE_KEY` (it does).
+> If an assertion path is wrong, `console.log(payload)` and adjust ONLY the test path (never production). Keep the intent: electron sdk preserved, framework=Svelte, svelte context.custom survives, payload is a string. Svelte's context key is `context.custom.svelte` (see `contextToAttributes.ts`). `@flareapp/electron/renderer` exports `RendererFlare` + `FLARE_BRIDGE_KEY` AND has an import-time side effect (sets `window.flare`) — that is why the `globalThis.flare` assertion was removed (the React/Vue tests imported `RendererFlare` from electron SOURCE internals to dodge this, but this svelte test consumes the published electron entry, so accept the side effect and rely on Tasks 7/9 for no-root).
 
 - [ ] **Step 3: Build svelte + electron, then run**
 
