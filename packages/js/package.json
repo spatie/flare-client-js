@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/js",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "description": "JavaScript client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": {
@@ -59,7 +59,7 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/core": "2.4.0"
+        "@flareapp/core": "2.5.0"
     },
     "devDependencies": {
         "error-stack-parser": "^2.0.2",
