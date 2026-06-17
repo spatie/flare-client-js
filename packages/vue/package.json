@@ -24,6 +24,10 @@
     "files": [
         "dist"
     ],
+    "sideEffects": [
+        "./dist/index.cjs",
+        "./dist/index.mjs"
+    ],
     "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.cts",
@@ -37,14 +41,27 @@
                 "types": "./dist/index.d.cts",
                 "default": "./dist/index.cjs"
             }
+        },
+        "./inject": {
+            "import": {
+                "types": "./dist/inject.d.mts",
+                "default": "./dist/inject.mjs"
+            },
+            "require": {
+                "types": "./dist/inject.d.cts",
+                "default": "./dist/inject.cjs"
+            }
         }
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts --format cjs,esm --dts --env.PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\" --clean",
+        "build": "tsdown src/index.ts src/inject.ts --format cjs,esm --dts --env.PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\" --clean",
         "typescript": "tsc --noEmit",
         "release": "release-it",
         "test": "vitest run"
+    },
+    "dependencies": {
+        "@flareapp/core": "2.4.0"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
