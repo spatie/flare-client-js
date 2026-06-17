@@ -572,14 +572,32 @@ function generateNotesWithClaude(pkgName, version, commits) {
         `Generate a concise GitHub release changelog for @flareapp/${pkgName} v${version}.`,
         `Commits since last release:`,
         commits,
-        `Write 3-5 bullet points summarizing changes. Be specific. No intro text, just bullet points.`,
+        `Write 3-5 bullet points summarizing changes. Be specific.`,
+        `This text is published verbatim as the GitHub release body. Output ONLY markdown bullet`,
+        `lines starting with "- ". No preamble, no closing notes, no "Note:" asides, no questions,`,
+        `no commentary about your process, and never address the reader. If nothing in these`,
+        `commits touches this package, output a single bullet noting the lockstep version bump.`,
     ].join('\n');
 
     const result = spawnSync('claude', ['-p', prompt], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (result.status !== 0) {
         throw new Error(result.stderr || `claude exited with status ${result.status}`);
     }
-    return result.stdout.trim();
+
+    // Defense in depth: the body is published verbatim, so strip anything that is not a bullet
+    // line. This drops any preamble, trailing "Note:" asides, or questions the model emits despite
+    // the prompt. Keeps only lines that start with a markdown list marker.
+    const notes = result.stdout
+        .split('\n')
+        .filter((line) => /^\s*[-*]\s+/.test(line))
+        .join('\n')
+        .trim();
+
+    if (!notes) {
+        throw new Error('claude produced no bullet-point lines');
+    }
+
+    return notes;
 }
 
 function ghReleaseCreate(tag, notesPath) {
