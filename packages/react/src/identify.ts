@@ -1,16 +1,28 @@
-import { flare } from '@flareapp/js';
+import type { Flare } from '@flareapp/js/browser';
 import * as React from 'react';
 
 import { PACKAGE_VERSION } from './constants';
 
-// Idempotence guard. Multiple bundles or deduped imports may load this module more than once;
-// without the flag we'd overwrite the SDK identity that another integration already set.
-let registered = false;
+// Per-instance guards. A boolean cannot serve injection: with a singleton AND an
+// injected RendererFlare, each instance must be tagged independently.
+const sdkTagged = new WeakSet<object>();
+const frameworkTagged = new WeakSet<object>();
 
-export function registerReactSdkIdentity(): void {
-    if (registered) return;
-    registered = true;
+// Web path: full identity on the default singleton (sdk + framework).
+export function registerReactSdkIdentity(flare: Flare): void {
+    if (!sdkTagged.has(flare)) {
+        sdkTagged.add(flare);
+        flare.setSdkInfo({ name: '@flareapp/react', version: PACKAGE_VERSION });
+    }
+    tagReactFramework(flare);
+}
 
-    flare.setSdkInfo({ name: '@flareapp/react', version: PACKAGE_VERSION });
+// Injected path: framework tag ONLY. Never touch sdkInfo — that would clobber the
+// injected instance's own SDK name (e.g. @flareapp/electron).
+export function tagReactFramework(flare: Flare): void {
+    if (frameworkTagged.has(flare)) {
+        return;
+    }
+    frameworkTagged.add(flare);
     flare.setFramework({ name: 'React', version: React.version });
 }

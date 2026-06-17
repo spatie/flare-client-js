@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { createFlareErrorHandler } from '../src/createFlareErrorHandler';
+import * as resolveModule from '../src/resolveFlare.js';
+import { registerDefaultFlare } from '../src/resolveFlare.js';
 import type { FlareSvelteContext } from '../src/types';
 
 const mockReport = vi.fn();
@@ -15,6 +17,9 @@ vi.mock('@flareapp/js', () => ({
         addContext: vi.fn(),
     },
 }));
+
+import { flare as mockedRoot } from '@flareapp/js';
+registerDefaultFlare(() => mockedRoot as any);
 
 beforeEach(() => {
     mockReport.mockClear();
@@ -146,5 +151,30 @@ describe('createFlareErrorHandler', () => {
         await handler(new Error('test'), () => {});
 
         await new Promise((r) => setTimeout(r, 0));
+    });
+
+    test('reports through an injected flare instance, not the default', async () => {
+        const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+        const handler = createFlareErrorHandler({ flare: injected });
+        await handler(new Error('boom'), () => {});
+        expect(injected.reportSilently).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('injected instance tagged framework-only, never sdkInfo', () => {
+        const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+        createFlareErrorHandler({ flare: injected });
+        expect(injected.setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
+        expect(injected.setSdkInfo).not.toHaveBeenCalled();
+    });
+
+    test('resolves the instance once at creation, not per call', async () => {
+        const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+        const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
+        const handler = createFlareErrorHandler({ flare: injected });
+        await handler(new Error('a'), () => {});
+        await handler(new Error('b'), () => {});
+        expect(resolveSpy).toHaveBeenCalledTimes(1); // resolved at creation, NOT per call
+        resolveSpy.mockRestore();
     });
 });

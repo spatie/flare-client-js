@@ -1,3 +1,4 @@
+import type { Flare } from '@flareapp/js/browser';
 import type { ComponentPublicInstance } from 'vue';
 
 export type ErrorOrigin = 'setup' | 'render' | 'lifecycle' | 'event' | 'watcher' | 'unknown';
@@ -51,6 +52,7 @@ export type FlareErrorBoundaryHookParams = {
 };
 
 export type FlareVueOptions = {
+    flare?: Flare;
     captureWarnings?: boolean;
     attachProps?: boolean;
     propsMaxDepth?: number;

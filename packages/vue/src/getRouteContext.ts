@@ -1,4 +1,4 @@
-import { redactFullPath } from '@flareapp/js';
+import { redactUrlQuery as redactFullPath } from '@flareapp/core';
 
 import { DEFAULT_PROPS_DENYLIST } from './constants';
 import { serializeProps } from './serializeProps';

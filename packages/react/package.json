@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/react",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "description": "React client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -27,6 +27,10 @@
     "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.cts",
+    "sideEffects": [
+        "./dist/index.cjs",
+        "./dist/index.mjs"
+    ],
     "exports": {
         ".": {
             "import": {
@@ -37,16 +41,31 @@
                 "types": "./dist/index.d.cts",
                 "default": "./dist/index.cjs"
             }
+        },
+        "./inject": {
+            "import": {
+                "types": "./dist/inject.d.mts",
+                "default": "./dist/inject.mjs"
+            },
+            "require": {
+                "types": "./dist/inject.d.cts",
+                "default": "./dist/inject.cjs"
+            }
         }
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts --format cjs,esm --dts --env.PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --clean",
+        "build": "tsdown src/index.ts src/inject.ts --format cjs,esm --dts --env.PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --clean",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
+        "verify:inject": "node scripts/verify-inject-no-root.mjs",
         "release": "release-it"
     },
+    "dependencies": {
+        "@flareapp/core": "2.4.0"
+    },
     "devDependencies": {
+        "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.0.0",

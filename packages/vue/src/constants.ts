@@ -1,4 +1,4 @@
-import { resolveDenylist as baseResolveDenylist } from '@flareapp/js';
+import { resolveDenylist as baseResolveDenylist } from '@flareapp/core';
 
 import type { ErrorOrigin } from './types';
 

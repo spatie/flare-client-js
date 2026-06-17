@@ -1,62 +1,38 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-describe('registerReactSdkIdentity', () => {
+function fakeFlare() {
+    return { setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+}
+
+describe('react identity', () => {
     beforeEach(() => {
         vi.resetModules();
     });
 
-    test('calls flare.setSdkInfo with name @flareapp/react', async () => {
-        const mockSetSdkInfo = vi.fn();
-        const mockSetFramework = vi.fn();
-
-        vi.doMock('@flareapp/js', () => ({
-            flare: {
-                setSdkInfo: mockSetSdkInfo,
-                setFramework: mockSetFramework,
-            },
-        }));
-
+    test('registerReactSdkIdentity sets sdkInfo (@flareapp/react) and framework (React)', async () => {
         const { registerReactSdkIdentity } = await import('../src/identify');
-        registerReactSdkIdentity();
-
-        expect(mockSetSdkInfo).toHaveBeenCalledOnce();
-        expect(mockSetSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/react' }));
+        const flare = fakeFlare();
+        registerReactSdkIdentity(flare);
+        expect(flare.setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/react' }));
+        expect(flare.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'React' }));
     });
 
-    test('calls flare.setFramework with name React', async () => {
-        const mockSetSdkInfo = vi.fn();
-        const mockSetFramework = vi.fn();
-
-        vi.doMock('@flareapp/js', () => ({
-            flare: {
-                setSdkInfo: mockSetSdkInfo,
-                setFramework: mockSetFramework,
-            },
-        }));
-
-        const { registerReactSdkIdentity } = await import('../src/identify');
-        registerReactSdkIdentity();
-
-        expect(mockSetFramework).toHaveBeenCalledOnce();
-        expect(mockSetFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'React' }));
+    test('tagReactFramework sets framework only, never sdkInfo', async () => {
+        const { tagReactFramework } = await import('../src/identify');
+        const flare = fakeFlare();
+        tagReactFramework(flare);
+        expect(flare.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'React' }));
+        expect(flare.setSdkInfo).not.toHaveBeenCalled();
     });
 
-    test('is idempotent: calling twice only registers once', async () => {
-        const mockSetSdkInfo = vi.fn();
-        const mockSetFramework = vi.fn();
-
-        vi.doMock('@flareapp/js', () => ({
-            flare: {
-                setSdkInfo: mockSetSdkInfo,
-                setFramework: mockSetFramework,
-            },
-        }));
-
-        const { registerReactSdkIdentity } = await import('../src/identify');
-        registerReactSdkIdentity();
-        registerReactSdkIdentity();
-
-        expect(mockSetSdkInfo).toHaveBeenCalledOnce();
-        expect(mockSetFramework).toHaveBeenCalledOnce();
+    test('each guard is per-instance: same instance tagged once, distinct instances each tagged', async () => {
+        const { tagReactFramework } = await import('../src/identify');
+        const a = fakeFlare();
+        const b = fakeFlare();
+        tagReactFramework(a);
+        tagReactFramework(a);
+        tagReactFramework(b);
+        expect(a.setFramework).toHaveBeenCalledOnce();
+        expect(b.setFramework).toHaveBeenCalledOnce();
     });
 });

@@ -1,6 +1,6 @@
 import type { Attributes } from '@flareapp/js';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ComponentPublicInstance } from 'vue';
+import { createApp, type ComponentPublicInstance } from 'vue';
 
 import { flareVue } from '../src/flareVue';
 import type { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from '../src/types';
@@ -22,6 +22,12 @@ vi.mock('@flareapp/js', async (importOriginal) => {
         },
     };
 });
+
+import { flare as mockedRoot } from '@flareapp/js';
+
+import * as resolveModule from '../src/resolveFlare';
+import { registerDefaultFlare } from '../src/resolveFlare';
+registerDefaultFlare(() => mockedRoot as any);
 
 function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
     const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
@@ -745,6 +751,49 @@ describe('flareVue', () => {
             expect(context.vue.componentProps).toEqual({ ssn: '[redacted]', password: 'now-leaked', id: 1 });
         });
     });
+
+    test('reports through an injected flare instance, not the default', () => {
+        const injected = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+        const app = createApp({ render: () => null });
+        app.use(flareVue, { flare: injected });
+        app.config.errorHandler!(new Error('boom'), null, 'render');
+        expect(injected.reportSilently).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('injected instance is tagged framework-only, never sdkInfo', () => {
+        const injected = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+        const app = createApp({ render: () => null });
+        app.use(flareVue, { flare: injected });
+        expect(injected.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'Vue' }));
+        expect(injected.setSdkInfo).not.toHaveBeenCalled();
+    });
+
+    test('resolves the instance once at install, not per reported error', () => {
+        const injected = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+        const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
+        const app = createApp({ render: () => null });
+        app.use(flareVue, { flare: injected });
+        app.config.errorHandler!(new Error('a'), null, 'render');
+        app.config.errorHandler!(new Error('b'), null, 'render');
+        expect(resolveSpy).toHaveBeenCalledTimes(1); // resolved at install, NOT per error
+        resolveSpy.mockRestore();
+    });
 });
 
 describe('flareVue captureWarnings', () => {
@@ -806,6 +855,23 @@ describe('flareVue captureWarnings', () => {
         expect(context.vue.componentName).toBe('UserProfile');
         expect(context.vue.componentTrace).toBe(trace);
         expect(context.vue.info).toBe('Missing required prop');
+    });
+
+    test('warnings route through an injected flare instance, not the default', () => {
+        const injected = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+        const app = createMockApp();
+        (flareVue as Function)(app, { flare: injected, captureWarnings: true } satisfies FlareVueOptions);
+
+        app.config.warnHandler!('Invalid prop type', createMockInstance('Counter'), 'found in\n---> <Counter>');
+
+        expect(injected.reportMessage).toHaveBeenCalledOnce();
+        expect(injected.reportMessage).toHaveBeenCalledWith('Invalid prop type', 'warning', expect.anything());
+        expect(mockReportMessage).not.toHaveBeenCalled();
     });
 
     test('uses AnonymousComponent when instance is null', () => {

@@ -22,6 +22,12 @@ vi.mock('@flareapp/js', async (importOriginal) => {
     };
 });
 
+import { flare as mockedRoot } from '@flareapp/js';
+
+import * as resolveModule from '../src/resolveFlare';
+import { registerDefaultFlare } from '../src/resolveFlare';
+registerDefaultFlare(() => mockedRoot as any);
+
 function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
     const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
         string,
@@ -1247,5 +1253,38 @@ describe('FlareErrorBoundary', () => {
 
             expect(slotProps?.componentProps).toEqual({ userId: 7 });
         });
+    });
+
+    test('reports through an injected flare prop, not the default', async () => {
+        const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+        mount(FlareErrorBoundary, {
+            props: { flare: injected },
+            slots: { default: () => h(ThrowingComponent) },
+        });
+        await nextTick();
+        expect(injected.reportSilently).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('falls back to the registered default when no flare prop', async () => {
+        mount(FlareErrorBoundary, {
+            slots: { default: () => h(ThrowingComponent) },
+        });
+        await nextTick();
+        expect(mockReport).toHaveBeenCalledOnce();
+    });
+
+    test('resolves at setup (before any error), not at capture time', () => {
+        // Zero errors thrown. If resolution happened in onErrorCaptured it would be 0; proving it
+        // is 1 here proves resolution is at setup/wiring time. A single-error probe could not
+        // distinguish setup-time from capture-time (both yield one call).
+        const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+        const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
+        mount(FlareErrorBoundary, {
+            props: { flare: injected },
+            slots: { default: () => h('div', 'ok') }, // non-throwing child
+        });
+        expect(resolveSpy).toHaveBeenCalledTimes(1);
+        resolveSpy.mockRestore();
     });
 });
