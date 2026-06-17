@@ -58,7 +58,8 @@
         "build": "tsdown src/index.ts src/inject.ts --format cjs,esm --dts --env.PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\" --clean",
         "typescript": "tsc --noEmit",
         "release": "release-it",
-        "test": "vitest run"
+        "test": "vitest run",
+        "verify:inject": "node scripts/verify-inject-no-root.mjs"
     },
     "dependencies": {
         "@flareapp/core": "2.4.0"
