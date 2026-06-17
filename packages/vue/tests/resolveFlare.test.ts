@@ -1,10 +1,19 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
+// process is ambiently typed without NODE_ENV in this package; cast to a mutable env map.
+const procEnv = (process as unknown as { env: Record<string, string | undefined> }).env;
 
 describe('resolveFlare', () => {
+    const originalNodeEnv = procEnv.NODE_ENV;
+
     beforeEach(() => {
         vi.resetModules();
         delete (window as any).__flare;
         vi.restoreAllMocks();
+    });
+
+    afterEach(() => {
+        procEnv.NODE_ENV = originalNodeEnv;
     });
 
     test('returns the explicit instance when provided', async () => {
@@ -25,18 +34,27 @@ describe('resolveFlare', () => {
         expect(() => resolveFlare()).toThrow(/No Flare instance available/);
     });
 
-    test('registerDefaultFlare warns when the electron bridge is already present', async () => {
+    test('registerDefaultFlare THROWS in dev when the electron bridge is already present', async () => {
+        procEnv.NODE_ENV = 'development';
+        (window as any).__flare = { report: () => {} };
+        const { registerDefaultFlare } = await import('../src/resolveFlare');
+        expect(() => registerDefaultFlare(() => ({}) as any)).toThrow(/\/inject/);
+    });
+
+    test('registerDefaultFlare WARNS (does not throw) in production when the bridge is present', async () => {
+        procEnv.NODE_ENV = 'production';
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         (window as any).__flare = { report: () => {} };
         const { registerDefaultFlare } = await import('../src/resolveFlare');
-        registerDefaultFlare(() => ({}) as any);
+        expect(() => registerDefaultFlare(() => ({}) as any)).not.toThrow();
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('/inject'));
     });
 
-    test('registerDefaultFlare does NOT warn without the bridge', async () => {
+    test('registerDefaultFlare does NOT throw or warn without the bridge', async () => {
+        procEnv.NODE_ENV = 'development';
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const { registerDefaultFlare } = await import('../src/resolveFlare');
-        registerDefaultFlare(() => ({}) as any);
+        expect(() => registerDefaultFlare(() => ({}) as any)).not.toThrow();
         expect(warn).not.toHaveBeenCalled();
     });
 });

@@ -522,6 +522,31 @@ describe('FlareErrorBoundary', () => {
         expect(mockReport).toHaveBeenCalledOnce();
     });
 
+    test('resolves the flare prop ONCE at construction; a later prop change is ignored', () => {
+        // Documents the resolve-once contract: the instance is resolved at construction and cached
+        // for the boundary's lifetime, so swapping the `flare` prop on a mounted boundary has no
+        // effect. (`flare` is meant to be a stable singleton, not a per-render value.)
+        const first = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
+        const second = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
+        testError = new Error('boom');
+
+        const { rerender } = render(
+            <FlareErrorBoundary flare={first} fallback={<div>fallback</div>}>
+                <ThrowingComponent shouldThrow={false} />
+            </FlareErrorBoundary>,
+        );
+
+        // Same boundary instance: swap the prop, then trigger the throw.
+        rerender(
+            <FlareErrorBoundary flare={second} fallback={<div>fallback</div>}>
+                <ThrowingComponent shouldThrow={true} />
+            </FlareErrorBoundary>,
+        );
+
+        expect(first.reportSilently).toHaveBeenCalledOnce();
+        expect(second.reportSilently).not.toHaveBeenCalled();
+    });
+
     describe('minified React errors', () => {
         test('forwards minifiedError and version in the reported attributes', () => {
             testError = new Error(

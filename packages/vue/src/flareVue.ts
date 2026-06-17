@@ -56,9 +56,12 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         return;
     }
 
-    // Resolve BEFORE marking the app installed. resolveFlare can throw (an /inject consumer that
-    // forgot the `flare` option). If we added to installedApps first, a throw would poison the
-    // WeakSet: a corrected retry would hit the `has(app)` guard and silently no-op.
+    // Resolve BEFORE marking the app installed, so a throw (an /inject consumer that forgot the
+    // `flare` option) doesn't leave the app recorded in installedApps. NOTE: this only enables a
+    // retry when the plugin is invoked DIRECTLY (`flareVue(app, opts)`). Via the public
+    // `app.use(flareVue)` API a retry is blocked regardless — Vue adds the plugin to its own
+    // installed-set BEFORE calling install, so a failed `app.use` cannot be re-applied to the same
+    // app. The ordering here is still correct/defensive; it just isn't reachable through `app.use`.
     const flare = resolveFlare(options?.flare);
 
     installedApps.add(app);

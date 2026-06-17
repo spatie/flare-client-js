@@ -76,6 +76,7 @@ const CORE_REFS = [
     { pkg: 'electron', field: 'dependencies', dep: '@flareapp/core' },
     { pkg: 'react', field: 'dependencies', dep: '@flareapp/core' },
     { pkg: 'vue', field: 'dependencies', dep: '@flareapp/core' },
+    { pkg: 'svelte', field: 'dependencies', dep: '@flareapp/core' },
 ];
 
 // Lockstep deps that are hard-pinned EXACTLY (not caret). electron pins @flareapp/js exactly,
