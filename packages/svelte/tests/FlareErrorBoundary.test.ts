@@ -1,7 +1,9 @@
+import { flare as mockedRoot } from '@flareapp/js';
 import { cleanup, render } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { registerDefaultFlare } from '../src/resolveFlare.js';
 import type { FlareSvelteContext } from '../src/types';
 import BoundaryWithBuggyChild from './fixtures/BoundaryWithBuggyChild.svelte';
 import BoundaryWithChildren from './fixtures/BoundaryWithChildren.svelte';
@@ -22,6 +24,8 @@ vi.mock('@flareapp/js', async (importOriginal) => {
         },
     };
 });
+
+registerDefaultFlare(() => mockedRoot as any);
 
 afterEach(() => {
     cleanup();
@@ -176,5 +180,19 @@ describe('FlareErrorBoundary', () => {
         await tick();
         expect(onReset).not.toHaveBeenCalled();
         expect(getByText('Child rendered successfully')).toBeTruthy();
+    });
+
+    test('forwards an injected flare prop into the handler (reports through injected, not default)', async () => {
+        const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
+        render(BoundaryWithBuggyChild, { props: { flare: injected } });
+        await new Promise((r) => setTimeout(r, 0));
+        expect(injected.reportSilently).toHaveBeenCalledOnce();
+        expect(mockReport).not.toHaveBeenCalled();
+    });
+
+    test('falls back to the registered default when no flare prop', async () => {
+        render(BoundaryWithBuggyChild);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(mockReport).toHaveBeenCalledOnce();
     });
 });

@@ -4,6 +4,7 @@
 
     interface Props {
         shouldThrow?: boolean;
+        flare?: import('../../src/createFlareErrorHandler').FlareErrorHandlerOptions['flare'];
         beforeEvaluate?: (params: { error: Error }) => void;
         beforeSubmit?: (params: { error: Error; context: FlareSvelteContext }) => FlareSvelteContext;
         afterSubmit?: (params: { error: Error; context: FlareSvelteContext }) => void;
@@ -13,6 +14,7 @@
 
     let {
         shouldThrow = true,
+        flare,
         beforeEvaluate,
         beforeSubmit,
         afterSubmit,
@@ -22,6 +24,7 @@
 </script>
 
 <FlareErrorBoundary
+    {flare}
     {beforeEvaluate}
     {beforeSubmit}
     {afterSubmit}

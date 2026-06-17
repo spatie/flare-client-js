@@ -8,6 +8,7 @@
         children: Snippet;
         failed?: Snippet<[error: Error, reset: () => void]>;
         resetKeys?: unknown[];
+        flare?: FlareErrorHandlerOptions['flare'];
         beforeEvaluate?: FlareErrorHandlerOptions['beforeEvaluate'];
         beforeSubmit?: FlareErrorHandlerOptions['beforeSubmit'];
         afterSubmit?: FlareErrorHandlerOptions['afterSubmit'];
@@ -18,6 +19,7 @@
         children,
         failed: fallbackSnippet,
         resetKeys,
+        flare,
         beforeEvaluate,
         beforeSubmit,
         afterSubmit,
@@ -55,7 +57,7 @@
     const ancestor = __flareRegisterComponent('FlareErrorBoundary', '@flareapp/svelte/FlareErrorBoundary.svelte');
 
     const handler = $derived(
-        createFlareErrorHandler({ ancestor, beforeEvaluate, beforeSubmit, afterSubmit }),
+        createFlareErrorHandler({ ancestor, flare, beforeEvaluate, beforeSubmit, afterSubmit }),
     );
 
     function onerror(rawError: unknown, reset: () => void) {
