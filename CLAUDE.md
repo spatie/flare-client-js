@@ -30,7 +30,7 @@ package, and a Playwright-based e2e suite:
 | `packages/core`      | `@flareapp/core`               | Environment-agnostic Flare core (shared between js + node)                                  |
 | `packages/js`        | `@flareapp/js`                 | Core client — error capture, stack traces, context, API reporting                           |
 | `packages/react`     | `@flareapp/react`              | React `FlareErrorBoundary` error boundary component; `/inject` entry for Electron renderers |
-| `packages/vue`       | `@flareapp/vue`                | Vue error handler plugin (`flareVue()`)                                                     |
+| `packages/vue`       | `@flareapp/vue`                | Vue error handler plugin (`flareVue()`); `/inject` entry for Electron renderers             |
 | `packages/svelte`    | `@flareapp/svelte`             | Svelte 5 `FlareErrorBoundary` with props serialization                                      |
 | `packages/sveltekit` | `@flareapp/sveltekit`          | SvelteKit error hooks (`handleErrorWithFlare`) + route context                              |
 | `packages/vite`      | `@flareapp/vite`               | Vite build plugin for sourcemap upload with retry logic                                     |

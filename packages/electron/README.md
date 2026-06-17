@@ -254,3 +254,55 @@ createRoot(document.getElementById('root')!, {
 - Omitting the `flare` prop on the `/inject` entry throws at boundary construction (boot), not silently at error time.
 
 Reports from the renderer carry `sdk = @flareapp/electron` and `framework = React`. Your React component context (`context.custom.react`, component stack) rides along in the report attributes and survives the IPC trip intact.
+
+## Using `@flareapp/vue` in the renderer
+
+Same model as the React section: the API key lives in **main**, reports travel over IPC, and the renderer injects Electron's Flare instance into Vue instead of letting it reach the `@flareapp/js` singleton.
+
+### Install
+
+```bash
+npm install @flareapp/electron @flareapp/vue
+```
+
+`@flareapp/js` comes in transitively via `@flareapp/electron` — do **not** import it in the renderer.
+
+Set up main / preload / renderer exactly as in the React section (steps 1-3): `flare.light(key)` in main, `exposeFlare()` in preload, and a renderer `flare.ts` that re-exports `flare` from `@flareapp/electron/renderer`.
+
+### Vue — inject the instance
+
+Import `flareVue` (and, if you use it, `FlareErrorBoundary`) from `@flareapp/vue/inject`, not the package root, and pass the renderer instance:
+
+```ts
+// main.ts (renderer entry)
+import { createApp } from 'vue';
+import { flareVue } from '@flareapp/vue/inject';
+import { flare } from './flare';
+import App from './App.vue';
+
+const app = createApp(App);
+app.use(flareVue, { flare });
+app.mount('#app');
+```
+
+Component boundary:
+
+```vue
+<script setup lang="ts">
+import { FlareErrorBoundary } from '@flareapp/vue/inject';
+import { flare } from './flare';
+</script>
+
+<template>
+    <FlareErrorBoundary :flare="flare">
+        <App />
+    </FlareErrorBoundary>
+</template>
+```
+
+### Rules
+
+- **Never `import { flare } from '@flareapp/js'` in the renderer.** Import the Vue SDK from `@flareapp/vue/inject`, never the package root. Importing the root prints a console warning that the default was registered while the Electron bridge is present.
+- Omitting the `flare` option/prop on the `/inject` entry throws at install / component setup (boot), not silently at error time.
+
+Reports from the renderer carry `sdk = @flareapp/electron` and `framework = Vue`. Your Vue component context (`context.custom.vue`, component hierarchy, props) rides along and survives the IPC trip intact.
