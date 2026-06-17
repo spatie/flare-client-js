@@ -709,7 +709,7 @@ git commit -m "feat(svelte): add @flareapp/svelte/inject electron-safe entry"
 
 NOTE: NO build-command change — `svelte-package` auto-compiles `src/inject.ts`. The `@flareapp/core` dependency + `CORE_REFS` were already declared in Task 4 (where the runtime import lands), so they are NOT repeated here.
 
-**Files:** Modify `packages/svelte/package.json`, Create `packages/svelte/tests/injectExportMap.test.ts`
+**Files:** Modify `packages/svelte/package.json`, Create `packages/svelte/scripts/verify-exports.mjs` (this also creates the new `packages/svelte/scripts/` directory — the `Write` that creates the file will make the parent dir)
 
 - [ ] **Step 1: Add the `./inject` export**
 
@@ -741,7 +741,9 @@ Run: `cd packages/svelte && npm run typescript` — 0 errors.
 
 - [ ] **Step 4: Add a post-build export-map check (a node script, NOT a vitest test)**
 
-The unit tests import `../src/inject.js` (source); nothing exercises the published `@flareapp/svelte/inject` subpath, so a typo in the `exports` map (wrong path) could ship broken. This must NOT be a vitest test: it depends on `dist`, and `packages/svelte`'s `test` script is a bare `vitest run` with no prebuild — a `dist`-dependent test would break `cd packages/svelte && npm test` on a clean checkout. It also must not statically `import '@flareapp/svelte/inject'` (a static import that fails to compile the built `.svelte` re-export aborts module load before any fallback can run). Instead use a deterministic fs-based node script (same pattern as `verify-inject-no-root.mjs` and electron's existing `verify-exports.mjs`): assert the export-map paths resolve to real files AND that `dist/inject.js` exposes the expected names.
+The unit tests import `../src/inject.js` (source); nothing exercises the published `@flareapp/svelte/inject` subpath, so a wrong path in the `exports` map could ship broken. This must NOT be a vitest test: it depends on `dist`, and `packages/svelte`'s `test` script is a bare `vitest run` with no prebuild — a `dist`-dependent test would break `cd packages/svelte && npm test` on a clean checkout. It also must not statically `import '@flareapp/svelte/inject'` (a static import that fails to compile the built `.svelte` re-export aborts module load before any fallback can run). Instead use a deterministic fs-based node script (same pattern as `verify-inject-no-root.mjs` and electron's `verify-exports.mjs`).
+
+It is NOT enough to check that the leaf paths merely EXIST: if `exports["./inject"].import.default` accidentally pointed at `./dist/index.js` (the web root entry, which exists AND re-exports the same names), an existence-only check passes while the published `/inject` subpath silently pulls the root. So assert the EXACT expected target paths, derive the runtime target FROM the map, and grep that target.
 
 Create `packages/svelte/scripts/verify-exports.mjs`:
 
@@ -755,13 +757,35 @@ const pkg = JSON.parse(readFileSync(resolve(pkgDir, 'package.json'), 'utf8'));
 
 const inject = pkg.exports?.['./inject'];
 let failed = false;
+const fail = (msg) => {
+    console.error(`[verify-exports] ${msg}`);
+    failed = true;
+};
 
 if (!inject) {
-    console.error('[verify-exports] package.json exports["./inject"] is missing');
+    fail('package.json exports["./inject"] is missing');
     process.exit(1);
 }
 
-// Collect every leaf path string from the (possibly nested) export condition object.
+// Assert the EXACT target for each condition. Existence alone is insufficient — a target of
+// ./dist/index.js (the web root) would exist and re-export the same names, yet pull the root.
+const expectedTargets = {
+    'svelte': './dist/inject.js',
+    'import.types': './dist/inject.d.ts',
+    'import.default': './dist/inject.js',
+};
+const actualTargets = {
+    'svelte': inject.svelte,
+    'import.types': inject.import?.types,
+    'import.default': inject.import?.default,
+};
+for (const [key, expected] of Object.entries(expectedTargets)) {
+    if (actualTargets[key] !== expected) {
+        fail(`exports["./inject"].${key} = ${actualTargets[key]} (expected ${expected})`);
+    }
+}
+
+// Every leaf path the map references must exist on disk.
 const paths = [];
 (function collect(node) {
     if (typeof node === 'string') {
@@ -770,19 +794,17 @@ const paths = [];
         for (const v of Object.values(node)) collect(v);
     }
 })(inject);
-
 for (const p of paths) {
     if (!existsSync(resolve(pkgDir, p))) {
-        console.error(`[verify-exports] exports["./inject"] points at a missing file: ${p}`);
-        failed = true;
+        fail(`exports["./inject"] points at a missing file: ${p}`);
     }
 }
 
-// The runtime entry must expose the expected public surface.
-const entry = resolve(pkgDir, 'dist/inject.js');
-if (!existsSync(entry)) {
-    console.error('[verify-exports] dist/inject.js does not exist (build first)');
-    failed = true;
+// Grep the RUNTIME target the map actually resolves to (not a hardcoded path) for the surface.
+const runtimeTarget = inject.import?.default ?? inject.svelte;
+const entry = runtimeTarget ? resolve(pkgDir, runtimeTarget) : null;
+if (!entry || !existsSync(entry)) {
+    fail(`runtime target ${runtimeTarget} does not exist (build first)`);
 } else {
     const src = readFileSync(entry, 'utf8');
     for (const name of [
@@ -793,8 +815,7 @@ if (!existsSync(entry)) {
         'flarePreprocessor',
     ]) {
         if (!new RegExp(`\\b${name}\\b`).test(src)) {
-            console.error(`[verify-exports] dist/inject.js is missing export: ${name}`);
-            failed = true;
+            fail(`${runtimeTarget} is missing export: ${name}`);
         }
     }
 }
@@ -803,7 +824,7 @@ if (failed) {
     process.exit(1);
 }
 console.log(
-    `[verify-exports] OK — exports["./inject"] resolves (${paths.length} paths) and dist/inject.js exposes the expected surface.`,
+    `[verify-exports] OK — exports["./inject"] targets match (${paths.length} paths) and the runtime entry exposes the expected surface.`,
 );
 ```
 
@@ -814,7 +835,7 @@ Add the npm script to `packages/svelte/package.json` (next to the build/test scr
 ```
 
 Run: `cd packages/svelte && npm run build && npm run verify:exports`
-Expected: `[verify-exports] OK ...`. To confirm it bites, temporarily change the `./inject` `default` path to a wrong filename, run it (expects non-zero + "missing file"), then revert.
+Expected: `[verify-exports] OK ...`. To confirm it bites on the REALISTIC failure (not just a missing file), temporarily change the `./inject` `import.default` to `./dist/index.js` (the web root — it exists and re-exports the same names, so an existence-only check would pass). Run the script: expect non-zero with `exports["./inject"].import.default = ./dist/index.js (expected ./dist/inject.js)`. Then revert and confirm OK.
 
 - [ ] **Step 5: Commit**
 
