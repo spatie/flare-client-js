@@ -42,13 +42,24 @@
                 "types": "./dist/config.d.ts",
                 "default": "./dist/config.js"
             }
+        },
+        "./inject": {
+            "svelte": "./dist/inject.js",
+            "import": {
+                "types": "./dist/inject.d.ts",
+                "default": "./dist/inject.js"
+            }
         }
     },
+    "sideEffects": [
+        "./dist/index.js"
+    ],
     "scripts": {
         "prepublishOnly": "npm run build",
         "generate:version": "node ../../scripts/generate-version.mjs .",
         "build": "npm run generate:version && svelte-package -i src -o dist",
         "test": "vitest run",
+        "verify:exports": "node scripts/verify-exports.mjs",
         "typescript": "tsc --noEmit",
         "release": "release-it"
     },
