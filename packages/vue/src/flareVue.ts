@@ -1,12 +1,14 @@
-import { type AttributeValue, type Attributes, convertToError, flare } from '@flareapp/js';
+import { convertToError, type AttributeValue, type Attributes } from '@flareapp/core';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
 import { buildComponentHierarchyFrames } from './buildComponentHierarchyFrames';
-import { PACKAGE_VERSION, resolveDenylist } from './constants';
+import { resolveDenylist } from './constants';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
+import { registerVueSdkInfo, tagVueFramework } from './identify';
+import { resolveFlare } from './resolveFlare';
 import { serializeProps } from './serializeProps';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
@@ -53,10 +55,20 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     if (installedApps.has(app)) {
         return;
     }
+
+    // Resolve BEFORE marking the app installed. resolveFlare can throw (an /inject consumer that
+    // forgot the `flare` option). If we added to installedApps first, a throw would poison the
+    // WeakSet: a corrected retry would hit the `has(app)` guard and silently no-op.
+    const flare = resolveFlare(options?.flare);
+
     installedApps.add(app);
 
-    flare.setSdkInfo({ name: '@flareapp/vue', version: PACKAGE_VERSION });
-    flare.setFramework({ name: 'Vue', version: app.version });
+    // Web default (no injected instance): set the SDK identity on the singleton, as before.
+    // Injected instance: tag framework only — never setSdkInfo (would clobber @flareapp/electron).
+    if (!options?.flare) {
+        registerVueSdkInfo(flare);
+    }
+    tagVueFramework(flare, app.version);
 
     const attachProps = options?.attachProps ?? false;
     const propsMaxDepth = options?.propsMaxDepth ?? 2;
