@@ -70,6 +70,7 @@
         "access": "public"
     },
     "dependencies": {
+        "@flareapp/core": "2.4.0",
         "error-stack-parser": "^2.1.4"
     }
 }
