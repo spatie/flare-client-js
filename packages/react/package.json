@@ -65,6 +65,7 @@
         "@flareapp/core": "2.4.0"
     },
     "devDependencies": {
+        "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.0.0",

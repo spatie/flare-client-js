@@ -1,16 +1,17 @@
-import { convertToError, flare } from '@flareapp/js';
+import { convertToError } from '@flareapp/core';
+import type { Flare } from '@flareapp/js/browser';
 import ErrorStackParser from 'error-stack-parser';
 
 import type { ComponentTreeNode } from './componentTree.js';
 import { contextToAttributes } from './contextToAttributes.js';
 import { extractComponentInfo } from './extractComponentInfo.js';
 import { getErrorOrigin } from './getErrorOrigin.js';
-import { registerSvelteSdkIdentity } from './identify.js';
+import { tagSvelteFramework } from './identify.js';
+import { resolveFlare } from './resolveFlare.js';
 import type { FlareSvelteContext } from './types.js';
 
-registerSvelteSdkIdentity();
-
 export interface FlareErrorHandlerOptions {
+    flare?: Flare;
     ancestor?: ComponentTreeNode | null;
     beforeEvaluate?: (params: { error: Error }) => void;
     beforeSubmit?: (params: { error: Error; context: FlareSvelteContext }) => FlareSvelteContext;
@@ -18,6 +19,9 @@ export interface FlareErrorHandlerOptions {
 }
 
 export function createFlareErrorHandler(options?: FlareErrorHandlerOptions) {
+    const flare = resolveFlare(options?.flare);
+    tagSvelteFramework(flare);
+
     return async (rawError: unknown, _reset: () => void) => {
         const error = convertToError(rawError);
 

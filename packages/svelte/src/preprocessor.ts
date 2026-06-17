@@ -2,10 +2,12 @@ import type { PreprocessorGroup } from 'svelte/compiler';
 
 export interface FlarePreprocessorOptions {
     exclude?: RegExp;
+    importSource?: string;
 }
 
 export function flarePreprocessor(options?: FlarePreprocessorOptions): PreprocessorGroup {
     const exclude = options?.exclude;
+    const importSource = options?.importSource ?? '@flareapp/svelte';
 
     return {
         name: 'flare-component-tree',
@@ -30,7 +32,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
 
             const injection =
                 `<script>\n` +
-                `import { __flareRegisterComponent as __flare_reg__ } from '@flareapp/svelte';\n` +
+                `import { __flareRegisterComponent as __flare_reg__ } from '${importSource}';\n` +
                 `const __flare_node__ = __flare_reg__('${componentName}', '${escapedFile}');\n` +
                 `</script>\n`;
 
@@ -52,11 +54,20 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
+            // Skip a script the markup hook already injected. For a scriptless component the markup
+            // hook adds a `<script>` with our registration; Svelte then runs THIS script hook over
+            // that injected block within the same preprocessor pass. Without this guard we inject a
+            // second time, producing a duplicate `const __flare_node__` -> "already been declared"
+            // compile error.
+            if (content.includes('__flare_node__')) {
+                return;
+            }
+
             const componentName = extractComponentName(filename);
             const escapedFile = escapeString(filename);
 
             const injection =
-                `import { __flareRegisterComponent as __flare_reg__ } from '@flareapp/svelte';\n` +
+                `import { __flareRegisterComponent as __flare_reg__ } from '${importSource}';\n` +
                 `const __flare_node__ = __flare_reg__('${componentName}', '${escapedFile}');\n`;
 
             return {

@@ -15,10 +15,11 @@ interface FlarePreprocessorGroupWithId extends PreprocessorGroup {
 export interface WithFlareConfigOptions {
     componentTracking?: boolean;
     exclude?: FlarePreprocessorOptions['exclude'];
+    importSource?: string;
 }
 
 export function withFlareConfig(config: SvelteConfig, options?: WithFlareConfigOptions): SvelteConfig {
-    const { componentTracking = true, exclude } = options ?? {};
+    const { componentTracking = true, exclude, importSource } = options ?? {};
 
     if (!componentTracking) {
         return config;
@@ -30,7 +31,7 @@ export function withFlareConfig(config: SvelteConfig, options?: WithFlareConfigO
         return config;
     }
 
-    const preprocessor = flarePreprocessor({ exclude }) as FlarePreprocessorGroupWithId;
+    const preprocessor = flarePreprocessor({ exclude, importSource }) as FlarePreprocessorGroupWithId;
     preprocessor.__flareId = true;
 
     return {

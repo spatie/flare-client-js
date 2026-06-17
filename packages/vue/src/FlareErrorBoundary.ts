@@ -1,4 +1,5 @@
-import { convertToError, flare } from '@flareapp/js';
+import { convertToError } from '@flareapp/core';
+import type { Flare } from '@flareapp/js/browser';
 import type { ComponentPublicInstance, PropType } from 'vue';
 import { defineComponent, getCurrentInstance, onErrorCaptured, ref, watch } from 'vue';
 
@@ -9,6 +10,8 @@ import { vueContextToAttributes } from './flareVue';
 import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
+import { tagVueFramework } from './identify';
+import { resolveFlare } from './resolveFlare';
 import { serializeProps } from './serializeProps';
 import { ComponentHierarchyFrame, FlareErrorBoundaryHookParams, FlareVueContext } from './types';
 
@@ -16,6 +19,10 @@ export const FlareErrorBoundary = defineComponent({
     name: 'FlareErrorBoundary',
 
     props: {
+        flare: {
+            type: Object as PropType<Flare>,
+            default: undefined,
+        },
         beforeEvaluate: {
             type: Function as PropType<(params: FlareErrorBoundaryHookParams) => void>,
             default: undefined,
@@ -57,6 +64,9 @@ export const FlareErrorBoundary = defineComponent({
     },
 
     setup(props, { slots }) {
+        const flareInstance = resolveFlare(props.flare);
+        tagVueFramework(flareInstance, getCurrentInstance()?.appContext.app.version);
+
         const currentInstance = getCurrentInstance();
         const error = ref<Error | null>(null);
         const componentProps = ref<Record<string, unknown> | undefined>(undefined);
@@ -134,7 +144,7 @@ export const FlareErrorBoundary = defineComponent({
             componentHierarchy.value = finalContext.vue.componentHierarchy;
             componentHierarchyFrames.value = finalContext.vue.componentHierarchyFrames;
 
-            flare.reportSilently(errorToReport, vueContextToAttributes(finalContext));
+            flareInstance.reportSilently(errorToReport, vueContextToAttributes(finalContext));
 
             props.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 

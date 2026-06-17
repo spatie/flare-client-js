@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/svelte",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "description": "Svelte client for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -42,17 +42,30 @@
                 "types": "./dist/config.d.ts",
                 "default": "./dist/config.js"
             }
+        },
+        "./inject": {
+            "svelte": "./dist/inject.js",
+            "import": {
+                "types": "./dist/inject.d.ts",
+                "default": "./dist/inject.js"
+            }
         }
     },
+    "sideEffects": [
+        "./dist/index.js"
+    ],
     "scripts": {
         "prepublishOnly": "npm run build",
         "generate:version": "node ../../scripts/generate-version.mjs .",
         "build": "npm run generate:version && svelte-package -i src -o dist",
         "test": "vitest run",
+        "verify:exports": "node scripts/verify-exports.mjs",
+        "verify:inject": "node scripts/verify-inject-no-root.mjs",
         "typescript": "tsc --noEmit",
         "release": "release-it"
     },
     "devDependencies": {
+        "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@sveltejs/package": "^2.5.7",
         "@sveltejs/vite-plugin-svelte": "^5.0.0",
@@ -70,6 +83,7 @@
         "access": "public"
     },
     "dependencies": {
+        "@flareapp/core": "2.4.0",
         "error-stack-parser": "^2.1.4"
     }
 }
