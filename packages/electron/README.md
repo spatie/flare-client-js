@@ -306,3 +306,48 @@ import { flare } from './flare';
 - Omitting the `flare` option/prop on the `/inject` entry throws at install / component setup (boot), not silently at error time.
 
 Reports from the renderer carry `sdk = @flareapp/electron` and `framework = Vue`. Your Vue component context (`context.custom.vue`, component hierarchy, props) rides along and survives the IPC trip intact.
+
+## Using `@flareapp/svelte` in the renderer
+
+Same model as the React/Vue sections: the API key lives in **main**, reports travel over IPC, and the renderer injects Electron's Flare instance into Svelte instead of letting it reach the `@flareapp/js` singleton.
+
+### Install
+
+```bash
+npm install @flareapp/electron @flareapp/svelte
+```
+
+`@flareapp/js` comes in transitively via `@flareapp/electron` — do **not** import it in the renderer.
+
+Set up main / preload / renderer exactly as in the React section (steps 1-3): `flare.light(key)` in main, `exposeFlare()` in preload, and a renderer `flare.ts` that re-exports `flare` from `@flareapp/electron/renderer`.
+
+### Svelte — inject the instance
+
+Import `FlareErrorBoundary` (and/or `createFlareErrorHandler`) from `@flareapp/svelte/inject`, not the package root, and pass the renderer instance:
+
+```svelte
+<script lang="ts">
+    import { FlareErrorBoundary } from '@flareapp/svelte/inject';
+    import { flare } from './flare';
+</script>
+
+<FlareErrorBoundary {flare}>
+    <App />
+</FlareErrorBoundary>
+```
+
+Or the handler directly (e.g. in a SvelteKit-free Svelte app's error hook):
+
+```ts
+import { createFlareErrorHandler } from '@flareapp/svelte/inject';
+import { flare } from './flare';
+
+const handleError = createFlareErrorHandler({ flare });
+```
+
+### Rules
+
+- **Never `import { flare } from '@flareapp/js'` in the renderer.** Import the Svelte SDK from `@flareapp/svelte/inject`, never the package root. Importing the root prints a console warning that the default was registered while the Electron bridge is present.
+- Omitting the `flare` prop/option on the `/inject` entry throws at handler creation / component setup (boot), not silently at error time.
+
+Reports from the renderer carry `sdk = @flareapp/electron` and `framework = Svelte`. Your Svelte component context (`context.custom.svelte`, component hierarchy) rides along and survives the IPC trip intact.
