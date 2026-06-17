@@ -350,4 +350,25 @@ const handleError = createFlareErrorHandler({ flare });
 - **Never `import { flare } from '@flareapp/js'` in the renderer.** Import the Svelte SDK from `@flareapp/svelte/inject`, never the package root. Importing the root prints a console warning that the default was registered while the Electron bridge is present.
 - Omitting the `flare` prop/option on the `/inject` entry throws at handler creation / component setup (boot), not silently at error time.
 
+### Component tracking (optional)
+
+If you use Flare's Svelte component tracking, point the preprocessor at the inject entry so the
+generated per-component imports stay root-free in the renderer:
+
+```js
+// svelte.config.js (renderer build)
+import { withFlareConfig } from '@flareapp/svelte/inject';
+
+export default withFlareConfig(
+    {
+        /* your svelte config */
+    },
+    { importSource: '@flareapp/svelte/inject' },
+);
+```
+
+Without `importSource`, the preprocessor emits `import ... from '@flareapp/svelte'`, which pulls the
+web singleton (and its global side effects) into the renderer. Set it to `@flareapp/svelte/inject`
+for Electron renderer builds.
+
 Reports from the renderer carry `sdk = @flareapp/electron` and `framework = Svelte`. Your Svelte component context (`context.custom.svelte`, component hierarchy) rides along and survives the IPC trip intact.

@@ -2,10 +2,12 @@ import type { PreprocessorGroup } from 'svelte/compiler';
 
 export interface FlarePreprocessorOptions {
     exclude?: RegExp;
+    importSource?: string;
 }
 
 export function flarePreprocessor(options?: FlarePreprocessorOptions): PreprocessorGroup {
     const exclude = options?.exclude;
+    const importSource = options?.importSource ?? '@flareapp/svelte';
 
     return {
         name: 'flare-component-tree',
@@ -30,7 +32,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
 
             const injection =
                 `<script>\n` +
-                `import { __flareRegisterComponent as __flare_reg__ } from '@flareapp/svelte';\n` +
+                `import { __flareRegisterComponent as __flare_reg__ } from '${importSource}';\n` +
                 `const __flare_node__ = __flare_reg__('${componentName}', '${escapedFile}');\n` +
                 `</script>\n`;
 
@@ -56,7 +58,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
             const escapedFile = escapeString(filename);
 
             const injection =
-                `import { __flareRegisterComponent as __flare_reg__ } from '@flareapp/svelte';\n` +
+                `import { __flareRegisterComponent as __flare_reg__ } from '${importSource}';\n` +
                 `const __flare_node__ = __flare_reg__('${componentName}', '${escapedFile}');\n`;
 
             return {
