@@ -36,6 +36,9 @@ export function installGlobalErrorHandler(report: (error: Error, isFatal: boolea
     errorUtils.setGlobalHandler(handler);
 
     return () => {
+        // No ErrorUtils API exists to clear a handler, so when there was no
+        // previous one we restore a swallowing no-op. RN always installs a
+        // default handler, so `previous` is effectively never undefined.
         errorUtils.setGlobalHandler(previous ?? (() => {}));
     };
 }
