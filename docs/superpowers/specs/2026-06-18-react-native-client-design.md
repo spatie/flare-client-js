@@ -113,16 +113,24 @@ ErrorUtils.setGlobalHandler((error, isFatal) => {
 
 This is the RN analog of `catchWindowErrors`.
 
-**Unhandled promise rejections (best-effort).** RN does NOT route these through
-`window.onunhandledrejection`; it uses its own rejection-tracking
-(`promise/setimmediate/rejection-tracking`), which is private RN/Hermes internals
-that shift across versions. v1 treats this as **best-effort with explicit
-fallback**: attempt to hook the rejection tracker, and if the hook is not
-reachable on the installed RN/Hermes version, log a single debug line and
-continue with NO rejection capture (uncaught throws via `ErrorUtils` still work).
-v1 does NOT promise rejection capture works everywhere; it must not crash or
-no-op silently when the internal entry point is absent. Verify the integration
-point against the installed React Native version during implementation.
+**Unhandled promise rejections (best-effort, engine-aware).** RN does NOT route
+these through `window.onunhandledrejection`, and the hook differs by JS ENGINE,
+not RN version — this is the critical subtlety:
+
+- **Hermes (RN's default engine since 0.70):** rejections are tracked on
+  Hermes's native `Promise` via `global.HermesInternal.enablePromiseRejectionTracker`.
+  The `promise` npm polyfill is NOT the runtime `Promise` on Hermes, so calling
+  the polyfill's `rejection-tracking.enable()` resolves and runs without
+  throwing but hooks objects the app never creates — a SILENT no-op. A
+  polyfill-only implementation captures nothing on essentially every modern app.
+- **JSC / non-Hermes:** RN polyfills `global.Promise` with the `promise`
+  package, so `promise/setimmediate/rejection-tracking.enable()` is the real hook.
+
+v1 resolves the enabler by engine (Hermes hook first, polyfill second), and if
+neither is reachable logs a single dev debug line and continues with NO rejection
+capture (uncaught throws via `ErrorUtils` still work). It must never crash.
+Verify against the installed ENGINE (not just RN version) during implementation;
+Sentry's RN SDK branches on Hermes vs polyfill the same way.
 
 When the hook does land, report via core's
 `reportUnhandledRejection(message, attributes)` (`core/Flare.ts:372`), NOT plain
