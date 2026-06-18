@@ -8,7 +8,7 @@ required native module.
 ## Install
 
 ```bash
-npm install @flareapp/react-native @flareapp/react @flareapp/js
+npm install @flareapp/react-native @flareapp/react
 ```
 
 ## Usage
