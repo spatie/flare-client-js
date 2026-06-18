@@ -22,29 +22,30 @@ integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads
 
 ## Monorepo structure
 
-npm workspaces monorepo with 8 published packages, 1 internal package, 4 framework playground apps, a shared fixture
+npm workspaces monorepo with 9 published packages, 1 internal package, 4 framework playground apps, a shared fixture
 package, and a Playwright-based e2e suite:
 
-| Package              | npm name                       | Purpose                                                                                        |
-| -------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `packages/core`      | `@flareapp/core`               | Environment-agnostic Flare core (shared between js + node)                                     |
-| `packages/js`        | `@flareapp/js`                 | Core client — error capture, stack traces, context, API reporting                              |
-| `packages/react`     | `@flareapp/react`              | React `FlareErrorBoundary` error boundary component; `/inject` entry for Electron renderers    |
-| `packages/vue`       | `@flareapp/vue`                | Vue error handler plugin (`flareVue()`); `/inject` entry for Electron renderers                |
-| `packages/svelte`    | `@flareapp/svelte`             | Svelte 5 `FlareErrorBoundary` with props serialization; `/inject` entry for Electron renderers |
-| `packages/sveltekit` | `@flareapp/sveltekit`          | SvelteKit error hooks (`handleErrorWithFlare`) + route context                                 |
-| `packages/vite`      | `@flareapp/vite`               | Vite build plugin for sourcemap upload with retry logic                                        |
-| `packages/webpack`   | `@flareapp/webpack`            | Webpack 5 plugin for sourcemap upload                                                          |
-| `packages/nextjs`    | `@flareapp/nextjs`             | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload                                   |
-| `packages/node`      | `@flareapp/node`               | Node.js SDK (process handlers, AsyncLocalStorage scope)                                        |
-| `packages/electron`  | `@flareapp/electron`           | Electron SDK (main + preload + renderer, IPC-unified)                                          |
-| `packages/flare-api` | `@flareapp/flare-api`          | Shared API client for sourcemap uploads (private, not published)                               |
-| `playgrounds/shared` | `@flareapp/playgrounds-shared` | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens                              |
-| `playgrounds/js`     | `@flareapp/playgrounds-js`     | Vanilla TS + Vite webshop (port 5180)                                                          |
-| `playgrounds/react`  | `@flareapp/playgrounds-react`  | React 19 + TanStack Router webshop (port 5181)                                                 |
-| `playgrounds/vue`    | `@flareapp/playgrounds-vue`    | Vue 3 + vue-router webshop (port 5182)                                                         |
-| `playgrounds/svelte` | `@flareapp/playgrounds-svelte` | SvelteKit (adapter-node) webshop (port 5183)                                                   |
-| `e2e/`               | (not a workspace)              | Playwright specs + fake-flare-server fixture                                                   |
+| Package                 | npm name                       | Purpose                                                                                        |
+| ----------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `packages/core`         | `@flareapp/core`               | Environment-agnostic Flare core (shared between js + node)                                     |
+| `packages/js`           | `@flareapp/js`                 | Core client — error capture, stack traces, context, API reporting                              |
+| `packages/react`        | `@flareapp/react`              | React `FlareErrorBoundary` error boundary component; `/inject` entry for Electron renderers    |
+| `packages/vue`          | `@flareapp/vue`                | Vue error handler plugin (`flareVue()`); `/inject` entry for Electron renderers                |
+| `packages/svelte`       | `@flareapp/svelte`             | Svelte 5 `FlareErrorBoundary` with props serialization; `/inject` entry for Electron renderers |
+| `packages/sveltekit`    | `@flareapp/sveltekit`          | SvelteKit error hooks (`handleErrorWithFlare`) + route context                                 |
+| `packages/vite`         | `@flareapp/vite`               | Vite build plugin for sourcemap upload with retry logic                                        |
+| `packages/webpack`      | `@flareapp/webpack`            | Webpack 5 plugin for sourcemap upload                                                          |
+| `packages/nextjs`       | `@flareapp/nextjs`             | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload                                   |
+| `packages/node`         | `@flareapp/node`               | Node.js SDK (process handlers, AsyncLocalStorage scope)                                        |
+| `packages/react-native` | `@flareapp/react-native`       | React Native SDK (pure-JS, Expo + bare; ErrorUtils + boundary capture)                         |
+| `packages/electron`     | `@flareapp/electron`           | Electron SDK (main + preload + renderer, IPC-unified)                                          |
+| `packages/flare-api`    | `@flareapp/flare-api`          | Shared API client for sourcemap uploads (private, not published)                               |
+| `playgrounds/shared`    | `@flareapp/playgrounds-shared` | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens                              |
+| `playgrounds/js`        | `@flareapp/playgrounds-js`     | Vanilla TS + Vite webshop (port 5180)                                                          |
+| `playgrounds/react`     | `@flareapp/playgrounds-react`  | React 19 + TanStack Router webshop (port 5181)                                                 |
+| `playgrounds/vue`       | `@flareapp/playgrounds-vue`    | Vue 3 + vue-router webshop (port 5182)                                                         |
+| `playgrounds/svelte`    | `@flareapp/playgrounds-svelte` | SvelteKit (adapter-node) webshop (port 5183)                                                   |
+| `e2e/`                  | (not a workspace)              | Playwright specs + fake-flare-server fixture                                                   |
 
 ## Tech stack
 
