@@ -124,6 +124,11 @@ v1 does NOT promise rejection capture works everywhere; it must not crash or
 no-op silently when the internal entry point is absent. Verify the integration
 point against the installed React Native version during implementation.
 
+When the hook does land, report via core's
+`reportUnhandledRejection(message, attributes)` (`core/Flare.ts:372`), NOT plain
+`report()` — same path the browser uses, so unhandled rejections get the
+`UnhandledRejection` shaping (empty-stack class) consistently across SDKs.
+
 ### 2. React boundary
 
 Reuse `FlareErrorBoundary` from `@flareapp/react`'s `/inject` entry by **passing
@@ -136,11 +141,14 @@ default-registry path is not available here. Instead the RN package ships a thin
 wrapper that injects the singleton:
 
 ```tsx
-import { FlareErrorBoundary as InjectBoundary } from '@flareapp/react/inject';
+import { FlareErrorBoundary as InjectBoundary, type FlareErrorBoundaryProps } from '@flareapp/react/inject';
+import type { Flare } from '@flareapp/js/browser';
 import { flare } from './flare';
 
-export function FlareErrorBoundary(props) {
-    return <InjectBoundary flare={flare} {...props} />;
+export function FlareErrorBoundary(props: Omit<FlareErrorBoundaryProps, 'flare'>) {
+    // `flare` comes AFTER `{...props}` so the RN singleton always wins and a
+    // consumer cannot override it. Cast lives here (see type tradeoff below).
+    return <InjectBoundary {...props} flare={flare as unknown as Flare} />;
 }
 ```
 
@@ -183,6 +191,9 @@ effects. No new boundary code beyond the thin wrapper.
   previous handler), the rejection tracking hook, and the `AppState` listener,
   and clears the `installed` flag so a later `light()` can re-install. Intended
   for tests and manual teardown, mirroring node's `removeProcessListeners()`.
+  Note: `AppState.addEventListener` returns a subscription object — remove via
+  the stored `subscription.remove()` handle. Do NOT use
+  `AppState.removeEventListener`, which is deprecated/removed in modern RN.
 
 ## Context collector
 
@@ -195,7 +206,10 @@ only synchronous sources.
 
 - `Platform.OS`, `Platform.Version` → `os.version`. Note: `Platform.Version` is
   a string on iOS but a number on Android, so stringify it before projecting.
-- `Dimensions.get('window')` → screen width / height / scale
+- `Dimensions.get('window')` → `device.screen.width`, `device.screen.height`,
+  `device.screen.scale`. These are not standard OTel keys (OTel has no screen
+  semconv); they are our chosen namespacing under `device.screen.*`. Fixed here
+  so the backend sees a stable shape, not left to implementer choice.
 
 **Layer 2 — Expo (optional, lazy, sync constants only):**
 
