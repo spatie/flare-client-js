@@ -97,31 +97,65 @@ ErrorUtils.setGlobalHandler((error, isFatal) => {
 
 This is the RN analog of `catchWindowErrors`.
 
-**Unhandled promise rejections.** RN does NOT route these through
+**Unhandled promise rejections (best-effort).** RN does NOT route these through
 `window.onunhandledrejection`; it uses its own rejection-tracking
-(`promise/setimmediate/rejection-tracking`). v1 hooks RN's rejection tracking
-where reachable. This is the one capture path that MUST be verified against the
-installed React Native version during implementation — the integration point has
-shifted across RN versions.
+(`promise/setimmediate/rejection-tracking`), which is private RN/Hermes internals
+that shift across versions. v1 treats this as **best-effort with explicit
+fallback**: attempt to hook the rejection tracker, and if the hook is not
+reachable on the installed RN/Hermes version, log a single debug line and
+continue with NO rejection capture (uncaught throws via `ErrorUtils` still work).
+v1 does NOT promise rejection capture works everywhere; it must not crash or
+no-op silently when the internal entry point is absent. Verify the integration
+point against the installed React Native version during implementation.
 
 ### 2. React boundary
 
-Re-export `FlareErrorBoundary` from `@flareapp/react`'s `/inject` entry and
-register the RN `flare` as the default via `registerDefaultFlare(() => flare)`.
+Reuse `FlareErrorBoundary` from `@flareapp/react`'s `/inject` entry by **passing
+the RN `flare` as the `flare` prop**, NOT via the default registry.
+
+The `/inject` entry deliberately does NOT export `registerDefaultFlare` ("NO
+default registration" by design — `react/src/inject.ts`); only the web root
+(`index.ts`) registers a default, and it carries web side effects. So the
+default-registry path is not available here. Instead the RN package ships a thin
+wrapper that injects the singleton:
+
+```tsx
+import { FlareErrorBoundary as InjectBoundary } from '@flareapp/react/inject';
+import { flare } from './flare';
+
+export function FlareErrorBoundary(props) {
+    return <InjectBoundary flare={flare} {...props} />;
+}
+```
+
+`resolveFlare(props.flare)` already supports an explicit instance
+(`FlareErrorBoundary.ts:43`), so no change to `@flareapp/react` is needed. Note:
+the boundary's `flare` prop is typed against `@flareapp/js/browser`'s `Flare`,
+while the RN flare extends `CoreFlare`; the boundary only calls core-level
+methods, so a structural cast at the wrapper is acceptable if the types don't
+line up directly. Verify during implementation.
 
 The boundary component is already DOM-free (`React.Component`,
 `errorInfo.componentStack`); it only coupled to the web through the
 `@flareapp/react` index side effects (`window.flare`, global catch). The
 `/inject` entry exists precisely to consume the boundary without those side
-effects. No new boundary code.
+effects. No new boundary code beyond the thin wrapper.
 
 ### Install / teardown
 
-- `light()` installs the global handler (and reconciles, folding the install in
-  the way `NodeFlare.light()` folds `handlerManager.reconcile`).
-- `removeHandlers()` detaches the `ErrorUtils` handler, the rejection tracking
-  hook, and the `AppState` listener. Intended for tests and manual teardown,
-  mirroring node's `removeProcessListeners()`.
+- `light()` installs the global handler on first call. **The install MUST be
+  idempotent via an explicit `installed` guard flag.** Unlike node's
+  `handlerManager.reconcile` (idempotent because it diffs desired vs current
+  listeners), `ErrorUtils.setGlobalHandler` chaining is NOT idempotent: calling
+  it twice wraps the handler twice and produces a duplicate `flare.report` per
+  error. The same applies to the rejection hook and the `AppState` listener. So
+  the install routine checks `if (this.installed) return;` before wiring
+  anything, sets the flag, and only `removeHandlers()` clears it. Do NOT model
+  this on node's reconcile; node's mechanism does not transfer.
+- `removeHandlers()` detaches the `ErrorUtils` handler (restoring the captured
+  previous handler), the rejection tracking hook, and the `AppState` listener,
+  and clears the `installed` flag so a later `light()` can re-install. Intended
+  for tests and manual teardown, mirroring node's `removeProcessListeners()`.
 
 ## Context collector
 
@@ -132,7 +166,8 @@ only synchronous sources.
 
 **Layer 1 — RN core (always present, sync):**
 
-- `Platform.OS`, `Platform.Version`
+- `Platform.OS`, `Platform.Version` → `os.version`. Note: `Platform.Version` is
+  a string on iOS but a number on Android, so stringify it before projecting.
 - `Dimensions.get('window')` → screen width / height / scale
 
 **Layer 2 — Expo (optional, lazy, sync constants only):**
@@ -155,6 +190,13 @@ the node collector: `device.model.name`, `device.type`, `os.name`,
 collector closes over `() => this.user` and projects to `enduser.id`,
 `enduser.email`, `enduser.username`. This mirrors how the node collector closes
 over `() => this.nodeOptions`.
+
+Implementation note: the collector is built in the constructor and passed to
+`super(...)` before the `ReactNativeFlare` subclass field initializers run, so
+`this.user` is `undefined` at construction. This is fine BECAUSE the closure
+defers the read to report time, not construction time — same deferral the node
+collector relies on. Do not "fix" this by reading `this.user` eagerly; that
+would reintroduce the bug.
 
 ## Public API surface
 
