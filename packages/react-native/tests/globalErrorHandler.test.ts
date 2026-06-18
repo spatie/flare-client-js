@@ -4,18 +4,19 @@ import { installGlobalErrorHandler } from '../src/handlers/globalErrorHandler';
 
 type Handler = (error: unknown, isFatal?: boolean) => void;
 
-function stubErrorUtils() {
-    let current: Handler | undefined;
-    const eu = {
+// Stub RN's `ErrorUtils` global, optionally seeded with an initial handler.
+// Returns `emit` (fire the currently-registered handler) and `current` (read it).
+function stubErrorUtils(initial?: Handler) {
+    let current: Handler | undefined = initial;
+    (globalThis as Record<string, unknown>).ErrorUtils = {
         getGlobalHandler: () => current,
         setGlobalHandler: (cb: Handler) => {
             current = cb;
         },
     };
-    (globalThis as Record<string, unknown>).ErrorUtils = eu;
     return {
         emit: (error: unknown, isFatal?: boolean) => current?.(error, isFatal),
-        previousCalls: () => current,
+        current: () => current,
     };
 }
 
@@ -26,9 +27,7 @@ afterEach(() => {
 describe('installGlobalErrorHandler', () => {
     it('reports the error and chains the previous handler', () => {
         const prev = vi.fn();
-        const ctl = stubErrorUtils();
-        // Seed a previous handler.
-        (globalThis as { ErrorUtils: { setGlobalHandler: (cb: Handler) => void } }).ErrorUtils.setGlobalHandler(prev);
+        const ctl = stubErrorUtils(prev);
 
         const report = vi.fn();
         installGlobalErrorHandler(report);
@@ -45,16 +44,13 @@ describe('installGlobalErrorHandler', () => {
 
     it('uninstall restores the previous handler', () => {
         const prev = vi.fn();
-        stubErrorUtils();
-        (globalThis as { ErrorUtils: { setGlobalHandler: (cb: Handler) => void } }).ErrorUtils.setGlobalHandler(prev);
+        const ctl = stubErrorUtils(prev);
 
         const report = vi.fn();
         const uninstall = installGlobalErrorHandler(report);
         uninstall();
 
-        (globalThis as { ErrorUtils: { getGlobalHandler: () => Handler | undefined } }).ErrorUtils.getGlobalHandler()?.(
-            new Error('x'),
-        );
+        ctl.current()?.(new Error('x'));
         expect(report).not.toHaveBeenCalled();
         expect(prev).toHaveBeenCalledTimes(1);
     });
