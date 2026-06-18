@@ -1,0 +1,9 @@
+{
+    "$schema": "../../node_modules/oxlint/configuration_schema.json",
+    "extends": ["../../.oxlintrc.json"],
+    "globals": {
+        "ErrorUtils": "readonly",
+        "require": "readonly",
+        "__DEV__": "readonly"
+    }
+}
