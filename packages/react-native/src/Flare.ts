@@ -16,7 +16,11 @@ import type { User } from './types';
 // '?'. After the define replacement no `process` reference survives. In the
 // vitest source path (real node) it reads undefined and falls back to '?',
 // which is fine for tests.
-declare const process: { env: Record<string, string | undefined> };
+//
+// Do NOT add a local `declare const process` here: a local declaration shadows
+// the global identifier and stops rolldown's `--env` define from matching the
+// member access, so the version would never inline. The global `process` type
+// comes from the toolchain (@types/node), which keeps tsc happy.
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
 
