@@ -80,6 +80,21 @@ describe('ReactNativeFlare', () => {
         expect(fake.lastReport?.attributes['enduser.username']).toBe('neo');
     });
 
+    it('install() wires the rejection reporter (Error reason -> report)', async () => {
+        stubErrorUtils();
+        let onUnhandled: ((id: number, error: unknown) => void) | undefined;
+        const enable = (o: { onUnhandled?: (id: number, error: unknown) => void }) => {
+            onUnhandled = o.onUnhandled;
+        };
+        const flare = new ReactNativeFlare({ enable });
+        const fake = withFakeApi(flare);
+        flare.light('k');
+
+        onUnhandled?.(1, new Error('rej-boom'));
+        await vi.waitFor(() => expect(fake.reports.length).toBe(1));
+        expect(JSON.stringify(fake.lastReport)).toContain('rej-boom');
+    });
+
     it('removeHandlers detaches: emitting after no longer reports', async () => {
         const ctl = stubErrorUtils();
         const flare = makeFlare();
