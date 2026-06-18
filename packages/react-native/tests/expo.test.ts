@@ -16,7 +16,7 @@ describe('expo loader', () => {
         expect(attrs['device.model.name']).toBe('iPhone 15');
         expect(attrs['os.name']).toBe('iOS');
         expect(attrs['os.version']).toBe('17.0');
-        expect(attrs['device.type']).toBe(1);
+        expect(attrs['device.type']).toBe('phone');
         expect(attrs['app.version']).toBe('1.2.3');
         expect(attrs['app.id']).toBe('io.flare.app');
     });
@@ -29,5 +29,13 @@ describe('expo loader', () => {
 
     it('projectExpoContext on empty modules returns empty attrs', () => {
         expect(projectExpoContext({})).toEqual({});
+    });
+
+    it('projectExpoContext handles a partial module set (device only, no application)', () => {
+        const attrs = projectExpoContext({ device: { modelName: 'X', deviceType: 2 } });
+        expect(attrs['device.model.name']).toBe('X');
+        expect(attrs['device.type']).toBe('tablet');
+        expect('app.version' in attrs).toBe(false);
+        expect('app.id' in attrs).toBe(false);
     });
 });

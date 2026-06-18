@@ -40,6 +40,9 @@ export function loadExpoModules(): ExpoModules {
     return mods;
 }
 
+// Maps Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4) to a label.
+const DEVICE_TYPE_LABELS: Record<number, string> = { 1: 'phone', 2: 'tablet', 3: 'desktop', 4: 'tv' };
+
 /**
  * Project the synchronous Expo constants into report attributes. Only the
  * fields that are present (non-null, non-undefined) are emitted. Async Expo
@@ -52,7 +55,10 @@ export function projectExpoContext(expo: ExpoModules): Attributes {
         if (device.modelName != null) attrs['device.model.name'] = device.modelName;
         if (device.osName != null) attrs['os.name'] = device.osName;
         if (device.osVersion != null) attrs['os.version'] = device.osVersion;
-        if (device.deviceType != null) attrs['device.type'] = device.deviceType;
+        if (device.deviceType != null) {
+            const label = DEVICE_TYPE_LABELS[device.deviceType];
+            if (label) attrs['device.type'] = label;
+        }
     }
     const application = expo.application;
     if (application) {
