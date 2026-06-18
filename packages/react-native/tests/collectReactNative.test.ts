@@ -54,4 +54,23 @@ describe('React Native ContextCollector', () => {
         expect(attrs['enduser.email']).toBe('a@b.c');
         expect(attrs['enduser.username']).toBe('neo');
     });
+
+    it('emits all three layers together (RN core + Expo overrides + user)', () => {
+        const collect = makeReactNativeContextCollector(() => ({ id: 'u9', email: 'z@z.io' }), {
+            device: { modelName: 'iPhone 15', osName: 'iOS', osVersion: '17.4', deviceType: 1 },
+            application: { nativeApplicationVersion: '3.1.0' },
+        });
+        const attrs = collect(config);
+        // RN core
+        expect(attrs['device.screen.width']).toBe(390);
+        // Expo overrides RN os.* and adds device/app
+        expect(attrs['os.name']).toBe('iOS');
+        expect(attrs['os.version']).toBe('17.4');
+        expect(attrs['device.model.name']).toBe('iPhone 15');
+        expect(attrs['device.type']).toBe('phone');
+        expect(attrs['app.version']).toBe('3.1.0');
+        // User
+        expect(attrs['enduser.id']).toBe('u9');
+        expect(attrs['enduser.email']).toBe('z@z.io');
+    });
 });
