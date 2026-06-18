@@ -129,6 +129,15 @@ When the hook does land, report via core's
 `report()` — same path the browser uses, so unhandled rejections get the
 `UnhandledRejection` shaping (empty-stack class) consistently across SDKs.
 
+**Chaining limitation (asymmetry with the ErrorUtils path).** RN's rejection
+tracker is enabled by default with its own `onUnhandled` (the dev warning).
+`enable()` REPLACES the callbacks and RN exposes no getter for the previous
+ones, so — unlike the ErrorUtils handler, which truly chains the prior handler —
+the rejection hook cannot chain RN's default. To avoid silently swallowing that
+developer signal, our `onUnhandled` re-emits a `console.warn` in dev (`__DEV__`)
+alongside the report. The "log a single debug line" fallback above is a
+`console.debug` gated on `__DEV__`, not unconditional library logging.
+
 ### 2. React boundary
 
 Reuse `FlareErrorBoundary` from `@flareapp/react`'s `/inject` entry by **passing
@@ -204,8 +213,14 @@ only synchronous sources.
 
 **Layer 1 — RN core (always present, sync):**
 
-- `Platform.OS`, `Platform.Version` → `os.version`. Note: `Platform.Version` is
-  a string on iOS but a number on Android, so stringify it before projecting.
+- `Platform.OS` → `os.name` (NOT `os.type`). OTel's `os.type` conventionally
+  means the kernel family, and node's collector already uses `os.type` for
+  `process.platform`; mapping `'ios'`/`'android'` to `os.name` keeps RN
+  consistent with node and the sanctioned key list. When Expo is present its
+  `osName` overwrites this with a more precise value (e.g. `'iOS'`) under the
+  same key.
+- `Platform.Version` → `os.version`. Note: it is a string on iOS but a number on
+  Android, so stringify before projecting.
 - `Dimensions.get('window')` → `device.screen.width`, `device.screen.height`,
   `device.screen.scale`. These are not standard OTel keys (OTel has no screen
   semconv); they are our chosen namespacing under `device.screen.*`. Fixed here
