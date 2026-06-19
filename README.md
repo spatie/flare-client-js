@@ -61,20 +61,20 @@ npm run build
 
 All commands are run from the repository root:
 
-| Command                      | Description                                                                      |
-| ---------------------------- | -------------------------------------------------------------------------------- |
-| `npm run build`              | Build all packages to their respective `dist` folders                            |
-| `npm run test`               | Run tests for all packages that have them                                        |
-| `npm run typescript`         | Type-check all packages                                                          |
-| `npm run format`             | Run oxfmt across all files                                                       |
-| `npm run lint`               | Run oxlint across all packages                                                   |
-| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds                   |
-| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180)                 |
-| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)                      |
-| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)                        |
-| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)                  |
-| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)                    |
-| `npm run release:all`        | Lockstep-release the 8 public packages; optionally includes core, node, electron |
+| Command                      | Description                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run build`              | Build all packages to their respective `dist` folders                                          |
+| `npm run test`               | Run tests for all packages that have them                                                      |
+| `npm run typescript`         | Type-check all packages                                                                        |
+| `npm run format`             | Run oxfmt across all files                                                                     |
+| `npm run lint`               | Run oxlint across all packages                                                                 |
+| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds                                 |
+| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180)                               |
+| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)                                    |
+| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)                                      |
+| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)                                |
+| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)                                  |
+| `npm run release:all`        | Lockstep-release the 8 public packages; optionally includes core, node, electron, react-native |
 
 ### Playgrounds
 
