@@ -40,6 +40,11 @@ Device/app context is collected from React Native core, enriched with
 (Android package name) is not available as a sync constant, so that attribute is
 Android-only.
 
+Delivery is best-effort. Reports are sent with `fetch`, which React Native does
+not back with `keepalive`, so a report fired during a fatal JS crash (or while
+the app is being backgrounded/suspended) may not finish sending. This applies to
+JS-fatal errors too, not only native crashes.
+
 ## Not yet included
 
 - Native crash capture (requires a native module)

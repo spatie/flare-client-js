@@ -48,6 +48,17 @@ describe('ReactNativeFlare', () => {
         await vi.waitFor(() => expect(fake.reports.length).toBe(1));
     });
 
+    it('attaches the error.fatal attribute reflecting isFatal', async () => {
+        const ctl = stubErrorUtils();
+        const flare = makeFlare();
+        const fake = withFakeApi(flare);
+        flare.light('k');
+
+        ctl.emit(new Error('fatal-crash'), true);
+        await vi.waitFor(() => expect(fake.reports.length).toBe(1));
+        expect(fake.lastReport?.attributes['error.fatal']).toBe(true);
+    });
+
     it('light() is idempotent: two calls do not double-report', async () => {
         const ctl = stubErrorUtils();
         const flare = makeFlare();
