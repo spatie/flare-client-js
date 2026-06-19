@@ -5,6 +5,14 @@ React Native SDK for [Flare](https://flareapp.io) error tracking by Spatie.
 Pure JavaScript — works on both Expo (managed) and bare React Native with no
 required native module.
 
+## Requirements
+
+React Native **0.79+** (Expo SDK 53+). The package relies on Metro's package
+exports support, which is on by default from RN 0.79. It ships a Metro-targeted
+CJS build via the `"react-native"` export condition, and the `FlareErrorBoundary`
+imports `@flareapp/react/inject` (an export-map subpath) — both need package
+exports enabled.
+
 ## Install
 
 ```bash

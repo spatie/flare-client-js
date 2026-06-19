@@ -23,6 +23,10 @@
     "types": "./dist/index.d.cts",
     "exports": {
         ".": {
+            "react-native": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            },
             "import": {
                 "types": "./dist/index.d.mts",
                 "default": "./dist/index.mjs"
@@ -46,14 +50,14 @@
     "peerDependencies": {
         "@flareapp/react": "^2.5.0",
         "react": "^18.0.0||^19.0.0",
-        "react-native": ">=0.70.0"
+        "react-native": ">=0.79.0"
     },
     "devDependencies": {
         "@flareapp/js": "file:../js",
         "@flareapp/react": "file:../react",
         "@types/react": "^19.0.0",
         "react": "^19.0.0",
-        "react-native": "^0.78.0",
+        "react-native": "^0.79.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18"
