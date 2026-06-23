@@ -61,6 +61,16 @@ react: {
 Flare uses `react.minifiedError` and `react.version` on the backend to look up React's error-code map and surface the
 full, human-readable message. No error-code map is bundled into the client. Non-minified errors are reported unchanged.
 
+## Identifying users
+
+```tsx
+import { flare } from '@flareapp/js';
+
+flare.setUser({ id: 123, email: 'jane@example.com', fullName: 'Jane Doe' });
+```
+
+See the [JavaScript identifying-users docs](https://flareapp.io/docs/javascript/data-collection/identifying-users) for the full field list. Pass `null` to clear.
+
 ## Documentation
 
 Full documentation on the error boundary, the React 19+ error handler, lifecycle callbacks, and more is available

@@ -51,6 +51,18 @@ When your renderer uses React, Vue, or Svelte, inject the Electron Flare instanc
 - [Electron + Vue](https://flareapp.io/docs/vue/electron/configuration)
 - [Electron + Svelte](https://flareapp.io/docs/svelte/electron/configuration)
 
+## Identifying users
+
+Set the user in the main process; it is stamped on main-origin reports and on forwarded renderer reports:
+
+```ts
+import { flare } from '@flareapp/electron/main';
+
+flare.setUser({ id: 123, email: 'jane@example.com', fullName: 'Jane Doe' });
+```
+
+Recognised fields: `id`, `email`, `fullName`, `ipAddress`; extra keys land in `user.attributes`. Pass `null` to clear. The main-process user is authoritative for forwarded renderer reports.
+
 ## Documentation
 
 Full documentation on the report flow, `beforeSubmit` filtering, sender trust, attaching users, and the framework integrations is available at [flareapp.io/docs/javascript/electron/how-it-works](https://flareapp.io/docs/javascript/electron/how-it-works).

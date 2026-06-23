@@ -3,7 +3,7 @@ import { NodeFlare } from './Flare';
 export const flare = new NodeFlare();
 
 export { NodeFlare } from './Flare';
-export type { RequestContext, User, FatalMode, NodeOptions } from './types';
+export type { RequestContext, FatalMode, NodeOptions } from './types';
 export { Flare, Logger, Scope, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
 export type {
     AttributeValue,
@@ -23,6 +23,7 @@ export type {
     SdkInfo,
     SpanEvent,
     StackFrame,
+    User,
 } from '@flareapp/core';
 export { convertToError, DEFAULT_URL_DENYLIST, redactUrlQuery, resolveDenylist } from '@flareapp/core';
 

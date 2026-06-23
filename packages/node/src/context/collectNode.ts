@@ -14,9 +14,10 @@ import { collectProcessAttributes } from './process';
  *
  * 1. **Process info** — runtime version, pid, hostname, etc. Always present.
  * 2. **Active request scope** — method, path/url (with query-string keys
- *    redacted), headers (with the denylist applied), optional body, and
- *    authenticated user. Present when `runWithContext(...)` is active;
- *    falls back to the shared scope otherwise (no request attrs emitted then).
+ *    redacted), headers (with the denylist applied), and optional body. Present
+ *    when `runWithContext(...)` is active; falls back to the shared scope
+ *    otherwise (no request attrs emitted then). User identity is no longer
+ *    projected here: `Flare.setUser` writes it straight to `pendingAttributes`.
  *
  * Both `provider` and `getOptions` are passed in (not captured by reference to
  * concrete instances) so the closure stays decoupled from `NodeFlare`'s
@@ -99,16 +100,6 @@ export function makeNodeContextCollector(
             const contentType = findHeader(request.headers, 'content-type');
             const body = captureBody(request.body, contentType, opts);
             if (body !== null) attrs['http.request.body'] = body;
-        }
-
-        // User identity uses OTel's `enduser.*` and `client.address` keys.
-        // `id` is coerced to string because OTel attribute values are strings
-        // for these keys while callers commonly hand us a numeric id.
-        if (scope.user) {
-            if (scope.user.id !== undefined) attrs['enduser.id'] = String(scope.user.id);
-            if (scope.user.email !== undefined) attrs['enduser.email'] = scope.user.email;
-            if (scope.user.username !== undefined) attrs['enduser.username'] = scope.user.username;
-            if (scope.user.ipAddress !== undefined) attrs['client.address'] = scope.user.ipAddress;
         }
 
         return attrs;

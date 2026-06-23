@@ -21,6 +21,22 @@ flare.light('YOUR_FLARE_API_KEY');
 That is all you need. The client automatically listens for uncaught exceptions and unhandled promise rejections,
 collects browser context, and sends error reports to Flare.
 
+## Identifying users
+
+Attach the logged-in user to reports so you can see who was affected:
+
+```javascript
+import { flare } from '@flareapp/js';
+
+flare.setUser({
+    id: 123,
+    email: 'jane@example.com',
+    fullName: 'Jane Doe',
+});
+```
+
+Recognised fields: `id` (→ `user.id`), `email` (→ `user.email`), `fullName` (→ `user.full_name`), `ipAddress` (→ `client.address`). Any extra keys are collected under `user.attributes`. Pass `null` to clear the user on logout: `flare.setUser(null)`.
+
 ## Logging
 
 Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of

@@ -3,8 +3,6 @@ import os from 'node:os';
 import type { Attributes, Config, ContextCollector } from '@flareapp/core';
 import type { App } from 'electron';
 
-import type { ElectronUser } from '../types';
-
 type AppLike = Pick<App, 'getName' | 'getVersion' | 'getLocale' | 'isReady'> & { isPackaged: boolean };
 
 /**
@@ -41,35 +39,13 @@ export function collectElectronAppAttributes(app: AppLike): Attributes {
     return attrs;
 }
 
-/** Project a user into OTel enduser.* / client.address keys. */
-export function projectUser(user: ElectronUser | null): Attributes {
-    const attrs: Attributes = {};
-    if (!user) {
-        return attrs;
-    }
-    if (user.id !== undefined) {
-        attrs['enduser.id'] = String(user.id);
-    }
-    if (user.email !== undefined) {
-        attrs['enduser.email'] = user.email;
-    }
-    if (user.username !== undefined) {
-        attrs['enduser.username'] = user.username;
-    }
-    if (user.ipAddress !== undefined) {
-        attrs['client.address'] = user.ipAddress;
-    }
-    return attrs;
-}
-
 /** Build the ContextCollector core calls on every main-process report. */
-export function makeElectronContextCollector(app: AppLike, getUser: () => ElectronUser | null): ContextCollector {
+export function makeElectronContextCollector(app: AppLike): ContextCollector {
     return (_config: Readonly<Config>): Attributes => ({
         // Per-process fields: these reflect the MAIN process and are intentionally only applied to
         // main-origin reports (not forwarded renderer reports, which carry their own entry_point.type).
         'flare.entry_point.type': 'server',
         'process.type': (process as { type?: string }).type ?? 'browser',
         ...collectElectronAppAttributes(app),
-        ...projectUser(getUser()),
     });
 }

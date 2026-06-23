@@ -4,6 +4,24 @@ export type AttributeValue = string | number | boolean | null | AttributeValue[]
 
 export type Attributes = Record<string, AttributeValue>;
 
+/**
+ * An identified user passed to `Flare.setUser`. The four known fields project to the
+ * report keys the Flare backend reads: `id`→`user.id`, `email`→`user.email`,
+ * `fullName`→`user.full_name`, `ipAddress`→`client.address`. Any OTHER key is bundled
+ * into `user.attributes`.
+ *
+ * Caveat: the open index signature means a misspelled known field (e.g. `fullname` or
+ * `full_name` instead of `fullName`) does NOT raise a type error — it silently lands in
+ * `user.attributes` rather than the identity key. Spell the four known fields exactly.
+ */
+export type User = {
+    id?: string | number;
+    email?: string;
+    fullName?: string;
+    ipAddress?: string;
+    [key: string]: AttributeValue | undefined;
+};
+
 export type Config = {
     key: string | null;
     version: string;

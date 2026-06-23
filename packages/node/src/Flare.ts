@@ -9,7 +9,7 @@ import { ProcessHandlerManager } from './process/handlers';
 import { AsyncLocalStorageScopeProvider } from './scope/AsyncLocalStorageScopeProvider';
 import type { NodeScope } from './scope/NodeScope';
 import { DiskFileReader } from './stacktrace/DiskFileReader';
-import type { NodeOptions, RequestContext, ResolvedNodeOptions, User } from './types';
+import type { NodeOptions, RequestContext, ResolvedNodeOptions } from './types';
 
 const NODE_SDK_NAME = '@flareapp/node';
 const NODE_SDK_VERSION =
@@ -50,7 +50,7 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
  * Subclasses core's `Flare` and wires the Node-only seams in its constructor:
  *
  * - `AsyncLocalStorageScopeProvider` so each `runWithContext(...)` callback
- *   gets its own `NodeScope` (glows, attributes, user, entry-point, request),
+ *   gets its own `NodeScope` (glows, attributes, entry-point, request),
  *   isolated from concurrent requests.
  * - `makeNodeContextCollector(...)` to project the current `NodeScope` and
  *   process info into report attributes (http.request.*, url.path, etc).
@@ -60,7 +60,7 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
  *   `unhandledRejection` listeners based on the current `NodeOptions`.
  *
  * Also adds Node-only API surface on top of core: `configureNode(...)`,
- * `runWithContext(...)`, `mergeContext(...)`, `setUser(...)`, `getContext()`,
+ * `runWithContext(...)`, `mergeContext(...)`, `getContext()`,
  * `removeProcessListeners()`. Inherited core methods (`light`, `configure`,
  * `addContext`, `glow`, etc.) return `this`, so chaining keeps the
  * `NodeFlare` type and `configureNode(...)` stays callable mid-chain.
@@ -189,16 +189,6 @@ export class NodeFlare extends CoreFlare {
      */
     mergeContext(partial: Partial<RequestContext>): void {
         this.nodeScopeProvider.mergeContext(partial);
-    }
-
-    /**
-     * Attach an authenticated user to the active scope. Inside a request scope
-     * this is per-request; outside it lands on the fallback scope. The fields
-     * are projected to OTel-style keys (`enduser.id`, `enduser.email`,
-     * `enduser.username`, `client.address`) by the Node context collector.
-     */
-    setUser(user: User | null): void {
-        this.nodeScopeProvider.setUser(user);
     }
 
     /**

@@ -1,14 +1,13 @@
-import { Api, Flare as CoreFlare, GlobalScopeProvider, type Config, type Report } from '@flareapp/core';
+import { Api, Flare as CoreFlare, GlobalScopeProvider, USER_IDENTITY_KEYS, userIdentityAttributes, type Config, type Report } from '@flareapp/core';
 import type { App, IpcMain } from 'electron';
 
 import { CLIENT_VERSION } from '../env';
 import {
     DEFAULT_ELECTRON_OPTIONS,
     type ElectronOptions,
-    type ElectronUser,
     type ResolvedElectronOptions,
 } from '../types';
-import { collectElectronAppAttributes, makeElectronContextCollector, projectUser } from './collectElectron';
+import { collectElectronAppAttributes, makeElectronContextCollector } from './collectElectron';
 import { ElectronDiskFileReader } from './ElectronDiskFileReader';
 import { ElectronFlushScheduler } from './ElectronFlushScheduler';
 import { disposeIpcReceiver, registerIpcReceiver } from './ipcReceiver';
@@ -38,7 +37,10 @@ export class ElectronFlare extends CoreFlare {
     private app: AppLike;
     private ipcMain: IpcMain;
     private options: ResolvedElectronOptions = { ...DEFAULT_ELECTRON_OPTIONS };
-    private user: ElectronUser | null = null;
+    // Held separately because CoreFlare's scopeProvider is private; receiveRendererReport needs it
+    // to stamp main-side user identity onto forwarded renderer reports, which bypass core's report()
+    // pipeline (and so do not pick up pendingAttributes automatically).
+    private mainScope: GlobalScopeProvider;
     private isLit = false;
     private handlerManager: ProcessHandlerManager;
     private renderGoneHandler: ((...args: any[]) => Promise<void>) | null = null;
@@ -53,13 +55,11 @@ export class ElectronFlare extends CoreFlare {
 
     constructor(deps: ElectronFlareDeps) {
         const app = deps.app;
-        // The collector closes over `() => this.user` (a getter, not a value) so later
-        // setUser(...) calls are reflected on future reports without reinjecting the collector.
-        // Capturing `this` inside a nested arrow before super() is legal TypeScript; only direct
-        // `this` access before super() is an error. NodeFlare uses the same pattern.
-        const collector = makeElectronContextCollector(app, () => this.user);
+        const collector = makeElectronContextCollector(app);
         const flushScheduler = new ElectronFlushScheduler(app);
-        super(new Api(), collector, new ElectronDiskFileReader(), new GlobalScopeProvider(), flushScheduler);
+        const mainScope = new GlobalScopeProvider();
+        super(new Api(), collector, new ElectronDiskFileReader(), mainScope, flushScheduler);
+        this.mainScope = mainScope;
         this.app = app;
         this.ipcMain = deps.ipcMain;
         this.flushScheduler = flushScheduler;
@@ -131,10 +131,6 @@ export class ElectronFlare extends CoreFlare {
         }
         this.reconcileCrashListeners();
         return this;
-    }
-
-    setUser(user: ElectronUser | null): void {
-        this.user = user;
     }
 
     dispose(): void {
@@ -223,9 +219,17 @@ export class ElectronFlare extends CoreFlare {
         });
     }
 
-    /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */
+    /** Overlay main-authoritative config + Electron metadata + user identity (from the main scope) onto a forwarded report, then send. */
     private receiveRendererReport(report: Report): Promise<void> {
-        Object.assign(report.attributes, collectElectronAppAttributes(this.app), projectUser(this.user));
+        // User identity is main-authoritative, exactly like the config fields below: a renderer
+        // must never set identity the main process did not, and a partial main identity must not
+        // be mixed with leftover renderer keys. Clear every identity key first, then stamp main's.
+        for (const key of USER_IDENTITY_KEYS) delete report.attributes[key];
+        Object.assign(
+            report.attributes,
+            collectElectronAppAttributes(this.app),
+            userIdentityAttributes(this.mainScope.active()),
+        );
 
         // Config-derived fields are main-authoritative. Always overlay them so a renderer can never
         // supply its own value: write main's value when set, otherwise delete any renderer-supplied

@@ -5,7 +5,7 @@ import { ElectronFlare } from './main/ElectronFlare';
 export const flare = new ElectronFlare({ app, ipcMain });
 
 export { ElectronFlare } from './main/ElectronFlare';
-export type { ElectronOptions, ElectronUser, ElectronFatalMode, SenderFrame } from './types';
+export type { ElectronOptions, ElectronFatalMode, SenderFrame } from './types';
 export { FLARE_IPC_CHANNEL, FLARE_BRIDGE_KEY } from './constants';
 
 // Re-export the core surface consumers commonly need.
@@ -28,4 +28,5 @@ export type {
     Report,
     SdkInfo,
     StackFrame,
+    User,
 } from '@flareapp/core';

@@ -16,6 +16,7 @@ export type {
     SdkInfo,
     SpanEvent,
     StackFrame,
+    User,
 } from './types';
 
 export {
@@ -36,7 +37,7 @@ export { Api } from './api';
 export { Flare } from './Flare';
 export type { ContextCollector } from './Flare';
 
-export { Scope, GlobalScopeProvider } from './Scope';
+export { Scope, GlobalScopeProvider, USER_IDENTITY_KEYS, userIdentityAttributes } from './Scope';
 export type { ScopeProvider } from './Scope';
 
 export { Logger, NoopFlushScheduler } from './logging';

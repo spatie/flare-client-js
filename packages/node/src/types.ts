@@ -6,13 +6,6 @@ export type RequestContext = {
     body?: unknown;
 };
 
-export type User = {
-    id?: string | number;
-    email?: string;
-    username?: string;
-    ipAddress?: string;
-};
-
 export type FatalMode = 'off' | 'report' | 'report-and-exit';
 
 export type NodeOptions = {

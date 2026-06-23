@@ -1,6 +1,42 @@
 import type { Attributes, AttributeValue, EntryPointHandler, Glow } from './types';
 
 /**
+ * Maps each `User` identity field to the flat report attribute key it projects to.
+ * `Flare.setUser`'s set pass writes through these so the literal key strings live in
+ * exactly one place; `USER_IDENTITY_KEYS` (the clear pass) derives from them, so adding
+ * a field here can never silently leave the clear pass out of date.
+ */
+export const USER_FIELD_KEYS = {
+    id: 'user.id',
+    email: 'user.email',
+    fullName: 'user.full_name',
+    ipAddress: 'client.address',
+} as const;
+
+/**
+ * The report attribute keys that `Flare.setUser` owns: the four projected identity
+ * fields plus the `user.attributes` bag for extras. Single source of truth so the
+ * clear pass and the set pass in `setUser` cannot drift, and so consumers that must
+ * stamp identity outside core's report pipeline (Electron's forwarded-renderer path)
+ * pick up the exact same set instead of re-hardcoding it.
+ */
+export const USER_IDENTITY_KEYS = [...Object.values(USER_FIELD_KEYS), 'user.attributes'] as const;
+
+/**
+ * Pick the user-identity attributes currently set on a scope. Used where identity must
+ * be copied onto a report that does not flow through `Flare.report()` (which would
+ * otherwise spread `pendingAttributes` automatically).
+ */
+export function userIdentityAttributes(scope: Scope): Attributes {
+    const attrs: Attributes = {};
+    for (const key of USER_IDENTITY_KEYS) {
+        const value = scope.pendingAttributes[key];
+        if (value !== undefined) attrs[key] = value;
+    }
+    return attrs;
+}
+
+/**
  * Holds the per-call mutable state that used to live on the `Flare` instance:
  * breadcrumbs (`glows`), custom attributes (`pendingAttributes`), and the
  * current entry-point handler.
@@ -17,9 +53,9 @@ import type { Attributes, AttributeValue, EntryPointHandler, Glow } from './type
  * holding the state directly, so the per-request behavior comes from the
  * provider, not from the class itself.
  *
- * `NodeScope` (in `@flareapp/node`) extends this with two more buckets:
- * `request` (HTTP method, path, headers) and `user` (id, email, ...). Browser
- * does not need those.
+ * `NodeScope` (in `@flareapp/node`) extends this with a `request` bucket
+ * (HTTP method, path, headers). User identity is written to `pendingAttributes`
+ * by `Flare.setUser`, so it needs no dedicated field. Browser does not need `request`.
  */
 export class Scope {
     glows: Glow[] = [];

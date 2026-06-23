@@ -67,8 +67,10 @@ http.createServer((req, res) => {
 When your authentication middleware resolves a user, attach it:
 
 ```ts
-flare.setUser({ id: user.id, email: user.email });
+flare.setUser({ id: user.id, email: user.email, fullName: user.name });
 ```
+
+Recognised fields: `id`, `email`, `fullName`, `ipAddress`. Extra keys are collected under `user.attributes`. `setUser` is scoped per request inside `runWithContext(...)`. Pass `null` to clear.
 
 You can also patch the request context after it was first set:
 

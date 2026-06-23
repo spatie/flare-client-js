@@ -51,6 +51,16 @@ eight syslog levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, 
 </script>
 ```
 
+## Identifying users
+
+```ts
+import { flare } from '@flareapp/js';
+
+flare.setUser({ id: 123, email: 'jane@example.com', fullName: 'Jane Doe' });
+```
+
+See the [JavaScript identifying-users docs](https://flareapp.io/docs/javascript/data-collection/identifying-users) for the full field list. Pass `null` to clear.
+
 ## Documentation
 
 Full documentation on the error boundary, lifecycle callbacks, reset keys, custom boundary usage, and more is available
