@@ -45,9 +45,9 @@ export function userIdentityAttributes(scope: Scope): Attributes {
  * holding the state directly, so the per-request behavior comes from the
  * provider, not from the class itself.
  *
- * `NodeScope` (in `@flareapp/node`) extends this with two more buckets:
- * `request` (HTTP method, path, headers) and `user` (id, email, ...). Browser
- * does not need those.
+ * `NodeScope` (in `@flareapp/node`) extends this with a `request` bucket
+ * (HTTP method, path, headers). User identity is written to `pendingAttributes`
+ * by `Flare.setUser`, so it needs no dedicated field. Browser does not need `request`.
  */
 export class Scope {
     glows: Glow[] = [];

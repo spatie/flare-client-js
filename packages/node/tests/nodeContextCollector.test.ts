@@ -44,15 +44,19 @@ describe('Node ContextCollector', () => {
         });
     });
 
-    it('projects user fields with OTel keys', () => {
+    it('projects user fields to user.* and client.address', () => {
         const provider = new AsyncLocalStorageScopeProvider();
         const collect = makeNodeContextCollector(provider, () => baseOpts);
         provider.runWithContext({}, () => {
-            provider.setUser({ id: 'u1', email: 'a@b.c', ipAddress: '1.2.3.4' });
+            const scope = provider.active();
+            scope.setAttribute('user.id', 'u1');
+            scope.setAttribute('user.email', 'a@b.c');
+            scope.setAttribute('client.address', '1.2.3.4');
             const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
-            expect(attrs['enduser.id']).toBe('u1');
-            expect(attrs['enduser.email']).toBe('a@b.c');
+            expect(attrs['user.id']).toBe('u1');
+            expect(attrs['user.email']).toBe('a@b.c');
             expect(attrs['client.address']).toBe('1.2.3.4');
+            expect(attrs['enduser.id']).toBeUndefined();
         });
     });
 

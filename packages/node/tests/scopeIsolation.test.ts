@@ -27,7 +27,7 @@ describe('concurrent request scope isolation', () => {
                     label,
                     glows: scope.glows.map((g) => g.name),
                     customKeys: Object.keys(custom),
-                    userId: scope.user?.id,
+                    userId: scope.pendingAttributes['user.id'],
                     entryPointId: scope.entryPoint?.identifier,
                 });
             });

@@ -101,15 +101,10 @@ export function makeNodeContextCollector(
             if (body !== null) attrs['http.request.body'] = body;
         }
 
-        // User identity uses OTel's `enduser.*` and `client.address` keys.
-        // `id` is coerced to string because OTel attribute values are strings
-        // for these keys while callers commonly hand us a numeric id.
-        if (scope.user) {
-            if (scope.user.id !== undefined) attrs['enduser.id'] = String(scope.user.id);
-            if (scope.user.email !== undefined) attrs['enduser.email'] = scope.user.email;
-            if (scope.user.username !== undefined) attrs['enduser.username'] = scope.user.username;
-            if (scope.user.ipAddress !== undefined) attrs['client.address'] = scope.user.ipAddress;
-        }
+        // Pass through any attributes the scope carries (e.g. user identity
+        // written by `Flare.setUser`). These are merged last so scope values
+        // win over the defaults above.
+        Object.assign(attrs, scope.pendingAttributes);
 
         return attrs;
     };

@@ -3,10 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { NodeScope } from '../src/scope/NodeScope';
 
 describe('NodeScope', () => {
-    it('starts with empty request and null user', () => {
+    it('starts with empty request', () => {
         const scope = new NodeScope();
         expect(scope.request).toEqual({});
-        expect(scope.user).toBeNull();
     });
 
     it('inherits core Scope behavior (glows, attributes, entryPoint)', () => {

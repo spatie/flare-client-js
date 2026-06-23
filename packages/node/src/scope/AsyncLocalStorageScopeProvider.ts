@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import type { ScopeProvider } from '@flareapp/core';
 
-import type { RequestContext, User } from '../types';
+import type { RequestContext } from '../types';
 import { NodeScope } from './NodeScope';
 
 /**
@@ -75,12 +75,4 @@ export class AsyncLocalStorageScopeProvider implements ScopeProvider {
         scope.request = { ...scope.request, ...partial };
     }
 
-    /**
-     * Set the authenticated user on the current scope. Same in-scope vs
-     * fallback semantics as `mergeContext`.
-     */
-    setUser(user: User | null): void {
-        const scope = this.als.getStore() ?? this.fallback;
-        scope.user = user;
-    }
 }
