@@ -50,7 +50,7 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
  * Subclasses core's `Flare` and wires the Node-only seams in its constructor:
  *
  * - `AsyncLocalStorageScopeProvider` so each `runWithContext(...)` callback
- *   gets its own `NodeScope` (glows, attributes, user, entry-point, request),
+ *   gets its own `NodeScope` (glows, attributes, entry-point, request),
  *   isolated from concurrent requests.
  * - `makeNodeContextCollector(...)` to project the current `NodeScope` and
  *   process info into report attributes (http.request.*, url.path, etc).

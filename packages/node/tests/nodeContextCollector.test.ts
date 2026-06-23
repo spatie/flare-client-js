@@ -55,6 +55,8 @@ describe('Node ContextCollector', () => {
             expect(attrs['enduser.id']).toBeUndefined();
             expect(attrs['enduser.email']).toBeUndefined();
             expect(attrs['enduser.username']).toBeUndefined();
+            expect(attrs['user.id']).toBeUndefined();
+            expect(attrs['client.address']).toBeUndefined();
         });
     });
 
