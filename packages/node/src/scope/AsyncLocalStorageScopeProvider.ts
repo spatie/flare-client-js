@@ -74,5 +74,4 @@ export class AsyncLocalStorageScopeProvider implements ScopeProvider {
         const scope = this.als.getStore() ?? this.fallback;
         scope.request = { ...scope.request, ...partial };
     }
-
 }

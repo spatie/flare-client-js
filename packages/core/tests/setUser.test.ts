@@ -86,3 +86,13 @@ test('userIdentityAttributes returns only the identity keys present on the scope
 test('userIdentityAttributes returns an empty object when no identity keys are set', () => {
     expect(userIdentityAttributes(new Scope())).toEqual({});
 });
+
+test('setUser ignores a null id rather than storing the string "null"', async () => {
+    client.setUser({ id: null, email: 'j@x.test' });
+
+    await client.report(new Error('x'));
+
+    const a = fakeApi.lastReport!.attributes;
+    expect(a['user.id']).toBeUndefined();
+    expect(a['user.email']).toBe('j@x.test');
+});
