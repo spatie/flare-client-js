@@ -113,6 +113,7 @@ Breaking changes (acceptable, Node is 0.x, break freely):
 - `@flareapp/js` and `@flareapp/node` READMEs: document `setUser` with the field table.
 - Framework wrappers (react/vue/svelte/sveltekit/electron): add an explicit `setUser` example to each README, framed for that framework's `flare` instance. They re-export core `Flare`, so the call is identical; the example just shows where it lives per framework.
 - Update `CLAUDE.md` if it references a Node-only user helper.
+- Flare docs site (separate `flareapp.io` project): add a **Data collection > Identifying users** page for JS/React/Vue/Svelte. Handoff instructions for that project's agent live in `docs/handoffs/2026-06-23-flare-docs-identifying-users.md`.
 
 ## Out of scope
 
