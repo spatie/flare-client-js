@@ -1,7 +1,7 @@
 import { Api } from './api';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { Logger, NoopFlushScheduler, partitionAttributes, type FlushScheduler } from './logging';
-import { GlobalScopeProvider, type ScopeProvider } from './Scope';
+import { GlobalScopeProvider, USER_IDENTITY_KEYS, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
 import { NullFileReader } from './stacktrace/NullFileReader';
@@ -15,6 +15,7 @@ import {
     MessageLevel,
     Report,
     SdkInfo,
+    User,
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
 
@@ -325,6 +326,32 @@ export class Flare {
 
     addContextGroup(groupName: string, value: Record<string, AttributeValue>): this {
         this.scopeProvider.active().setAttribute(`context.${groupName}`, value);
+        return this;
+    }
+
+    /**
+     * Attach an identified user to the active scope. Fields are projected to the
+     * keys the Flare backend reads: `user.id`, `user.email`, `user.full_name`,
+     * and `client.address`. Any extra keys are bundled into `user.attributes`.
+     * Pass `null` to clear the user. Scope-aware: in Node this targets the
+     * per-request scope via the scope provider.
+     */
+    setUser(user: User | null): this {
+        const scope = this.scopeProvider.active();
+        for (const key of USER_IDENTITY_KEYS) delete scope.pendingAttributes[key];
+        if (!user) return this;
+
+        const { id, email, fullName, ipAddress, ...rest } = user;
+        if (id !== undefined) scope.setAttribute('user.id', String(id));
+        if (email !== undefined) scope.setAttribute('user.email', email);
+        if (fullName !== undefined) scope.setAttribute('user.full_name', fullName);
+        if (ipAddress !== undefined) scope.setAttribute('client.address', ipAddress);
+
+        const extras = Object.fromEntries(
+            Object.entries(rest).filter(([, value]) => value !== undefined),
+        ) as Attributes;
+        if (Object.keys(extras).length > 0) scope.setAttribute('user.attributes', extras);
+
         return this;
     }
 

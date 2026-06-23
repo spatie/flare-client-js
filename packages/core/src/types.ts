@@ -4,6 +4,14 @@ export type AttributeValue = string | number | boolean | null | AttributeValue[]
 
 export type Attributes = Record<string, AttributeValue>;
 
+export type User = {
+    id?: string | number;
+    email?: string;
+    fullName?: string;
+    ipAddress?: string;
+    [key: string]: AttributeValue | undefined;
+};
+
 export type Config = {
     key: string | null;
     version: string;

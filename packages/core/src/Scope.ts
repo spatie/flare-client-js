@@ -1,6 +1,34 @@
 import type { Attributes, AttributeValue, EntryPointHandler, Glow } from './types';
 
 /**
+ * The report attribute keys that `Flare.setUser` owns. Single source of truth so the
+ * clear pass and the set pass in `setUser` cannot drift, and so consumers that must
+ * stamp identity outside core's report pipeline (Electron's forwarded-renderer path)
+ * pick up the exact same set instead of re-hardcoding it.
+ */
+export const USER_IDENTITY_KEYS = [
+    'user.id',
+    'user.email',
+    'user.full_name',
+    'user.attributes',
+    'client.address',
+] as const;
+
+/**
+ * Pick the user-identity attributes currently set on a scope. Used where identity must
+ * be copied onto a report that does not flow through `Flare.report()` (which would
+ * otherwise spread `pendingAttributes` automatically).
+ */
+export function userIdentityAttributes(scope: Scope): Attributes {
+    const attrs: Attributes = {};
+    for (const key of USER_IDENTITY_KEYS) {
+        const value = scope.pendingAttributes[key];
+        if (value !== undefined) attrs[key] = value;
+    }
+    return attrs;
+}
+
+/**
  * Holds the per-call mutable state that used to live on the `Flare` instance:
  * breadcrumbs (`glows`), custom attributes (`pendingAttributes`), and the
  * current entry-point handler.
