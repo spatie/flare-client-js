@@ -60,7 +60,7 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
  *   `unhandledRejection` listeners based on the current `NodeOptions`.
  *
  * Also adds Node-only API surface on top of core: `configureNode(...)`,
- * `runWithContext(...)`, `mergeContext(...)`, `setUser(...)`, `getContext()`,
+ * `runWithContext(...)`, `mergeContext(...)`, `getContext()`,
  * `removeProcessListeners()`. Inherited core methods (`light`, `configure`,
  * `addContext`, `glow`, etc.) return `this`, so chaining keeps the
  * `NodeFlare` type and `configureNode(...)` stays callable mid-chain.

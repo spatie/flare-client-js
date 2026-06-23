@@ -37,6 +37,9 @@ export class ElectronFlare extends CoreFlare {
     private app: AppLike;
     private ipcMain: IpcMain;
     private options: ResolvedElectronOptions = { ...DEFAULT_ELECTRON_OPTIONS };
+    // Held separately because CoreFlare's scopeProvider is private; receiveRendererReport needs it
+    // to stamp main-side user identity onto forwarded renderer reports, which bypass core's report()
+    // pipeline (and so do not pick up pendingAttributes automatically).
     private mainScope: GlobalScopeProvider;
     private isLit = false;
     private handlerManager: ProcessHandlerManager;
@@ -216,7 +219,7 @@ export class ElectronFlare extends CoreFlare {
         });
     }
 
-    /** Overlay main-authoritative config + Electron metadata + user onto a forwarded report, then send. */
+    /** Overlay main-authoritative config + Electron metadata + user identity (from the main scope) onto a forwarded report, then send. */
     private receiveRendererReport(report: Report): Promise<void> {
         Object.assign(
             report.attributes,
