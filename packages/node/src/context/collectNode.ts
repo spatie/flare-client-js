@@ -14,9 +14,10 @@ import { collectProcessAttributes } from './process';
  *
  * 1. **Process info** — runtime version, pid, hostname, etc. Always present.
  * 2. **Active request scope** — method, path/url (with query-string keys
- *    redacted), headers (with the denylist applied), optional body, and
- *    authenticated user. Present when `runWithContext(...)` is active;
- *    falls back to the shared scope otherwise (no request attrs emitted then).
+ *    redacted), headers (with the denylist applied), and optional body. Present
+ *    when `runWithContext(...)` is active; falls back to the shared scope
+ *    otherwise (no request attrs emitted then). User identity is no longer
+ *    projected here: `Flare.setUser` writes it straight to `pendingAttributes`.
  *
  * Both `provider` and `getOptions` are passed in (not captured by reference to
  * concrete instances) so the closure stays decoupled from `NodeFlare`'s

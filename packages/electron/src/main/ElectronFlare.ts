@@ -1,4 +1,4 @@
-import { Api, Flare as CoreFlare, GlobalScopeProvider, userIdentityAttributes, type Config, type Report } from '@flareapp/core';
+import { Api, Flare as CoreFlare, GlobalScopeProvider, USER_IDENTITY_KEYS, userIdentityAttributes, type Config, type Report } from '@flareapp/core';
 import type { App, IpcMain } from 'electron';
 
 import { CLIENT_VERSION } from '../env';
@@ -221,6 +221,10 @@ export class ElectronFlare extends CoreFlare {
 
     /** Overlay main-authoritative config + Electron metadata + user identity (from the main scope) onto a forwarded report, then send. */
     private receiveRendererReport(report: Report): Promise<void> {
+        // User identity is main-authoritative, exactly like the config fields below: a renderer
+        // must never set identity the main process did not, and a partial main identity must not
+        // be mixed with leftover renderer keys. Clear every identity key first, then stamp main's.
+        for (const key of USER_IDENTITY_KEYS) delete report.attributes[key];
         Object.assign(
             report.attributes,
             collectElectronAppAttributes(this.app),

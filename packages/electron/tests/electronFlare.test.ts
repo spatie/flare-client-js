@@ -106,6 +106,64 @@ describe('ElectronFlare', () => {
         expect(sentOut[0].attributes['user.email']).toBe('main@user.io');
     });
 
+    it('strips renderer-supplied identity keys main did not set (no mixed identity, no leak)', async () => {
+        const { flare, ipcMain } = makeFlare();
+        const sentOut: any[] = [];
+        flare.api.report = (r: any) => {
+            sentOut.push(r);
+            return Promise.resolve();
+        };
+        // Main sets ONLY an id. Email/attributes/client.address are left unset on the main scope.
+        flare.setUser({ id: 99 });
+
+        const handler = ipcMain.handlers['flare:report'];
+        const rendererReport = JSON.stringify({
+            seenAtUnixNano: 5,
+            stacktrace: [],
+            events: [],
+            attributes: {
+                'user.id': 'renderer-should-lose',
+                'user.email': 'renderer@x.io',
+                'user.attributes': { plan: 'renderer-plan' },
+                'client.address': '6.6.6.6',
+            },
+        });
+        await handler({ senderFrame: { url: 'file:///index.html' } }, rendererReport);
+
+        expect(sentOut.length).toBe(1);
+        const a = sentOut[0].attributes;
+        // Main's id wins.
+        expect(a['user.id']).toBe('99');
+        // Renderer identity keys main did NOT set must be gone, not mixed in.
+        expect(a['user.email']).toBeUndefined();
+        expect(a['user.attributes']).toBeUndefined();
+        expect(a['client.address']).toBeUndefined();
+    });
+
+    it('strips renderer-supplied identity when main never called setUser', async () => {
+        const { flare, ipcMain } = makeFlare();
+        const sentOut: any[] = [];
+        flare.api.report = (r: any) => {
+            sentOut.push(r);
+            return Promise.resolve();
+        };
+        // No flare.setUser(...) — main has no identity to assert.
+
+        const handler = ipcMain.handlers['flare:report'];
+        const rendererReport = JSON.stringify({
+            seenAtUnixNano: 5,
+            stacktrace: [],
+            events: [],
+            attributes: { 'user.id': 'renderer-forged', 'user.email': 'renderer@x.io' },
+        });
+        await handler({ senderFrame: { url: 'file:///index.html' } }, rendererReport);
+
+        expect(sentOut.length).toBe(1);
+        // A renderer must not be able to identify users the main process never set.
+        expect(sentOut[0].attributes['user.id']).toBeUndefined();
+        expect(sentOut[0].attributes['user.email']).toBeUndefined();
+    });
+
     it('strips renderer-supplied stage/version/sourcemap when main never configured them', async () => {
         const { flare, ipcMain } = makeFlare();
         const sentOut: any[] = [];

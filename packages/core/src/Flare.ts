@@ -1,7 +1,7 @@
 import { Api } from './api';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { Logger, NoopFlushScheduler, partitionAttributes, type FlushScheduler } from './logging';
-import { GlobalScopeProvider, USER_IDENTITY_KEYS, type ScopeProvider } from './Scope';
+import { GlobalScopeProvider, USER_FIELD_KEYS, USER_IDENTITY_KEYS, type ScopeProvider } from './Scope';
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
 import { NullFileReader } from './stacktrace/NullFileReader';
@@ -342,10 +342,10 @@ export class Flare {
         if (!user) return this;
 
         const { id, email, fullName, ipAddress, ...rest } = user;
-        if (id !== undefined && id !== null) scope.setAttribute('user.id', String(id));
-        if (email !== undefined) scope.setAttribute('user.email', email);
-        if (fullName !== undefined) scope.setAttribute('user.full_name', fullName);
-        if (ipAddress !== undefined) scope.setAttribute('client.address', ipAddress);
+        if (id !== undefined && id !== null) scope.setAttribute(USER_FIELD_KEYS.id, String(id));
+        if (email !== undefined) scope.setAttribute(USER_FIELD_KEYS.email, email);
+        if (fullName !== undefined) scope.setAttribute(USER_FIELD_KEYS.fullName, fullName);
+        if (ipAddress !== undefined) scope.setAttribute(USER_FIELD_KEYS.ipAddress, ipAddress);
 
         const extras = Object.fromEntries(
             Object.entries(rest).filter(([, value]) => value !== undefined),
