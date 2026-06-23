@@ -101,11 +101,6 @@ export function makeNodeContextCollector(
             if (body !== null) attrs['http.request.body'] = body;
         }
 
-        // Pass through any attributes the scope carries (e.g. user identity
-        // written by `Flare.setUser`). These are merged last so scope values
-        // win over the defaults above.
-        Object.assign(attrs, scope.pendingAttributes);
-
         return attrs;
     };
 }

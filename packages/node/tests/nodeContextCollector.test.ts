@@ -44,19 +44,17 @@ describe('Node ContextCollector', () => {
         });
     });
 
-    it('projects user fields to user.* and client.address', () => {
+    it('does not emit enduser.* keys (identity now flows via pendingAttributes)', () => {
         const provider = new AsyncLocalStorageScopeProvider();
         const collect = makeNodeContextCollector(provider, () => baseOpts);
         provider.runWithContext({}, () => {
             const scope = provider.active();
             scope.setAttribute('user.id', 'u1');
-            scope.setAttribute('user.email', 'a@b.c');
             scope.setAttribute('client.address', '1.2.3.4');
             const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
-            expect(attrs['user.id']).toBe('u1');
-            expect(attrs['user.email']).toBe('a@b.c');
-            expect(attrs['client.address']).toBe('1.2.3.4');
             expect(attrs['enduser.id']).toBeUndefined();
+            expect(attrs['enduser.email']).toBeUndefined();
+            expect(attrs['enduser.username']).toBeUndefined();
         });
     });
 
