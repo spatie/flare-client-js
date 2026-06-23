@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test } from 'vitest';
 
-import { Flare } from '../src';
+import { Flare, Scope, userIdentityAttributes } from '../src';
 import type { Attributes, Config } from '../src/types';
 import { FakeApi } from './helpers';
 
@@ -69,4 +69,20 @@ test('setUser overwrites and drops fields omitted on the second call', async () 
     expect(a['user.id']).toBe('2');
     expect(a['user.email']).toBeUndefined();
     expect(a['user.attributes']).toBeUndefined();
+});
+
+test('userIdentityAttributes returns only the identity keys present on the scope', () => {
+    const scope = new Scope();
+    scope.setAttribute('user.id', '42');
+    scope.setAttribute('user.email', 'jane@example.com');
+    scope.setAttribute('context.custom', { unrelated: true }); // must be excluded
+
+    expect(userIdentityAttributes(scope)).toEqual({
+        'user.id': '42',
+        'user.email': 'jane@example.com',
+    });
+});
+
+test('userIdentityAttributes returns an empty object when no identity keys are set', () => {
+    expect(userIdentityAttributes(new Scope())).toEqual({});
 });

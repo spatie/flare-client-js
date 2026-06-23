@@ -342,7 +342,7 @@ export class Flare {
         if (!user) return this;
 
         const { id, email, fullName, ipAddress, ...rest } = user;
-        if (id !== undefined) scope.setAttribute('user.id', String(id));
+        if (id !== undefined && id !== null) scope.setAttribute('user.id', String(id));
         if (email !== undefined) scope.setAttribute('user.email', email);
         if (fullName !== undefined) scope.setAttribute('user.full_name', fullName);
         if (ipAddress !== undefined) scope.setAttribute('client.address', ipAddress);
