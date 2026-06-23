@@ -54,5 +54,10 @@
     },
     "optionalDependencies": {
         "@rolldown/binding-linux-x64-gnu": "1.0.3"
+    },
+    "overrides": {
+        "undici": "^7.28.0",
+        "cookie": "^0.7.2",
+        "postcss": "^8.5.10"
     }
 }
