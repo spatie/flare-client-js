@@ -1,12 +1,5 @@
 export type ElectronFatalMode = 'off' | 'report' | 'report-and-exit';
 
-export type ElectronUser = {
-    id?: string | number;
-    email?: string;
-    username?: string;
-    ipAddress?: string;
-};
-
 /** A frame the IPC receiver evaluates for trust. Mirrors Electron's WebFrameMain shape we use. */
 export type SenderFrame = { url: string };
 

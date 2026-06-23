@@ -55,15 +55,16 @@ describe('ElectronFlare', () => {
         expect(a['process.runtime.name']).toBe('electron');
     });
 
-    it('setUser projects enduser.* on the next report', async () => {
+    it('setUser writes user.* on the next main-origin report', async () => {
         const { flare, sent } = makeFlare();
         flare.setUser({ id: 7, email: 'u@x.io' });
         await flare.report(new Error('with user'));
-        expect(sent[0].attributes['enduser.id']).toBe('7');
-        expect(sent[0].attributes['enduser.email']).toBe('u@x.io');
+        expect(sent[0].attributes['user.id']).toBe('7');
+        expect(sent[0].attributes['user.email']).toBe('u@x.io');
+        expect(sent[0].attributes['enduser.id']).toBeUndefined();
         flare.setUser(null);
         await flare.report(new Error('no user'));
-        expect(sent[1].attributes['enduser.id']).toBeUndefined();
+        expect(sent[1].attributes['user.id']).toBeUndefined();
     });
 
     it('forwarded reports get main config (stage/version/sourcemap) overlaid', async () => {
@@ -85,6 +86,7 @@ describe('ElectronFlare', () => {
                 'service.stage': '',
                 'flare.entry_point.value': 'http://localhost/page',
                 'flare.entry_point.type': 'web',
+                'user.id': 'renderer-should-lose',
             },
         });
         await handler({ senderFrame: { url: 'file:///index.html' } }, rendererReport);
@@ -99,9 +101,9 @@ describe('ElectronFlare', () => {
         expect(sentOut[0].attributes['flare.entry_point.type']).toBe('web');
         // electron app metadata merged
         expect(sentOut[0].attributes['service.name']).toBe('TestApp');
-        // main-side user merged onto forwarded report
-        expect(sentOut[0].attributes['enduser.id']).toBe('99');
-        expect(sentOut[0].attributes['enduser.email']).toBe('main@user.io');
+        // main-side user is authoritative on forwarded reports and overrides any renderer-supplied key
+        expect(sentOut[0].attributes['user.id']).toBe('99');
+        expect(sentOut[0].attributes['user.email']).toBe('main@user.io');
     });
 
     it('strips renderer-supplied stage/version/sourcemap when main never configured them', async () => {
