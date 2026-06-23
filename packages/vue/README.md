@@ -40,6 +40,16 @@ flare.configure({ enableLogs: true });
 flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 ```
 
+## Identifying users
+
+```js
+import { flare } from '@flareapp/js';
+
+flare.setUser({ id: 123, email: 'jane@example.com', fullName: 'Jane Doe' });
+```
+
+See the [JavaScript identifying-users docs](https://flareapp.io/docs/javascript/data-collection/identifying-users) for the full field list. Pass `null` to clear.
+
 ## Documentation
 
 Full documentation on the Vue error handler and its options is available at [flareapp.io/docs/vue/general/installation](https://flareapp.io/docs/vue/general/installation).
