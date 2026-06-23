@@ -111,7 +111,7 @@ Breaking changes (acceptable, Node is 0.x, break freely):
 ## Docs
 
 - `@flareapp/js` and `@flareapp/node` READMEs: document `setUser` with the field table.
-- Framework wrappers (react/vue/svelte/electron) re-export core `Flare`, so `setUser` flows through automatically. Add a one-line example only where a README already documents context helpers; do not expand otherwise.
+- Framework wrappers (react/vue/svelte/sveltekit/electron): add an explicit `setUser` example to each README, framed for that framework's `flare` instance. They re-export core `Flare`, so the call is identical; the example just shows where it lives per framework.
 - Update `CLAUDE.md` if it references a Node-only user helper.
 
 ## Out of scope
