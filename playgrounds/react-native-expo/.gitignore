@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Flare smoke-test config (contains your project key)
+flare.config.ts
