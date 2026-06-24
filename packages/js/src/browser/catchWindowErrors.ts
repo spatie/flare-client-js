@@ -2,10 +2,7 @@
 // `window.flare`, which the host app must assign (see Flare.light()/configure()). If the global
 // is not present (e.g. flare not initialised yet), events are silently dropped rather than queued.
 
-type WindowFlare = {
-    reportSilently: (e: Error) => void;
-    reportUnhandledRejection: (message: string) => unknown;
-};
+import { routeRejection, type RejectionReporter } from '@flareapp/core';
 
 export function catchWindowErrors() {
     if (typeof window === 'undefined') {
@@ -13,7 +10,7 @@ export function catchWindowErrors() {
     }
 
     window.addEventListener('error', (event: ErrorEvent) => {
-        const flare = (window as unknown as { flare?: WindowFlare }).flare;
+        const flare = (window as unknown as { flare?: RejectionReporter }).flare;
         if (!flare) return;
         // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
         if (event.error instanceof Error) {
@@ -22,45 +19,11 @@ export function catchWindowErrors() {
     });
 
     window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
-        const flare = (window as unknown as { flare?: WindowFlare }).flare;
+        const flare = (window as unknown as { flare?: RejectionReporter }).flare;
         if (!flare) return;
 
-        const reason = event.reason;
-        if (reason instanceof Error) {
-            flare.reportSilently(reason);
-            return;
-        }
-
-        if (hasStack(reason)) {
-            const error = new Error(describeRejectionReason(reason));
-            error.stack = (reason as { stack: string }).stack;
-            flare.reportSilently(error);
-            return;
-        }
-
-        Promise.resolve(flare.reportUnhandledRejection(describeRejectionReason(reason))).catch(() => {});
+        // Shared routing (Error/stack-bearing -> reportSilently, stackless ->
+        // reportUnhandledRejection); same path the RN engine tracker uses.
+        routeRejection(flare, event.reason);
     });
-}
-
-function describeRejectionReason(reason: unknown): string {
-    if (typeof reason === 'string') return reason;
-    if (reason && typeof reason === 'object') {
-        const message = (reason as { message?: unknown }).message;
-        if (typeof message === 'string') return message;
-        try {
-            return JSON.stringify(reason);
-        } catch {
-            return 'Unhandled promise rejection (non-serializable reason)';
-        }
-    }
-    return String(reason);
-}
-
-function hasStack(value: unknown): boolean {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        'stack' in value &&
-        typeof (value as Record<string, unknown>).stack === 'string'
-    );
 }

@@ -24,6 +24,10 @@ import type { User } from './types';
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
 
+// How long a fatal JS crash holds the app open to drain the transport before
+// delegating to RN's crash-triggering default handler (see globalErrorHandler).
+const FATAL_FLUSH_TIMEOUT_MS = 2000;
+
 /**
  * React Native `Flare` singleton (exposed as `flare` from the package root).
  *
@@ -98,10 +102,15 @@ export class ReactNativeFlare extends CoreFlare {
             // `reportSilently` (not `report`) is deliberate: it swallows its own
             // transport rejection so a reporting failure can't trigger a second
             // error inside the global handler. `isFatal` is attached as an
-            // attribute so a fatal JS crash is distinguishable in Flare.
-            installGlobalErrorHandler((error, isFatal) => {
-                this.reportSilently(error, { 'error.fatal': isFatal });
-            }),
+            // attribute so a fatal JS crash is distinguishable in Flare. The
+            // `onFatal` hook drains the transport before the app is torn down on a
+            // production fatal crash (best-effort; see globalErrorHandler).
+            installGlobalErrorHandler(
+                (error, isFatal) => {
+                    this.reportSilently(error, { 'error.fatal': isFatal });
+                },
+                () => this.flush(FATAL_FLUSH_TIMEOUT_MS),
+            ),
             // Reporter mirrors the browser unhandledrejection path: Error /
             // stack-bearing reasons keep their stack via reportSilently; only
             // stackless reasons fall back to reportUnhandledRejection.
