@@ -1,4 +1,5 @@
 import { Api, Flare as CoreFlare, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
+import type { Framework } from '@flareapp/core';
 
 import { makeReactNativeContextCollector } from './context/collectReactNative';
 import { installAppStateFlush } from './handlers/appStateFlush';
@@ -23,6 +24,11 @@ import type { User } from './types';
 // comes from the toolchain (@types/node), which keeps tsc happy.
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
+const RN_FRAMEWORK_NAME = 'React Native';
+
+// How long a fatal JS crash holds the app open to drain the transport before
+// delegating to RN's crash-triggering default handler (see globalErrorHandler).
+const FATAL_FLUSH_TIMEOUT_MS = 2000;
 
 /**
  * React Native `Flare` singleton (exposed as `flare` from the package root).
@@ -61,6 +67,20 @@ export class ReactNativeFlare extends CoreFlare {
         this.scheduler = scheduler;
         this.rejectionDeps = rejectionDeps;
         this.setSdkInfo({ name: RN_SDK_NAME, version: RN_SDK_VERSION });
+        // Tag the framework identity proactively so it holds even when no
+        // FlareErrorBoundary is mounted to tag it (see setFramework below).
+        this.setFramework({ name: RN_FRAMEWORK_NAME });
+    }
+
+    /**
+     * Force the framework identity to "React Native". The wrapped
+     * `@flareapp/react` boundary tags every flare it injects as `React` (via
+     * `tagReactFramework`), which is wrong on the RN singleton — so coerce the
+     * name here while preserving whatever version the caller supplied (the React
+     * renderer version when the boundary tags it).
+     */
+    setFramework(framework: Framework): this {
+        return super.setFramework({ ...framework, name: RN_FRAMEWORK_NAME });
     }
 
     /**
@@ -98,10 +118,15 @@ export class ReactNativeFlare extends CoreFlare {
             // `reportSilently` (not `report`) is deliberate: it swallows its own
             // transport rejection so a reporting failure can't trigger a second
             // error inside the global handler. `isFatal` is attached as an
-            // attribute so a fatal JS crash is distinguishable in Flare.
-            installGlobalErrorHandler((error, isFatal) => {
-                this.reportSilently(error, { 'error.fatal': isFatal });
-            }),
+            // attribute so a fatal JS crash is distinguishable in Flare. The
+            // `onFatal` hook drains the transport before the app is torn down on a
+            // production fatal crash (best-effort; see globalErrorHandler).
+            installGlobalErrorHandler(
+                (error, isFatal) => {
+                    this.reportSilently(error, { 'error.fatal': isFatal });
+                },
+                () => this.flush(FATAL_FLUSH_TIMEOUT_MS),
+            ),
             // Reporter mirrors the browser unhandledrejection path: Error /
             // stack-bearing reasons keep their stack via reportSilently; only
             // stackless reasons fall back to reportUnhandledRejection.

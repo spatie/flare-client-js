@@ -1,5 +1,7 @@
 import { convertToError } from '@flareapp/core';
 
+import { inDevMode } from '../devMode';
+
 type GlobalErrorHandler = (error: unknown, isFatal?: boolean) => void;
 
 type ErrorUtilsLike = {
@@ -13,24 +15,53 @@ function getErrorUtils(): ErrorUtilsLike | undefined {
 
 /**
  * Wrap RN's `ErrorUtils` global handler. The wrapper reports the error and then
- * calls the previously-registered handler, so React Native's own behavior (red
- * box in dev, process crash in prod) is preserved — we observe, we do not
+ * delegates to the previously-registered handler, so React Native's own behavior
+ * (red box in dev, process crash in prod) is preserved — we observe, we do not
  * swallow. No-op when `ErrorUtils` is unavailable.
+ *
+ * Fatal delivery (`onFatal`). On a FATAL error in a PRODUCTION bundle the
+ * previous handler is what tears the app down, and our report is an async
+ * `fetch` the OS would kill the instant the app dies — so a bare report almost
+ * never sends. When `onFatal` is supplied we DEFER the previous handler until
+ * `onFatal()` settles; it drains the transport via core's `flush(timeoutMs)`,
+ * buying the report time to send before the crash. RN does not crash on its own
+ * (the default handler triggers it), so deferring the delegate genuinely delays
+ * the crash. This mirrors Sentry's React Native SDK. It is skipped in `__DEV__`
+ * (don't fight the red box / debugger) and guarded by a re-entrancy latch, so a
+ * second fatal arriving mid-flush delegates immediately rather than racing two
+ * shutdowns.
  *
  * Returns an uninstaller that restores the previous handler.
  */
-export function installGlobalErrorHandler(report: (error: Error, isFatal: boolean) => void): () => void {
+export function installGlobalErrorHandler(
+    report: (error: Error, isFatal: boolean) => void,
+    onFatal?: () => Promise<void>,
+): () => void {
     const errorUtils = getErrorUtils();
     if (!errorUtils) return () => {};
 
     const previous = errorUtils.getGlobalHandler();
+    let handlingFatal = false;
 
     const handler: GlobalErrorHandler = (error, isFatal) => {
         try {
             report(convertToError(error), Boolean(isFatal));
-        } finally {
-            previous?.(error, isFatal);
+        } catch {
+            // Reporting must never prevent RN's own error handling below.
         }
+
+        if (isFatal && onFatal && !inDevMode() && !handlingFatal) {
+            handlingFatal = true;
+            void onFatal()
+                .catch(() => {})
+                .then(() => {
+                    handlingFatal = false;
+                    previous?.(error, isFatal);
+                });
+            return;
+        }
+
+        previous?.(error, isFatal);
     };
 
     errorUtils.setGlobalHandler(handler);

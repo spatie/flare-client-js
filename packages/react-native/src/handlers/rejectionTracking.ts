@@ -1,6 +1,6 @@
-// `__DEV__` is a React Native global (true in dev bundles). Declared here for
-// the type-checker; guarded with `typeof` at every use for non-RN environments.
-declare const __DEV__: boolean | undefined;
+import { routeRejection, type RejectionReporter } from '@flareapp/core';
+
+import { inDevMode } from '../devMode';
 
 type EnableOptions = {
     allRejections?: boolean;
@@ -14,61 +14,15 @@ type HermesInternalLike = {
     enablePromiseRejectionTracker?: (options: EnableOptions) => void;
 };
 
-/**
- * The reporters this handler routes rejections to. Mirrors the browser
- * `unhandledrejection` path: Error (or stack-bearing) reasons go to
- * `reportSilently` so the STACK is preserved; only stackless reasons fall back
- * to `reportUnhandledRejection` (string, empty-stack `UnhandledRejection`).
- */
-export type RejectionReporter = {
-    reportSilently: (error: Error) => void;
-    reportUnhandledRejection: (message: string) => void;
-};
+// The reporter shape and reason-routing (Error/stack-bearing -> reportSilently,
+// stackless -> reportUnhandledRejection) are shared with the browser listener;
+// they live in `@flareapp/core` (`routeRejection`) so the two SDKs cannot drift.
+export type { RejectionReporter };
 
 export type RejectionDeps = {
     // `undefined` => resolve from the active JS engine; `null` => no hook (no-op).
     enable?: RejectionEnabler | null;
 };
-
-function inDevMode(): boolean {
-    return typeof __DEV__ !== 'undefined' && __DEV__ === true;
-}
-
-function describeRejectionReason(reason: unknown): string {
-    if (typeof reason === 'string') return reason;
-    if (reason && typeof reason === 'object') {
-        const message = (reason as { message?: unknown }).message;
-        if (typeof message === 'string' && message) return message;
-        try {
-            return JSON.stringify(reason);
-        } catch {
-            return 'Unhandled promise rejection (non-serializable reason)';
-        }
-    }
-    return String(reason);
-}
-
-function hasStack(reason: unknown): reason is { stack: string } {
-    return !!reason && typeof reason === 'object' && typeof (reason as { stack?: unknown }).stack === 'string';
-}
-
-/**
- * Route a rejection reason to the reporters, mirroring the browser path so an
- * Error reason keeps its stack trace.
- */
-function reportRejection(reporter: RejectionReporter, reason: unknown): void {
-    if (reason instanceof Error) {
-        reporter.reportSilently(reason);
-        return;
-    }
-    if (hasStack(reason)) {
-        const error = new Error(describeRejectionReason(reason));
-        error.stack = reason.stack;
-        reporter.reportSilently(error);
-        return;
-    }
-    reporter.reportUnhandledRejection(describeRejectionReason(reason));
-}
 
 /**
  * Inputs to engine detection. Both default to the live runtime sources; tests
@@ -125,7 +79,7 @@ export function resolveRejectionEnabler(deps: RejectionEngineDeps = {}): Rejecti
  * these through its engine's tracker (NOT `window.onunhandledrejection`):
  * `HermesInternal.enablePromiseRejectionTracker` on Hermes, the `promise`
  * polyfill on JSC. Reasons are routed exactly like the browser
- * `unhandledrejection` handler (see `reportRejection`), so Error reasons keep
+ * `unhandledrejection` handler (core's `routeRejection`), so Error reasons keep
  * their stack via `reportSilently`.
  *
  * Engine-dependent, NOT version-dependent: if no engine hook is reachable this
@@ -157,7 +111,7 @@ export function installRejectionTracking(reporter: RejectionReporter, deps: Reje
                 if (inDevMode()) {
                     console.warn('[flare] Unhandled promise rejection:', error);
                 }
-                reportRejection(reporter, error);
+                routeRejection(reporter, error);
             },
             onHandled: () => {},
         });
