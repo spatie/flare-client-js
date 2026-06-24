@@ -41,18 +41,18 @@ const NPM_POLL_TIMEOUT_MS = Number(process.env.NPM_POLL_TIMEOUT_MS ?? 10 * 60_00
 const LOCKSTEP_PACKAGES = ['js', 'react', 'vue', 'svelte', 'webpack', 'vite', 'sveltekit', 'nextjs'];
 
 // Independently versioned packages, prompted separately each run.
-const INDEPENDENT_PACKAGES = ['core', 'node', 'electron'];
+const INDEPENDENT_PACKAGES = ['core', 'node', 'electron', 'react-native'];
 
 // Publish tiers, ordered by dependency. A package may only publish once every
 // package it hard-depends on has been published AND has become visible on npm.
-//   core      <- js, node hard-pin it
+//   core      <- js, node, react-native hard-pin it
 //   js        <- framework integrations peer-depend on it
 //   svelte    <- sveltekit depends on it
 //   webpack   <- nextjs depends on it
 // Packages skipped this run are filtered out of these tiers before publishing.
 const PUBLISH_ORDER = [
     ['core'],
-    ['js', 'node'],
+    ['js', 'node', 'react-native'],
     ['react', 'vue', 'svelte', 'webpack', 'vite', 'electron'],
     ['sveltekit', 'nextjs'],
 ];
@@ -77,6 +77,7 @@ const CORE_REFS = [
     { pkg: 'react', field: 'dependencies', dep: '@flareapp/core' },
     { pkg: 'vue', field: 'dependencies', dep: '@flareapp/core' },
     { pkg: 'svelte', field: 'dependencies', dep: '@flareapp/core' },
+    { pkg: 'react-native', field: 'dependencies', dep: '@flareapp/core' },
 ];
 
 // Lockstep deps that are hard-pinned EXACTLY (not caret). electron pins @flareapp/js exactly,
@@ -272,12 +273,14 @@ async function planRelease() {
     const coreVersion = await promptIndependentVersion('core');
     const nodeVersion = await promptIndependentVersion('node');
     const electronVersion = await promptIndependentVersion('electron');
+    const reactNativeVersion = await promptIndependentVersion('react-native');
 
     const versions = {};
     for (const name of LOCKSTEP_PACKAGES) versions[name] = lockstepVersion;
     if (coreVersion) versions['core'] = coreVersion;
     if (nodeVersion) versions['node'] = nodeVersion;
     if (electronVersion) versions['electron'] = electronVersion;
+    if (reactNativeVersion) versions['react-native'] = reactNativeVersion;
 
     const releaseSet = new Set(Object.keys(versions));
     const tiers = PUBLISH_ORDER.map((tier) => tier.filter((n) => releaseSet.has(n))).filter((t) => t.length > 0);
@@ -297,7 +300,9 @@ async function confirmPlan(plan) {
     }
     if (plan.releaseSet.has('core')) {
         console.log('');
-        info(`@flareapp/core@${plan.versions['core']} will be released first; js/node/electron pins rewritten to it.`);
+        info(
+            `@flareapp/core@${plan.versions['core']} will be released first; js/node/electron/react-native pins rewritten to it.`,
+        );
     }
     if (plan.releaseSet.has('electron')) {
         console.log('');
@@ -753,6 +758,7 @@ async function main() {
             (plan.releaseSet.has('core') ? ` + core@${plan.versions['core']}` : '') +
             (plan.releaseSet.has('node') ? ` + node@${plan.versions['node']}` : '') +
             (plan.releaseSet.has('electron') ? ` + electron@${plan.versions['electron']}` : '') +
+            (plan.releaseSet.has('react-native') ? ` + react-native@${plan.versions['react-native']}` : '') +
             '\n',
     );
 }

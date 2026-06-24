@@ -1,0 +1,60 @@
+# @flareapp/react-native
+
+React Native SDK for [Flare](https://flareapp.io) error tracking by Spatie.
+
+Pure JavaScript — works on both Expo (managed) and bare React Native with no
+required native module.
+
+## Requirements
+
+React Native **0.79+** (Expo SDK 53+). The package relies on Metro's package
+exports support, which is on by default from RN 0.79. It ships a Metro-targeted
+CJS build via the `"react-native"` export condition, and the `FlareErrorBoundary`
+imports `@flareapp/react/inject` (an export-map subpath) — both need package
+exports enabled.
+
+## Install
+
+```bash
+npm install @flareapp/react-native @flareapp/react
+```
+
+## Usage
+
+```ts
+import { flare, FlareErrorBoundary } from '@flareapp/react-native';
+
+flare.light('your-project-key');
+flare.setUser({ id: 1, email: 'user@example.com' });
+```
+
+Wrap your app in the boundary to capture React render errors:
+
+```tsx
+<FlareErrorBoundary>
+    <App />
+</FlareErrorBoundary>
+```
+
+## What it captures
+
+- Uncaught JS errors (via `ErrorUtils`)
+- React render errors (via `FlareErrorBoundary`)
+- Unhandled promise rejections (best-effort; uses the active JS engine's hook —
+  Hermes or JSC)
+
+Device/app context is collected from React Native core, enriched with
+`expo-device` / `expo-application` when present. Note: on iOS, Expo's `app.id`
+(Android package name) is not available as a sync constant, so that attribute is
+Android-only.
+
+Delivery is best-effort. Reports are sent with `fetch`, which React Native does
+not back with `keepalive`, so a report fired during a fatal JS crash (or while
+the app is being backgrounded/suspended) may not finish sending. This applies to
+JS-fatal errors too, not only native crashes.
+
+## Not yet included
+
+- Native crash capture (requires a native module)
+- Metro sourcemap upload (planned as a separate package)
+- Automatic breadcrumbs (use `flare.glow(...)` manually for now)

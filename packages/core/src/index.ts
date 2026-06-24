@@ -24,13 +24,16 @@ export {
     assertKey,
     convertToError,
     DEFAULT_URL_DENYLIST,
+    describeRejectionReason,
     extractCode,
     flatJsonStringify,
     glowsToEvents,
     now,
     redactUrlQuery,
     resolveDenylist,
+    routeRejection,
 } from './util';
+export type { RejectionReporter } from './util';
 
 export { Api } from './api';
 

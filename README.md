@@ -14,26 +14,29 @@ The v1 source lives on the [`1.x`](https://github.com/spatie/flare-client-js/tre
 
 This is an npm workspaces monorepo containing the following packages:
 
-| Package                                    | npm                                                                        | Description                                                                         |
-| ------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [`packages/core`](packages/core)           | [`@flareapp/core`](https://www.npmjs.com/package/@flareapp/core)           | Environment-agnostic Flare core shared between the browser and Node clients         |
-| [`packages/js`](packages/js)               | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)               | Browser client: global error listeners, browser context collection, source fetching |
-| [`packages/react`](packages/react)         | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)         | React error boundary component and React 19 error handler                           |
-| [`packages/vue`](packages/vue)             | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)             | Vue error handler plugin                                                            |
-| [`packages/svelte`](packages/svelte)       | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)       | Svelte 5 error boundary component and boundary handler factory                      |
-| [`packages/sveltekit`](packages/sveltekit) | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit) | SvelteKit client/server error hooks and route context                               |
-| [`packages/node`](packages/node)           | [`@flareapp/node`](https://www.npmjs.com/package/@flareapp/node)           | Node.js SDK with process handlers and AsyncLocalStorage scope                       |
-| [`packages/electron`](packages/electron)   | [`@flareapp/electron`](https://www.npmjs.com/package/@flareapp/electron)   | Electron SDK (main + preload + renderer)                                            |
-| [`packages/vite`](packages/vite)           | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)           | Vite build plugin for sourcemap uploads                                             |
-| [`packages/webpack`](packages/webpack)     | [`@flareapp/webpack`](https://www.npmjs.com/package/@flareapp/webpack)     | Webpack 5 plugin for sourcemap uploads                                              |
-| [`packages/nextjs`](packages/nextjs)       | [`@flareapp/nextjs`](https://www.npmjs.com/package/@flareapp/nextjs)       | Next.js wrapper for sourcemap uploads via webpack                                   |
-| [`packages/flare-api`](packages/flare-api) | (private)                                                                  | Shared API client for sourcemap uploads (internal)                                  |
-| [`playgrounds/shared`](playgrounds/shared) | (private)                                                                  | Shared fixtures: product data, error scenarios, test IDs, Tailwind tokens           |
-| [`playgrounds/js`](playgrounds/js)         | (private)                                                                  | Vanilla TS + Vite playground (port 5180)                                            |
-| [`playgrounds/react`](playgrounds/react)   | (private)                                                                  | React 19 + TanStack Router playground (port 5181)                                   |
-| [`playgrounds/vue`](playgrounds/vue)       | (private)                                                                  | Vue 3 + vue-router playground (port 5182)                                           |
-| [`playgrounds/svelte`](playgrounds/svelte) | (private)                                                                  | SvelteKit (adapter-node) playground (port 5183)                                     |
-| [`playgrounds/nextjs`](playgrounds/nextjs) | (private)                                                                  | Next.js 15 App Router playground (port 5184)                                        |
+| Package                                                          | npm                                                                              | Description                                                                         |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`packages/core`](packages/core)                                 | [`@flareapp/core`](https://www.npmjs.com/package/@flareapp/core)                 | Environment-agnostic Flare core shared between the browser and Node clients         |
+| [`packages/js`](packages/js)                                     | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)                     | Browser client: global error listeners, browser context collection, source fetching |
+| [`packages/react`](packages/react)                               | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)               | React error boundary component and React 19 error handler                           |
+| [`packages/vue`](packages/vue)                                   | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)                   | Vue error handler plugin                                                            |
+| [`packages/svelte`](packages/svelte)                             | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)             | Svelte 5 error boundary component and boundary handler factory                      |
+| [`packages/sveltekit`](packages/sveltekit)                       | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit)       | SvelteKit client/server error hooks and route context                               |
+| [`packages/node`](packages/node)                                 | [`@flareapp/node`](https://www.npmjs.com/package/@flareapp/node)                 | Node.js SDK with process handlers and AsyncLocalStorage scope                       |
+| [`packages/electron`](packages/electron)                         | [`@flareapp/electron`](https://www.npmjs.com/package/@flareapp/electron)         | Electron SDK (main + preload + renderer)                                            |
+| [`packages/react-native`](packages/react-native)                 | [`@flareapp/react-native`](https://www.npmjs.com/package/@flareapp/react-native) | React Native SDK (pure-JS, Expo + bare; requires RN 0.79+)                          |
+| [`packages/vite`](packages/vite)                                 | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)                 | Vite build plugin for sourcemap uploads                                             |
+| [`packages/webpack`](packages/webpack)                           | [`@flareapp/webpack`](https://www.npmjs.com/package/@flareapp/webpack)           | Webpack 5 plugin for sourcemap uploads                                              |
+| [`packages/nextjs`](packages/nextjs)                             | [`@flareapp/nextjs`](https://www.npmjs.com/package/@flareapp/nextjs)             | Next.js wrapper for sourcemap uploads via webpack                                   |
+| [`packages/flare-api`](packages/flare-api)                       | (private)                                                                        | Shared API client for sourcemap uploads (internal)                                  |
+| [`playgrounds/shared`](playgrounds/shared)                       | (private)                                                                        | Shared fixtures: product data, error scenarios, test IDs, Tailwind tokens           |
+| [`playgrounds/js`](playgrounds/js)                               | (private)                                                                        | Vanilla TS + Vite playground (port 5180)                                            |
+| [`playgrounds/react`](playgrounds/react)                         | (private)                                                                        | React 19 + TanStack Router playground (port 5181)                                   |
+| [`playgrounds/vue`](playgrounds/vue)                             | (private)                                                                        | Vue 3 + vue-router playground (port 5182)                                           |
+| [`playgrounds/svelte`](playgrounds/svelte)                       | (private)                                                                        | SvelteKit (adapter-node) playground (port 5183)                                     |
+| [`playgrounds/nextjs`](playgrounds/nextjs)                       | (private)                                                                        | Next.js 15 App Router playground (port 5184)                                        |
+| [`playgrounds/react-native-bare`](playgrounds/react-native-bare) | (not published)                                                                  | Bare RN manual smoke-test app for `@flareapp/react-native`                          |
+| [`playgrounds/react-native-expo`](playgrounds/react-native-expo) | (not published)                                                                  | Expo manual smoke-test app (incl. Expo device/app context)                          |
 
 ## Local development
 
@@ -60,20 +63,20 @@ npm run build
 
 All commands are run from the repository root:
 
-| Command                      | Description                                                                      |
-| ---------------------------- | -------------------------------------------------------------------------------- |
-| `npm run build`              | Build all packages to their respective `dist` folders                            |
-| `npm run test`               | Run tests for all packages that have them                                        |
-| `npm run typescript`         | Type-check all packages                                                          |
-| `npm run format`             | Run oxfmt across all files                                                       |
-| `npm run lint`               | Run oxlint across all packages                                                   |
-| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds                   |
-| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180)                 |
-| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)                      |
-| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)                        |
-| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)                  |
-| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)                    |
-| `npm run release:all`        | Lockstep-release the 8 public packages; optionally includes core, node, electron |
+| Command                      | Description                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run build`              | Build all packages to their respective `dist` folders                                          |
+| `npm run test`               | Run tests for all packages that have them                                                      |
+| `npm run typescript`         | Type-check all packages                                                                        |
+| `npm run format`             | Run oxfmt across all files                                                                     |
+| `npm run lint`               | Run oxlint across all packages                                                                 |
+| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds                                 |
+| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180)                               |
+| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)                                    |
+| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)                                      |
+| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)                                |
+| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)                                  |
+| `npm run release:all`        | Lockstep-release the 8 public packages; optionally includes core, node, electron, react-native |
 
 ### Playgrounds
 
@@ -137,11 +140,11 @@ GitHub Actions runs on every push:
 
 ## Versioning and releasing
 
-Each package can be versioned and published independently using [release-it](https://github.com/release-it/release-it), or the public packages can be released in lockstep with a single command via `scripts/release-all.mjs`. `@flareapp/core`, `@flareapp/node`, and `@flareapp/electron` version independently but can be included in the same run.
+Each package can be versioned and published independently using [release-it](https://github.com/release-it/release-it), or the public packages can be released in lockstep with a single command via `scripts/release-all.mjs`. `@flareapp/core`, `@flareapp/node`, `@flareapp/electron`, and `@flareapp/react-native` version independently but can be included in the same run.
 
 ### Releasing all packages in lockstep (recommended)
 
-For coordinated releases that span multiple packages, use `npm run release:all` from the repo root. This orchestrates a single-version release across the 8 lockstep-published packages and produces one release commit. `@flareapp/core`, `@flareapp/node`, and `@flareapp/electron` version independently and are prompted separately each run.
+For coordinated releases that span multiple packages, use `npm run release:all` from the repo root. This orchestrates a single-version release across the 8 lockstep-published packages and produces one release commit. `@flareapp/core`, `@flareapp/node`, `@flareapp/electron`, and `@flareapp/react-native` version independently and are prompted separately each run.
 
 ```bash
 npm run release:all
