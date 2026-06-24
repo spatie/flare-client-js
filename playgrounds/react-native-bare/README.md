@@ -1,97 +1,54 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# react-native-bare — Flare smoke test
 
-# Getting Started
+Bare React Native app for manually smoke-testing `@flareapp/react-native`.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+- React Native `0.86.0` / React `19.2.3` (resolved at scaffold time).
+- Standalone: NOT an npm workspace. Own `node_modules` + Metro.
 
-## Step 1: Start Metro
+## Setup
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+1. Link the local SDK (from repo root): `node scripts/rn-relink.mjs bare`
+   Re-run after any change to `@flareapp/core`, `@flareapp/react`, or
+   `@flareapp/react-native`.
+2. `cp flare.config.example.ts flare.config.ts` and set your Flare project key.
+   (`flare.config.ts` is git-ignored.)
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Run
 
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```bash
+cd ios && pod install && cd ..   # first run only
+npm run ios        # or: npm run android
 ```
 
-## Step 2: Build and run your app
+Tap each numbered button, then confirm the report in your Flare dashboard.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Scenarios
 
-### Android
+| #   | Button                       | What to verify                                                                                                               |
+| --- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Sync throw                   | Report appears; `error.fatal` absent/false                                                                                   |
+| 2   | Fatal error                  | Release build only: report delivered before crash (fix #2; skipped in dev)                                                   |
+| 3   | Unhandled rejection (Error)  | Report with the original stack trace                                                                                         |
+| 4   | Unhandled rejection (string) | `UnhandledRejection`, empty stack                                                                                            |
+| 5   | React render error           | Boundary fallback shows; report has React component stack; Reset recovers                                                    |
+| 6   | Manual report                | Report appears                                                                                                               |
+| 7   | Glow then report             | Report carries the `checkout-step` glow                                                                                      |
+| 8   | setUser then report          | Report has `enduser.id/email/username`                                                                                       |
+| 9   | Context marker               | Report has `os.name`, `os.version`, `device.screen.*`. Bare RN has NO `device.model.name`/`app.version` (no Expo) — expected |
 
-```sh
-# Using npm
-npm run android
+## Notes
 
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- `@flareapp/react/inject` resolves through `@flareapp/react`'s exports map
+  (Metro package exports). `@flareapp/react` has no `react-native` condition, so
+  Metro resolves the subpath via its `import`/`require` conditions. The subpath
+  exists only in the exports map (no main-field fallback), so `metro.config.js`
+  sets `resolver.unstable_enablePackageExports = true` — required on the bare
+  template, which defaults it off.
+- Fix #2 (fatal flush-before-delegate) is `!__DEV__`-gated; use a Release build to
+  observe it. To verify the ORDERING (report flushed before the crash, not just
+  that it eventually arrives), point `ingestUrl` at the local e2e
+  fake-flare-server (your Mac's LAN IP, NOT localhost) and read the timestamped
+  receipt from its `/__inspect/reports` endpoint — real ingress proves arrival
+  but not that the report beat termination.
+- Offline / scenarios 1 and 3-9: point `ingestUrl` at the same fake-flare-server
+  via your Mac's LAN IP.
