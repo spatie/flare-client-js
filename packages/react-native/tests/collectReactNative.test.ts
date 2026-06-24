@@ -10,6 +10,7 @@ const config = { urlDenylist: DEFAULT_URL_DENYLIST } as never;
 afterEach(() => {
     Platform.OS = 'ios';
     Platform.Version = '17.0';
+    Platform.constants = undefined;
 });
 
 describe('React Native ContextCollector', () => {
@@ -72,5 +73,47 @@ describe('React Native ContextCollector', () => {
         // User
         expect(attrs['enduser.id']).toBe('u9');
         expect(attrs['enduser.email']).toBe('z@z.io');
+    });
+
+    it('projects a readable context.device group (bare: OS + screen, no model/app)', () => {
+        const collect = makeReactNativeContextCollector(() => null, {});
+        const device = collect(config)['context.device'] as Record<string, unknown>;
+        expect(device).toBeTruthy();
+        expect(device.OS).toBe('ios 17.0');
+        expect(device.screen).toBe('390 × 844 @ 3x');
+        // Bare RN has no Expo: these keys are absent from the group.
+        expect('model' in device).toBe(false);
+        expect('appVersion' in device).toBe(false);
+    });
+
+    it('falls back to the native Android model when Expo is absent', () => {
+        Platform.OS = 'android';
+        Platform.Version = 34;
+        Platform.constants = { Model: 'Pixel 7', Manufacturer: 'Google', Brand: 'google' };
+        const collect = makeReactNativeContextCollector(() => null, {});
+        const attrs = collect(config);
+        expect(attrs['device.model.name']).toBe('Google Pixel 7');
+        const device = attrs['context.device'] as Record<string, unknown>;
+        expect(device.model).toBe('Google Pixel 7');
+    });
+
+    it('does not invent a model on bare iOS (RN core exposes none)', () => {
+        Platform.OS = 'ios';
+        const collect = makeReactNativeContextCollector(() => null, {});
+        const attrs = collect(config);
+        expect('device.model.name' in attrs).toBe(false);
+        expect('model' in (attrs['context.device'] as Record<string, unknown>)).toBe(false);
+    });
+
+    it('context.device includes Expo model + app fields when present', () => {
+        const collect = makeReactNativeContextCollector(() => null, {
+            device: { modelName: 'iPhone 15', osName: 'iOS', osVersion: '17.4' },
+            application: { nativeApplicationVersion: '3.1.0', applicationId: 'io.flare.smoke' },
+        });
+        const device = collect(config)['context.device'] as Record<string, unknown>;
+        expect(device.model).toBe('iPhone 15');
+        expect(device.OS).toBe('iOS 17.4');
+        expect(device.appVersion).toBe('3.1.0');
+        expect(device.appId).toBe('io.flare.smoke');
     });
 });

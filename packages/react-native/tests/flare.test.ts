@@ -130,3 +130,33 @@ describe('ReactNativeFlare', () => {
         await vi.waitFor(() => expect(fake.reports.length).toBe(1));
     });
 });
+
+describe('ReactNativeFlare framework identity', () => {
+    it('tags the framework as React Native by default (no boundary needed)', async () => {
+        const flare = makeFlare();
+        const fake = withFakeApi(flare);
+        flare.light('k');
+
+        await flare.report(new Error('x'));
+
+        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('React Native');
+        const custom = fake.lastReport?.attributes['context.custom'] as Record<string, unknown> | undefined;
+        expect(custom?.framework).toBe('react native');
+    });
+
+    it('coerces the wrapped @flareapp/react boundary tag (React) to React Native', async () => {
+        const flare = makeFlare();
+        const fake = withFakeApi(flare);
+        flare.light('k');
+
+        // Simulate @flareapp/react's tagReactFramework() running on the RN
+        // singleton when the wrapped /inject boundary mounts.
+        flare.setFramework({ name: 'React', version: '19.2.3' });
+
+        await flare.report(new Error('x'));
+
+        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('React Native');
+        // The React version the boundary supplied is preserved.
+        expect(fake.lastReport?.attributes['flare.framework.version']).toBe('19.2.3');
+    });
+});

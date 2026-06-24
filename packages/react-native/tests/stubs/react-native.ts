@@ -1,6 +1,10 @@
 export type AppStateStatus = 'active' | 'background' | 'inactive';
 
-export const Platform: { OS: string; Version: string | number } = {
+export const Platform: {
+    OS: string;
+    Version: string | number;
+    constants?: { Model?: string; Brand?: string; Manufacturer?: string };
+} = {
     OS: 'ios',
     Version: '17.0',
 };

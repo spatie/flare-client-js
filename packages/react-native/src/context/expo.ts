@@ -18,22 +18,30 @@ export type ExpoModules = {
 };
 
 /**
- * Lazy, synchronous Expo load. Uses `require` (synchronous under Metro) inside
- * try/catch so bare React Native — where these packages are absent — degrades
- * to an empty object instead of throwing. Guards `require` itself so the call
- * is safe in environments where it is undefined (e.g. some ESM test runners).
+ * Lazy, synchronous Expo load. The `require(...)` calls are DIRECT string
+ * literals on purpose: Metro statically collects only literal `require('pkg')`
+ * calls and treats those inside a try/catch as OPTIONAL dependencies
+ * (`allowOptionalDependencies` is on by default for the React Native CLI and
+ * Expo), so a missing package degrades to a caught runtime throw instead of a
+ * build error. Aliasing `require` to a local (`const req = require; req('pkg')`)
+ * would defeat that static collection — Metro never adds the module to this
+ * file's dependency map, so the require would fail to resolve even when the
+ * package IS installed. So do NOT reintroduce an alias here.
+ *
+ * The `typeof require` guard keeps non-Metro/ESM environments (e.g. some test
+ * runners, where `require` is undefined) safe; under Metro `require` always
+ * exists in the `react-native`/CJS build this package ships.
  */
 export function loadExpoModules(): ExpoModules {
     const mods: ExpoModules = {};
-    const req: ((id: string) => unknown) | null = typeof require !== 'undefined' ? require : null;
-    if (!req) return mods;
+    if (typeof require === 'undefined') return mods;
     try {
-        mods.device = req('expo-device') as ExpoDeviceModule;
+        mods.device = require('expo-device') as ExpoDeviceModule;
     } catch {
         // expo-device not installed (bare RN) — skip.
     }
     try {
-        mods.application = req('expo-application') as ExpoApplicationModule;
+        mods.application = require('expo-application') as ExpoApplicationModule;
     } catch {
         // expo-application not installed (bare RN) — skip.
     }
