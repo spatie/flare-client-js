@@ -22,6 +22,11 @@ export default function flareSourcemapsBabelPlugin({ types: t }: { types: Types 
 
     return {
         name: '@flareapp/react-native-sourcemaps',
+        // Reset per-file so the env var is re-read on each transformSync call
+        // (needed for test isolation and supports incremental rebuild scenarios).
+        pre() {
+            version = undefined;
+        },
         visitor: {
             MemberExpression(path: Babel.NodePath<MemberExpressionNode>) {
                 if (!isFlareVersionAccess(path.node, t)) {
@@ -37,11 +42,6 @@ export default function flareSourcemapsBabelPlugin({ types: t }: { types: Types 
                 }
                 path.replaceWith(t.stringLiteral(version));
             },
-        },
-        // Reset per-file so the env var is re-read on each transformSync call
-        // (needed for test isolation and supports incremental rebuild scenarios).
-        pre() {
-            version = undefined;
         },
     };
 }

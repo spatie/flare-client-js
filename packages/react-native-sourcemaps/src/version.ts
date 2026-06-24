@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { LOG_PREFIX } from './constants';
+
 export type ResolveVersionOptions = {
     /** Explicit version (e.g. CLI `--version`). Highest precedence. */
     version?: string;
     /** Directory whose package.json is read as the last-resort fallback. */
     cwd?: string;
 };
-
-const LOG_PREFIX = '@flareapp/react-native-sourcemaps';
 
 /**
  * Resolve the sourcemap version shared by the Babel plugin and the CLI.

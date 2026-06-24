@@ -46,4 +46,11 @@ describe('flareSourcemapsBabelPlugin', () => {
         const out = transform('const v = process.env["FLARE_SOURCEMAP_VERSION"];', 'xyz');
         expect(out).toContain('"xyz"');
     });
+
+    test('resolves the version independently for each transform (pre() reset)', () => {
+        const first = transform('const v = process.env.FLARE_SOURCEMAP_VERSION;', 'v1');
+        const second = transform('const v = process.env.FLARE_SOURCEMAP_VERSION;', 'v2');
+        expect(first).toContain('"v1"');
+        expect(second).toContain('"v2"');
+    });
 });

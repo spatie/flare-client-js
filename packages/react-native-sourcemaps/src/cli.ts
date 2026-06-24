@@ -1,6 +1,5 @@
+import { LOG_PREFIX } from './constants';
 import { uploadSourcemaps } from './uploadSourcemaps';
-
-const LOG_PREFIX = '@flareapp/react-native-sourcemaps';
 const USAGE =
     'Usage: flare-rn-sourcemaps upload --sourcemap <path> [--api-key <key>] ' +
     '[--bundle-filename <name>] [--version <v>] [--api-endpoint <url>]';

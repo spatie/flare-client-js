@@ -3,10 +3,10 @@ import { basename } from 'node:path';
 
 import { FlareApi } from '@flareapp/flare-api';
 
+import { LOG_PREFIX } from './constants';
 import { resolveVersion } from './version';
 
 const DEFAULT_ENDPOINT = 'https://flareapp.io/api/sourcemaps';
-const LOG_PREFIX = '@flareapp/react-native-sourcemaps';
 
 export type UploadSourcemapsOptions = {
     /** Flare project API key. */
