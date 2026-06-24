@@ -1,0 +1,77 @@
+{
+    "name": "@flareapp/react-native-sourcemaps",
+    "version": "0.1.0",
+    "description": "Upload React Native (Metro) sourcemaps to Flare",
+    "homepage": "https://flareapp.io",
+    "bugs": "https://github.com/spatie/flare-client-js/issues",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/spatie/flare-client-js.git"
+    },
+    "license": "MIT",
+    "author": {
+        "name": "Spatie",
+        "email": "info@spatie.be"
+    },
+    "files": [
+        "dist"
+    ],
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.cts",
+    "bin": {
+        "flare-rn-sourcemaps": "./dist/bin.cjs"
+    },
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/index.d.mts",
+                "default": "./dist/index.mjs"
+            },
+            "require": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            }
+        },
+        "./babel": {
+            "import": {
+                "types": "./dist/babel.d.mts",
+                "default": "./dist/babel.mjs"
+            },
+            "require": {
+                "types": "./dist/babel.d.cts",
+                "default": "./dist/babel.cjs"
+            }
+        },
+        "./package.json": "./package.json"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "prepublishOnly": "npm run build",
+        "build": "tsdown src/index.ts src/babel.ts src/bin.ts --format cjs,esm --dts --clean --noExternal @flareapp/flare-api",
+        "test": "vitest run",
+        "typescript": "tsc --noEmit",
+        "release": "release-it"
+    },
+    "devDependencies": {
+        "@flareapp/flare-api": "*",
+        "@babel/core": "^7.0.0",
+        "@types/babel__core": "^7.0.0",
+        "tsdown": "^0.20.3",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.0"
+    },
+    "peerDependencies": {
+        "@babel/core": ">=7.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@babel/core": {
+            "optional": true
+        }
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
