@@ -34,22 +34,28 @@ client handoff. Three facts drive the whole design:
   backend work, so it is **out of scope**. We use the version model.
 
 - **The version must be fixed before the bundle is built.** It has to be baked into
-  the bundle's runtime config *and* used at upload. The CLI therefore cannot
+  the bundle's runtime config _and_ used at upload. The CLI therefore cannot
   generate a fresh version at upload time (the shipped bundle would not carry it).
   The version is an input to both halves, never an output of either.
 
-- **Metro does not inline arbitrary `process.env.X`.** Bare RN only exposes
-  `__DEV__`/`NODE_ENV`; Expo additionally inlines `EXPO_PUBLIC_*`. So a plain
-  `process.env.FLARE_SOURCEMAP_VERSION` is `undefined` at runtime in a bare app
-  unless a transform replaces it. This is why the Babel plugin exists (the same
-  reason Sentry ships one).
+- **The version must be inlined at bundle time, and `process.env` is the wrong
+  channel.** Metro does not inline arbitrary `process.env.X` (bare RN only exposes
+  `__DEV__`/`NODE_ENV`; Expo adds `EXPO_PUBLIC_*`), so a build-time transform is
+  needed either way — this is why the Babel plugin exists (the same reason Sentry
+  ships one). The original plan used `process.env.FLARE_SOURCEMAP_VERSION` as the
+  inlined token, but verification on a bare RN app showed that is a real DX wart:
+  bare RN does not type `process` (it requires `@types/node`, which wrongly drags
+  Node globals into an RN app), and `process.env.X` _looks_ like a runtime env read
+  when it is actually build-time-substituted. So the plugin instead inlines a
+  **typed import** the app reads as a normal `string` (see Babel plugin below).
 
 The runtime config surface already exists: core's public
 `configure(config: Partial<Config>)` (`packages/core/src/Flare.ts:259`) accepts
 `sourcemapVersionId`, so app code does:
 
-```js
-flare.light(KEY).configure({ sourcemapVersionId: process.env.FLARE_SOURCEMAP_VERSION });
+```ts
+import { flareSourcemapVersion } from '@flareapp/react-native-sourcemaps/runtime';
+flare.light(KEY).configure({ sourcemapVersionId: flareSourcemapVersion });
 ```
 
 ## Why a separate package (not folded into `@flareapp/react-native`)
@@ -72,6 +78,7 @@ packages/react-native-sourcemaps/
   src/
     version.ts            # resolveVersion() — shared by babel + cli
     babel.ts              # the version-inlining Babel plugin
+    runtime.ts            # RN-safe: `export const flareSourcemapVersion = ''` (./runtime)
     uploadSourcemaps.ts   # core upload logic (no process.argv; testable)
     cli.ts                # bin entry: arg parse -> uploadSourcemaps()
     types.ts
@@ -89,8 +96,9 @@ packages/react-native-sourcemaps/
 
 - `"bin": { "flare-rn-sourcemaps": "./dist/cli.cjs" }`
 - `"exports"`: `"."` (programmatic API), `"./babel"` (Babel plugin),
-  `"./expo"` (config plugin), `"./package.json"`, and the raw `flare.gradle` /
-  `scripts/flare-xcode.sh` shipped via `"files"`.
+  `"./runtime"` (the RN-safe `flareSourcemapVersion` const, the only entry app code
+  imports), `"./expo"` (config plugin), `"./package.json"`, and the raw
+  `flare.gradle` / `scripts/flare-xcode.sh` shipped via `"files"`.
 - `"files"` must include `dist`, `flare.gradle`, `scripts/`, `app.plugin.js`.
 - depends on `@flareapp/flare-api`; dev/peer dep on `@babel/core` for the plugin.
 - Built with tsdown (CJS + ESM + d.ts), matching the other build-time packages.
@@ -125,16 +133,26 @@ Added to `babel.config.js`:
 module.exports = { plugins: ['@flareapp/react-native-sourcemaps/babel'] };
 ```
 
-At bundle time it replaces the member expression `process.env.FLARE_SOURCEMAP_VERSION`
-with the resolved version as a string literal. Chosen over a magic global because it
-needs no ambient TypeScript declaration and Expo's own inliner ignores
-non-`EXPO_PUBLIC_` names, so there is no collision. The plugin owns that token.
+At bundle time the plugin finds `import { flareSourcemapVersion } from
+'@flareapp/react-native-sourcemaps/runtime'`, replaces every reference to that binding
+with the resolved version string literal, and removes the now-dead import (so nothing
+of this package ships in the app bundle). It resolves the version once per file
+(lazily, only when the import is present) via the shared `resolveVersion()`, and a
+`pre()` hook resets that per-file cache since Babel reuses plugin instances across
+files.
 
-Plugin ordering: the default bare-RN preset and Expo preset do not inline arbitrary
-`process.env` reads, so in a stock setup ordering is moot. If a project adds a generic
-`process.env` transform (e.g. `babel-plugin-transform-inline-environment-variables`),
-this plugin must run before it, otherwise the token is rewritten or stripped before we
-see it. The README states this caveat.
+Why a typed import rather than `process.env.FLARE_SOURCEMAP_VERSION` (the original
+plan): the import is a normal typed `string`, so app authors need no `process` global,
+no `@types/node`, and no ambient declaration, and there is no "looks like a runtime env
+var but isn't" confusion. The `/runtime` entry is RN-safe (no Node imports) so it is
+safe in Metro's graph; without the plugin it is the empty-string default, which is
+harmless because maps are only uploaded for release builds. This mirrors the
+ecosystem norm for build constants (e.g. expo-updates' `Updates.runtimeVersion`)
+rather than `process.env`.
+
+Plugin ordering: matching a named import is robust against other `process.env`
+transforms, so ordering is not a concern in a stock setup. The aliased form
+(`import { flareSourcemapVersion as v }`) is handled.
 
 ### 3. CLI (`cli.ts` + `uploadSourcemaps.ts`)
 
@@ -184,7 +202,7 @@ unset, so the inlined value and the uploaded `version_id` cannot silently diverg
 
 ### 5. iOS — `scripts/flare-xcode.sh`
 
-The user repoints the *"Bundle React Native code and images"* build phase from
+The user repoints the _"Bundle React Native code and images"_ build phase from
 `react-native-xcode.sh` to `flare-xcode.sh` (documented, manual; committed once):
 
 ```sh
@@ -232,7 +250,7 @@ are folded into the single required implementation checkpoint below.
 
 **1. Hermes-composed map.** RN release builds default to Hermes, which compiles the JS
 bundle to bytecode. Production stack frames are positions in that bytecode, so the map
-that actually symbolicates is the *composed* map (the Metro JS->source map composed
+that actually symbolicates is the _composed_ map (the Metro JS->source map composed
 with the Hermes bytecode->JS map, via `compose-source-maps`). Uploading the plain
 Metro JS map instead yields wrong lines or no match at all. We do not run the
 composition ourselves (out of scope below); we consume the build's composed output.
@@ -278,8 +296,10 @@ assumption.
 - Matching model: **version-based** (not Debug ID). [backend constraint]
 - Package: **separate `@flareapp/react-native-sourcemaps`**, not folded into the
   runtime SDK. [packaging hygiene]
-- Version injection: **Babel plugin** inlining `process.env.FLARE_SOURCEMAP_VERSION`,
-  shared `resolveVersion()` with env-var single channel. [Approach 2]
+- Version injection: **Babel plugin** inlining a typed `flareSourcemapVersion` import
+  from `./runtime` (revised from `process.env.FLARE_SOURCEMAP_VERSION` after the bare-RN
+  verification showed `process` is untyped and the channel is misleading), shared
+  `resolveVersion()` with `FLARE_SOURCEMAP_VERSION` env-var single channel. [Approach 2]
 - Native wiring: **Sentry-parity** — Android Gradle one-liner + iOS build-phase
   script + Expo config plugin. [option 2]
 - Name: **`...-sourcemaps`**, not `...-metro` (carries Gradle/Xcode, not just Metro).
