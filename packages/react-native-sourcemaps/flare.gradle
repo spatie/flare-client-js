@@ -1,0 +1,74 @@
+// Flare automatic sourcemap upload for bare React Native (Android).
+//
+// Apply from android/app/build.gradle:
+//   apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"
+//
+// Hooks the release JS-bundle task and, after it runs, uploads the Hermes-composed
+// sourcemap to Flare. Never fails the build: the CLI exits 0 in --auto mode and the
+// exec ignores its exit value as a belt-and-braces guard.
+
+def flareProjectRoot = rootProject.projectDir.parentFile // android/ -> project root
+def flareConfig = new File(flareProjectRoot, "flare.json")
+// Prefer the resolved bin over `npx` (avoids npx's PATH ambiguity and any network
+// fetch), matching the iOS hook. The no-extension unix bin is checked here; on
+// Windows it is a `.cmd` this misses, so we fall back to `npx` there.
+def flareCli = new File(flareProjectRoot, "node_modules/.bin/flare-rn-sourcemaps")
+
+gradle.projectsEvaluated {
+    tasks.configureEach { task ->
+        def name = task.name
+        def isBundleTask = (name.startsWith("createBundle") || name.startsWith("bundle")) &&
+            name.endsWith("JsAndAssets")
+        def isRelease = name.toLowerCase().contains("release")
+        if (!isBundleTask || !isRelease) {
+            return
+        }
+
+        task.doLast {
+            // Prefer the map path the task itself exposes (handles a custom
+            // bundleAssetName); fall back to the stock generated location.
+            def sourcemapPath = null
+            if (task.hasProperty("sourcemapOutput") && task.sourcemapOutput != null) {
+                sourcemapPath = task.sourcemapOutput.toString()
+            } else {
+                // Stock generated location. `project` is the module this file is
+                // applied from — the documented usage is android/app/build.gradle,
+                // so project.projectDir is android/app and this resolves to
+                // android/app/build/generated/sourcemaps/react/release/.
+                sourcemapPath = new File(
+                    project.projectDir,
+                    "build/generated/sourcemaps/react/release/index.android.bundle.map"
+                ).absolutePath
+            }
+
+            if (!new File(sourcemapPath).exists()) {
+                logger.warn("@flareapp/react-native-sourcemaps: no sourcemap at ${sourcemapPath}, skipping upload.")
+                return
+            }
+
+            // Prefer the resolved .bin; fall back to npx (Windows, or a missing bin).
+            def baseCommand = flareCli.exists() ? [flareCli.absolutePath] : ["npx", "flare-rn-sourcemaps"]
+
+            try {
+                exec {
+                    workingDir flareProjectRoot
+                    commandLine(baseCommand + [
+                        "upload",
+                        "--sourcemap", sourcemapPath,
+                        "--config", flareConfig.absolutePath,
+                        "--auto",
+                    ])
+                    // The CLI already exits 0 on every upload failure mode; this
+                    // ignores a non-zero exit as a second guard.
+                    ignoreExitValue true
+                }
+            } catch (Exception e) {
+                // ignoreExitValue covers a non-zero exit but NOT a failure to launch
+                // the process (e.g. `npx`/node not on PATH for a GUI-triggered
+                // build), which throws an ExecException. Catch it so a sourcemap
+                // problem can never break the release build.
+                logger.warn("@flareapp/react-native-sourcemaps: could not run the upload CLI (${e.message}); skipping. Your release will report minified stack traces until the sourcemap is uploaded.")
+            }
+        }
+    }
+}

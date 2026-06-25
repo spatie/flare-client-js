@@ -33,6 +33,24 @@ test('returns a fallback frame array when ErrorStackParser throws', async () => 
     expect(frames.length).toBeGreaterThan(0);
 });
 
+test('strips the Hermes "address at " prefix from frame file names', async () => {
+    (ErrorStackParser.parse as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => [
+        {
+            fileName: 'address at index.android.bundle',
+            lineNumber: 1,
+            columnNumber: 12345,
+            functionName: 'onPress',
+        },
+    ]);
+
+    const error = new Error('boom');
+    error.stack = 'Error: boom\n    at fn (file.js:1:1)';
+
+    const frames = await createStackTrace(error, false, nullReader);
+
+    expect(frames[0].file).toBe('index.android.bundle');
+});
+
 test('marks node_modules frames as non-application', async () => {
     (ErrorStackParser.parse as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => [
         {

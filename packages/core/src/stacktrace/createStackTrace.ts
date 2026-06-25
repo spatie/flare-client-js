@@ -25,20 +25,34 @@ export function createStackTrace(error: Error, debug: boolean, fileReader: FileR
 
         Promise.all(
             parsedFrames.map((frame) => {
-                return getCodeSnippet(fileReader, frame.fileName, frame.lineNumber, frame.columnNumber).then(
-                    (snippet) => ({
-                        lineNumber: frame.lineNumber || 1,
-                        columnNumber: frame.columnNumber || 1,
-                        method: frame.functionName || 'Anonymous or unknown function',
-                        file: frame.fileName || 'Unknown file',
-                        codeSnippet: snippet.codeSnippet,
-                        class: '',
-                        isApplicationFrame: isApplicationFrame(frame.fileName),
-                    }),
-                );
+                const fileName = normalizeFileName(frame.fileName);
+                return getCodeSnippet(fileReader, fileName, frame.lineNumber, frame.columnNumber).then((snippet) => ({
+                    lineNumber: frame.lineNumber || 1,
+                    columnNumber: frame.columnNumber || 1,
+                    method: frame.functionName || 'Anonymous or unknown function',
+                    file: fileName || 'Unknown file',
+                    codeSnippet: snippet.codeSnippet,
+                    class: '',
+                    isApplicationFrame: isApplicationFrame(fileName),
+                }));
             }),
         ).then(resolve);
     });
+}
+
+// Hermes (React Native's default engine) emits stack frames like
+// `onPress@address at index.android.bundle:1:1234`. error-stack-parser keeps the
+// `address at ` literal as part of the fileName, which breaks both sourcemap matching
+// (the backend matches the bundle path against the uploaded relative_filename) and
+// source display. Strip the prefix so `file` is the real bundle path. No real file
+// path begins with `address at `, so this is a no-op on other engines.
+const HERMES_ADDRESS_PREFIX = 'address at ';
+
+function normalizeFileName(fileName: string | undefined): string | undefined {
+    if (fileName?.startsWith(HERMES_ADDRESS_PREFIX)) {
+        return fileName.slice(HERMES_ADDRESS_PREFIX.length);
+    }
+    return fileName;
 }
 
 function fallbackFrame(reason: string): StackFrame {
