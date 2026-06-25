@@ -31,6 +31,10 @@ gradle.projectsEvaluated {
             if (task.hasProperty("sourcemapOutput") && task.sourcemapOutput != null) {
                 sourcemapPath = task.sourcemapOutput.toString()
             } else {
+                // Stock generated location. `project` is the module this file is
+                // applied from — the documented usage is android/app/build.gradle,
+                // so project.projectDir is android/app and this resolves to
+                // android/app/build/generated/sourcemaps/react/release/.
                 sourcemapPath = new File(
                     project.projectDir,
                     "build/generated/sourcemaps/react/release/index.android.bundle.map"

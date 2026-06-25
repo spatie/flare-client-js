@@ -18,8 +18,9 @@ if [ "$CONFIGURATION" != "Release" ]; then
     exit 0
 fi
 
-# Prefer the path the bundle phase wrote (SOURCEMAP_FILE from .xcode.env); otherwise
-# reconstruct the stock location from Xcode's auto-exported build settings.
+# Prefer the path the bundle phase wrote (SOURCEMAP_FILE from .xcode.env, the
+# documented setup). The fallback is a best-effort heuristic for the stock iOS
+# layout; if SOURCEMAP_FILE is unset and no map exists there, we skip below.
 SOURCEMAP_PATH="$SOURCEMAP_FILE"
 if [ -z "$SOURCEMAP_PATH" ]; then
     SOURCEMAP_PATH="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"
