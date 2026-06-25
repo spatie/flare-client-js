@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { resolveVersion } from '../src/version';
+import { resolveAutoVersion, resolveVersion } from '../src/version';
 
 vi.mock('node:fs', () => ({ readFileSync: vi.fn() }));
 
@@ -35,5 +35,29 @@ describe('resolveVersion', () => {
             throw new Error('ENOENT');
         });
         expect(() => resolveVersion({ cwd: '/proj' })).toThrow(/Could not resolve a sourcemap version/);
+    });
+});
+
+describe('resolveAutoVersion', () => {
+    test('prefers an explicit version', () => {
+        process.env.FLARE_SOURCEMAP_VERSION = 'from-env';
+        expect(resolveAutoVersion('from-flag')).toBe('from-flag');
+    });
+
+    test('uses FLARE_SOURCEMAP_VERSION when no explicit version is given', () => {
+        process.env.FLARE_SOURCEMAP_VERSION = 'from-env';
+        expect(resolveAutoVersion()).toBe('from-env');
+    });
+
+    test('returns null when nothing is set — never falls back to package.json', () => {
+        delete process.env.FLARE_SOURCEMAP_VERSION;
+        vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ version: '9.9.9' }));
+        expect(resolveAutoVersion()).toBeNull();
+        expect(readFileSync).not.toHaveBeenCalled();
+    });
+
+    test('treats an empty env var as unresolved', () => {
+        process.env.FLARE_SOURCEMAP_VERSION = '';
+        expect(resolveAutoVersion()).toBeNull();
     });
 });

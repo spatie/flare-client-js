@@ -42,6 +42,24 @@ export function resolveVersion({ version, cwd = process.cwd() }: ResolveVersionO
     );
 }
 
+/**
+ * Version resolution for the AUTOMATIC native upload path. Unlike resolveVersion it
+ * NEVER falls back to package.json: the hook runs in android/ or ios/, a different
+ * cwd than Metro, so a package.json fallback would read a different (or missing)
+ * file and silently desync from the version the Babel plugin inlined. The only
+ * input guaranteed identical to both halves is FLARE_SOURCEMAP_VERSION. Returns
+ * null when unresolved so the caller can skip-with-banner rather than upload a
+ * guaranteed-mismatched map.
+ */
+export function resolveAutoVersion(version?: string): string | null {
+    if (version) {
+        return version;
+    }
+
+    const envVersion = process.env.FLARE_SOURCEMAP_VERSION;
+    return envVersion ? envVersion : null;
+}
+
 function readPackageVersion(cwd: string): string | null {
     try {
         const pkg = JSON.parse(readFileSync(resolve(cwd, 'package.json'), 'utf8')) as { version?: string };
