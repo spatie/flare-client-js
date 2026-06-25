@@ -99,6 +99,7 @@ async function runAutoUpload(options: AutoUploadOptions): Promise<void> {
             sourcemap,
             bundleFilename,
             apiKey,
+            apiEndpoint,
         });
         return;
     }
@@ -110,6 +111,7 @@ async function runAutoUpload(options: AutoUploadOptions): Promise<void> {
             sourcemap,
             bundleFilename,
             apiKey,
+            apiEndpoint,
         });
         return;
     }
@@ -118,6 +120,6 @@ async function runAutoUpload(options: AutoUploadOptions): Promise<void> {
         await uploadSourcemaps({ apiKey, sourcemap, bundleFilename, version, apiEndpoint });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        printFailureBanner({ reason: message, sourcemap, bundleFilename, version, apiKey });
+        printFailureBanner({ reason: message, sourcemap, bundleFilename, version, apiKey, apiEndpoint });
     }
 }

@@ -9,6 +9,8 @@ export type FailureBannerInfo = {
     version?: string;
     /** Resolved API key, interpolated into the recovery command. */
     apiKey?: string;
+    /** Resolved API endpoint; only included in the recovery command when set (custom/self-hosted). */
+    apiEndpoint?: string;
 };
 
 const BORDER = '='.repeat(60);
@@ -25,6 +27,7 @@ export function formatFailureBanner(info: FailureBannerInfo): string {
     const bundleFilename = info.bundleFilename ?? '<bundle-filename>';
     const version = info.version && info.version.length > 0 ? info.version : '<flare-sourcemap-version>';
     const apiKey = info.apiKey && info.apiKey.length > 0 ? info.apiKey : '<your-flare-api-key>';
+    const endpointFlag = info.apiEndpoint ? ` --api-endpoint ${info.apiEndpoint}` : '';
 
     return [
         '',
@@ -34,7 +37,7 @@ export function formatFailureBanner(info: FailureBannerInfo): string {
         '  Your release will report minified stack traces until the',
         '  sourcemap is uploaded. Re-run manually:',
         `    npx flare-rn-sourcemaps upload --sourcemap ${sourcemap} \\`,
-        `      --bundle-filename ${bundleFilename} --version ${version} --api-key ${apiKey}`,
+        `      --bundle-filename ${bundleFilename} --version ${version} --api-key ${apiKey}${endpointFlag}`,
         BORDER,
         '',
     ].join('\n');

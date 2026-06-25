@@ -43,4 +43,14 @@ describe('formatFailureBanner', () => {
         expect(banner).toContain('<flare-sourcemap-version>');
         expect(banner).toContain('<your-flare-api-key>');
     });
+
+    test('includes --api-endpoint in the recovery command when a custom endpoint is set', () => {
+        const banner = formatFailureBanner({ reason: 'x', apiEndpoint: 'https://flare.internal/api/sourcemaps' });
+        expect(banner).toContain('--api-endpoint https://flare.internal/api/sourcemaps');
+    });
+
+    test('omits --api-endpoint when no endpoint is set', () => {
+        const banner = formatFailureBanner({ reason: 'x' });
+        expect(banner).not.toContain('--api-endpoint');
+    });
 });
