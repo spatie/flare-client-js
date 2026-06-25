@@ -14,7 +14,9 @@
         "email": "info@spatie.be"
     },
     "files": [
-        "dist"
+        "dist",
+        "flare.gradle",
+        "scripts"
     ],
     "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
