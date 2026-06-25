@@ -60,7 +60,7 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts src/babel.ts src/bin.ts src/runtime.ts --format cjs,esm --dts --clean --noExternal @flareapp/flare-api",
+        "build": "tsdown",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
         "release": "release-it"
