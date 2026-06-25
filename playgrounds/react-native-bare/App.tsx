@@ -1,4 +1,5 @@
 import { flare, FlareErrorBoundary } from '@flareapp/react-native';
+import { flareSourcemapVersion } from '@flareapp/react-native-sourcemaps/runtime';
 import React, { useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -6,7 +7,14 @@ import { config, isConfigured } from './flare.config';
 
 // Boot once at module load. Skipped until a real key is set.
 if (isConfigured) {
-    flare.configure({ ingestUrl: config.ingestUrl, stage: 'smoke' });
+    flare.configure({
+        ingestUrl: config.ingestUrl,
+        stage: 'smoke',
+        // The babel plugin (@flareapp/react-native-sourcemaps/babel) replaces
+        // flareSourcemapVersion with the build's FLARE_SOURCEMAP_VERSION literal, so
+        // reports carry a sourcemapVersionId the backend matches against the upload.
+        sourcemapVersionId: flareSourcemapVersion,
+    });
     flare.light(config.key);
 }
 
