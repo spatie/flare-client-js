@@ -9,8 +9,10 @@ It has two halves that share one version string:
 2. A **CLI** (`flare-rn-sourcemaps upload`) that uploads the `.map` under that
    same version.
 
-> Native auto-wiring (Android Gradle, iOS Xcode, Expo config plugin) ships
-> separately. This package covers the manual and `expo export` flows.
+> The manual CLI flow below works everywhere. For **bare React Native** you can also
+> wire the upload into the native release build so it happens automatically — see
+> "Automatic upload (bare React Native)" near the end. The Expo config plugin ships
+> separately.
 
 ## Install
 
@@ -89,6 +91,66 @@ Flags:
 | `--api-endpoint`    | no       | Defaults to `https://flareapp.io/api/sourcemaps`.                                              |
 
 \* Without a key the command warns and does nothing.
+
+## Automatic upload (bare React Native)
+
+Instead of running the CLI by hand, wire it into your native release build. Both
+hooks read a committed `flare.json` at your project root:
+
+```json
+{
+    "apiKey": "your-flare-api-key",
+    "apiEndpoint": "https://flareapp.io/api/sourcemaps"
+}
+```
+
+`apiKey` may also come from the `FLARE_API_KEY` environment variable (which wins over
+the file, so CI can inject it without committing a key).
+
+The version is taken **only** from `FLARE_SOURCEMAP_VERSION` here (the same variable
+the Babel plugin reads), so the inlined version and the uploaded version always match.
+Set it in your build environment:
+
+```bash
+export FLARE_SOURCEMAP_VERSION="$(git rev-parse --short HEAD)"
+```
+
+If the key or `FLARE_SOURCEMAP_VERSION` is missing, the upload is **skipped with a
+large warning banner** — your build never fails because of a sourcemap problem.
+
+### Android
+
+Add one line to `android/app/build.gradle` (after the `react` block):
+
+```gradle
+apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"
+```
+
+This uploads the Hermes-composed map after every `release` JS-bundle task.
+
+### iOS
+
+1. Tell the stock React Native bundle phase to emit a sourcemap by adding this line
+   to `ios/.xcode.env`:
+
+    ```sh
+    export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"
+    ```
+
+2. In Xcode, add a new "Run Script" build phase named **Upload Flare sourcemaps**,
+   placed **after** "Bundle React Native code and images", with this script:
+
+    ```sh
+    set -e
+    WITH_ENVIRONMENT="../node_modules/react-native/scripts/xcode/with-environment.sh"
+    FLARE_XCODE="../node_modules/@flareapp/react-native-sourcemaps/scripts/flare-xcode.sh"
+    /bin/sh -c "$WITH_ENVIRONMENT $FLARE_XCODE"
+    ```
+
+    The `with-environment.sh` wrapper is required so the phase sees `SOURCEMAP_FILE`
+    (and any `FLARE_*` vars) exported by `.xcode.env`.
+
+Both hooks only run for **Release** builds; debug builds do nothing.
 
 ## Expo (`expo export`)
 
