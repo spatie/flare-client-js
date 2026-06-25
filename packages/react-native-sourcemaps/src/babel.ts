@@ -2,64 +2,93 @@ import type * as Babel from '@babel/core';
 
 import { resolveVersion } from './version';
 
-const ENV_TOKEN = 'FLARE_SOURCEMAP_VERSION';
+// The app imports `flareSourcemapVersion` from this runtime entry; the plugin
+// inlines it. A typed import (rather than `process.env.FLARE_SOURCEMAP_VERSION`)
+// means no Node types, no ambient declarations, and no "looks like a runtime env
+// var but isn't" confusion for app authors.
+const RUNTIME_SOURCE = '@flareapp/react-native-sourcemaps/runtime';
+const EXPORT_NAME = 'flareSourcemapVersion';
 
 // Type queries on dynamic imports: no runtime import of @babel/* is emitted.
-// `Types` is the shape of the `t` helper object; `MemberExpressionNode` is the
-// AST interface. The types resolve via @types/babel__core (dev dependency).
+// `Types` is the shape of the `t` helper object; the others are AST interfaces.
+// They resolve via @types/babel__core (dev dependency).
 type Types = typeof import('@babel/types');
-type MemberExpressionNode = import('@babel/types').MemberExpression;
+type ImportDeclarationNode = import('@babel/types').ImportDeclaration;
+type ImportSpecifierNode = import('@babel/types').ImportSpecifier;
 
 /**
- * Babel plugin that replaces `process.env.FLARE_SOURCEMAP_VERSION` with the
- * resolved version string at bundle time. Metro does not inline arbitrary
- * `process.env` reads, so without this the value is `undefined` at runtime in a
- * bare RN app. The version is resolved once per plugin instance (lazily, on the
- * first match) via the shared `resolveVersion()`.
+ * Babel plugin that inlines `flareSourcemapVersion` (imported from
+ * `@flareapp/react-native-sourcemaps/runtime`) with the resolved version string at
+ * bundle time, then removes the now-dead import so nothing of this package ships at
+ * runtime. The version is resolved once per file (lazily, only when the import is
+ * present) via the shared `resolveVersion()`.
  */
 export default function flareSourcemapsBabelPlugin({ types: t }: { types: Types }): Babel.PluginObj {
     let version: string | undefined;
 
     return {
         name: '@flareapp/react-native-sourcemaps',
-        // Reset per-file so the env var is re-read on each transformSync call
-        // (needed for test isolation and supports incremental rebuild scenarios).
+        // Babel caches plugin instances across files/transforms, so reset the
+        // per-file resolved version before each file (also correct for rebuilds
+        // where FLARE_SOURCEMAP_VERSION changes between runs).
         pre() {
             version = undefined;
         },
         visitor: {
-            MemberExpression(path: Babel.NodePath<MemberExpressionNode>) {
-                if (!isFlareVersionAccess(path.node, t)) {
+            ImportDeclaration(path: Babel.NodePath<ImportDeclarationNode>) {
+                if (path.node.source.value !== RUNTIME_SOURCE) {
                     return;
                 }
-                // Resolve lazily: once per babel plugin instance. Babel caches the
-                // plugin instance across transformSync calls with the same function
-                // reference, so version is resolved on the first matching node only.
-                // For real builds this is fine: FLARE_SOURCEMAP_VERSION is stable
-                // for the entire Metro bundler run.
-                if (version === undefined) {
-                    version = resolveVersion();
+
+                const remaining = [];
+                let inlinedAny = false;
+
+                for (const specifier of path.node.specifiers) {
+                    if (!isFlareVersionSpecifier(specifier, t)) {
+                        remaining.push(specifier);
+                        continue;
+                    }
+
+                    const binding = path.scope.getBinding(specifier.local.name);
+                    if (!binding) {
+                        remaining.push(specifier);
+                        continue;
+                    }
+
+                    if (version === undefined) {
+                        version = resolveVersion();
+                    }
+                    for (const reference of binding.referencePaths) {
+                        reference.replaceWith(t.stringLiteral(version));
+                    }
+                    inlinedAny = true;
                 }
-                path.replaceWith(t.stringLiteral(version));
+
+                if (!inlinedAny) {
+                    return;
+                }
+
+                // Drop the import: either the whole declaration, or just the
+                // specifiers we inlined if the user imported other names too.
+                if (remaining.length === 0) {
+                    path.remove();
+                } else {
+                    path.node.specifiers = remaining;
+                }
             },
         },
     };
 }
 
-/** Matches `process.env.FLARE_SOURCEMAP_VERSION` and `process.env["FLARE_SOURCEMAP_VERSION"]`. */
-function isFlareVersionAccess(node: MemberExpressionNode, t: Types): boolean {
-    const object = node.object;
-    if (!t.isMemberExpression(object) || object.computed) {
+/** Matches `import { flareSourcemapVersion } from '.../runtime'` (named, possibly aliased). */
+function isFlareVersionSpecifier(
+    specifier: ImportDeclarationNode['specifiers'][number],
+    t: Types,
+): specifier is ImportSpecifierNode {
+    if (!t.isImportSpecifier(specifier)) {
         return false;
     }
-    if (!t.isIdentifier(object.object, { name: 'process' })) {
-        return false;
-    }
-    if (!t.isIdentifier(object.property, { name: 'env' })) {
-        return false;
-    }
-    if (node.computed) {
-        return t.isStringLiteral(node.property, { value: ENV_TOKEN });
-    }
-    return t.isIdentifier(node.property, { name: ENV_TOKEN });
+    const imported = specifier.imported;
+    const importedName = t.isIdentifier(imported) ? imported.name : imported.value;
+    return importedName === EXPORT_NAME;
 }

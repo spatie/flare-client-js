@@ -3,6 +3,8 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import flareSourcemapsBabelPlugin from '../src/babel';
 
+const RUNTIME = '@flareapp/react-native-sourcemaps/runtime';
+
 function transform(code: string, version: string | undefined): string {
     const previous = process.env.FLARE_SOURCEMAP_VERSION;
     if (version === undefined) {
@@ -31,25 +33,37 @@ afterEach(() => {
 });
 
 describe('flareSourcemapsBabelPlugin', () => {
-    test('replaces process.env.FLARE_SOURCEMAP_VERSION with the resolved version literal', () => {
-        const out = transform('const v = process.env.FLARE_SOURCEMAP_VERSION;', 'abc123');
+    test('inlines the imported flareSourcemapVersion and drops the import', () => {
+        const out = transform(
+            `import { flareSourcemapVersion } from '${RUNTIME}';\nconst v = flareSourcemapVersion;`,
+            'abc123',
+        );
         expect(out).toContain('"abc123"');
-        expect(out).not.toContain('process.env.FLARE_SOURCEMAP_VERSION');
+        expect(out).not.toContain('flareSourcemapVersion');
+        expect(out).not.toContain(RUNTIME);
     });
 
-    test('leaves other process.env reads untouched', () => {
-        const out = transform('const a = process.env.OTHER_VAR;', 'abc123');
-        expect(out).toContain('process.env.OTHER_VAR');
-    });
-
-    test('handles computed access process.env["FLARE_SOURCEMAP_VERSION"]', () => {
-        const out = transform('const v = process.env["FLARE_SOURCEMAP_VERSION"];', 'xyz');
+    test('handles an aliased import', () => {
+        const out = transform(`import { flareSourcemapVersion as ver } from '${RUNTIME}';\nconst v = ver;`, 'xyz');
         expect(out).toContain('"xyz"');
+        expect(out).not.toContain(RUNTIME);
+    });
+
+    test('leaves unrelated imports and identifiers untouched', () => {
+        const out = transform(
+            `import { foo } from 'somewhere';\nconst flareSourcemapVersion = 1;\nconst a = foo + flareSourcemapVersion;`,
+            'abc123',
+        );
+        expect(out).toContain("from 'somewhere'");
+        expect(out).toContain('foo');
+        // The local const (not imported from our runtime) must NOT be inlined.
+        expect(out).not.toContain('"abc123"');
     });
 
     test('resolves the version independently for each transform (pre() reset)', () => {
-        const first = transform('const v = process.env.FLARE_SOURCEMAP_VERSION;', 'v1');
-        const second = transform('const v = process.env.FLARE_SOURCEMAP_VERSION;', 'v2');
+        const code = `import { flareSourcemapVersion } from '${RUNTIME}';\nexport const v = flareSourcemapVersion;`;
+        const first = transform(code, 'v1');
+        const second = transform(code, 'v2');
         expect(first).toContain('"v1"');
         expect(second).toContain('"v2"');
     });

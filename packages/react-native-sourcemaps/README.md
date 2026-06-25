@@ -29,16 +29,21 @@ module.exports = {
 };
 ```
 
-Then read the inlined value when configuring Flare:
+Then pass the inlined version when configuring Flare. Import `flareSourcemapVersion`
+from the package's runtime entry — it's a typed `string`, so there is no `process`
+global to type and no `@types/node` to add:
 
-```js
+```ts
 import { flare } from '@flareapp/react-native';
+import { flareSourcemapVersion } from '@flareapp/react-native-sourcemaps/runtime';
 
-flare.light(FLARE_KEY).configure({ sourcemapVersionId: process.env.FLARE_SOURCEMAP_VERSION });
+flare.light(FLARE_KEY).configure({ sourcemapVersionId: flareSourcemapVersion });
 ```
 
-The plugin replaces `process.env.FLARE_SOURCEMAP_VERSION` with the version it
-resolves at bundle time. Set that version in your build environment:
+The plugin replaces every reference to `flareSourcemapVersion` with the version it
+resolves at bundle time (and removes the import, so nothing of this package ships in
+your app bundle). Without the plugin the value is an empty string, which is harmless.
+Set the version in your build environment:
 
 ```bash
 export FLARE_SOURCEMAP_VERSION="$(git rev-parse --short HEAD)"

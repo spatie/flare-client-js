@@ -43,6 +43,16 @@
                 "default": "./dist/babel.cjs"
             }
         },
+        "./runtime": {
+            "import": {
+                "types": "./dist/runtime.d.mts",
+                "default": "./dist/runtime.mjs"
+            },
+            "require": {
+                "types": "./dist/runtime.d.cts",
+                "default": "./dist/runtime.cjs"
+            }
+        },
         "./package.json": "./package.json"
     },
     "engines": {
@@ -50,7 +60,7 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts src/babel.ts src/bin.ts --format cjs,esm --dts --clean --noExternal @flareapp/flare-api",
+        "build": "tsdown src/index.ts src/babel.ts src/bin.ts src/runtime.ts --format cjs,esm --dts --clean --noExternal @flareapp/flare-api",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
         "release": "release-it"
