@@ -1,6 +1,9 @@
+import { dirname } from 'node:path';
+
 import { printFailureBanner } from './banner';
 import { readFlareConfig } from './config';
 import { LOG_PREFIX } from './constants';
+import { loadEnvFiles } from './env';
 import { uploadSourcemaps } from './uploadSourcemaps';
 import { resolveAutoVersion } from './version';
 
@@ -59,6 +62,18 @@ export async function runCli(argv: string[]): Promise<void> {
         return;
     }
 
+    // Auto mode is the native build-hook path. The hook process often lacks FLARE_*
+    // in its environment (the app's .env files are a JS-runtime concern, an IDE build
+    // doesn't inherit your shell, and a reused Gradle daemon can serve a stale env),
+    // so load .env.local / .env from the project root — the directory that holds
+    // flare.json — before resolving the key. Existing env values are never
+    // overwritten, so an explicit export (or an EAS env var) still wins. The manual
+    // path is left untouched: there the caller is explicit and shouldn't be surprised
+    // by ambient .env loading.
+    if (flags.auto === 'true') {
+        loadEnvFiles(flags.config ? dirname(flags.config) : process.cwd());
+    }
+
     // Precedence per field: explicit flag > env > flare.json > default. The
     // relative_filename has no flare.json/env override in v1; `--bundle-filename`
     // (manual) or the map-basename default (in uploadSourcemaps) cover it.
@@ -95,7 +110,7 @@ async function runAutoUpload(options: AutoUploadOptions): Promise<void> {
 
     if (!apiKey) {
         printFailureBanner({
-            reason: 'No Flare API key. Set FLARE_API_KEY or add "apiKey" to flare.json.',
+            reason: 'No Flare API key. Set FLARE_API_KEY (shell, .env.local, or .env) or add "apiKey" to flare.json.',
             sourcemap,
             bundleFilename,
             apiKey,
