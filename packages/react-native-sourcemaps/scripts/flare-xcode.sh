@@ -13,10 +13,22 @@
 # Never fails the build: the CLI exits 0 in --auto mode, and the upload call is
 # guarded with `|| true`.
 
-if [ "$CONFIGURATION" != "Release" ]; then
-    echo "@flareapp/react-native-sourcemaps: CONFIGURATION=$CONFIGURATION, skipping (Release only)."
-    exit 0
-fi
+# Don't gate on the configuration NAME being "Release". Brownfield and bare apps rename
+# it or add release-style configurations (Staging, Production, AppStore, ...), none of
+# which equal "Release" — requiring that literal name would silently skip the upload on
+# exactly the builds that ship. The real signal is whether a composed sourcemap was
+# produced: only a bundled + Hermes-compiled (release-style) build emits one, and a
+# Debug/Metro build emits none, so the SOURCEMAP_PATH check below skips it for free.
+# We only fast-path the dev config, matched case-insensitively as a substring so
+# "Debug", "debug", "StagingDebug", etc. are all caught (POSIX sh: tr + case, no
+# bashisms).
+CONFIGURATION_LC=$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')
+case "$CONFIGURATION_LC" in
+    *debug*)
+        echo "@flareapp/react-native-sourcemaps: CONFIGURATION=$CONFIGURATION, skipping (dev build)."
+        exit 0
+        ;;
+esac
 
 # Prefer the path the bundle phase wrote (SOURCEMAP_FILE from .xcode.env, the
 # documented setup). The fallback is a best-effort heuristic for the stock iOS

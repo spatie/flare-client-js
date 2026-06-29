@@ -19,25 +19,37 @@ gradle.projectsEvaluated {
         def name = task.name
         def isBundleTask = (name.startsWith("createBundle") || name.startsWith("bundle")) &&
             name.endsWith("JsAndAssets")
-        def isRelease = name.toLowerCase().contains("release")
-        if (!isBundleTask || !isRelease) {
+        // Don't require the variant name to contain "release". Brownfield/bare apps
+        // rename the release build type (Production, AppStore, ...), so requiring
+        // "release" would silently skip the upload on exactly the builds that ship.
+        // Skip only the dev (debug) variants, matched case-insensitively as a
+        // substring (symmetric with the iOS hook); the "no sourcemap -> skip" guard
+        // below then handles any non-bundling variant for free.
+        def isDebug = name.toLowerCase().contains("debug")
+        if (!isBundleTask || isDebug) {
             return
         }
 
         task.doLast {
-            // Prefer the map path the task itself exposes (handles a custom
-            // bundleAssetName); fall back to the stock generated location.
+            // Prefer the map path the task itself exposes (authoritative for any
+            // variant and a custom bundleAssetName); fall back to the stock generated
+            // location otherwise. Derive the variant subdir from the task name rather
+            // than hardcoding "release", so a renamed build type (Production, ...)
+            // still resolves. `project` is the module this file is applied from — the
+            // documented usage is android/app/build.gradle, so project.projectDir is
+            // android/app.
             def sourcemapPath = null
             if (task.hasProperty("sourcemapOutput") && task.sourcemapOutput != null) {
                 sourcemapPath = task.sourcemapOutput.toString()
             } else {
-                // Stock generated location. `project` is the module this file is
-                // applied from — the documented usage is android/app/build.gradle,
-                // so project.projectDir is android/app and this resolves to
-                // android/app/build/generated/sourcemaps/react/release/.
+                // createBundle<Variant>JsAndAssets / bundle<Variant>JsAndAssets ->
+                // <variant>, decapitalised to match Gradle's camelCase variant name
+                // (e.g. "Release" -> "release", "StagingRelease" -> "stagingRelease").
+                def raw = name.replaceFirst(/^(createBundle|bundle)/, "").replaceFirst(/JsAndAssets$/, "")
+                def variant = raw.isEmpty() ? raw : raw.substring(0, 1).toLowerCase() + raw.substring(1)
                 sourcemapPath = new File(
                     project.projectDir,
-                    "build/generated/sourcemaps/react/release/index.android.bundle.map"
+                    "build/generated/sourcemaps/react/${variant}/index.android.bundle.map"
                 ).absolutePath
             }
 
