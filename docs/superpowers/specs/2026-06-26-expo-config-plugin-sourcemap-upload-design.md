@@ -26,6 +26,15 @@ plugin has concrete hooks to inject.
 It ships **inside the existing `@flareapp/react-native-sourcemaps` package** as a new
 `./expo` subpath export. No new npm package.
 
+**Scope of "automatic".** The plugin automates only the **native-wiring** third of
+the flow. The user still does three things by hand: add
+`@flareapp/react-native-sourcemaps/babel` to `babel.config.js`, pass
+`flareSourcemapVersion` to `flare.configure()`, and set `FLARE_SOURCEMAP_VERSION` in
+the build environment (see "Version & EAS"). And it covers **native release builds
+only** (`expo run:* --variant/--configuration Release`, EAS Build) — **not** OTA /
+EAS Update (see Out of scope). The docs must list the steps that remain so the plugin
+is not mistaken for drop-in symbolication.
+
 ## Out of scope (non-goals)
 
 - **No Babel auto-wiring.** Adding `@flareapp/react-native-sourcemaps/babel` to
@@ -38,7 +47,16 @@ It ships **inside the existing `@flareapp/react-native-sourcemaps` package** as 
   silently desync the inlined and uploaded versions. This is the exact footgun the
   bare design eliminated.
 - **No bare-style installer**, no classic eject-and-hand-edit flow (that is just the
-  bare path), no `expo export` changes (the manual CLI flow already covers it).
+  bare path).
+- **No OTA / EAS Update coverage.** The injected hooks fire only during a **native**
+  build (`expo run:*`, EAS Build). `eas update` ships a JS bundle via `expo export`
+  with no Gradle/Xcode phase, so it uploads **no map** and those frames stay minified
+  even with the plugin installed. OTA releases must upload sourcemaps with the manual
+  CLI (`flare-rn-sourcemaps upload`), setting the **same** `FLARE_SOURCEMAP_VERSION`
+  used for the export so the inlined and uploaded versions match — the exact desync
+  hazard the native path eliminates, now the user's responsibility on the export path.
+  EAS Update is a primary reason teams choose managed Expo, so this gap must be called
+  out prominently in the docs, not left implicit.
 
 ## Plugin API
 
@@ -59,10 +77,10 @@ Added to `app.json` (or `app.config.js`):
 
 Props:
 
-| Prop          | Required | Default                              | Notes                                           |
-| ------------- | -------- | ------------------------------------ | ----------------------------------------------- |
-| `apiKey`      | no\*     | (none)                               | Falls back to the `FLARE_API_KEY` env at build. |
-| `apiEndpoint` | no       | `https://flareapp.io/api/sourcemaps` | For self-hosted Flare.                          |
+| Prop          | Required | Default                              | Notes                                                                         |
+| ------------- | -------- | ------------------------------------ | ----------------------------------------------------------------------------- |
+| `apiKey`      | no\*     | (none)                               | Falls back to the `FLARE_API_KEY` env at build.                               |
+| `apiEndpoint` | no       | `https://flareapp.io/api/sourcemaps` | Self-hosted Flare. `FLARE_API_ENDPOINT` env still overrides it at build time. |
 
 \* If neither the prop nor `FLARE_API_KEY` is set at build time, the injected hook
 skips the upload and prints the banner — the build still succeeds.
@@ -71,7 +89,9 @@ The Flare project API key is already embedded in the shipped app for error
 reporting, so putting it in the committed `app.json` is not a meaningful secret leak.
 
 The plugin is default-exported as a `createRunOncePlugin`-wrapped `ConfigPlugin`, so
-applying it twice (e.g. transitively) is a no-op.
+applying it twice (e.g. transitively) is a no-op. `createRunOncePlugin` needs a name
+and version; read the version from the package's own `package.json` (the
+`./package.json` export already exists, so it is resolvable from `src/expo.ts`).
 
 ## What it injects at prebuild
 
@@ -84,21 +104,37 @@ applying it twice (e.g. transitively) is a no-op.
    `flare.gradle` reads `rootProject.projectDir.parentFile/flare.json`, iOS
    `flare-xcode.sh` reads `$SRCROOT/../flare.json` — both the project root.
 
-2. **Android — `withAppBuildGradle`.** Appends
-   `apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"`
-   to the generated `android/app/build.gradle`, using `mergeContents` with an anchor
-   tag so it is idempotent.
+2. **Android — `withAppBuildGradle`.** Appends an `apply from: "<path>/flare.gradle"`
+   line to the generated `android/app/build.gradle`, using `mergeContents` with an
+   anchor tag so it is idempotent. `<path>` is **resolved at prebuild via
+   `require.resolve('@flareapp/react-native-sourcemaps/package.json')`** and expressed
+   relative to `android/app/`, not hardcoded as `../../node_modules/...`. A bare user
+   types that relative string by hand and can fix it; the plugin writes it where the
+   user cannot, so under npm workspaces / hoisting a literal `../../node_modules`
+   would silently point at nothing. Resolving the real install location keeps the
+   plugin correct in monorepos. (The mod only adds the `apply from` line; all the
+   task wiring lives inside `flare.gradle` itself, unchanged.)
 
 3. **iOS (a) — `.xcode.env`.** Ensures `ios/.xcode.env` contains
    `export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"` (idempotent
-   merge), so Expo's stock bundle phase emits the composed map. (Editing `.xcode.env`
-   via the plugin is CNG-correct because the plugin re-applies it on every prebuild —
-   unlike a one-off manual edit, which prebuild would discard.)
+   merge), so Expo's stock bundle phase emits the composed map. Confirmed against
+   RN 0.85: `react-native-xcode.sh` emits and Hermes-composes the map only when
+   `SOURCEMAP_FILE` is set (its `EMIT_SOURCEMAP` path), and `with-environment.sh`
+   sources `ios/.xcode.env` before the phased command runs. The mod must treat a
+   **missing** `ios/.xcode.env` as empty input (read `''` before merging) rather than
+   assuming the prebuild template emitted one. (Editing `.xcode.env` via the plugin is
+   CNG-correct because the plugin re-applies it on every prebuild — unlike a one-off
+   manual edit, which prebuild would discard.)
 
 4. **iOS (b) — `withXcodeProject`.** Adds an "Upload Flare sourcemaps"
-   `PBXShellScriptBuildPhase` to the app target, ordered **after** the bundle phase,
-   running the `with-environment.sh`-wrapped `flare-xcode.sh` (the same snippet bare
-   users add by hand). Guarded against adding a duplicate phase by name.
+   `PBXShellScriptBuildPhase` to the app target, running the
+   `with-environment.sh`-wrapped `flare-xcode.sh` (the same snippet bare users add by
+   hand). It is **appended to the end of the target's build phases**, not anchored
+   after a phase located by name. The JS bundle phase ("Bundle React Native code and
+   images") is never the last phase in the RN/Expo template, so appending is
+   unconditionally after it — the plugin therefore does not depend on that phase's
+   name or index staying stable across Expo SDKs. Idempotency is the only guard: skip
+   if a phase named "Upload Flare sourcemaps" already exists.
 
 The injected shell snippet (matching the bare iOS setup):
 
@@ -109,7 +145,22 @@ FLARE_XCODE="../node_modules/@flareapp/react-native-sourcemaps/scripts/flare-xco
 /bin/sh -c "$WITH_ENVIRONMENT $FLARE_XCODE"
 ```
 
+Both paths in the snippet are subject to the same hoisting concern as Android: resolve
+`react-native` and `@flareapp/react-native-sourcemaps` via `require.resolve` at
+prebuild and emit the resulting paths relative to `ios/`, rather than baking in the
+literal `../node_modules/...` strings shown above (which are the bare, hand-typed
+form).
+
 ## Idempotency & CNG behaviour
+
+**Precondition: prebuild runs before every native build.** The injected hooks and the
+generated `flare.json` exist only after `expo prebuild`. Pure-CNG apps (no committed
+`android/`/`ios/`) and EAS Build satisfy this automatically. A team that **commits**
+the native dirs and then builds without re-running prebuild gets no regenerated
+`flare.json` (it is gitignored) and possibly stale wiring — the upload then skips with
+the banner and frames stay minified, with no build failure to flag it. Documenting the
+gitignore is what makes this committed-native-dirs path a deliberate, visible choice
+rather than a silent degradation.
 
 `expo prebuild --clean` regenerates the native dirs from scratch, but plain
 `expo prebuild` applies mods **on top of existing** native files. So every mod must
@@ -118,7 +169,9 @@ be guarded or it duplicates on repeated prebuilds:
 - `build.gradle` and `.xcode.env`: `mergeContents` with a stable anchor tag (insert
   once; a second run detects the tag and no-ops).
 - The Xcode build phase: check the app target's existing phases and skip if an
-  "Upload Flare sourcemaps" phase already exists.
+  "Upload Flare sourcemaps" phase already exists (the phase is appended, so this
+  name check is the whole idempotency guard — there is no insert-after-index to
+  re-derive).
 - `flare.json`: overwrite on each write (always reflects current props).
 - `.gitignore`: append the `flare.json` line only if absent.
 
@@ -132,7 +185,11 @@ To make this testable, the transformations are **pure functions** wrapped by thi
 - `ensureGitignored(gitignore: string): string`
 
 Each is unit-testable in isolation (string in / string out, or a fixture
-`XcodeProject` in/out), and each is idempotent.
+`XcodeProject` in/out), and each is idempotent. Note `addUploadBuildPhase` is not
+literally "pure": the `xcode` library mutates the `XcodeProject` in place. Test its
+contract by asserting on the mutated project — after one call exactly one
+"Upload Flare sourcemaps" phase exists; after a second call still exactly one — not by
+referential purity.
 
 ## Version & EAS
 
@@ -191,8 +248,13 @@ auto path has no `package.json` fallback) and the build stays green.
   the interim Step 4 callout wording with a real **Expo (CNG)** subsection — plugin
   install, the `app.json` `plugins` entry, the `eas.json` env placement, and a note
   that the plugin writes a generated `flare.json` and gitignores it (expected
-  behaviour). Coordinate with the package release (docs reference an installed
-  version), as for the bare work.
+  behaviour). The subsection must also: (a) list the steps that stay **manual** (babel
+  plugin, `flare.configure({ flareSourcemapVersion })`, `FLARE_SOURCEMAP_VERSION`), so
+  the plugin is not read as drop-in; and (b) carry a prominent **OTA / EAS Update**
+  callout — the plugin does not cover `eas update`, which needs a manual
+  `flare-rn-sourcemaps upload` under the same `FLARE_SOURCEMAP_VERSION` as the export.
+  Coordinate with the package release (docs reference an installed version), as for the
+  bare work.
 - Update the package `README.md` with the Expo plugin usage alongside the bare
   section.
 
@@ -202,8 +264,15 @@ auto path has no `package.json` fallback) and the build stays green.
   build. Confirm the `./expo` export's `require` condition and that the emitted
   `dist/expo.cjs` loads cleanly under `require` (no ESM-only `node:` shim breakage,
   the same class of issue the RN client hit — see the RN packaging notes).
-- The exact name/position of Expo's iOS bundle build phase (to insert the Flare phase
-  _after_ it) and that Expo's bundle phase honours `SOURCEMAP_FILE` from `.xcode.env`
-  are confirmed on the playground at the ship gate (the bare iOS verification already
-  showed `SOURCEMAP_FILE` works under Expo's `react-native-xcode.sh`/`export:embed`
-  path; re-confirm via the plugin).
+- **iOS bundle-phase shape (de-risked on SDK 56 / RN 0.85).** RN 0.85's
+  `react-native-xcode.sh` still emits and Hermes-composes the map when `SOURCEMAP_FILE`
+  is set (its `EMIT_SOURCEMAP` path), and `with-environment.sh` sources `ios/.xcode.env`
+  before running the phased command, so the wrapped Flare phase sees `SOURCEMAP_FILE`.
+  Expo's own CLI still references the phase as "Bundle React Native code and images" on
+  SDK 56, but the plugin does **not** rely on that name: **appending** the Flare phase
+  (see iOS (b)) sidesteps the name/position question entirely. The only remaining
+  ship-gate check is that the appended phase finds the composed map at runtime on the
+  actually-prebuilt project (the bundle phase having run earlier in the same build).
+- That `@flareapp/react-native-sourcemaps/expo` and `react-native` resolve via
+  `require.resolve` from the prebuild context so the injected relative paths are
+  correct under hoisting (the monorepo playground is itself a hoisting case to verify).
