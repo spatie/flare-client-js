@@ -151,10 +151,11 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
     (and any `FLARE_*` vars) exported by `.xcode.env`.
 
 > The phase reads `FLARE_SOURCEMAP_VERSION` (and `FLARE_API_KEY`, if the key isn't in
-> `flare.json`) from the **build's** environment, not your shell. `react-native run-ios`
-> from a terminal that exported them works; an Xcode build or Archive doesn't inherit
-> your shell, so set the variables in the scheme's environment (or CI). If they're
-> missing, the upload skips with the banner and the build still succeeds.
+> `flare.json`) from the **build's** environment, which it inherits from whatever
+> launched the build. `react-native run-ios`, `xcodebuild`, or Fastlane from a terminal
+> that exported them works; a build from the Xcode GUI (including Product > Archive)
+> doesn't have them, so archive from the command line or in CI for releases. The upload
+> skips with the banner if they're missing, and the build still succeeds.
 
 #### Custom build configurations (bare / brownfield)
 
@@ -193,12 +194,16 @@ still set `FLARE_SOURCEMAP_VERSION` in the build environment (locally, or in
 your project root and adds it to `.gitignore`. That's expected. You don't edit it; it's
 generated from your `app.json`.
 
-> **Build from the command line, not the IDE.** The upload reads `FLARE_SOURCEMAP_VERSION`
-> (and `FLARE_API_KEY`, if it isn't in `flare.json`) from the build's environment. A build
-> started from Xcode or Android Studio doesn't inherit your shell or `.env`, so the
-> variables are missing and the upload skips with the banner. Run
-> `expo run:ios --configuration Release` / `expo run:android --variant release` (or EAS
-> Build) from a shell where they're set.
+**Releasing without EAS?** You don't have to. The upload reads `FLARE_SOURCEMAP_VERSION`
+(and `FLARE_API_KEY`, if it isn't in `flare.json`) from the build's environment, which is
+inherited from whatever **launches** the build. So EAS Build (`eas.json` env),
+`eas build --local`, or a command-line archive (`xcodebuild` / Fastlane on iOS,
+`./gradlew bundleRelease` on Android) all work, as long as you exported the variables in
+that shell.
+
+> The one exception is the **Xcode / Android Studio GUI** (including Product > Archive):
+> it was launched by the OS, not your shell, so it doesn't have your variables and the
+> upload skips with the banner. Archive from the command line, or use EAS, for releases.
 
 > **OTA / EAS Update is not covered.** The plugin only runs during a native build
 > (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
