@@ -77,10 +77,10 @@ Added to `app.json` (or `app.config.js`):
 
 Props:
 
-| Prop          | Required | Default                              | Notes                                                                         |
-| ------------- | -------- | ------------------------------------ | ----------------------------------------------------------------------------- |
-| `apiKey`      | no\*     | (none)                               | Falls back to the `FLARE_API_KEY` env at build.                               |
-| `apiEndpoint` | no       | `https://flareapp.io/api/sourcemaps` | Self-hosted Flare. `FLARE_API_ENDPOINT` env still overrides it at build time. |
+| Prop          | Required | Default                              | Notes                                                                                                                |
+| ------------- | -------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`      | no\*     | (none)                               | Falls back to the `FLARE_API_KEY` env at build.                                                                      |
+| `apiEndpoint` | no       | `https://flareapp.io/api/sourcemaps` | Override the upload endpoint (rarely needed; e.g. tests). `FLARE_API_ENDPOINT` env still overrides it at build time. |
 
 \* If neither the prop nor `FLARE_API_KEY` is set at build time, the injected hook
 skips the upload and prints the banner — the build still succeeds.

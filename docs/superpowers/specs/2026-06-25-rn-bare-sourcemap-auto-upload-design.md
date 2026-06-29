@@ -33,7 +33,11 @@ package**. No new npm package.
   `2026-06-24` design listed; it is redundant given how small the wiring is.
 - No JSC-specific handling. Hermes is the RN default; a JSC build still produces a
   plain `.map` the same hooks upload, just without special treatment.
-- No Debug-build uploads. Release variants/configurations only.
+- No Debug-build uploads. The hooks skip **debug** builds (matched case-insensitively
+  as a substring) and otherwise upload whenever a composed sourcemap was produced —
+  configuration-name-agnostic, so renamed/custom release configs (Staging, Production,
+  AppStore, custom Android build types) are covered. Gating on the artifact, not a
+  literal `Release` name, is what makes bare/brownfield projects work.
 
 ## Configuration — `flare.json`
 
@@ -156,7 +160,10 @@ apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"
   bare `flare-rn-sourcemaps` is not on `PATH` inside a Gradle `exec`:
   `npx flare-rn-sourcemaps upload --sourcemap <map> --config "$rootDir/flare.json"
 --auto`.
-- Is guarded to release variants only; debug builds do nothing.
+- Skips only `*debug*` (case-insensitive) variants; for every other variant it relies
+  on the "no sourcemap -> skip" guard, so renamed/custom release build types still
+  upload. The fallback map path derives the variant subdir from the task name (not a
+  hardcoded `release/`).
 
 The exact task-graph wiring (variant iteration, task-name resolution across RN
 Gradle Plugin versions) is to be confirmed during implementation research against
@@ -195,7 +202,9 @@ We get that without touching RN's stock build phase. Two documented manual edits
 
 `flare-xcode.sh`:
 
-- Guards on `CONFIGURATION == Release` (no-op otherwise).
+- Skips only when `$CONFIGURATION` contains `debug` (case-insensitive, via `tr` +
+  `case` — POSIX, no bashisms). For every other configuration name it falls through to
+  the sourcemap-existence check below, so renamed/custom release configs upload.
 - Resolves the map path. Prefer `$SOURCEMAP_FILE` (present now that the phase is
   wrapped in `with-environment.sh`); if it is unset, reconstruct
   `$CONFIGURATION_BUILD_DIR/main.jsbundle.map` (Xcode build settings like

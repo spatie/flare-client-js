@@ -9,7 +9,7 @@ export type FailureBannerInfo = {
     version?: string;
     /** Resolved API key, interpolated into the recovery command. */
     apiKey?: string;
-    /** Resolved API endpoint; only included in the recovery command when set (custom/self-hosted). */
+    /** Resolved API endpoint; only included in the recovery command when set (custom endpoint). */
     apiEndpoint?: string;
 };
 

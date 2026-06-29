@@ -99,8 +99,7 @@ hooks read a committed `flare.json` at your project root:
 
 ```json
 {
-    "apiKey": "your-flare-api-key",
-    "apiEndpoint": "https://flareapp.io/api/sourcemaps"
+    "apiKey": "your-flare-api-key"
 }
 ```
 
@@ -120,7 +119,8 @@ large warning banner** — your build never fails because of a sourcemap problem
 
 ### Android
 
-Add one line to `android/app/build.gradle` (after the `react` block):
+Add this line to `android/app/build.gradle`. It can go anywhere in the file — the script
+hooks the build lazily, so the order doesn't matter:
 
 ```gradle
 apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"
@@ -150,7 +150,23 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
     The `with-environment.sh` wrapper is required so the phase sees `SOURCEMAP_FILE`
     (and any `FLARE_*` vars) exported by `.xcode.env`.
 
-Both hooks only run for **Release** builds; debug builds do nothing.
+#### Custom build configurations (bare / brownfield)
+
+Your build configuration doesn't have to be called `Release`.
+
+The hooks upload whenever a build makes a JavaScript bundle. They skip a build only when
+its name contains `debug` (any casing).
+
+- Uploads: `Release`, `Staging`, `Production`, `AppStore`, your own Android build type
+- Skipped: `Debug`, `debug`, `StagingDebug`
+
+A debug build runs from Metro and makes no bundle, so there's nothing to upload. The hook
+skips it and your dev builds stay fast.
+
+Want a bundling config to skip the upload anyway? Put `debug` in its name. Or remove the
+Flare setup you added above — the `apply from "…/flare.gradle"` line in
+`android/app/build.gradle` on Android, or the **Upload Flare sourcemaps** build phase in
+Xcode on iOS — which turns the automatic upload off completely.
 
 ### Expo (CNG / managed)
 
@@ -167,8 +183,9 @@ it injects the same native wiring on every prebuild, so it survives regeneration
 
 You still add the Babel plugin and pass `flareSourcemapVersion` (steps above), and you
 still set `FLARE_SOURCEMAP_VERSION` in the build environment (locally, or in
-`eas.json`'s `build.<profile>.env` for EAS Build). The plugin writes a generated
-`flare.json` and adds it to `.gitignore` — that is expected.
+`eas.json`'s `build.<profile>.env` for EAS Build). The plugin creates a `flare.json` at
+your project root and adds it to `.gitignore`. That's expected. You don't edit it; it's
+generated from your `app.json`.
 
 > **OTA / EAS Update is not covered.** The plugin only runs during a native build
 > (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
