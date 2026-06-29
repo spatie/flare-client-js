@@ -36,7 +36,7 @@ Tap each numbered button, then confirm the report in your Flare dashboard.
 | 5   | React render error           | Boundary fallback shows; report has React component stack; Reset recovers                                                    |
 | 6   | Manual report                | Report appears                                                                                                               |
 | 7   | Glow then report             | Report carries the `checkout-step` glow                                                                                      |
-| 8   | setUser then report          | Report has `enduser.id/email/username`                                                                                       |
+| 8   | setUser then report          | Report has `user.id`, `user.email`, `user.full_name` (core identity keys; extras go to `user.attributes`)                    |
 | 9   | Context marker               | Report has `os.name`, `os.version`, `device.screen.*`. Bare RN has NO `device.model.name`/`app.version` (no Expo) — expected |
 
 ## Notes

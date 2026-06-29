@@ -7,7 +7,6 @@ import { installGlobalErrorHandler } from './handlers/globalErrorHandler';
 import { installRejectionTracking } from './handlers/rejectionTracking';
 import type { RejectionDeps } from './handlers/rejectionTracking';
 import { ReactNativeFlushScheduler } from './ReactNativeFlushScheduler';
-import type { User } from './types';
 
 // `process.env.FLARE_JS_CLIENT_VERSION` is replaced at BUILD time by tsdown's
 // `--env` define, becoming a string literal in the output. It must be a PLAIN
@@ -41,11 +40,11 @@ const FATAL_FLUSH_TIMEOUT_MS = 2000;
  * - core `GlobalScopeProvider` (RN is a single app scope),
  * - `ReactNativeFlushScheduler` (flush on background, best-effort).
  *
- * Adds RN-only surface: `setUser`, `removeHandlers`, and an idempotent handler
- * install folded into `light()`.
+ * Adds RN-only surface: `removeHandlers` and an idempotent handler install folded
+ * into `light()`. `setUser` is inherited from core, which writes the backend-read
+ * `user.*` identity keys to the active scope (RN uses the single global scope).
  */
 export class ReactNativeFlare extends CoreFlare {
-    private user: User | null = null;
     private readonly scheduler: ReactNativeFlushScheduler;
     private readonly rejectionDeps: RejectionDeps;
     private installed = false;
@@ -59,10 +58,7 @@ export class ReactNativeFlare extends CoreFlare {
      */
     constructor(rejectionDeps: RejectionDeps = {}) {
         const scheduler = new ReactNativeFlushScheduler();
-        // `() => this.user` reads lazily at report time; `this` is not accessed
-        // during construction, so referencing it before `super(...)` is safe —
-        // the same deferral node's collector relies on.
-        const collector = makeReactNativeContextCollector(() => this.user);
+        const collector = makeReactNativeContextCollector();
         super(new Api(), collector, new NullFileReader(), new GlobalScopeProvider(), scheduler);
         this.scheduler = scheduler;
         this.rejectionDeps = rejectionDeps;
@@ -93,11 +89,6 @@ export class ReactNativeFlare extends CoreFlare {
         super.light(key, debug);
         this.install();
         return this;
-    }
-
-    /** Attach the authenticated user; read by the collector at report time. */
-    setUser(user: User | null): void {
-        this.user = user;
     }
 
     /**

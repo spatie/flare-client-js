@@ -1,7 +1,6 @@
 import type { AttributeValue, Attributes, Config, ContextCollector } from '@flareapp/core';
 import { Dimensions, Platform } from 'react-native';
 
-import type { User } from '../types';
 import { type ExpoModules, loadExpoModules, projectExpoContext } from './expo';
 
 /**
@@ -12,18 +11,17 @@ import { type ExpoModules, loadExpoModules, projectExpoContext } from './expo';
  * 1. RN core (`Platform`, `Dimensions`) — read on every call.
  * 2. Expo constants — resolved once (injected for tests, else `loadExpoModules()`)
  *    and projected; absent on bare RN.
- * 3. The authenticated user — read from `getUser()` at call time so
- *    `setUser(...)` after construction is reflected without rebuilding.
+ *
+ * The authenticated user is NOT projected here: `Flare.setUser` (inherited from
+ * core) writes the `user.*` identity keys straight to the active scope, the same
+ * model node and electron use.
  *
  * `Platform.Version` is a string on iOS but a number on Android, so it is
  * stringified for the `os.version` attribute. `Platform.OS` maps to `os.name`
  * (NOT `os.type`, which conventionally means the kernel family); when Expo is
  * present its `osName`/`osVersion` overwrite these coarser values.
  */
-export function makeReactNativeContextCollector(
-    getUser: () => User | null,
-    expo: ExpoModules = loadExpoModules(),
-): ContextCollector {
+export function makeReactNativeContextCollector(expo: ExpoModules = loadExpoModules()): ContextCollector {
     const expoAttrs = projectExpoContext(expo);
 
     return (_config: Readonly<Config>): Attributes => {
@@ -45,13 +43,6 @@ export function makeReactNativeContextCollector(
         if (attrs['device.model.name'] == null) {
             const model = nativeModelName();
             if (model) attrs['device.model.name'] = model;
-        }
-
-        const user = getUser();
-        if (user) {
-            if (user.id !== undefined) attrs['enduser.id'] = String(user.id);
-            if (user.email !== undefined) attrs['enduser.email'] = user.email;
-            if (user.username !== undefined) attrs['enduser.username'] = user.username;
         }
 
         // Also project the device info as a `context.device` group. The semantic

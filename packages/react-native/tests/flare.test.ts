@@ -73,22 +73,23 @@ describe('ReactNativeFlare', () => {
         expect(fake.reports.length).toBe(1);
     });
 
-    it('setUser is reflected in the collected report attributes', async () => {
+    it('setUser is reflected in the report via core user.* identity keys', async () => {
         const ctl = stubErrorUtils();
         const flare = makeFlare();
         const fake = withFakeApi(flare);
         flare.light('k');
-        flare.setUser({ id: 42, email: 'u@x.io', username: 'neo' });
+        // setUser is inherited from core: the known fields project to the
+        // backend-read `user.*` keys (written to the global scope), and any extra
+        // key lands in `user.attributes`.
+        flare.setUser({ id: 42, email: 'u@x.io', fullName: 'Neo Anderson', role: 'admin' });
 
         ctl.emit(new Error('with-user'), false);
         await vi.waitFor(() => expect(fake.reports.length).toBe(1));
 
-        // The collector projects the user into core's `Report.attributes`
-        // (`packages/core/src/types.ts`), keyed `enduser.email` by
-        // `makeReactNativeContextCollector`. Assert that path directly.
-        expect(fake.lastReport?.attributes['enduser.email']).toBe('u@x.io');
-        expect(fake.lastReport?.attributes['enduser.id']).toBe('42');
-        expect(fake.lastReport?.attributes['enduser.username']).toBe('neo');
+        expect(fake.lastReport?.attributes['user.email']).toBe('u@x.io');
+        expect(fake.lastReport?.attributes['user.id']).toBe('42');
+        expect(fake.lastReport?.attributes['user.full_name']).toBe('Neo Anderson');
+        expect(fake.lastReport?.attributes['user.attributes']).toEqual({ role: 'admin' });
     });
 
     it('install() wires the rejection reporter (Error reason -> report)', async () => {

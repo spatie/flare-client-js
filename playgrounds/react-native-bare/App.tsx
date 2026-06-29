@@ -119,7 +119,7 @@ export default function App() {
                 <Btn
                     label="8. setUser then report"
                     onPress={() => {
-                        flare.setUser({ id: 42, email: 'smoke@flareapp.io', username: 'smoke' });
+                        flare.setUser({ id: 42, email: 'smoke@flareapp.io', fullName: 'Smoke Test' });
                         flare.report(new Error('Flare smoke: report with user'));
                         setStatus('user set + report sent');
                     }}
