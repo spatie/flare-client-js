@@ -6,6 +6,7 @@
         "orientation": "portrait",
         "icon": "./assets/icon.png",
         "userInterfaceStyle": "light",
+        "plugins": ["@flareapp/react-native-sourcemaps/expo"],
         "ios": {
             "supportsTablet": true,
             "bundleIdentifier": "com.anonymous.react-native-expo"
@@ -17,7 +18,8 @@
                 "backgroundImage": "./assets/android-icon-background.png",
                 "monochromeImage": "./assets/android-icon-monochrome.png"
             },
-            "predictiveBackGestureEnabled": false
+            "predictiveBackGestureEnabled": false,
+            "package": "com.anonymous.reactnativeexpo"
         },
         "web": {
             "favicon": "./assets/favicon.png"
