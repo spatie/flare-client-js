@@ -73,7 +73,11 @@ export function flareXcodeShellScript(withEnvironmentPath: string, flareXcodePat
         'set -e',
         `WITH_ENVIRONMENT="${withEnvironmentPath}"`,
         `FLARE_XCODE="${flareXcodePath}"`,
-        '/bin/sh -c "$WITH_ENVIRONMENT $FLARE_XCODE"',
+        // Invoke with-environment.sh directly with the Flare script as a single
+        // quoted argument (its documented `./with-environment.sh <command>` usage),
+        // rather than reconstructing a `sh -c "$A $B"` command string that
+        // word-splits on any space in either path.
+        '/bin/sh "$WITH_ENVIRONMENT" "$FLARE_XCODE"',
         '',
     ].join('\n');
 }

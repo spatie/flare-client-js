@@ -8,8 +8,11 @@ Bare React Native app for manually smoke-testing `@flareapp/react-native`.
 ## Setup
 
 1. Link the local SDK (from repo root): `node scripts/rn-relink.mjs bare`
-   Re-run after any change to `@flareapp/core`, `@flareapp/react`, or
-   `@flareapp/react-native`.
+   This builds `@flareapp/core`, `@flareapp/react`, `@flareapp/react-native`, and
+   `@flareapp/react-native-sourcemaps` (the last is consumed as a `file:` dep at
+   build time, so its `dist/` must exist). Re-run after any change to those
+   packages, and after any plain `npm install` here (which prunes the injected
+   `@flareapp` tarballs).
 2. `cp flare.config.example.ts flare.config.ts` and set your Flare project key.
    (`flare.config.ts` is git-ignored.)
 

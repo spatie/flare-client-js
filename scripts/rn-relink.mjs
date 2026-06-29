@@ -15,7 +15,14 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// Tarball-injected into the smoke apps: the test must validate the REAL published
+// artifact (exports map, react-native export condition, inlined SDK version).
 const PACKAGES = ['core', 'react', 'react-native'];
+// Built but NOT tarball-injected. The apps consume @flareapp/react-native-sourcemaps
+// as a `file:` dep at BUILD time (the Babel plugin in babel.config.js + the
+// /runtime import in App.tsx), so its dist/ must exist or Metro fails to resolve
+// `@flareapp/react-native-sourcemaps/babel` and `/runtime` on a fresh checkout.
+const BUILD_ONLY_PACKAGES = ['react-native-sourcemaps'];
 const APPS = {
     bare: join(repoRoot, 'playgrounds', 'react-native-bare'),
     expo: join(repoRoot, 'playgrounds', 'react-native-expo'),
@@ -31,8 +38,9 @@ const targets = target === 'both' ? ['bare', 'expo'] : [target];
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
 const capture = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: 'utf8' });
 
-// 1. Build local packages.
-for (const p of PACKAGES) {
+// 1. Build local packages. BUILD_ONLY packages are built so their dist/ exists for
+// the apps' file: deps, but they are not packed/injected below.
+for (const p of [...PACKAGES, ...BUILD_ONLY_PACKAGES]) {
     console.log(`\n[relink] building @flareapp/${p}`);
     run('npm', ['run', 'build', '-w', `@flareapp/${p}`], repoRoot);
 }

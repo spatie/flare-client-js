@@ -11,8 +11,11 @@ the Expo device/app context enrichment.
 ## Setup
 
 1. Link the local SDK (from repo root): `node scripts/rn-relink.mjs expo`
-   (Re-run after any SDK change. It installs only the three `@flareapp` tarballs;
-   `expo-device`/`expo-application` come from this app's own `package.json`.)
+   It injects the three `@flareapp` tarballs (`core`, `react`, `react-native`) and
+   builds `@flareapp/react-native-sourcemaps` (consumed as a `file:` dep at build
+   time, so its `dist/` must exist). Re-run after any SDK change, and after any
+   plain `npm install` here (which prunes the injected tarballs).
+   `expo-device`/`expo-application` come from this app's own `package.json`.
 2. `cp flare.config.example.ts flare.config.ts` and set your Flare project key.
 
 ## Run

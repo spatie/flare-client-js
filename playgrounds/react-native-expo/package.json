@@ -3,9 +3,6 @@
     "version": "1.0.0",
     "main": "index.ts",
     "dependencies": {
-        "@flareapp/core": "file:../../packages/core",
-        "@flareapp/react": "file:../../packages/react",
-        "@flareapp/react-native": "file:../../packages/react-native",
         "expo": "~56.0.12",
         "expo-application": "~56.0.3",
         "expo-device": "~56.0.4",

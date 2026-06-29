@@ -21,6 +21,8 @@ export function describeRejectionReason(reason: unknown): string {
     if (typeof reason === 'string') return reason;
     if (reason && typeof reason === 'object') {
         const message = (reason as { message?: unknown }).message;
+        // An empty `.message` carries no signal; fall through to JSON.stringify so
+        // the report shows the object's actual shape instead of a blank message.
         if (typeof message === 'string' && message) return message;
         try {
             return JSON.stringify(reason);

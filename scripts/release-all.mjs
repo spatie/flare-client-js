@@ -41,7 +41,7 @@ const NPM_POLL_TIMEOUT_MS = Number(process.env.NPM_POLL_TIMEOUT_MS ?? 10 * 60_00
 const LOCKSTEP_PACKAGES = ['js', 'react', 'vue', 'svelte', 'webpack', 'vite', 'sveltekit', 'nextjs'];
 
 // Independently versioned packages, prompted separately each run.
-const INDEPENDENT_PACKAGES = ['core', 'node', 'electron', 'react-native'];
+const INDEPENDENT_PACKAGES = ['core', 'node', 'electron', 'react-native', 'react-native-sourcemaps'];
 
 // Publish tiers, ordered by dependency. A package may only publish once every
 // package it hard-depends on has been published AND has become visible on npm.
@@ -49,10 +49,12 @@ const INDEPENDENT_PACKAGES = ['core', 'node', 'electron', 'react-native'];
 //   js        <- framework integrations peer-depend on it
 //   svelte    <- sveltekit depends on it
 //   webpack   <- nextjs depends on it
+// react-native-sourcemaps hard-pins no @flareapp package (it bundles flare-api
+// via tsdown, the same as vite/webpack), so its tier placement is dependency-free.
 // Packages skipped this run are filtered out of these tiers before publishing.
 const PUBLISH_ORDER = [
     ['core'],
-    ['js', 'node', 'react-native'],
+    ['js', 'node', 'react-native', 'react-native-sourcemaps'],
     ['react', 'vue', 'svelte', 'webpack', 'vite', 'electron'],
     ['sveltekit', 'nextjs'],
 ];
@@ -274,6 +276,7 @@ async function planRelease() {
     const nodeVersion = await promptIndependentVersion('node');
     const electronVersion = await promptIndependentVersion('electron');
     const reactNativeVersion = await promptIndependentVersion('react-native');
+    const reactNativeSourcemapsVersion = await promptIndependentVersion('react-native-sourcemaps');
 
     const versions = {};
     for (const name of LOCKSTEP_PACKAGES) versions[name] = lockstepVersion;
@@ -281,6 +284,7 @@ async function planRelease() {
     if (nodeVersion) versions['node'] = nodeVersion;
     if (electronVersion) versions['electron'] = electronVersion;
     if (reactNativeVersion) versions['react-native'] = reactNativeVersion;
+    if (reactNativeSourcemapsVersion) versions['react-native-sourcemaps'] = reactNativeSourcemapsVersion;
 
     const releaseSet = new Set(Object.keys(versions));
     const tiers = PUBLISH_ORDER.map((tier) => tier.filter((n) => releaseSet.has(n))).filter((t) => t.length > 0);
@@ -759,6 +763,9 @@ async function main() {
             (plan.releaseSet.has('node') ? ` + node@${plan.versions['node']}` : '') +
             (plan.releaseSet.has('electron') ? ` + electron@${plan.versions['electron']}` : '') +
             (plan.releaseSet.has('react-native') ? ` + react-native@${plan.versions['react-native']}` : '') +
+            (plan.releaseSet.has('react-native-sourcemaps')
+                ? ` + react-native-sourcemaps@${plan.versions['react-native-sourcemaps']}`
+                : '') +
             '\n',
     );
 }

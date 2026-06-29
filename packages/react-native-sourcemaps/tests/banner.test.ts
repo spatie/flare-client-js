@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { formatFailureBanner } from '../src/banner';
+import { formatFailureBanner, maskApiKey } from '../src/banner';
 
 describe('formatFailureBanner', () => {
     test('renders a bordered banner with the reason', () => {
@@ -22,12 +22,30 @@ describe('formatFailureBanner', () => {
             sourcemap: '/build/main.jsbundle.map',
             bundleFilename: 'main.jsbundle',
             version: 'sha123',
-            apiKey: 'real-key',
+            apiKey: 'flareSecretKey1234567890',
         });
         expect(banner).toContain('--sourcemap /build/main.jsbundle.map');
         expect(banner).toContain('--bundle-filename main.jsbundle');
         expect(banner).toContain('--version sha123');
-        expect(banner).toContain('--api-key real-key');
+    });
+
+    test('masks the API key so the secret never appears in full in the build log', () => {
+        const longKey = 'flareSecretKey1234567890';
+        const banner = formatFailureBanner({ reason: 'x', apiKey: longKey });
+        expect(banner).not.toContain(longKey);
+        expect(banner).toContain(`--api-key ${maskApiKey(longKey)}`);
+        expect(banner).toContain('is masked');
+
+        const shortKey = 'real-key';
+        const shortBanner = formatFailureBanner({ reason: 'x', apiKey: shortKey });
+        expect(shortBanner).not.toContain(shortKey);
+        expect(shortBanner).toContain(`--api-key ${'*'.repeat(shortKey.length)}`);
+    });
+
+    test('maskApiKey keeps a head/tail hint for long keys and fully masks short ones', () => {
+        expect(maskApiKey('flareSecretKey1234567890')).toBe('flar********7890');
+        expect(maskApiKey('short')).toBe('*****');
+        expect(maskApiKey('twelvecharkey')).toBe('twel********rkey');
     });
 
     test('falls back to labelled placeholders when values are unknown', () => {

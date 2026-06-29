@@ -79,7 +79,7 @@ describe('flareXcodeShellScript', () => {
         );
         expect(script).toContain('WITH_ENVIRONMENT="../node_modules/react-native/scripts/xcode/with-environment.sh"');
         expect(script).toContain('FLARE_XCODE="../node_modules/@flareapp/x/scripts/flare-xcode.sh"');
-        expect(script).toContain('/bin/sh -c "$WITH_ENVIRONMENT $FLARE_XCODE"');
+        expect(script).toContain('/bin/sh "$WITH_ENVIRONMENT" "$FLARE_XCODE"');
         expect(script).toContain('set -e');
     });
 });

@@ -159,7 +159,7 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
     set -e
     WITH_ENVIRONMENT="../node_modules/react-native/scripts/xcode/with-environment.sh"
     FLARE_XCODE="../node_modules/@flareapp/react-native-sourcemaps/scripts/flare-xcode.sh"
-    /bin/sh -c "$WITH_ENVIRONMENT $FLARE_XCODE"
+    /bin/sh "$WITH_ENVIRONMENT" "$FLARE_XCODE"
     ```
 
     The `with-environment.sh` wrapper is required so the phase sees `SOURCEMAP_FILE`

@@ -106,7 +106,16 @@ export class ReactNativeFlare extends CoreFlare {
      * and manual teardown (mirrors node's `removeProcessListeners`).
      */
     removeHandlers(): void {
-        this.uninstallers.forEach((uninstall) => uninstall());
+        // Guard each uninstaller individually: one throwing teardown (e.g. a
+        // malformed AppState subscription) must not strand the remaining handlers
+        // attached or leave the install guard set, which would block re-install.
+        for (const uninstall of this.uninstallers) {
+            try {
+                uninstall();
+            } catch {
+                // Best-effort teardown; nothing actionable if an uninstaller throws.
+            }
+        }
         this.uninstallers = [];
         this.installed = false;
     }

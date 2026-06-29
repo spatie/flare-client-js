@@ -2,13 +2,13 @@ const path = require('path');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
 // This bare app lives inside the flare-client-js monorepo and is NOT an npm
-// workspace member. It consumes the workspace packages (@flareapp/react-native
-// and its @flareapp/core / @flareapp/react deps) through the ROOT node_modules
-// symlinks, which point OUTSIDE this project directory. Node and Babel resolve
-// those already, but Metro only bundles files inside a watched folder and only
-// searches the resolver paths it is given. So we watch the monorepo root and add
-// the root node_modules to the resolver, otherwise Metro fails with
-// "Unable to resolve module @flareapp/react-native".
+// workspace member. The @flareapp SDK packages (@flareapp/react-native and its
+// @flareapp/core / @flareapp/react deps) are injected as TARBALLS into this app's
+// OWN node_modules by scripts/rn-relink.mjs, so the smoke test validates the real
+// published artifact rather than source. @flareapp/react-native-sourcemaps is a
+// file: dep resolved from packages/. We still watch the monorepo root and add its
+// node_modules to the resolver so Metro can read those file: deps and the shared
+// toolchain, otherwise it fails with "Unable to resolve module ...".
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
 const appNodeModules = path.resolve(projectRoot, 'node_modules');

@@ -129,6 +129,32 @@ describe('ReactNativeFlare', () => {
         ctl.emit(new Error('reinstalled'), false);
         await vi.waitFor(() => expect(fake.reports.length).toBe(1));
     });
+
+    it('removeHandlers is exception-safe: a throwing uninstaller does not strand the rest', async () => {
+        const ctl = stubErrorUtils();
+        const flare = makeFlare();
+        const fake = withFakeApi(flare);
+        flare.light('k');
+
+        // Inject a throwing uninstaller ahead of the real ones to simulate a
+        // malformed teardown (e.g. a bad AppState subscription).
+        const uninstallers = (flare as unknown as { uninstallers: Array<() => void> }).uninstallers;
+        uninstallers.unshift(() => {
+            throw new Error('teardown boom');
+        });
+
+        expect(() => flare.removeHandlers()).not.toThrow();
+
+        // The real global-handler uninstaller still ran (emitting no longer
+        // reports) and the install guard was cleared so light() can re-install.
+        ctl.emit(new Error('after-remove'), false);
+        await new Promise((r) => setTimeout(r, 20));
+        expect(fake.reports.length).toBe(0);
+
+        flare.light('k');
+        ctl.emit(new Error('reinstalled'), false);
+        await vi.waitFor(() => expect(fake.reports.length).toBe(1));
+    });
 });
 
 describe('ReactNativeFlare framework identity', () => {
