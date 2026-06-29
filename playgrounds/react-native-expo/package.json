@@ -3,6 +3,9 @@
     "version": "1.0.0",
     "main": "index.ts",
     "dependencies": {
+        "@flareapp/core": "file:../../packages/core",
+        "@flareapp/react": "file:../../packages/react",
+        "@flareapp/react-native": "file:../../packages/react-native",
         "expo": "~56.0.12",
         "expo-application": "~56.0.3",
         "expo-device": "~56.0.4",
@@ -11,13 +14,15 @@
         "react-native": "0.85.3"
     },
     "devDependencies": {
+        "@flareapp/react-native-sourcemaps": "file:../../packages/react-native-sourcemaps",
         "@types/react": "~19.2.2",
+        "babel-preset-expo": "~56.0.15",
         "typescript": "~6.0.3"
     },
     "scripts": {
         "start": "expo start",
-        "android": "expo start --android",
-        "ios": "expo start --ios",
+        "android": "expo run:android",
+        "ios": "expo run:ios",
         "web": "expo start --web"
     },
     "private": true
