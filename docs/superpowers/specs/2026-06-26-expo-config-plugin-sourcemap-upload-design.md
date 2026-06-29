@@ -116,7 +116,7 @@ and version; read the version from the package's own `package.json` (the
    task wiring lives inside `flare.gradle` itself, unchanged.)
 
 3. **iOS (a) — `.xcode.env`.** Ensures `ios/.xcode.env` contains
-   `export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"` (idempotent
+   `export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"` (idempotent
    merge), so Expo's stock bundle phase emits the composed map. Confirmed against
    RN 0.85: `react-native-xcode.sh` emits and Hermes-composes the map only when
    `SOURCEMAP_FILE` is set (its `EMIT_SOURCEMAP` path), and `with-environment.sh`

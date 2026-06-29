@@ -35,7 +35,7 @@ esac
 # layout; if SOURCEMAP_FILE is unset and no map exists there, we skip below.
 SOURCEMAP_PATH="$SOURCEMAP_FILE"
 if [ -z "$SOURCEMAP_PATH" ]; then
-    SOURCEMAP_PATH="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"
+    SOURCEMAP_PATH="$TARGET_TEMP_DIR/main.jsbundle.map"
 fi
 
 # Xcode hides build-phase stdout (and `expo run` condenses it), so emit the outcome

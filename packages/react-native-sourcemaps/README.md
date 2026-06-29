@@ -134,8 +134,14 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
    to `ios/.xcode.env`:
 
     ```sh
-    export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"
+    export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"
     ```
+
+    Use `$TARGET_TEMP_DIR`, **not** `$CONFIGURATION_BUILD_DIR`. With Hermes,
+    `react-native-xcode.sh` writes an intermediate map to
+    `$CONFIGURATION_BUILD_DIR/main.jsbundle.map` and then deletes it after composing the
+    final map — so pointing `SOURCEMAP_FILE` there would have the composed map deleted
+    out from under the upload.
 
 2. In Xcode, add a new "Run Script" build phase named **Upload Flare sourcemaps**,
    placed **after** "Bundle React Native code and images", with this script:

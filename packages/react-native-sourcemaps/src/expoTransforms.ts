@@ -6,7 +6,13 @@ export type FlarePluginProps = {
 };
 
 export const FLARE_GRADLE_MARKER = '@flareapp/react-native-sourcemaps Expo config plugin';
-export const SOURCEMAP_FILE_LINE = 'export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"';
+// Must NOT live in $CONFIGURATION_BUILD_DIR. With Hermes, react-native-xcode.sh writes
+// its intermediate "packager" sourcemap to `$CONFIGURATION_BUILD_DIR/<basename of
+// SOURCEMAP_FILE>`, composes the final map into SOURCEMAP_FILE, then `rm`s that
+// intermediate — so if SOURCEMAP_FILE is `$CONFIGURATION_BUILD_DIR/main.jsbundle.map`
+// the cleanup deletes the composed map we need. $TARGET_TEMP_DIR is per-target (shared
+// by the bundle phase and the upload phase) and lives elsewhere, so the map survives.
+export const SOURCEMAP_FILE_LINE = 'export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"';
 export const GITIGNORE_ENTRY = 'flare.json';
 
 /** Serialise the plugin props into the flare.json the native hooks read. Absent

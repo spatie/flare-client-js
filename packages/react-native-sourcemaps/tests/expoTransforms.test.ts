@@ -43,7 +43,7 @@ describe('addFlareGradleApply', () => {
 
 describe('addSourcemapFileEnv', () => {
     test('appends the SOURCEMAP_FILE export to empty/missing input', () => {
-        expect(addSourcemapFileEnv('')).toContain('export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"');
+        expect(addSourcemapFileEnv('')).toContain('export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"');
     });
 
     test('is idempotent and respects a pre-existing SOURCEMAP_FILE', () => {
@@ -55,7 +55,7 @@ describe('addSourcemapFileEnv', () => {
 
     test('injects past a commented-out SOURCEMAP_FILE line', () => {
         const out = addSourcemapFileEnv('# export SOURCEMAP_FILE=/old\n');
-        expect(out).toContain('export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"');
+        expect(out).toContain('export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"');
     });
 });
 

@@ -178,7 +178,7 @@ We get that without touching RN's stock build phase. Two documented manual edits
    not regenerated):
 
     ```sh
-    export SOURCEMAP_FILE="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"
+    export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"
     ```
 
     The stock "Bundle React Native code and images" phase sources `.xcode.env`
@@ -207,7 +207,7 @@ We get that without touching RN's stock build phase. Two documented manual edits
   the sourcemap-existence check below, so renamed/custom release configs upload.
 - Resolves the map path. Prefer `$SOURCEMAP_FILE` (present now that the phase is
   wrapped in `with-environment.sh`); if it is unset, reconstruct
-  `$CONFIGURATION_BUILD_DIR/main.jsbundle.map` (Xcode build settings like
+  `$TARGET_TEMP_DIR/main.jsbundle.map` (Xcode build settings like
   `CONFIGURATION_BUILD_DIR` are auto-exported to run-script phases even without
   `.xcode.env`). Banner-and-skip if neither yields an existing file.
 - Reads `flare.json` via `--config "$SRCROOT/../flare.json"`, with env overrides.
