@@ -150,6 +150,11 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
     The `with-environment.sh` wrapper is required so the phase sees `SOURCEMAP_FILE`
     (and any `FLARE_*` vars) exported by `.xcode.env`.
 
+3. In that build phase, **uncheck "Based on Dependency Analysis"**. With no input/output
+   files, Xcode otherwise warns that the script has ambiguous dependencies and runs on
+   every build — which is what you want for a release upload. (The Expo config plugin
+   sets this automatically.)
+
 > The phase reads `FLARE_SOURCEMAP_VERSION` (and `FLARE_API_KEY`, if the key isn't in
 > `flare.json`) from the **build's** environment, which it inherits from whatever
 > launched the build. `react-native run-ios`, `xcodebuild`, or Fastlane from a terminal

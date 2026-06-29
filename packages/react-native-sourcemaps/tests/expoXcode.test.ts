@@ -59,4 +59,12 @@ describe('addUploadBuildPhase', () => {
         expect(pbxproj).toContain('Upload Flare sourcemaps');
         expect(pbxproj).toContain('flare-marker');
     });
+
+    // "Based on dependency analysis" unchecked → no "ambiguous dependencies / runs on
+    // every build" warning from Xcode. Serialized as `alwaysOutOfDate = 1`.
+    test('marks the phase always-out-of-date so Xcode does not warn', () => {
+        const project = parseFixture();
+        addUploadBuildPhase(project, 'echo flare');
+        expect(project.writeSync()).toContain('alwaysOutOfDate = 1');
+    });
 });

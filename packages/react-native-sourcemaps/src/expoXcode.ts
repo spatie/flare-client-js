@@ -4,7 +4,7 @@ export const FLARE_PHASE_NAME = 'Upload Flare sourcemaps';
 
 // The `xcode` runtime API (mutated in place) is broader than the published type, so
 // access the parts we need through a minimal structural view.
-type ShellScriptPhase = { name?: string };
+type ShellScriptPhase = { name?: string; alwaysOutOfDate?: number };
 type XcodeInternal = {
     hash: { project: { objects: Record<string, Record<string, ShellScriptPhase | string>> } };
     addBuildPhase: (
@@ -13,7 +13,7 @@ type XcodeInternal = {
         comment: string,
         target: string | null,
         options: { shellPath: string; shellScript: string },
-    ) => unknown;
+    ) => { buildPhase: ShellScriptPhase };
 };
 
 /**
@@ -37,9 +37,14 @@ export function addUploadBuildPhase(project: XcodeProject, shellScript: string):
         return project;
     }
 
-    internal.addBuildPhase([], 'PBXShellScriptBuildPhase', FLARE_PHASE_NAME, null, {
+    const { buildPhase } = internal.addBuildPhase([], 'PBXShellScriptBuildPhase', FLARE_PHASE_NAME, null, {
         shellPath: '/bin/sh',
         shellScript,
     });
+    // Uncheck "Based on dependency analysis": the phase has no input/output files, so
+    // without this Xcode warns ("ambiguous dependencies ... runs on every build") on
+    // every build. We *want* it to run every release build — it self-skips when there
+    // is no map, no key, or no version.
+    buildPhase.alwaysOutOfDate = 1;
     return project;
 }

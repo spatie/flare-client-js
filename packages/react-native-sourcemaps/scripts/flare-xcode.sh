@@ -38,8 +38,11 @@ if [ -z "$SOURCEMAP_PATH" ]; then
     SOURCEMAP_PATH="$CONFIGURATION_BUILD_DIR/main.jsbundle.map"
 fi
 
+# Xcode hides build-phase stdout (and `expo run` condenses it), so emit the outcome
+# with `warning:` / `note:` prefixes — Xcode surfaces those in the build results even
+# when the rest of the log is hidden.
 if [ ! -f "$SOURCEMAP_PATH" ]; then
-    echo "@flareapp/react-native-sourcemaps: no sourcemap at $SOURCEMAP_PATH, skipping upload."
+    echo "warning: Flare: no sourcemap at $SOURCEMAP_PATH — skipping upload. Was the bundle built with Hermes and SOURCEMAP_FILE set in ios/.xcode.env?"
     exit 0
 fi
 
@@ -47,9 +50,21 @@ CONFIG_PATH="$SRCROOT/../flare.json"
 
 CLI="$SRCROOT/../node_modules/.bin/flare-rn-sourcemaps"
 if [ -x "$CLI" ]; then
-    "$CLI" upload --sourcemap "$SOURCEMAP_PATH" --config "$CONFIG_PATH" --auto || true
+    FLARE_OUTPUT=$("$CLI" upload --sourcemap "$SOURCEMAP_PATH" --config "$CONFIG_PATH" --auto 2>&1)
 else
-    npx flare-rn-sourcemaps upload --sourcemap "$SOURCEMAP_PATH" --config "$CONFIG_PATH" --auto || true
+    FLARE_OUTPUT=$(npx flare-rn-sourcemaps upload --sourcemap "$SOURCEMAP_PATH" --config "$CONFIG_PATH" --auto 2>&1)
 fi
+
+# Echo the full detail (banner / success line) for anyone reading the raw log...
+echo "$FLARE_OUTPUT"
+# ...then a one-line Xcode-visible summary so you can tell from the build results alone.
+case "$FLARE_OUTPUT" in
+    *"Successfully uploaded"*)
+        echo "note: Flare: sourcemap uploaded ($SOURCEMAP_PATH)."
+        ;;
+    *)
+        echo "warning: Flare: sourcemap was NOT uploaded — see the Flare banner in the log above (usually a missing API key or FLARE_SOURCEMAP_VERSION)."
+        ;;
+esac
 
 exit 0
