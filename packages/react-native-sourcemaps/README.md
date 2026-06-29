@@ -227,6 +227,15 @@ that shell.
 > `FLARE_SOURCEMAP_VERSION` and the upload skips with the banner. Archive from the
 > command line, or use EAS, for releases.
 
+> **`expo run:android` / `expo run:ios` are not a reliable upload path.** Both
+> eager-bundle the JS to a temp dir, and the native bundle task our hook runs after can
+> be reported **up-to-date** and skipped — so you get an installed app but no upload.
+> Changing only `FLARE_SOURCEMAP_VERSION` doesn't re-trigger it (it isn't a build
+> input). Use `expo run:*` for development, but **release and verify** through
+> `eas build` / `eas build --local` or a direct native build (`./gradlew
+:app:assembleRelease`, `xcodebuild`). When testing locally, add `--rerun-tasks` to the
+> Gradle command to force a fresh bundle and upload.
+
 > **OTA / EAS Update is not covered.** The plugin only runs during a native build
 > (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
 > build phase, so it uploads no map. For OTA releases, upload the map yourself with
