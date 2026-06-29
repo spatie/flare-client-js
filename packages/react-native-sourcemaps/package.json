@@ -55,6 +55,11 @@
                 "default": "./dist/runtime.cjs"
             }
         },
+        "./expo": {
+            "types": "./dist/expo.d.cts",
+            "require": "./dist/expo.cjs",
+            "default": "./dist/expo.cjs"
+        },
         "./package.json": "./package.json"
     },
     "engines": {
