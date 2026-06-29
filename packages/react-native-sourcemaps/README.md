@@ -103,8 +103,17 @@ hooks read a committed `flare.json` at your project root:
 }
 ```
 
-`apiKey` may also come from the `FLARE_API_KEY` environment variable (which wins over
-the file, so CI can inject it without committing a key).
+To keep the key out of version control, drop it in a gitignored `.env.local` (or
+`.env`) next to `flare.json` instead — the hooks auto-load `FLARE_API_KEY` from there
+at build time:
+
+```bash
+# .env.local (gitignored)
+FLARE_API_KEY=your-flare-api-key
+```
+
+Precedence: shell env > `.env.local` > `.env` > `flare.json`. An explicit
+`FLARE_API_KEY` in the build environment wins over all of them.
 
 The version is taken **only** from `FLARE_SOURCEMAP_VERSION` here (the same variable
 the Babel plugin reads), so the inlined version and the uploaded version always match.
@@ -161,12 +170,13 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
    every build — which is what you want for a release upload. (The Expo config plugin
    sets this automatically.)
 
-> The phase reads `FLARE_SOURCEMAP_VERSION` (and `FLARE_API_KEY`, if the key isn't in
-> `flare.json`) from the **build's** environment, which it inherits from whatever
-> launched the build. `react-native run-ios`, `xcodebuild`, or Fastlane from a terminal
-> that exported them works; a build from the Xcode GUI (including Product > Archive)
-> doesn't have them, so archive from the command line or in CI for releases. The upload
-> skips with the banner if they're missing, and the build still succeeds.
+> The key comes from `flare.json` or the auto-loaded `.env.local`, so it's there even
+> for a GUI build. The **version** (`FLARE_SOURCEMAP_VERSION`) is the one variable the
+> phase still reads from the **build's** environment, inherited from whatever launched
+> the build. `react-native run-ios`, `xcodebuild`, or Fastlane from a terminal that
+> exported it works; a build from the Xcode GUI (including Product > Archive) doesn't
+> have it, so archive from the command line or in CI for releases. The upload skips with
+> the banner if it's missing, and the build still succeeds.
 
 #### Custom build configurations (bare / brownfield)
 
@@ -205,16 +215,17 @@ still set `FLARE_SOURCEMAP_VERSION` in the build environment (locally, or in
 your project root and adds it to `.gitignore`. That's expected. You don't edit it; it's
 generated from your `app.json`.
 
-**Releasing without EAS?** You don't have to. The upload reads `FLARE_SOURCEMAP_VERSION`
-(and `FLARE_API_KEY`, if it isn't in `flare.json`) from the build's environment, which is
-inherited from whatever **launches** the build. So EAS Build (`eas.json` env),
-`eas build --local`, or a command-line archive (`xcodebuild` / Fastlane on iOS,
-`./gradlew bundleRelease` on Android) all work, as long as you exported the variables in
+**Releasing without EAS?** You don't have to. The key comes from `flare.json` or the
+auto-loaded `.env.local`; the upload reads `FLARE_SOURCEMAP_VERSION` from the build's
+environment, inherited from whatever **launches** the build. So EAS Build (`eas.json`
+env), `eas build --local`, or a command-line archive (`xcodebuild` / Fastlane on iOS,
+`./gradlew bundleRelease` on Android) all work, as long as you exported the version in
 that shell.
 
-> The one exception is the **Xcode / Android Studio GUI** (including Product > Archive):
-> it was launched by the OS, not your shell, so it doesn't have your variables and the
-> upload skips with the banner. Archive from the command line, or use EAS, for releases.
+> The one exception is the version under the **Xcode / Android Studio GUI** (including
+> Product > Archive): it was launched by the OS, not your shell, so it doesn't have
+> `FLARE_SOURCEMAP_VERSION` and the upload skips with the banner. Archive from the
+> command line, or use EAS, for releases.
 
 > **OTA / EAS Update is not covered.** The plugin only runs during a native build
 > (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
