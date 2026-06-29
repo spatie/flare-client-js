@@ -152,6 +152,30 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
 
 Both hooks only run for **Release** builds; debug builds do nothing.
 
+### Expo (CNG / managed)
+
+For an Expo project that uses prebuild (CNG), add the config plugin to `app.json` —
+it injects the same native wiring on every prebuild, so it survives regeneration:
+
+```json
+{
+    "expo": {
+        "plugins": [["@flareapp/react-native-sourcemaps/expo", { "apiKey": "YOUR PROJECT KEY" }]]
+    }
+}
+```
+
+You still add the Babel plugin and pass `flareSourcemapVersion` (steps above), and you
+still set `FLARE_SOURCEMAP_VERSION` in the build environment (locally, or in
+`eas.json`'s `build.<profile>.env` for EAS Build). The plugin writes a generated
+`flare.json` and adds it to `.gitignore` — that is expected.
+
+> **OTA / EAS Update is not covered.** The plugin only runs during a native build
+> (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
+> build phase, so it uploads no map. For OTA releases, upload the map yourself with
+> `flare-rn-sourcemaps upload` under the **same** `FLARE_SOURCEMAP_VERSION` you exported
+> with.
+
 ## Expo (`expo export`)
 
 ```bash
