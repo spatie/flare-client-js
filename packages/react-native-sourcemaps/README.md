@@ -150,6 +150,12 @@ This uploads the Hermes-composed map after every `release` JS-bundle task.
     The `with-environment.sh` wrapper is required so the phase sees `SOURCEMAP_FILE`
     (and any `FLARE_*` vars) exported by `.xcode.env`.
 
+> The phase reads `FLARE_SOURCEMAP_VERSION` (and `FLARE_API_KEY`, if the key isn't in
+> `flare.json`) from the **build's** environment, not your shell. `react-native run-ios`
+> from a terminal that exported them works; an Xcode build or Archive doesn't inherit
+> your shell, so set the variables in the scheme's environment (or CI). If they're
+> missing, the upload skips with the banner and the build still succeeds.
+
 #### Custom build configurations (bare / brownfield)
 
 Your build configuration doesn't have to be called `Release`.
@@ -186,6 +192,13 @@ still set `FLARE_SOURCEMAP_VERSION` in the build environment (locally, or in
 `eas.json`'s `build.<profile>.env` for EAS Build). The plugin creates a `flare.json` at
 your project root and adds it to `.gitignore`. That's expected. You don't edit it; it's
 generated from your `app.json`.
+
+> **Build from the command line, not the IDE.** The upload reads `FLARE_SOURCEMAP_VERSION`
+> (and `FLARE_API_KEY`, if it isn't in `flare.json`) from the build's environment. A build
+> started from Xcode or Android Studio doesn't inherit your shell or `.env`, so the
+> variables are missing and the upload skips with the banner. Run
+> `expo run:ios --configuration Release` / `expo run:android --variant release` (or EAS
+> Build) from a shell where they're set.
 
 > **OTA / EAS Update is not covered.** The plugin only runs during a native build
 > (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
