@@ -16,13 +16,19 @@ the Expo device/app context enrichment.
    time, so its `dist/` must exist). Re-run after any SDK change, and after any
    plain `npm install` here (which prunes the injected tarballs).
    `expo-device`/`expo-application` come from this app's own `package.json`.
-2. `cp flare.config.example.ts flare.config.ts` and set your Flare project key.
+2. `cp .env.example .env.local` and set `FLARE_API_KEY` (git-ignored, auto-loaded by
+   the Expo CLI). The key flows to both the SDK at runtime (`app.config.ts` → `extra`
+   → `expo-constants`) and the sourcemaps config plugin (build-time `flare.json`).
 
 ## Run
 
 ```bash
 npx expo run:ios      # or: npx expo run:android  (Expo Go also works for JS-only paths)
 ```
+
+To exercise the Babel version inlining, set `FLARE_SOURCEMAP_VERSION` (in `.env.local`
+or inline) before building — reports then carry it as `sourcemapVersionId`. Clear the
+Metro cache (`expo start -c`) after changing it.
 
 Tap each numbered button, then confirm the report in your Flare dashboard.
 

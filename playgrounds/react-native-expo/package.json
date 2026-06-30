@@ -5,6 +5,7 @@
     "dependencies": {
         "expo": "~56.0.12",
         "expo-application": "~56.0.3",
+        "expo-constants": "~56.0.18",
         "expo-device": "~56.0.4",
         "expo-status-bar": "~56.0.4",
         "react": "19.2.3",

@@ -1,20 +1,26 @@
 import { flare, FlareErrorBoundary } from '@flareapp/react-native';
 import { flareSourcemapVersion } from '@flareapp/react-native-sourcemaps/runtime';
+import Constants from 'expo-constants';
 import React, { useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { config, isConfigured } from './flare.config';
+// Key + ingest URL come from the Expo config's `extra` (set in app.config.ts from
+// the FLARE_API_KEY / FLARE_INGEST_URL env vars), so no key is committed.
+const extra = Constants.expoConfig?.extra ?? {};
+const flareApiKey: string = extra.flareApiKey ?? '';
+const flareIngestUrl: string = extra.flareIngestUrl ?? 'https://ingress.flareapp.io/v1/errors';
+const isConfigured = flareApiKey.length > 0;
 
 // Boot once at module load. Skipped until a real key is set.
 if (isConfigured) {
     flare.configure({
-        ingestUrl: config.ingestUrl,
+        ingestUrl: flareIngestUrl,
         stage: 'smoke',
         // Babel replaces flareSourcemapVersion with the build's version literal so
         // reports carry a sourcemapVersionId the backend matches against the upload.
         sourcemapVersionId: flareSourcemapVersion,
     });
-    flare.light(config.key);
+    flare.light(flareApiKey);
 }
 
 function Btn({ label, onPress }: { label: string; onPress: () => void }) {
@@ -39,7 +45,7 @@ export default function App() {
         return (
             <SafeAreaView style={styles.screen}>
                 <Text style={styles.title}>Flare RN smoke test</Text>
-                <Text style={styles.warn}>Set your project key in flare.config.ts, then reload.</Text>
+                <Text style={styles.warn}>Set FLARE_API_KEY (e.g. in .env.local), then relaunch.</Text>
             </SafeAreaView>
         );
     }
@@ -62,7 +68,7 @@ export default function App() {
                     onPress={() => {
                         setStatus('fatal fired — flush-before-crash only in a Release build');
                         (
-                            global as { ErrorUtils?: { reportFatalError?: (e: Error) => void } }
+                            globalThis as { ErrorUtils?: { reportFatalError?: (e: Error) => void } }
                         ).ErrorUtils?.reportFatalError?.(new Error('Flare smoke: fatal'));
                     }}
                 />

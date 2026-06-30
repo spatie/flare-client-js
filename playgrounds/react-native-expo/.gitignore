@@ -40,9 +40,6 @@ yarn-error.*
 /ios
 /android
 
-# Flare smoke-test config (contains your project key)
-flare.config.ts
-
 # Flare sourcemap verification artifact
 *.jsbundle.map
 flare.json
