@@ -55,8 +55,16 @@ export function installGlobalErrorHandler(
             void onFatal()
                 .catch(() => {})
                 .then(() => {
-                    handlingFatal = false;
-                    previous?.(error, isFatal);
+                    // Delegate to the crash-triggering handler with the latch STILL
+                    // set, then clear it. In production `previous` tears the app down
+                    // so the latch never reopens; in a dev/test setup where `previous`
+                    // returns, a fatal arriving during it still delegates immediately
+                    // instead of starting a second flush cycle.
+                    try {
+                        previous?.(error, isFatal);
+                    } finally {
+                        handlingFatal = false;
+                    }
                 });
             return;
         }

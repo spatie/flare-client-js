@@ -133,7 +133,9 @@ export class ReactNativeFlare extends CoreFlare {
             installRejectionTracking(
                 {
                     reportSilently: (error) => this.reportSilently(error),
-                    reportUnhandledRejection: (message) => void this.reportUnhandledRejection(message),
+                    // Return the promise (no `void`) so `routeRejection` owns the
+                    // `.catch`, matching the browser SDK's wiring in @flareapp/js.
+                    reportUnhandledRejection: (message) => this.reportUnhandledRejection(message),
                 },
                 this.rejectionDeps,
             ),

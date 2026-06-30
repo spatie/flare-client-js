@@ -35,6 +35,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
         }
         const key = body;
         const next = rest[i + 1];
+        // A following token that itself starts with `--` is treated as the next flag,
+        // not this flag's value (so a valueless `--flag` becomes boolean `'true'`).
+        // This CLI's values are paths/keys/versions/URLs that never start with `--`; a
+        // value that legitimately does must use the `--flag=value` form handled above.
         if (next !== undefined && !next.startsWith('--')) {
             flags[key] = next;
             i++;

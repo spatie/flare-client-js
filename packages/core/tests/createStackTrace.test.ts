@@ -51,6 +51,19 @@ test('strips the Hermes "address at " prefix from frame file names', async () =>
     expect(frames[0].file).toBe('index.android.bundle');
 });
 
+test('leaves a normal (non-Hermes) file name untouched', async () => {
+    (ErrorStackParser.parse as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => [
+        { fileName: 'https://cdn.test/app/src/index.js', lineNumber: 1, columnNumber: 1, functionName: 'fn' },
+    ]);
+
+    const error = new Error('boom');
+    error.stack = 'Error: boom\n    at fn (file.js:1:1)';
+
+    const frames = await createStackTrace(error, false, nullReader);
+
+    expect(frames[0].file).toBe('https://cdn.test/app/src/index.js');
+});
+
 test('marks node_modules frames as non-application', async () => {
     (ErrorStackParser.parse as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => [
         {

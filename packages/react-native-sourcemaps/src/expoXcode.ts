@@ -2,6 +2,10 @@ import type { XcodeProject } from '@expo/config-plugins';
 
 export const FLARE_PHASE_NAME = 'Upload Flare sourcemaps';
 
+// The `xcode` lib encodes the "Based on dependency analysis" checkbox as a numeric
+// flag on the build phase; 1 means "always out of date" (unchecked → runs every build).
+const ALWAYS_OUT_OF_DATE = 1;
+
 // The `xcode` runtime API (mutated in place) is broader than the published type, so
 // access the parts we need through a minimal structural view.
 type ShellScriptPhase = { name?: string; alwaysOutOfDate?: number };
@@ -45,6 +49,6 @@ export function addUploadBuildPhase(project: XcodeProject, shellScript: string):
     // without this Xcode warns ("ambiguous dependencies ... runs on every build") on
     // every build. We *want* it to run every release build — it self-skips when there
     // is no map, no key, or no version.
-    buildPhase.alwaysOutOfDate = 1;
+    buildPhase.alwaysOutOfDate = ALWAYS_OUT_OF_DATE;
     return project;
 }

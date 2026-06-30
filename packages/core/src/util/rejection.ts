@@ -43,7 +43,9 @@ function hasStack(reason: unknown): reason is { stack: string } {
  * reason falls back to `reportUnhandledRejection` (string message, empty-stack
  * `UnhandledRejection` class). Any rejection from `reportUnhandledRejection`'s
  * returned promise is swallowed so a transport failure cannot itself surface as
- * an unhandled rejection.
+ * an unhandled rejection. `reportSilently` is assumed not to throw synchronously
+ * (core's does its work asynchronously); it is intentionally not wrapped, so a
+ * synchronous throw there would propagate.
  */
 export function routeRejection(reporter: RejectionReporter, reason: unknown): void {
     if (reason instanceof Error) {

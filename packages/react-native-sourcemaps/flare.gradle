@@ -88,7 +88,13 @@ gradle.projectsEvaluated {
                     .redirectErrorStream(true)
                     .start()
                 process.inputStream.eachLine { line -> logger.lifecycle(line) }
-                process.waitFor()
+                def exitCode = process.waitFor()
+                // The CLI always exits 0 in --auto mode (failures print the banner and
+                // return). A non-zero here means that contract regressed; surface it as
+                // a warning rather than swallowing it silently. Still never fails the build.
+                if (exitCode != 0) {
+                    logger.warn("@flareapp/react-native-sourcemaps: upload CLI exited ${exitCode} (expected 0 in --auto mode); see the log above.")
+                }
             } catch (Exception e) {
                 logger.warn("@flareapp/react-native-sourcemaps: could not run the upload CLI (${e.message}); skipping. Your release will report minified stack traces until the sourcemap is uploaded.")
             }

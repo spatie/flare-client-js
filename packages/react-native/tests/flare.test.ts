@@ -156,6 +156,31 @@ describe('ReactNativeFlare', () => {
         ctl.emit(new Error('reinstalled'), false);
         await vi.waitFor(() => expect(fake.reports.length).toBe(1));
     });
+
+    it('flushes on AppState background through the wired scheduler, and stops after removeHandlers', () => {
+        stubErrorUtils();
+        const flare = makeFlare();
+        withFakeApi(flare);
+        flare.light('k');
+
+        // The install wires `installAppStateFlush(() => this.scheduler.getFlush())`,
+        // so a `background` transition pulls the scheduler's flush and invokes it.
+        const scheduler = (flare as unknown as { scheduler: { getFlush: () => (() => void) | undefined } }).scheduler;
+        const flush = vi.fn();
+        vi.spyOn(scheduler, 'getFlush').mockReturnValue(flush);
+
+        AppState.__emit('background');
+        expect(flush).toHaveBeenCalledTimes(1);
+
+        // A non-background transition does not flush.
+        AppState.__emit('inactive');
+        expect(flush).toHaveBeenCalledTimes(1);
+
+        // removeHandlers detaches the AppState listener too (not just the error handler).
+        flare.removeHandlers();
+        AppState.__emit('background');
+        expect(flush).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('ReactNativeFlare framework identity', () => {
