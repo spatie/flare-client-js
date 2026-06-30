@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/react-native",
-    "version": "0.1.0",
+    "version": "2.6.0",
     "description": "React Native SDK for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": {
@@ -46,7 +46,7 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/core": "2.5.1"
+        "@flareapp/core": "2.6.0"
     },
     "peerDependencies": {
         "@flareapp/react": "^2.5.0",

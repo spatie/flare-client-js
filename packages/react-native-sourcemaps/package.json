@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/react-native-sourcemaps",
-    "version": "0.1.0",
+    "version": "2.6.0",
     "description": "Upload React Native (Metro) sourcemaps to Flare",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",

@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/core",
-    "version": "2.5.1",
+    "version": "2.6.0",
     "description": "Environment-agnostic core for the Flare JS SDK",
     "homepage": "https://flareapp.io",
     "bugs": {
