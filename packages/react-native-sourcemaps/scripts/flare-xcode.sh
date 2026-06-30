@@ -63,7 +63,14 @@ case "$FLARE_OUTPUT" in
         echo "note: Flare: sourcemap uploaded ($SOURCEMAP_PATH)."
         ;;
     *)
-        echo "warning: Flare: sourcemap was NOT uploaded — see the Flare banner in the log above (usually a missing API key or FLARE_SOURCEMAP_VERSION)."
+        # Xcode/expo run hide the full banner (plain stdout above), so lift its
+        # "Reason:" line into a `warning:` the build results actually surface.
+        REASON=$(printf '%s\n' "$FLARE_OUTPUT" | sed -n 's/^[[:space:]]*Reason:[[:space:]]*//p' | head -1)
+        if [ -n "$REASON" ]; then
+            echo "warning: Flare: sourcemap NOT uploaded — $REASON"
+        else
+            echo "warning: Flare: sourcemap NOT uploaded — see the Flare banner in the log above (missing API key or FLARE_SOURCEMAP_VERSION)."
+        fi
         ;;
 esac
 
