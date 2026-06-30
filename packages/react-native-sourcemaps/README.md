@@ -1,0 +1,257 @@
+# @flareapp/react-native-sourcemaps
+
+Upload React Native (Metro) JavaScript sourcemaps to Flare so production stack
+traces are symbolicated.
+
+It has two halves that share one version string:
+
+1. A **Babel plugin** that inlines a build-time version into your app bundle.
+2. A **CLI** (`flare-rn-sourcemaps upload`) that uploads the `.map` under that
+   same version.
+
+> The manual CLI flow below works everywhere. For **bare React Native** you can also
+> wire the upload into the native release build so it happens automatically — see
+> "Automatic upload (bare React Native)" near the end. The Expo config plugin ships
+> separately.
+
+## Install
+
+```bash
+npm install --save-dev @flareapp/react-native-sourcemaps
+```
+
+## 1. Inline the version into your app
+
+Add the Babel plugin to `babel.config.js`:
+
+```js
+module.exports = {
+    presets: ['module:@react-native/babel-preset'],
+    plugins: ['@flareapp/react-native-sourcemaps/babel'],
+};
+```
+
+Then pass the inlined version when configuring Flare. Import `flareSourcemapVersion`
+from the package's runtime entry — it's a typed `string`, so there is no `process`
+global to type and no `@types/node` to add:
+
+```ts
+import { flare } from '@flareapp/react-native';
+import { flareSourcemapVersion } from '@flareapp/react-native-sourcemaps/runtime';
+
+flare.light(FLARE_KEY).configure({ sourcemapVersionId: flareSourcemapVersion });
+```
+
+The plugin replaces every reference to `flareSourcemapVersion` with the version it
+resolves at bundle time (and removes the import, so nothing of this package ships in
+your app bundle). Without the plugin the value is an empty string, which is harmless.
+Set the version in your build environment:
+
+```bash
+export FLARE_SOURCEMAP_VERSION="$(git rev-parse --short HEAD)"
+```
+
+If unset, it falls back to your app's `package.json` version (with a warning). Use the
+**same** version when you build the bundle and when you upload the map. If the two
+differ (for example the env var is set during the build but not during a later upload
+step, so one side falls back to `package.json`), the map will not match and
+symbolication silently fails.
+
+If your Babel config adds a generic `process.env` inliner (such as
+`babel-plugin-transform-inline-environment-variables`), list this plugin before it so
+the version token is not rewritten first. The default React Native and Expo presets do
+not inline `process.env`, so no ordering change is needed for a stock setup.
+
+## 2. Upload the sourcemap
+
+Generate a bundle + map, then upload the map under the **same** version:
+
+> Release builds use Hermes, which compiles your JS to bytecode. The map that
+> symbolicates production frames is the **Hermes-composed** map, not the plain Metro JS
+> map. Point `--sourcemap` at the composed `.map` your build emits (the one next to the
+> shipped bundle), not an intermediate Metro map.
+
+```bash
+# Example: Android, Hermes-composed map produced by your build
+npx flare-rn-sourcemaps upload \
+  --api-key "$FLARE_KEY" \
+  --sourcemap android/app/build/.../index.android.bundle.map \
+  --bundle-filename index.android.bundle \
+  --version "$FLARE_SOURCEMAP_VERSION"
+```
+
+Flags:
+
+| Flag                | Required | Description                                                                                    |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `--sourcemap`       | yes      | Path to the composed `.map` file.                                                              |
+| `--api-key`         | yes\*    | Flare API key. Falls back to `FLARE_API_KEY`.                                                  |
+| `--bundle-filename` | no       | `relative_filename` matched against runtime frames. Defaults to the map basename minus `.map`. |
+| `--version`         | no       | Defaults to `FLARE_SOURCEMAP_VERSION`, then `package.json` version.                            |
+| `--api-endpoint`    | no       | Defaults to `https://flareapp.io/api/sourcemaps`.                                              |
+
+\* Without a key the command warns and does nothing.
+
+## Automatic upload (bare React Native)
+
+Instead of running the CLI by hand, wire it into your native release build. Both
+hooks read a committed `flare.json` at your project root:
+
+```json
+{
+    "apiKey": "your-flare-api-key"
+}
+```
+
+To keep the key out of version control, drop it in a gitignored `.env.local` (or
+`.env`) next to `flare.json` instead — the hooks auto-load `FLARE_API_KEY` from there
+at build time:
+
+```bash
+# .env.local (gitignored)
+FLARE_API_KEY=your-flare-api-key
+```
+
+Precedence: shell env > `.env.local` > `.env` > `flare.json`. An explicit
+`FLARE_API_KEY` in the build environment wins over all of them.
+
+The version is taken **only** from `FLARE_SOURCEMAP_VERSION` here (the same variable
+the Babel plugin reads), so the inlined version and the uploaded version always match.
+Set it in your build environment:
+
+```bash
+export FLARE_SOURCEMAP_VERSION="$(git rev-parse --short HEAD)"
+```
+
+If the key or `FLARE_SOURCEMAP_VERSION` is missing, the upload is **skipped with a
+large warning banner** — your build never fails because of a sourcemap problem.
+
+### Android
+
+Add this line to `android/app/build.gradle`. It can go anywhere in the file — the script
+hooks the build lazily, so the order doesn't matter:
+
+```gradle
+apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"
+```
+
+This uploads the Hermes-composed map after every `release` JS-bundle task.
+
+### iOS
+
+1. Tell the stock React Native bundle phase to emit a sourcemap by adding this line
+   to `ios/.xcode.env`:
+
+    ```sh
+    export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"
+    ```
+
+    Use `$TARGET_TEMP_DIR`, **not** `$CONFIGURATION_BUILD_DIR`. With Hermes,
+    `react-native-xcode.sh` writes an intermediate map to
+    `$CONFIGURATION_BUILD_DIR/main.jsbundle.map` and then deletes it after composing the
+    final map — so pointing `SOURCEMAP_FILE` there would have the composed map deleted
+    out from under the upload.
+
+2. In Xcode, add a new "Run Script" build phase named **Upload Flare sourcemaps**,
+   placed **after** "Bundle React Native code and images", with this script:
+
+    ```sh
+    set -e
+    WITH_ENVIRONMENT="../node_modules/react-native/scripts/xcode/with-environment.sh"
+    FLARE_XCODE="../node_modules/@flareapp/react-native-sourcemaps/scripts/flare-xcode.sh"
+    /bin/sh "$WITH_ENVIRONMENT" "$FLARE_XCODE"
+    ```
+
+    The `with-environment.sh` wrapper is required so the phase sees `SOURCEMAP_FILE`
+    (and any `FLARE_*` vars) exported by `.xcode.env`.
+
+3. In that build phase, **uncheck "Based on Dependency Analysis"**. With no input/output
+   files, Xcode otherwise warns that the script has ambiguous dependencies and runs on
+   every build — which is what you want for a release upload. (The Expo config plugin
+   sets this automatically.)
+
+> The key comes from `flare.json` or the auto-loaded `.env.local`, so it's there even
+> for a GUI build. The **version** (`FLARE_SOURCEMAP_VERSION`) is the one variable the
+> phase still reads from the **build's** environment, inherited from whatever launched
+> the build. `react-native run-ios`, `xcodebuild`, or Fastlane from a terminal that
+> exported it works; a build from the Xcode GUI (including Product > Archive) doesn't
+> have it, so archive from the command line or in CI for releases. The upload skips with
+> the banner if it's missing, and the build still succeeds.
+
+#### Custom build configurations (bare / brownfield)
+
+Your build configuration doesn't have to be called `Release`.
+
+The hooks upload whenever a build makes a JavaScript bundle. They skip a build only when
+its name contains `debug` (any casing).
+
+- Uploads: `Release`, `Staging`, `Production`, `AppStore`, your own Android build type
+- Skipped: `Debug`, `debug`, `StagingDebug`
+
+A debug build runs from Metro and makes no bundle, so there's nothing to upload. The hook
+skips it and your dev builds stay fast.
+
+Want a bundling config to skip the upload anyway? Put `debug` in its name. Or remove the
+Flare setup you added above — the `apply from "…/flare.gradle"` line in
+`android/app/build.gradle` on Android, or the **Upload Flare sourcemaps** build phase in
+Xcode on iOS — which turns the automatic upload off completely.
+
+### Expo (CNG / managed)
+
+For an Expo project that uses prebuild (CNG), add the config plugin to `app.json` —
+it injects the same native wiring on every prebuild, so it survives regeneration:
+
+```json
+{
+    "expo": {
+        "plugins": [["@flareapp/react-native-sourcemaps/expo", { "apiKey": "YOUR PROJECT KEY" }]]
+    }
+}
+```
+
+You still add the Babel plugin and pass `flareSourcemapVersion` (steps above), and you
+still set `FLARE_SOURCEMAP_VERSION` in the build environment (locally, or in
+`eas.json`'s `build.<profile>.env` for EAS Build). The plugin creates a `flare.json` at
+your project root and adds it to `.gitignore`. That's expected. You don't edit it; it's
+generated from your `app.json`.
+
+**Releasing without EAS?** You don't have to. The key comes from `flare.json` or the
+auto-loaded `.env.local`; the upload reads `FLARE_SOURCEMAP_VERSION` from the build's
+environment, inherited from whatever **launches** the build. So EAS Build (`eas.json`
+env), `eas build --local`, or a command-line archive (`xcodebuild` / Fastlane on iOS,
+`./gradlew bundleRelease` on Android) all work, as long as you exported the version in
+that shell.
+
+> The one exception is the version under the **Xcode / Android Studio GUI** (including
+> Product > Archive): it was launched by the OS, not your shell, so it doesn't have
+> `FLARE_SOURCEMAP_VERSION` and the upload skips with the banner. Archive from the
+> command line, or use EAS, for releases.
+
+> **`expo run:android` / `expo run:ios` are not a reliable upload path.** Both
+> eager-bundle the JS to a temp dir, and the native bundle task our hook runs after can
+> be reported **up-to-date** and skipped — so you get an installed app but no upload.
+> Changing only `FLARE_SOURCEMAP_VERSION` doesn't re-trigger it (it isn't a build
+> input). Use `expo run:*` for development, but **release and verify** through
+> `eas build` / `eas build --local` or a direct native build (`./gradlew
+:app:assembleRelease`, `xcodebuild`). When testing locally, add `--rerun-tasks` to the
+> Gradle command to force a fresh bundle and upload.
+
+> **OTA / EAS Update is not covered.** The plugin only runs during a native build
+> (`expo run:*`, EAS Build). `eas update` ships JS via `expo export` with no native
+> build phase, so it uploads no map. For OTA releases, upload the map yourself with
+> `flare-rn-sourcemaps upload` under the **same** `FLARE_SOURCEMAP_VERSION` you exported
+> with.
+
+## Expo (`expo export`)
+
+```bash
+FLARE_SOURCEMAP_VERSION="$(git rev-parse --short HEAD)" npx expo export
+npx flare-rn-sourcemaps upload \
+  --api-key "$FLARE_KEY" \
+  --sourcemap dist/_expo/static/js/ios/index-*.hbc.map \
+  --bundle-filename main.jsbundle \
+  --version "$FLARE_SOURCEMAP_VERSION"
+```
+
+> `--bundle-filename` must match how frames appear in your Flare reports. If
+> traces are not symbolicating, that is the value to adjust.

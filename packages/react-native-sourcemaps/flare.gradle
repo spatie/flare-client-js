@@ -1,0 +1,103 @@
+// Flare automatic sourcemap upload for bare React Native (Android).
+//
+// Apply from android/app/build.gradle:
+//   apply from: "../../node_modules/@flareapp/react-native-sourcemaps/flare.gradle"
+//
+// Hooks the release JS-bundle task and, after it runs, uploads the Hermes-composed
+// sourcemap to Flare. Never fails the build: the CLI exits 0 in --auto mode and the
+// exec ignores its exit value as a belt-and-braces guard.
+
+def flareProjectRoot = rootProject.projectDir.parentFile // android/ -> project root
+def flareConfig = new File(flareProjectRoot, "flare.json")
+// Prefer the resolved bin over `npx` (avoids npx's PATH ambiguity and any network
+// fetch), matching the iOS hook. The no-extension unix bin is checked here; on
+// Windows it is a `.cmd` this misses, so we fall back to `npx` there.
+def flareCli = new File(flareProjectRoot, "node_modules/.bin/flare-rn-sourcemaps")
+
+gradle.projectsEvaluated {
+    tasks.configureEach { task ->
+        def name = task.name
+        def isBundleTask = (name.startsWith("createBundle") || name.startsWith("bundle")) &&
+            name.endsWith("JsAndAssets")
+        // Don't require the variant name to contain "release". Brownfield/bare apps
+        // rename the release build type (Production, AppStore, ...), so requiring
+        // "release" would silently skip the upload on exactly the builds that ship.
+        // Skip only the dev (debug) variants, matched case-insensitively as a
+        // substring (symmetric with the iOS hook); the "no sourcemap -> skip" guard
+        // below then handles any non-bundling variant for free.
+        def isDebug = name.toLowerCase().contains("debug")
+        if (!isBundleTask || isDebug) {
+            return
+        }
+
+        task.doLast {
+            // Variant subdir (e.g. "release", "stagingRelease"), derived from the task
+            // name rather than hardcoded "release" so a renamed build type (Production,
+            // ...) still resolves. createBundle<Variant>JsAndAssets /
+            // bundle<Variant>JsAndAssets -> <variant>, decapitalised to match Gradle's
+            // camelCase variant name. `project` is the module this file is applied from;
+            // the documented usage is android/app/build.gradle, so project.projectDir is
+            // android/app.
+            def raw = name.replaceFirst(/^(createBundle|bundle)/, "").replaceFirst(/JsAndAssets$/, "")
+            def variant = raw.isEmpty() ? raw : raw.substring(0, 1).toLowerCase() + raw.substring(1)
+
+            // With Hermes, the map that resolves against the shipped bytecode is the
+            // COMPOSED map at build/generated/sourcemaps/react/<variant>/index.android.bundle.map.
+            // The packager map exposed via task.sourcemapOutput is the pre-Hermes metro
+            // map and would NOT line up, so prefer the composed map whenever it exists.
+            // Only fall back to sourcemapOutput for a non-Hermes (JSC) build, where the
+            // packager map IS the final map.
+            def composed = new File(
+                project.projectDir,
+                "build/generated/sourcemaps/react/${variant}/index.android.bundle.map"
+            )
+            def sourcemapPath
+            if (composed.exists()) {
+                sourcemapPath = composed.absolutePath
+            } else if (task.hasProperty("sourcemapOutput") && task.sourcemapOutput != null) {
+                sourcemapPath = task.sourcemapOutput.toString()
+            } else {
+                sourcemapPath = composed.absolutePath
+            }
+
+            if (!new File(sourcemapPath).exists()) {
+                logger.warn("@flareapp/react-native-sourcemaps: no sourcemap at ${sourcemapPath}, skipping upload.")
+                return
+            }
+
+            // Prefer the resolved .bin; fall back to npx (Windows, or a missing bin).
+            def baseCommand = flareCli.exists() ? [flareCli.absolutePath] : ["npx", "flare-rn-sourcemaps"]
+            def command = baseCommand + [
+                "upload",
+                "--sourcemap", sourcemapPath,
+                "--config", flareConfig.absolutePath,
+                "--auto",
+            ]
+
+            // Run via ProcessBuilder, NOT Gradle's `exec {}`. Inside a task action the
+            // closure delegate is the task, so a bare `exec {}` fails to resolve ("Could
+            // not find method exec()"), and `project.exec` is flagged by the
+            // configuration cache. ProcessBuilder has neither problem and inherits the
+            // build environment (FLARE_SOURCEMAP_VERSION / FLARE_API_KEY flow through; the
+            // CLI also auto-loads them from .env.local at the project root). The CLI exits
+            // 0 on every upload failure mode, so this can never break the build; the catch
+            // guards only a failure to launch the process (e.g. node not on PATH).
+            try {
+                def process = new ProcessBuilder(command)
+                    .directory(flareProjectRoot)
+                    .redirectErrorStream(true)
+                    .start()
+                process.inputStream.eachLine { line -> logger.lifecycle(line) }
+                def exitCode = process.waitFor()
+                // The CLI always exits 0 in --auto mode (failures print the banner and
+                // return). A non-zero here means that contract regressed; surface it as
+                // a warning rather than swallowing it silently. Still never fails the build.
+                if (exitCode != 0) {
+                    logger.warn("@flareapp/react-native-sourcemaps: upload CLI exited ${exitCode} (expected 0 in --auto mode); see the log above.")
+                }
+            } catch (Exception e) {
+                logger.warn("@flareapp/react-native-sourcemaps: could not run the upload CLI (${e.message}); skipping. Your release will report minified stack traces until the sourcemap is uploaded.")
+            }
+        }
+    }
+}
