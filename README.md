@@ -35,8 +35,8 @@ This is an npm workspaces monorepo containing the following packages:
 | [`playgrounds/vue`](playgrounds/vue)                             | (private)                                                                        | Vue 3 + vue-router playground (port 5182)                                           |
 | [`playgrounds/svelte`](playgrounds/svelte)                       | (private)                                                                        | SvelteKit (adapter-node) playground (port 5183)                                     |
 | [`playgrounds/nextjs`](playgrounds/nextjs)                       | (private)                                                                        | Next.js 15 App Router playground (port 5184)                                        |
-| [`playgrounds/react-native-bare`](playgrounds/react-native-bare) | (not published)                                                                  | Bare RN manual smoke-test app for `@flareapp/react-native`                          |
-| [`playgrounds/react-native-expo`](playgrounds/react-native-expo) | (not published)                                                                  | Expo manual smoke-test app (incl. Expo device/app context)                          |
+| [`playgrounds/react-native-bare`](playgrounds/react-native-bare) | (private)                                                                        | Bare RN manual smoke-test app for `@flareapp/react-native`                          |
+| [`playgrounds/react-native-expo`](playgrounds/react-native-expo) | (private)                                                                        | Expo manual smoke-test app (incl. Expo device/app context)                          |
 
 ## Local development
 
