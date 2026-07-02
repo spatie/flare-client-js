@@ -46,6 +46,14 @@ export type Config = {
     tracesIngestUrl: string;
     tracesSampleRate: number;
     tracesSampler?: TracesSampler;
+    /**
+     * URLs to which a W3C `traceparent` header may be attached on outgoing
+     * requests. Default (unset): same-origin + relative only. `[]` disables
+     * all injection. Each entry matches by String.includes (string) or
+     * RegExp.test. Note: attaching `traceparent` cross-origin forces a CORS
+     * preflight; the target server must allow the `traceparent` request header.
+     */
+    tracePropagationTargets?: (string | RegExp)[];
     maxSpanBufferSize: number;
     spanFlushIntervalMs: number;
     spanFlushMaxBytes: number;
