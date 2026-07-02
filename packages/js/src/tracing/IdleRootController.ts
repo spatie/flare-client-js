@@ -64,9 +64,15 @@ export class IdleRootController {
         if (phase === 'start') {
             this.openChildren++;
             this.clearIdle();
+            // childSpanTimeout is anchored to the start of a non-empty period (the 0->1
+            // transition), not to each individual child; a continuously-busy root force-ends
+            // childSpanTimeout ms after the batch began.
             if (this.openChildren === 1) this.armChildTimeout();
         } else {
             this.openChildren = Math.max(0, this.openChildren - 1);
+            // endTimeUnixNano is 0 (SpanImpl's unset sentinel) until end() runs; end() sets it
+            // before dispatching this event, so a real child always has a non-zero value here.
+            // `||` treats the 0 sentinel as "unset" and falls back to now(), matching SpanImpl.
             this.lastChildEndTime = span.endTimeUnixNano || this.deps.now();
             if (this.openChildren === 0) {
                 this.clearChildTimeout();

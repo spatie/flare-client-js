@@ -122,6 +122,25 @@ describe('IdleRootController', () => {
         expect(root.end).toHaveBeenCalledTimes(1);
     });
 
+    it('re-arms the child timeout on a second non-empty period', () => {
+        const root = fakeSpan('root', 'T');
+        const h = harness(root);
+        new IdleRootController(h.deps, TIMEOUTS);
+
+        // First batch: open then close a child (0->1->0), well under childSpanTimeout.
+        const c1 = fakeSpan('c1', 'T', 200 * 1e6);
+        h.emit('start', c1);
+        h.emit('end', c1); // clears the first child timer, arms idle
+
+        // Second batch starts before idle fires; a stuck child should force-end at
+        // childSpanTimeout measured from THIS batch, proving a fresh timer was armed.
+        h.advance(500); // < idleTimeout, so root still open
+        h.emit('start', fakeSpan('c2', 'T')); // stays open, re-arms child timeout
+        h.advance(15000);
+
+        expect(root.end).toHaveBeenCalledTimes(1);
+    });
+
     it('ignores spans from other traces and the root itself', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
