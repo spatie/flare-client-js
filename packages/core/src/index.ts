@@ -55,7 +55,14 @@ export type { ScopeProvider } from './Scope';
 export { Logger, NoopFlushScheduler } from './logging';
 export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';
 
-export { Tracer, InMemoryActiveSpanHolder, buildTracesEnvelope, buildTraceparent, parseTraceparent } from './tracing';
+export {
+    Tracer,
+    defaultNowNano,
+    InMemoryActiveSpanHolder,
+    buildTracesEnvelope,
+    buildTraceparent,
+    parseTraceparent,
+} from './tracing';
 export type { TracerDeps, ActiveSpanHolder } from './tracing';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
