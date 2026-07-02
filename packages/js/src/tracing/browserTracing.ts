@@ -25,37 +25,61 @@ function resolveTimeouts(config: Config): IdleTimeouts {
 
 function startRoot(flare: BrowserTracingFlare, spanType: string, startTimeUnixNano: number): void {
     const path = location.pathname;
-    const root = flare.startSpan(path, {
-        spanType,
-        startTimeUnixNano,
-        attributes: {
-            'context.url': location.href,
-            'context.route': path,
-            'context.user_agent': navigator.userAgent,
-            'context.viewport': `${window.innerWidth}x${window.innerHeight}`,
-            'flare.entry_point.type': 'web',
-        },
-    });
-
-    controller = new IdleRootController(
-        {
-            root,
-            addSpanListener: (fn) => flare.tracer.addSpanListener(fn),
-            setActiveRoot: (span) => flare.tracer.setActiveRoot(span),
-            now: defaultNowNano,
-            setTimeout: (fn, ms) => setTimeout(fn, ms),
-            clearTimeout: (handle) => clearTimeout(handle),
-            rootStartTime: startTimeUnixNano,
-        },
-        resolveTimeouts(flare.config),
-    );
+    let root: Span | undefined;
+    try {
+        root = flare.startSpan(path, {
+            spanType,
+            startTimeUnixNano,
+            attributes: {
+                'context.url': location.href,
+                'context.route': path,
+                'context.user_agent': navigator.userAgent,
+                'context.viewport': `${window.innerWidth}x${window.innerHeight}`,
+                'flare.entry_point.type': 'web',
+            },
+        });
+        controller = new IdleRootController(
+            {
+                root,
+                addSpanListener: (fn) => flare.tracer.addSpanListener(fn),
+                setActiveRoot: (span) => flare.tracer.setActiveRoot(span),
+                now: defaultNowNano,
+                setTimeout: (fn, ms) => setTimeout(fn, ms),
+                clearTimeout: (handle) => clearTimeout(handle),
+                rootStartTime: startTimeUnixNano,
+            },
+            resolveTimeouts(flare.config),
+        );
+    } catch (error) {
+        // Instrumentation must never break the app. If root creation or the idle
+        // controller fails, undo any partial state (end the orphaned span, clear
+        // the active root) and leave tracing inert rather than throwing.
+        controller = null;
+        try {
+            root?.end();
+        } catch {
+            // ignore
+        }
+        try {
+            flare.tracer.setActiveRoot(undefined);
+        } catch {
+            // ignore
+        }
+        if (flare.config.debug) console.error('Flare: failed to start browser tracing root', error);
+    }
 }
 
 function onUrlChanged(flare: BrowserTracingFlare): void {
     const path = location.pathname;
     if (path === lastPath) return;
     lastPath = path;
-    if (controller && !controller.isEnded) controller.endNow();
+    if (controller && !controller.isEnded) {
+        try {
+            controller.endNow();
+        } catch {
+            // A failing prior-root teardown must not stop the new root from starting.
+        }
+    }
     startRoot(flare, 'browser_navigation', defaultNowNano());
 }
 
@@ -72,7 +96,13 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     lastPath = location.pathname;
     startRoot(flare, 'browser_pageload', pageloadStartNano());
 
-    const handle = (): void => onUrlChanged(flare);
+    const handle = (): void => {
+        try {
+            onUrlChanged(flare);
+        } catch (error) {
+            if (flare.config.debug) console.error('Flare: browser tracing navigation handler failed', error);
+        }
+    };
     const wrap = (original: unknown) =>
         function (this: unknown, ...args: unknown[]): unknown {
             const result = (original as (...a: unknown[]) => unknown).apply(this, args);
@@ -90,7 +120,10 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     };
 }
 
-/** Stop browser tracing: end the active root and restore the History API. Idempotent. */
+/**
+ * Stop browser tracing: end the active root and restore the History API. Idempotent.
+ * Page-global singleton: stops whatever tracing session is active, not a per-Flare-instance session.
+ */
 export function stopBrowserTracing(): void {
     if (controller && !controller.isEnded) controller.endNow();
     controller = null;

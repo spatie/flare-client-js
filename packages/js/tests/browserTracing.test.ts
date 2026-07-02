@@ -85,6 +85,54 @@ describe('browserTracing', () => {
         expect(startSpan).toHaveBeenCalledTimes(1); // only the pageload root
     });
 
+    it('does not let a tracer error escape into history.pushState', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare); // pageload root ok
+        startSpan.mockImplementationOnce(() => {
+            throw new Error('tracer boom'); // navigation root creation throws
+        });
+        expect(() => window.history.pushState({}, '', '/b')).not.toThrow();
+    });
+
+    it('ends the orphaned root and clears active state if the idle controller fails to construct', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/x');
+        const { flare, setActiveRoot } = fakeFlare();
+        const created: Array<{ end: ReturnType<typeof vi.fn> }> = [];
+        (flare.startSpan as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+            const s = {
+                traceId: 'T',
+                spanId: 's',
+                parentSpanId: null,
+                name,
+                isRecording: true,
+                endTimeUnixNano: 0,
+                setAttribute() {
+                    return this;
+                },
+                setStatus() {
+                    return this;
+                },
+                addEvent() {
+                    return this;
+                },
+                end: vi.fn(),
+            };
+            created.push(s);
+            return s as never;
+        });
+        // Make IdleRootController construction throw AFTER setActiveRoot(root): addSpanListener throws.
+        (flare.tracer.addSpanListener as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+            throw new Error('listener boom');
+        });
+
+        expect(() => startBrowserTracing(flare)).not.toThrow();
+        expect(created[0].end).toHaveBeenCalled(); // orphaned root ended
+        expect(setActiveRoot).toHaveBeenLastCalledWith(undefined); // active root cleared
+    });
+
     it('stopBrowserTracing ends the active root and unpatches history', () => {
         vi.useFakeTimers();
         const { flare, setActiveRoot } = fakeFlare();
