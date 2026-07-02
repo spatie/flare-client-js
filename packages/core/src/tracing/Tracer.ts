@@ -24,8 +24,8 @@ export const defaultNowNano = (): number => {
     return Math.round(ms * 1e6);
 };
 
-export type SpanEvent = { phase: 'start' | 'end'; span: Span };
-export type SpanListener = (event: SpanEvent) => void;
+export type SpanLifecycleEvent = { phase: 'start' | 'end'; span: Span };
+export type SpanLifecycleListener = (event: SpanLifecycleEvent) => void;
 
 type TraceState = {
     traceId: string;
@@ -59,7 +59,7 @@ export class Tracer {
     private maxLiveTraces: number;
     private epoch = 0;
     private pendingContinuation: { traceId: string; parentSpanId: string; sampled: boolean } | null = null;
-    private spanListeners = new Set<SpanListener>();
+    private spanListeners = new Set<SpanLifecycleListener>();
 
     constructor(private deps: TracerDeps) {
         this.buffer = new SpanBuffer({
@@ -86,7 +86,7 @@ export class Tracer {
         this.holder.setActiveRoot?.(span);
     }
 
-    addSpanListener(fn: SpanListener): () => void {
+    addSpanListener(fn: SpanLifecycleListener): () => void {
         this.spanListeners.add(fn);
         return () => {
             this.spanListeners.delete(fn);

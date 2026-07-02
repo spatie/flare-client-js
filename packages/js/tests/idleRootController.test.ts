@@ -78,7 +78,8 @@ describe('IdleRootController', () => {
     it('ends the root trimmed to the last child end after idleTimeout of no open children', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
-        new IdleRootController(h.deps, TIMEOUTS);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
         expect(h.setActiveRoot).toHaveBeenCalledWith(root);
 
         const child = fakeSpan('c1', 'T', 500 * 1e6);
@@ -93,7 +94,8 @@ describe('IdleRootController', () => {
     it('a new child before idle fires cancels the pending close', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
-        new IdleRootController(h.deps, TIMEOUTS);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
         const c1 = fakeSpan('c1', 'T', 100 * 1e6);
         h.emit('start', c1);
         h.emit('end', c1);
@@ -107,7 +109,8 @@ describe('IdleRootController', () => {
     it('finalTimeout hard-caps even with an open child', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
-        new IdleRootController(h.deps, TIMEOUTS);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
         h.emit('start', fakeSpan('c1', 'T'));
         h.advance(30000);
         expect(root.end).toHaveBeenCalledTimes(1);
@@ -116,7 +119,8 @@ describe('IdleRootController', () => {
     it('childSpanTimeout force-ends with a stuck open child', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
-        new IdleRootController(h.deps, TIMEOUTS);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
         h.emit('start', fakeSpan('c1', 'T'));
         h.advance(15000);
         expect(root.end).toHaveBeenCalledTimes(1);
@@ -125,7 +129,8 @@ describe('IdleRootController', () => {
     it('re-arms the child timeout on a second non-empty period', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
-        new IdleRootController(h.deps, TIMEOUTS);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
 
         // First batch: open then close a child (0->1->0), well under childSpanTimeout.
         const c1 = fakeSpan('c1', 'T', 200 * 1e6);
@@ -144,7 +149,8 @@ describe('IdleRootController', () => {
     it('ignores spans from other traces and the root itself', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root);
-        new IdleRootController(h.deps, TIMEOUTS);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
         h.emit('start', fakeSpan('other', 'OTHER'));
         h.emit('start', root);
         h.advance(1000);
