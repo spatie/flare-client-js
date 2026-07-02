@@ -108,6 +108,18 @@ describe('createFetchWrapper', () => {
         expect(calls.ended).toBe(true);
     });
 
+    it('ends the span and rethrows when the underlying fetch throws synchronously', async () => {
+        const { tracer, calls } = makeTracer();
+        const original = vi.fn(() => {
+            throw new Error('sync boom');
+        }) as unknown as typeof fetch;
+        const wrapped = createFetchWrapper(tracer, original, ORIGIN);
+
+        await expect(wrapped('https://app.example/api/x')).rejects.toThrow('sync boom');
+        expect(calls.status).toEqual({ code: 2, message: 'sync boom' });
+        expect(calls.ended).toBe(true);
+    });
+
     it('skips Flare ingest URLs entirely (no span, passthrough)', async () => {
         const { tracer, startSpan } = makeTracer();
         const original = okFetch();

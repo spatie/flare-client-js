@@ -55,14 +55,14 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
 
         const abs = safeAbsolute(url, origin);
         const pathname = abs ? abs.pathname : url;
-        const host = abs ? abs.host : undefined;
 
         const span = tracer.startSpan(`${method} ${pathname}`, {
             spanType: 'browser_fetch',
             attributes: {
                 'http.request.method': method,
                 'url.full': abs ? abs.href : url,
-                ...(host ? { 'server.address': host } : {}),
+                ...(abs ? { 'server.address': abs.hostname } : {}),
+                ...(abs && abs.port ? { 'server.port': Number(abs.port) } : {}),
             },
         });
 
@@ -72,18 +72,27 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
             finalInit = mergeTraceparentHeader(input, init, traceparent);
         }
 
-        return call(finalInit).then(
+        const finishError = (error: unknown): Promise<never> => {
+            span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
+            span.end();
+            return Promise.reject(error);
+        };
+
+        let promise: Promise<Response>;
+        try {
+            promise = call(finalInit);
+        } catch (error) {
+            return finishError(error);
+        }
+
+        return promise.then(
             (response) => {
                 span.setAttribute('http.response.status_code', response.status);
                 if (response.status >= 500) span.setStatus({ code: 2 });
                 span.end();
                 return response;
             },
-            (error: unknown) => {
-                span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
-                span.end();
-                throw error;
-            },
+            (error: unknown) => finishError(error),
         );
-    } as typeof fetch;
+    };
 }
