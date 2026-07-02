@@ -28,6 +28,22 @@ test.describe('js playground', () => {
             });
         }
     });
+
+    test('traced fetch produces a browser_fetch span', async ({ page, fakeFlare }) => {
+        await page.goto('/broken');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId('trace-fetch').click();
+
+        const trace = await fakeFlare.waitForTrace({
+            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
+        });
+
+        const body = JSON.stringify(trace.bodyJson);
+        expect(body).toContain('browser_fetch');
+        expect(body).toContain('http.request.method');
+        expect(body).toContain('http.response.status_code');
+    });
 });
 
 test.describe('js logging', () => {
