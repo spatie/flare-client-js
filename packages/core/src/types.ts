@@ -54,6 +54,12 @@ export type Config = {
      * preflight; the target server must allow the `traceparent` request header.
      */
     tracePropagationTargets?: (string | RegExp)[];
+    /** Idle-span: ms of no open child spans before a pageload/navigation root closes. Browser default 1000. */
+    idleTimeout?: number;
+    /** Idle-span: hard cap in ms from root start before it closes regardless of activity. Browser default 30000. */
+    finalTimeout?: number;
+    /** Idle-span: if a child span stays open this many ms, the root closes anyway. Browser default 15000. */
+    childSpanTimeout?: number;
     maxSpanBufferSize: number;
     spanFlushIntervalMs: number;
     spanFlushMaxBytes: number;
@@ -193,6 +199,7 @@ export interface Span {
     readonly parentSpanId: string | null;
     name: string;
     readonly isRecording: boolean;
+    readonly endTimeUnixNano: number;
     setAttribute(key: string, value: AttributeValue): this;
     setStatus(status: SpanStatus): this;
     addEvent(name: string, attributes?: Attributes): this;
