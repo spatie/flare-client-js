@@ -24,6 +24,9 @@ export const defaultNowNano = (): number => {
     return Math.round(ms * 1e6);
 };
 
+export type SpanEvent = { phase: 'start' | 'end'; span: Span };
+export type SpanListener = (event: SpanEvent) => void;
+
 type TraceState = {
     traceId: string;
     recording: boolean;
@@ -56,6 +59,7 @@ export class Tracer {
     private maxLiveTraces: number;
     private epoch = 0;
     private pendingContinuation: { traceId: string; parentSpanId: string; sampled: boolean } | null = null;
+    private spanListeners = new Set<SpanListener>();
 
     constructor(private deps: TracerDeps) {
         this.buffer = new SpanBuffer({
@@ -74,6 +78,29 @@ export class Tracer {
 
     getActiveSpan(): Span | undefined {
         return this.holder.getActive();
+    }
+
+    setActiveRoot(span?: Span): void {
+        // setActiveRoot is optional on the holder interface (non-breaking); a holder
+        // that does not support active roots simply ignores it.
+        this.holder.setActiveRoot?.(span);
+    }
+
+    addSpanListener(fn: SpanListener): () => void {
+        this.spanListeners.add(fn);
+        return () => {
+            this.spanListeners.delete(fn);
+        };
+    }
+
+    private emitSpanEvent(phase: 'start' | 'end', span: Span): void {
+        for (const fn of this.spanListeners) {
+            try {
+                fn({ phase, span });
+            } catch {
+                // A listener must never break tracing.
+            }
+        }
     }
 
     flush(opts?: { keepalive?: boolean }): void {
@@ -128,11 +155,13 @@ export class Tracer {
         const spanId = makeSpanId();
 
         if (!config.enableTracing) {
-            return this.makeSpan(
+            const span = this.makeSpan(
                 { traceId: makeTraceId(), spanId, parentSpanId: null, name, recording: false },
                 opts,
                 config,
             );
+            this.emitSpanEvent('start', span);
+            return span;
         }
 
         const { traceId, parentSpanId, state } = this.resolveTrace(spanId, name, opts, config);
@@ -146,7 +175,9 @@ export class Tracer {
         }
         state.openSpanCount++;
 
-        return this.makeSpan({ traceId, spanId, parentSpanId, name, recording }, opts, config);
+        const span = this.makeSpan({ traceId, spanId, parentSpanId, name, recording }, opts, config);
+        this.emitSpanEvent('start', span);
+        return span;
     }
 
     private resolveTrace(
@@ -248,6 +279,7 @@ export class Tracer {
     }
 
     private onSpanEnd(span: SpanImpl): void {
+        this.emitSpanEvent('end', span);
         if (span.epoch !== this.epoch) return; // stale: created before a clear(); never buffer
 
         const state = this.traceStates.get(span.traceId);
