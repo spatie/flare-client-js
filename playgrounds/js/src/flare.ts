@@ -9,6 +9,11 @@ export const initFlare = (): void => {
             ingestUrl: url,
             logsIngestUrl: url.replace('/api/reports', '/api/logs'),
             tracesIngestUrl: url.replace('/api/reports', '/api/traces'),
+            // e2e-only timing: keep the pageload/navigation root active long enough for a
+            // prompt Playwright click to land and nest under it, then flush an ended root
+            // fast so arrival assertions don't need to wait out the (5s) production default.
+            idleTimeout: 2000,
+            spanFlushIntervalMs: 500,
         });
     }
 

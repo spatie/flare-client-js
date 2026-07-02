@@ -3,6 +3,24 @@ import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { runScenario, scenariosFor } from './shared';
 
+type OtlpSpan = {
+    name: string;
+    spanId: string;
+    parentSpanId: string | null;
+    traceId: string;
+    attributes: Array<{ key: string; value: Record<string, unknown> }>;
+};
+
+const spansOf = (bodyJson: unknown): OtlpSpan[] =>
+    ((bodyJson as { resourceSpans?: Array<{ scopeSpans?: Array<{ spans?: OtlpSpan[] }> }> }).resourceSpans ?? [])
+        .flatMap((r) => r.scopeSpans ?? [])
+        .flatMap((s) => s.spans ?? []);
+
+const attr = (span: OtlpSpan, key: string): unknown => span.attributes.find((a) => a.key === key)?.value;
+
+const hasSpanType = (span: OtlpSpan, type: string): boolean =>
+    JSON.stringify(attr(span, 'flare.span_type') ?? '').includes(type);
+
 test.describe('js playground', () => {
     test('renders product grid', async ({ page }) => {
         await page.goto('/');
@@ -53,6 +71,48 @@ test.describe('js playground', () => {
         expect(body).toContain('http.response.status_code');
 
         expect(outgoingTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/);
+    });
+
+    test('emits a browser_pageload root on load', async ({ page, fakeFlare }) => {
+        await page.goto('/broken');
+        await page.waitForLoadState('networkidle');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_pageload'),
+        });
+        const pageload = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
+        expect(pageload).toBeTruthy();
+        expect(pageload && attr(pageload, 'flare.entry_point.type')).toEqual({ stringValue: 'web' });
+    });
+
+    test('fetch span nests under the active pageload root', async ({ page, fakeFlare }) => {
+        await page.goto('/broken');
+        await page.waitForLoadState('networkidle');
+        await page.getByTestId('trace-fetch').click(); // click promptly so the root is still active
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
+        });
+        const fetchSpan = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
+        expect(fetchSpan).toBeTruthy();
+        // The key assertion: the fetch is no longer its own root, it nests under the active root.
+        // Root spans always serialize parentSpanId as null; a nested span carries the parent's spanId.
+        expect(fetchSpan?.parentSpanId).toBeTruthy();
+    });
+
+    test('emits a browser_navigation root on in-app navigation', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+        // Click a data-link nav anchor (triggers history.pushState).
+        await page.getByTestId('cart-count').click();
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_navigation'),
+        });
+        expect(spansOf(trace.bodyJson).some((s) => hasSpanType(s, 'browser_navigation'))).toBe(true);
     });
 });
 
