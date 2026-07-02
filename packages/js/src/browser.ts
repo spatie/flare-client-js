@@ -12,7 +12,7 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import { instrumentFetch, unpatchFetch } from './tracing';
+import { instrumentFetch, startBrowserTracing, stopBrowserTracing, unpatchFetch } from './tracing';
 
 export class Flare extends CoreFlare {
     constructor(
@@ -30,8 +30,13 @@ export class Flare extends CoreFlare {
         super.configure(config);
         const nowTracing = this.config.enableTracing;
 
-        if (!wasTracing && nowTracing) instrumentFetch(this);
-        else if (wasTracing && !nowTracing) unpatchFetch();
+        if (!wasTracing && nowTracing) {
+            instrumentFetch(this);
+            startBrowserTracing(this);
+        } else if (wasTracing && !nowTracing) {
+            stopBrowserTracing();
+            unpatchFetch();
+        }
 
         return this;
     }
