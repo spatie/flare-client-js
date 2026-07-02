@@ -69,7 +69,7 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
         });
 
         let finalInit = init;
-        if (shouldPropagate(url, origin, config.tracePropagationTargets)) {
+        if (shouldPropagate(abs ? abs.href : url, origin, config.tracePropagationTargets)) {
             const traceparent = buildTraceparent(span.traceId, span.spanId, span.isRecording);
             finalInit = mergeTraceparentHeader(input, init, traceparent);
         }

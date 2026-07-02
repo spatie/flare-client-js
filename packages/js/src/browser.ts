@@ -12,7 +12,7 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import { instrumentFetch, unpatchFetch } from './tracing/instrumentFetch';
+import { instrumentFetch, unpatchFetch } from './tracing';
 
 export class Flare extends CoreFlare {
     constructor(

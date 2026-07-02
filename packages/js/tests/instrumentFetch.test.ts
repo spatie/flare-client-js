@@ -155,6 +155,19 @@ describe('createFetchWrapper', () => {
             `00-${'a'.repeat(32)}-${'b'.repeat(16)}-00`,
         );
     });
+
+    it('injects traceparent for a relative same-origin URL when tracePropagationTargets is set', async () => {
+        const { tracer } = makeTracer({ tracePropagationTargets: ['app.example'] });
+        const original = okFetch();
+        const wrapped = createFetchWrapper(tracer, original, ORIGIN); // ORIGIN = 'https://app.example'
+
+        await wrapped('/api/products'); // relative → absolutizes to https://app.example/api/products
+
+        const passedInit = (original as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+        expect((passedInit.headers as Record<string, string>).traceparent).toBe(
+            `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`,
+        );
+    });
 });
 
 describe('instrumentFetch / unpatchFetch on globalThis', () => {

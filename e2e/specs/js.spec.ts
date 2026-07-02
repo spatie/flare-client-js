@@ -33,6 +33,14 @@ test.describe('js playground', () => {
         await page.goto('/broken');
         await page.waitForLoadState('networkidle');
 
+        let outgoingTraceparent: string | null = null;
+        page.on('request', (req) => {
+            if (req.resourceType() === 'fetch') {
+                const tp = req.headers()['traceparent'];
+                if (tp) outgoingTraceparent = tp;
+            }
+        });
+
         await page.getByTestId('trace-fetch').click();
 
         const trace = await fakeFlare.waitForTrace({
@@ -43,6 +51,8 @@ test.describe('js playground', () => {
         expect(body).toContain('browser_fetch');
         expect(body).toContain('http.request.method');
         expect(body).toContain('http.response.status_code');
+
+        expect(outgoingTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/);
     });
 });
 
