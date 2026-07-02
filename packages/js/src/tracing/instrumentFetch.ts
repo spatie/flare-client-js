@@ -1,6 +1,8 @@
 import { buildTraceparent, type Config, type Span, type SpanOptions } from '@flareapp/core';
 
+import { fill, unfill } from './fill';
 import { type FetchInput, mergeTraceparentHeader, shouldPropagate } from './propagation';
+import { supportsNativeFetch } from './supportsNativeFetch';
 
 /** The subset of the Flare surface the fetch wrapper needs. `Flare` satisfies this structurally. */
 export type FetchTracer = {
@@ -95,4 +97,25 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
             (error: unknown) => finishError(error),
         );
     };
+}
+
+/**
+ * Patch the global `fetch` so outgoing requests are traced. No-op when there is
+ * no `fetch` or it is not native (a polyfilled/XHR-backed fetch is left for the
+ * future XHR patch). Idempotent via `fill`. Reversible via `unpatchFetch`.
+ */
+export function instrumentFetch(tracer: FetchTracer): void {
+    const g = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
+    if (typeof g.fetch !== 'function') return;
+    if (!supportsNativeFetch()) return;
+
+    const origin = g.location?.origin ?? '';
+    fill(g as unknown as Record<string, unknown>, 'fetch', (original) =>
+        createFetchWrapper(tracer, original as typeof fetch, origin),
+    );
+}
+
+/** Restore the original global `fetch`. Safe if never patched. */
+export function unpatchFetch(): void {
+    unfill(globalThis as unknown as Record<string, unknown>, 'fetch');
 }

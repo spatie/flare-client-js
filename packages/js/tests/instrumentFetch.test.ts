@@ -1,7 +1,7 @@
 import type { Config, Span, SpanOptions } from '@flareapp/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createFetchWrapper, type FetchTracer } from '../src/tracing/instrumentFetch';
+import { createFetchWrapper, type FetchTracer, instrumentFetch, unpatchFetch } from '../src/tracing/instrumentFetch';
 
 const ORIGIN = 'https://app.example';
 
@@ -154,5 +154,51 @@ describe('createFetchWrapper', () => {
         expect((passedInit.headers as Record<string, string>).traceparent).toBe(
             `00-${'a'.repeat(32)}-${'b'.repeat(16)}-00`,
         );
+    });
+});
+
+describe('instrumentFetch / unpatchFetch on globalThis', () => {
+    it('patches global fetch when native, then restores it', async () => {
+        const g = globalThis as { fetch: typeof fetch };
+        // `isNativeFetch` checks `Function.prototype.toString.call(fn)`, which ignores an own
+        // `fn.toString` override (the "not fooled by a spoofed toString" guarantee covered by
+        // supportsNativeFetch.test.ts). A bound function genuinely reports `[native code]` from that
+        // prototype method, so it's detected as native without any global mutation. The `.bind` is
+        // load-bearing for exactly that reason, not redundant.
+        // oxlint-disable-next-line no-extra-bind
+        const native = (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
+        const before = g.fetch;
+        g.fetch = native;
+
+        try {
+            const { tracer, startSpan } = makeTracer();
+            instrumentFetch(tracer);
+            expect(g.fetch).not.toBe(native); // wrapped
+            expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBe(native);
+
+            await g.fetch('https://app.example/api/x');
+            expect(startSpan).toHaveBeenCalledOnce();
+
+            unpatchFetch();
+            expect(g.fetch).toBe(native); // restored
+        } finally {
+            g.fetch = before;
+        }
+    });
+
+    it('does not patch a non-native (polyfilled) fetch', () => {
+        const g = globalThis as { fetch: typeof fetch };
+        const polyfill = vi.fn(async () => new Response()) as unknown as typeof fetch; // toString has no [native code]
+        const before = g.fetch;
+        g.fetch = polyfill;
+
+        try {
+            const { tracer } = makeTracer();
+            instrumentFetch(tracer);
+            expect(g.fetch).toBe(polyfill); // untouched
+        } finally {
+            unpatchFetch();
+            g.fetch = before;
+        }
     });
 });
