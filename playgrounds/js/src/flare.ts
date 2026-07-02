@@ -8,6 +8,7 @@ export const initFlare = (): void => {
         flare.configure({
             ingestUrl: url,
             logsIngestUrl: url.replace('/api/reports', '/api/logs'),
+            tracesIngestUrl: url.replace('/api/reports', '/api/traces'),
         });
     }
 
@@ -17,6 +18,8 @@ export const initFlare = (): void => {
         // and fail like the error reports do). The fake-server logsIngestUrl
         // override above only applies under e2e (VITE_FLARE_URL set).
         enableLogs: true,
+        enableTracing: true,
+        tracesSampleRate: 1,
         beforeEvaluate: (error) => {
             if (error.message === 'hook-drop-report') return null;
             return error;

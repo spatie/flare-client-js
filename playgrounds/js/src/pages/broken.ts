@@ -74,6 +74,14 @@ export const renderBroken: RouteHandler = (_match, root) => {
             <h2 class="text-lg font-semibold mt-8 mb-2">Logging</h2>
             <p class="text-sm opacity-70 mb-4">Each button records one or more structured logs.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${logButtons}</div>
+            <h2 class="text-lg font-semibold mt-8 mb-2">Tracing</h2>
+            <p class="text-sm opacity-70 mb-4">Fires a same-origin fetch that produces a browser_fetch span.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button data-testid="trace-fetch" class="rounded-lg border border-surface-border bg-surface px-4 py-3 text-left text-sm hover:border-brand">
+                    <div class="font-medium">Trigger traced fetch</div>
+                    <div class="text-xs opacity-60 font-mono">browser_fetch</div>
+                </button>
+            </div>
         </section>`,
     );
 
@@ -91,5 +99,10 @@ export const renderBroken: RouteHandler = (_match, root) => {
             const scenario = logScenarioById(button.dataset.logScenario ?? '');
             if (scenario) fireLogScenario(flare, scenario);
         });
+    });
+
+    root.querySelector<HTMLButtonElement>('button[data-testid="trace-fetch"]')?.addEventListener('click', async () => {
+        await fetch(window.location.href, { method: 'GET' }); // same-origin -> span + traceparent injected
+        flare.flush(); // force the span buffer to POST promptly so the e2e assertion is fast
     });
 };
