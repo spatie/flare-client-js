@@ -8,11 +8,10 @@ export interface ActiveSpanHolder {
     withActive<T>(span: Span, fn: () => T): T;
     // Sets a persistent "active root" that getActive() falls back to when no
     // withActive scope is on the stack. Used by long-lived pageload/navigation
-    // roots so child spans (e.g. fetches) auto-parent to them. NOTE: this is a
-    // required interface method; adding it is a breaking change for any external
-    // ActiveSpanHolder implementer, so it warrants a major-version note when
-    // @flareapp/core is next released.
-    setActiveRoot(span: Span | undefined): void;
+    // roots so child spans (e.g. fetches) auto-parent to them. Optional so it is
+    // a non-breaking addition: a holder that does not implement it simply does
+    // not support active roots (callers invoke it as `holder.setActiveRoot?.(...)`).
+    setActiveRoot?(span: Span | undefined): void;
 }
 
 export class InMemoryActiveSpanHolder implements ActiveSpanHolder {
