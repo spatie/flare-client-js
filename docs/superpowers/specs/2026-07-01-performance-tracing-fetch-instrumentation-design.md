@@ -31,8 +31,11 @@ is the only change needed once the backend lands.
   breadcrumbs + tracing + failed-response capture can share one patch; Flare has exactly one consumer (tracing) today.
   Keep a single direct tracing consumer, structured so a registry drops in later without rework.
 - **Fetch only.** XHR is a separate follow-on slice reusing this slice's span-shaping and header-injection code.
-- **Auto-activation.** The js `Flare` constructor patches `fetch` when `config.enableTracing` is true and unpatches on
-  disable. No public `instrumentFetch` export in v1 (the module is still directly unit-testable).
+- **Auto-activation via `configure`.** Tracing is turned on after construction, not at it: the js singleton is
+  `new Flare()` at module load with default config (`enableTracing: false`), and apps call
+  `configure({ enableTracing: true, … })` later. So patch/unpatch is driven by the `enableTracing` transition inside
+  the js `Flare.configure` override, never the constructor. No public `instrumentFetch` export in v1 (the module is
+  still directly unit-testable).
 - **Correlation via W3C `traceparent` only** (research §4.6). No `x-flare-trace-id`. Sampled flag emitted as exactly
   `01` / `00` for the PHP client's strict parse.
 - **Same-origin propagation by default** (research §4.5). Injecting `traceparent` cross-origin forces a CORS preflight
@@ -66,8 +69,9 @@ New code lives in `packages/js/src/tracing/`. One config field is added to core 
 - **`supportsNativeFetch.ts`** — ported from Sentry. Returns false when `fetch.toString()` does not contain
   `[native code]` (a polyfill such as `whatwg-fetch`, which is XHR-backed). Includes the hidden-iframe fallback that
   reads an untouched `contentWindow.fetch.toString()` when another library has already wrapped `fetch`. In this
-  fetch-only slice there is no XHR patch yet, so a polyfilled fetch cannot double-count; the guard is retained anyway
-  to (a) avoid instrumenting a fetch that is really XHR under the hood and (b) be correct the moment XHR lands.
+  fetch-only slice there is no XHR patch yet, so a polyfilled fetch cannot double-count; `instrumentFetch` still gates
+  its install on it (see below) to (a) avoid instrumenting a fetch that is really XHR under the hood and (b) be correct
+  the moment XHR lands.
 - **`propagation.ts`**
     - `shouldPropagate(url, targets)` — true for same-origin and relative URLs by default; when `tracePropagationTargets`
       is set, a URL matches if it satisfies a string-includes or `RegExp.test` against any entry (Sentry semantics).
@@ -78,15 +82,30 @@ New code lives in `packages/js/src/tracing/`. One config field is added to core 
       `init` object. **Never mutates the caller's `Request` or `init`.** Returns `{ ...init, headers }` so the fetch
       spec's override semantics put the new header on the wire while the caller's `Request` is left intact (avoids
       "body already consumed" on single-shot request bodies).
-- **`instrumentFetch.ts`** — `instrumentFetch(flare)` and `unpatchFetch()`. Uses `fill(globalThis, 'fetch', …)` to
-  install the wrapper described below. `unpatchFetch()` restores `__flare_original__`.
+- **`instrumentFetch.ts`** — `instrumentFetch(flare)` and `unpatchFetch()`. `instrumentFetch` bails out (no-op) when
+  the environment has no callable `fetch` (`typeof globalThis.fetch !== 'function'`) or when `supportsNativeFetch()`
+  returns false (a polyfilled, XHR-backed `fetch` must not be instrumented as if it were native). Otherwise it uses
+  `fill(globalThis, 'fetch', …)` to install the wrapper described below; because `fill` is idempotent, a second call is
+  a no-op rather than a double-wrap. `unpatchFetch()` restores `__flare_original__`.
 - **`index.ts`** — barrel for the above (internal; not re-exported from the package public surface in v1).
 
 ### Wiring
 
-In `packages/js/src/browser.ts`, the `Flare` constructor calls `instrumentFetch(this)` when `config.enableTracing`.
-`Flare.configure`/disable path calls `unpatchFetch()` when tracing is turned off (mirrors how the tracer is cleared on
-disable today). Guard against a non-browser/`fetch`-less environment (`typeof globalThis.fetch !== 'function'` → no-op).
+In `packages/js/src/browser.ts`, the js `Flare` overrides `configure`. It captures
+`wasTracingEnabled = this.config.enableTracing` (public getter, `Flare.ts:267`), calls `super.configure(config)` (which
+does the core work, including clearing the tracer buffer on an enabled->disabled transition, `Flare.ts:328`), then acts
+on the transition:
+
+- `false → true`: `instrumentFetch(this)`.
+- `true → false`: `unpatchFetch()`.
+- no change: touch neither.
+
+Only transitions act, so a `configure` call that leaves `enableTracing` untouched never patches or unpatches. Repeated
+`configure({ enableTracing: true })` calls are safe because `instrumentFetch`/`fill` are idempotent. Do NOT patch in the
+constructor: at construction the singleton still holds the default `enableTracing: false`, so a constructor patch never
+fires, and an unconditional one would monkeypatch global `fetch` for every app that merely imports `@flareapp/js`. The
+non-browser / `fetch`-less guard lives inside `instrumentFetch` (above), so `configure` can call it unconditionally on
+the enable transition.
 
 ## The fetch wrapper
 
@@ -105,20 +124,33 @@ disable today). Guard against a non-browser/`fetch`-less environment (`typeof gl
    `traceparent` from the span (`buildTraceparent(span.traceId, span.spanId, span.isRecording)`) and pass `input` +
    `init` through `addTracingHeadersToFetchRequest`. Inject even when the span is not recording (sampled flag `00`) so
    the sampling decision propagates downstream — matches Sentry and the PHP client's inheritance.
-5. **Invoke** `original.call(this, input, mergedInit)`.
+5. **Invoke** `original.call(this, input, mergedInit)` inside a `try`. `fetch` normally surfaces failures as a rejected
+   promise, but it can also throw synchronously (e.g. a `TypeError` on a malformed `Request`). If the call throws
+   before returning a promise, run the same failure path as step 7 (`setStatus({ code: 2, message })`, `span.end()`),
+   then rethrow. Without this the span never ends, so `onSpanEnd` never runs and the per-fetch root `TraceState` leaks
+   until LRU eviction (`Tracer.ts:250-258`).
 6. **On resolve:** set `http.response.status_code`; if the status is `>= 500`, `span.setStatus({ code: 2 })`
    (error); otherwise leave unset (OTLP `UNSET`). `span.end()`. Return the response untouched.
 7. **On reject** (network error, abort): `span.setStatus({ code: 2, message })`, `span.end()`, rethrow. Never swallow.
 
-Span timing uses the `Tracer`'s clock (start at `startSpan`, end at `.end()`), so no new time source here.
+Every exit path (resolve, reject, synchronous throw) ends the span exactly once. Span timing uses the `Tracer`'s clock
+(start at `startSpan`, end at `.end()`), so no new time source here.
 
 ## Config additions
 
-Add to core `Config` (`packages/core/src/types.ts`) and the default merge:
+Add one optional field to core `Config` (`packages/core/src/types.ts`). It has three meaningful states, so it MUST stay
+`undefined` when unset: leave it OUT of the `DEFAULT_CONFIG` literal (`Flare.ts:36-66`) rather than seeding it with `[]`
+or any array.
 
-- `tracePropagationTargets?: (string | RegExp)[]` — controls `traceparent` injection targets. Default (unset):
-  same-origin + relative only. `[]`: never inject. Entries: opt in matching cross-origin URLs. Documented alongside
-  the CORS caveat (the target server must return `Access-Control-Allow-Headers: traceparent`).
+- `tracePropagationTargets?: (string | RegExp)[]` — controls `traceparent` injection targets. `shouldPropagate` branches
+  on the three states:
+    - `undefined` (unset): same-origin + relative only.
+    - `[]`: never inject.
+    - non-empty: opt in the cross-origin URLs matching any entry (string-includes or `RegExp.test`).
+
+    Defaulting it to `[]` would collapse "unset" into "never" and silently kill all propagation; defaulting it to a
+    populated array would force always-on cross-origin injection. Document it alongside the CORS caveat (the target server
+    must return `Access-Control-Allow-Headers: traceparent`).
 
 No other config changes; `enableTracing`, `tracesSampleRate`, `tracesIngestUrl` already exist from the core slice.
 
@@ -143,13 +175,19 @@ isolation:
 
 - `fill`: wraps, exposes `__flare_original__`, is idempotent on second call, `unpatch` restores the original.
 - Wrapper: creates a span with the right `name`/`spanType`/attributes; records `http.response.status_code`; marks
-  error status on `>= 500`; marks error and rethrows on a rejected fetch; recursion guard skips Flare's own ingest
+  error status on `>= 500`; marks error and rethrows on a rejected fetch; marks error, ends the span, and rethrows when
+  the underlying `fetch` throws synchronously (span still ends exactly once); recursion guard skips Flare's own ingest
   URLs (no span).
+- `configure` wiring: `enableTracing` `false → true` installs the patch; `true → false` restores it; a repeated
+  `enableTracing: true` does not double-wrap (fill idempotency); a `configure` that does not flip `enableTracing` leaves
+  the patch state unchanged.
+- `instrumentFetch` gate: no-op when `supportsNativeFetch()` is false (polyfilled `fetch` left untouched) and when
+  `globalThis.fetch` is not callable.
 - `addTracingHeadersToFetchRequest`: all three header shapes (`Headers`, array of tuples, plain object) plus the
   `Request`-input path; asserts the caller's original `Request`/`init` is not mutated and the merged `init` carries the
   `traceparent`.
-- `shouldPropagate`: same-origin and relative → true; cross-origin → false by default; matches a `tracePropagationTargets`
-  string and `RegExp`; `[]` → false.
+- `shouldPropagate`: same-origin and relative → true; cross-origin → false when unset (`undefined`); `[]` → false
+  (distinct from unset); matches a `tracePropagationTargets` string and `RegExp`.
 - Not-sampled path still injects `traceparent` with flag `00`.
 - `supportsNativeFetch`: true for a native-looking `toString`, false for a polyfill string.
 
@@ -159,8 +197,8 @@ isolation:
 
 - New: `packages/js/src/tracing/{fill,supportsNativeFetch,propagation,instrumentFetch,index}.ts` + tests under
   `packages/js/tests/`.
-- Edit: `packages/js/src/browser.ts` (constructor wiring), `packages/core/src/types.ts` (+ default config merge for
-  `tracePropagationTargets`).
+- Edit: `packages/js/src/browser.ts` (`configure` override that patches/unpatches on the `enableTracing` transition),
+  `packages/core/src/types.ts` (add optional `tracePropagationTargets`; deliberately NOT added to `DEFAULT_CONFIG`).
 - Edit: `e2e/fake-flare-server/{server,types}.ts`, `e2e/fixtures/fake-flare.ts`, `playgrounds/js/src/flare.ts`, a js
   playground page/button, and a js e2e spec.
 
