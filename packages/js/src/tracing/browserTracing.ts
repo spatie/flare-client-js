@@ -3,7 +3,7 @@ import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer }
 import { collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
-import { pageloadStartNano } from './navigationTiming';
+import { pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 
 /** Structural subset of the js Flare this orchestrator needs. */
 export type BrowserTracingFlare = {
@@ -15,6 +15,9 @@ export type BrowserTracingFlare = {
 let controller: IdleRootController | null = null;
 let uninstall: (() => void) | null = null;
 let lastPath = '';
+// Page-global: a document's real pageload window can only be traced once. Guards
+// against re-enabling after a disable fabricating a second backdated pageload.
+let pageloadTraced = false;
 
 function resolveTimeouts(config: Config): IdleTimeouts {
     return {
@@ -31,6 +34,7 @@ function startRoot(flare: BrowserTracingFlare, spanType: string, startTimeUnixNa
         root = flare.startSpan(path, {
             spanType,
             startTimeUnixNano,
+            forceRoot: true,
             attributes: collectBrowserSpanContext(flare.config),
         });
         controller = new IdleRootController(
@@ -89,7 +93,16 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     if (uninstall) return;
 
     lastPath = location.pathname;
-    startRoot(flare, 'browser_pageload', pageloadStartNano());
+
+    const finalTimeoutNano = resolveTimeouts(flare.config).finalTimeout * 1e6;
+    const pageloadStart = resolvePageloadStartNano(
+        pageloadStartNano(),
+        defaultNowNano(),
+        finalTimeoutNano,
+        pageloadTraced,
+    );
+    pageloadTraced = true;
+    startRoot(flare, 'browser_pageload', pageloadStart);
 
     const handle = (): void => {
         try {

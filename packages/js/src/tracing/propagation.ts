@@ -40,14 +40,33 @@ export function mergeTraceparentHeader(
     let headers: HeadersInit;
     if (source instanceof Headers) {
         headers = new Headers(source);
-        headers.set('traceparent', traceparent);
+        headers.set('traceparent', traceparent); // set() is case-insensitive: no duplicate
     } else if (Array.isArray(source)) {
-        headers = [...source, ['traceparent', traceparent]];
+        // Drop any caller-supplied traceparent (any case) before appending ours, or the
+        // wire carries two values and W3C parsers treat the header as malformed.
+        headers = [...source.filter(([k]) => String(k).toLowerCase() !== 'traceparent'), ['traceparent', traceparent]];
     } else if (source) {
-        headers = { ...(source as Record<string, string>), traceparent };
+        // Same reason: strip case-variant keys (TraceParent, TRACEPARENT) before setting.
+        const merged: Record<string, string> = {};
+        for (const [k, v] of Object.entries(source as Record<string, string>)) {
+            if (k.toLowerCase() !== 'traceparent') merged[k] = v;
+        }
+        merged.traceparent = traceparent;
+        headers = merged;
     } else {
         headers = { traceparent };
     }
 
-    return { ...init, headers };
+    const result: RequestInit = { ...init, headers };
+    // A Request with a ReadableStream body requires `duplex` when re-issued with an
+    // init; without it fetch throws and breaks a host request that worked pre-tracing.
+    if (
+        (result as RequestInit & { duplex?: string }).duplex === undefined &&
+        typeof Request !== 'undefined' &&
+        input instanceof Request &&
+        input.body != null
+    ) {
+        (result as RequestInit & { duplex?: string }).duplex = 'half';
+    }
+    return result;
 }

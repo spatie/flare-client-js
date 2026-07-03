@@ -191,6 +191,11 @@ export type SpanOptions = {
     attributes?: Attributes;
     startTimeUnixNano?: number;
     spanType?: string;
+    /**
+     * Start this span as a new trace root, ignoring any ambient active span, so a
+     * root opened inside `withSpan(...)` does not become a mid-trace child.
+     */
+    forceRoot?: boolean;
 };
 
 export interface Span {

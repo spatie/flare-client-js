@@ -192,9 +192,42 @@ describe('Tracer.startSpan', () => {
         });
         expect(child.traceId).toBe(foreignTraceId);
         expect(child.parentSpanId).toBe(foreignSpanId);
-        expect(child.isRecording).toBe(true); // no local state -> default recording
+        expect(child.isRecording).toBe(true); // no local state -> sampler runs (rate 1 -> sampled)
         expect(traceCount(tracer)).toBe(1);
         child.end(); // child is the local root -> rootEnded -> trace state pruned
         expect(hasTrace(tracer, foreignTraceId)).toBe(false);
+    });
+
+    it('runs the sampler for a plain parent with unknown recording state (no default-to-recording)', () => {
+        // A manually stitched {traceId, spanId} parent carries no recording decision.
+        // With tracesSampleRate 0 the child must be sampled out, not assumed recording.
+        const tracer = makeTracer(config({ tracesSampleRate: 0 }));
+        const child = tracer.startSpan('child', {
+            parent: { traceId: 'f'.repeat(32), spanId: 'e'.repeat(16) },
+        });
+        expect(child.isRecording).toBe(false);
+    });
+
+    it('forceRoot ignores the ambient active span and starts a new trace', () => {
+        const tracer = makeTracer(config());
+        let outerTraceId = '';
+        let nav: ReturnType<Tracer['startSpan']> | undefined;
+        tracer.withSpan('user-action', (outer) => {
+            outerTraceId = outer.traceId;
+            nav = tracer.startSpan('navigation', { forceRoot: true });
+        });
+        expect(nav?.parentSpanId).toBeNull();
+        expect(nav?.traceId).not.toBe(outerTraceId);
+    });
+
+    it('without forceRoot a span started inside withSpan joins the active trace', () => {
+        const tracer = makeTracer(config());
+        let outerTraceId = '';
+        let child: ReturnType<Tracer['startSpan']> | undefined;
+        tracer.withSpan('user-action', (outer) => {
+            outerTraceId = outer.traceId;
+            child = tracer.startSpan('navigation');
+        });
+        expect(child?.traceId).toBe(outerTraceId); // contrast: default nests
     });
 });

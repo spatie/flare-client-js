@@ -60,6 +60,7 @@ describe('browserTracing', () => {
         const [name, opts] = startSpan.mock.calls[0];
         expect(name).toBe('/start');
         expect(opts.spanType).toBe('browser_pageload');
+        expect(opts.forceRoot).toBe(true); // must not become a child of an ambient active span
         expect(opts.attributes?.['flare.entry_point.type']).toBe('web');
         expect(opts.attributes?.['flare.entry_point.handler.identifier']).toBe('/start');
         expect(opts.attributes?.['url.full']).toContain('/start');
@@ -80,6 +81,7 @@ describe('browserTracing', () => {
         const navCall = startSpan.mock.calls[1];
         expect(navCall[0]).toBe('/b');
         expect(navCall[1].spanType).toBe('browser_navigation');
+        expect(navCall[1].forceRoot).toBe(true);
     });
 
     it('does not start a navigation root when the path is unchanged', () => {

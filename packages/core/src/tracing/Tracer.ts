@@ -192,7 +192,9 @@ export class Tracer {
         opts: SpanOptions,
         config: Config,
     ): { traceId: string; parentSpanId: string | null; state: TraceState } {
-        let parent = opts.parent ?? this.holder.getActive();
+        // forceRoot: never inherit the ambient active span. A navigation root started
+        // while the app is inside withSpan(...) must not become a mid-trace child.
+        let parent = opts.forceRoot ? opts.parent : (opts.parent ?? this.holder.getActive());
 
         // A Span created before a clear() is stale: it must not parent or re-seed live
         // state. Plain {traceId, spanId} objects have no epoch and are never stale.
@@ -202,8 +204,18 @@ export class Tracer {
 
         if (parent && 'spanId' in parent && 'traceId' in parent) {
             const traceId = parent.traceId;
-            const isRecordingKnown = 'isRecording' in parent ? (parent as Span).isRecording : true;
-            const state = this.getOrSeedState(traceId, spanId, isRecordingKnown);
+            // A real Span carries its trace's recording decision; a manually stitched
+            // {traceId, spanId} parent does not. Run the sampler instead of assuming
+            // recording, so tracesSampleRate 0 does not still buffer and ship.
+            const fallbackRecording =
+                'isRecording' in parent
+                    ? (parent as Span).isRecording
+                    : resolveSampling(
+                          { name, attributes: opts.attributes ?? {}, spanType: opts.spanType },
+                          config,
+                          this.rng,
+                      );
+            const state = this.getOrSeedState(traceId, spanId, fallbackRecording);
             return { traceId, parentSpanId: parent.spanId, state };
         }
 
@@ -311,25 +323,32 @@ export class Tracer {
         if (!span.isRecording) return;
         if (!this.deps.getConfig().enableTracing) return; // ended after disable/clear: no buffering
 
-        const record: Attributes = { ...span.scopeAttributes, ...span.attributes };
-        const buffered: BufferedSpan = {
-            traceId: span.traceId,
-            spanId: span.spanId,
-            parentSpanId: span.parentSpanId,
-            name: span.name,
-            startTimeUnixNano: span.startTimeUnixNano,
-            endTimeUnixNano: span.endTimeUnixNano,
-            status: span.status,
-            recordAttributes: attributesToOpenTelemetry(record),
-            droppedAttributesCount: span.droppedAttributesCount,
-            droppedEventsCount: span.droppedEventsCount,
-            events: span.events.map((e) => ({
-                name: e.name,
-                timeUnixNano: e.timeUnixNano,
-                attributes: attributesToOpenTelemetry(e.attributes),
-                droppedAttributesCount: e.droppedAttributesCount,
-            })),
-        };
-        this.buffer.add(buffered);
+        // Buffering runs inside the app's span.end() call (e.g. the fetch wrapper's
+        // success path). Serializing exotic attribute values must never throw out of
+        // end() and reject a host request; a failed buffer just drops the span.
+        try {
+            const record: Attributes = { ...span.scopeAttributes, ...span.attributes };
+            const buffered: BufferedSpan = {
+                traceId: span.traceId,
+                spanId: span.spanId,
+                parentSpanId: span.parentSpanId,
+                name: span.name,
+                startTimeUnixNano: span.startTimeUnixNano,
+                endTimeUnixNano: span.endTimeUnixNano,
+                status: span.status,
+                recordAttributes: attributesToOpenTelemetry(record),
+                droppedAttributesCount: span.droppedAttributesCount,
+                droppedEventsCount: span.droppedEventsCount,
+                events: span.events.map((e) => ({
+                    name: e.name,
+                    timeUnixNano: e.timeUnixNano,
+                    attributes: attributesToOpenTelemetry(e.attributes),
+                    droppedAttributesCount: e.droppedAttributesCount,
+                })),
+            };
+            this.buffer.add(buffered);
+        } catch (error) {
+            if (this.deps.getConfig().debug) console.error('Flare: failed to buffer span', error);
+        }
     }
 }

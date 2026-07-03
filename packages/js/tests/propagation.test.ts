@@ -60,4 +60,31 @@ describe('mergeTraceparentHeader', () => {
         expect((init.headers as Headers).get('a')).toBe('1');
         expect(req.headers.get('traceparent')).toBeNull(); // caller's Request untouched
     });
+
+    it('replaces a caller-supplied traceparent in an array init (no duplicate on the wire)', () => {
+        const init = mergeTraceparentHeader('https://app.example/x', { headers: [['traceparent', 'old']] }, TP);
+        expect(init.headers).toEqual([['traceparent', TP]]);
+    });
+
+    it('replaces a case-variant traceparent in an object init', () => {
+        const init = mergeTraceparentHeader('https://app.example/x', { headers: { TraceParent: 'old', a: '1' } }, TP);
+        expect(init.headers).toEqual({ a: '1', traceparent: TP });
+    });
+
+    it('preserves duplex for a stream-bodied Request so fetch does not throw', () => {
+        const body = new ReadableStream();
+        const req = new Request('https://app.example/x', {
+            method: 'POST',
+            body,
+            duplex: 'half',
+        } as RequestInit & { duplex: 'half' });
+        const init = mergeTraceparentHeader(req, undefined, TP);
+        expect((init as RequestInit & { duplex?: string }).duplex).toBe('half');
+    });
+
+    it('leaves duplex untouched for a bodyless Request', () => {
+        const req = new Request('https://app.example/x');
+        const init = mergeTraceparentHeader(req, undefined, TP);
+        expect((init as RequestInit & { duplex?: string }).duplex).toBeUndefined();
+    });
 });

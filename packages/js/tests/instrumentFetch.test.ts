@@ -71,6 +71,18 @@ describe('createFetchWrapper', () => {
         expect(calls.ended).toBe(true);
     });
 
+    it('redacts denylisted query params in url.full', async () => {
+        const { tracer, startSpan } = makeTracer();
+        const wrapped = createFetchWrapper(tracer, okFetch(), ORIGIN);
+
+        await wrapped('https://app.example/api/reset?token=abc123&page=2');
+
+        const opts = startSpan.mock.calls[0][1] as SpanOptions;
+        expect((opts.attributes as Record<string, string>)['url.full']).toBe(
+            'https://app.example/api/reset?token=[redacted]&page=2',
+        );
+    });
+
     it('does NOT inject traceparent cross-origin by default (span still created)', async () => {
         const { tracer, startSpan } = makeTracer();
         const original = okFetch();

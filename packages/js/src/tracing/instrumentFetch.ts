@@ -1,4 +1,4 @@
-import { buildTraceparent, type Config, type Span, type SpanOptions } from '@flareapp/core';
+import { buildTraceparent, type Config, redactUrlQuery, type Span, type SpanOptions } from '@flareapp/core';
 
 import { fill, unfill } from './fill';
 import { type FetchInput, mergeTraceparentHeader, shouldPropagate } from './propagation';
@@ -62,7 +62,9 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
             spanType: 'browser_fetch',
             attributes: {
                 'http.request.method': method,
-                'url.full': abs ? abs.href : url,
+                // Redact the query string the same way error reports do; unredacted
+                // url.full would leak tokens/reset codes that get scrubbed elsewhere.
+                'url.full': redactUrlQuery(abs ? abs.href : url, config.urlDenylist),
                 ...(abs ? { 'server.address': abs.hostname } : {}),
                 ...(abs && abs.port ? { 'server.port': Number(abs.port) } : {}),
             },
