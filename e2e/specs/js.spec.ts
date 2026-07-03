@@ -114,6 +114,57 @@ test.describe('js playground', () => {
         });
         expect(spansOf(trace.bodyJson).some((s) => hasSpanType(s, 'browser_navigation'))).toBe(true);
     });
+
+    test('navigation root url reflects the page it represents (no drift)', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+        await page.getByTestId('cart-count').click(); // pushState to /cart
+
+        // The /cart navigation root must carry /cart, not whatever page is current when it idles out.
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => {
+                const nav = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
+                return !!nav && JSON.stringify(attr(nav, 'url.full') ?? '').includes('/cart');
+            },
+        });
+        const nav = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
+        expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({ stringValue: '/cart' });
+        // no manual context.* leakage
+        expect(JSON.stringify(nav)).not.toContain('context.route');
+        expect(JSON.stringify(nav)).not.toContain('context.url');
+        expect(JSON.stringify(nav)).not.toContain('context.user_agent');
+        expect(JSON.stringify(nav)).not.toContain('context.viewport');
+    });
+
+    test('fetch child is lean (no cookies, no page context) and resource has host.name', async ({
+        page,
+        fakeFlare,
+    }) => {
+        await page.goto('/broken');
+        await page.waitForLoadState('networkidle');
+        await page.getByTestId('trace-fetch').click();
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
+        });
+        const fetchSpan = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
+        expect(fetchSpan).toBeTruthy();
+        // lean: carries its own http.* but not cookies or referrer/ready_state page context
+        expect(attr(fetchSpan!, 'http.request.method')).toBeTruthy();
+        expect(JSON.stringify(fetchSpan)).not.toContain('http.request.cookies');
+        expect(JSON.stringify(fetchSpan)).not.toContain('document.ready_state');
+
+        // resource has host.name (sourced stably, present even though children are lean)
+        const resourceAttrs =
+            (
+                trace.bodyJson as {
+                    resourceSpans?: Array<{ resource?: { attributes?: Array<{ key: string }> } }>;
+                }
+            ).resourceSpans?.[0]?.resource?.attributes ?? [];
+        expect(resourceAttrs.some((a) => a.key === 'host.name')).toBe(true);
+    });
 });
 
 test.describe('js logging', () => {
