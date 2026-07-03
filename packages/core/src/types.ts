@@ -231,7 +231,6 @@ export type BufferedSpan = {
     endTimeUnixNano: number;
     status: SpanStatus;
     recordAttributes: KeyValue[];
-    resourceAttributes: Attributes;
     droppedAttributesCount: number;
     droppedEventsCount: number;
     events: BufferedSpanEvent[];

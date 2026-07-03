@@ -103,7 +103,8 @@ export class Flare {
             getConfig: () => this._config,
             getSdkInfo: () => this.sdkInfo,
             getFramework: () => this.framework,
-            buildSpanAttributes: (userAttributes) => this.buildSpanAttributes(userAttributes),
+            getScopeAttributes: () => this.getScopeAttributes(),
+            getResourceAttributes: () => this.spanResourceAttributes(),
             track: (p) => this.track(p),
             scheduler,
             activeSpanHolder,
@@ -608,12 +609,21 @@ export class Flare {
         };
     }
 
-    private buildSpanAttributes(userAttributes: Attributes): { record: Attributes; resource: Attributes } {
-        const { resource, record: collectorRecord } = partitionAttributes(this.contextCollector(this._config));
-        return {
-            resource,
-            record: this.assembleAttributes(collectorRecord, userAttributes, false),
-        };
+    private getScopeAttributes(): Attributes {
+        // The scope-derived record a LOCAL ROOT span carries: user context (addContext /
+        // addContextGroup), entry-point overrides, framework-in-context.custom. The Tracer
+        // snapshots this at span START, so a long-lived root does not pick up scope
+        // mutations from the next page (drift). Spans never auto-run the DOM context
+        // collector; children get no scope at all. Mirrors the PHP client, where the
+        // request root carries the request/user context and child recorders stay lean.
+        return this.assembleAttributes({}, {}, false);
+    }
+
+    private spanResourceAttributes(): Attributes {
+        // Resource is stable per page (host.name). Reuse the existing collector but keep only
+        // its resource partition, discarding record-level context (cookies/url) so nothing
+        // heavy or drifting reaches spans. Evaluated once per flush, not per span.
+        return partitionAttributes(this.contextCollector(this._config)).resource;
     }
 
     private buildReport(input: {

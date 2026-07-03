@@ -9,13 +9,13 @@ export type SpanBufferDeps = {
     getConfig: () => Config;
     getSdkInfo: () => SdkInfo;
     getFramework: () => Framework | null;
+    getResourceAttributes: () => Attributes;
     track: <T>(p: Promise<T>) => Promise<T>;
     scheduler: FlushScheduler;
 };
 
 export class SpanBuffer {
     private buffer: BufferedSpan[] = [];
-    private resourceAttributes: Attributes = {};
     private timer: ReturnType<typeof setTimeout> | undefined;
     private timerActive = false;
 
@@ -35,7 +35,6 @@ export class SpanBuffer {
             return;
         }
         this.buffer.push(span);
-        this.resourceAttributes = span.resourceAttributes;
         this.evaluateTriggers(config);
         this.trim(config);
     }
@@ -51,9 +50,11 @@ export class SpanBuffer {
         }
         this.clearTimer();
 
+        const resource = this.resourceForFlush();
+
         let spans: BufferedSpan[];
         if (opts?.keepalive) {
-            spans = this.packForKeepalive(config);
+            spans = this.packForKeepalive(config, resource);
             this.buffer = this.buffer.filter((s) => !spans.includes(s));
             if (this.buffer.length > 0) this.armTimer(config);
         } else {
@@ -64,7 +65,7 @@ export class SpanBuffer {
 
         this.deps.track(
             this.deps.api.traces(
-                this.buildEnvelope(spans),
+                this.buildEnvelope(spans, resource),
                 config.tracesIngestUrl,
                 config.key,
                 config.debug,
@@ -107,11 +108,11 @@ export class SpanBuffer {
         }
     }
 
-    private packForKeepalive(config: Config): BufferedSpan[] {
+    private packForKeepalive(config: Config, resource: Attributes): BufferedSpan[] {
         let selected: BufferedSpan[] = [];
         for (let i = this.buffer.length - 1; i >= 0; i--) {
             const trial = [this.buffer[i], ...selected];
-            const bytes = new TextEncoder().encode(flatJsonStringify(this.buildEnvelope(trial))).length;
+            const bytes = new TextEncoder().encode(flatJsonStringify(this.buildEnvelope(trial, resource))).length;
             if (bytes <= config.keepaliveMaxBytes) {
                 selected = trial;
             } else if (config.debug) {
@@ -121,9 +122,9 @@ export class SpanBuffer {
         return selected;
     }
 
-    private buildEnvelope(spans: BufferedSpan[]): TracesEnvelope {
+    private buildEnvelope(spans: BufferedSpan[], resource: Attributes): TracesEnvelope {
         const sdk = this.deps.getSdkInfo();
-        return buildTracesEnvelope(spans, this.resourceForFlush(), sdk.name, sdk.version);
+        return buildTracesEnvelope(spans, resource, sdk.name, sdk.version);
     }
 
     private resourceForFlush(): Attributes {
@@ -141,7 +142,7 @@ export class SpanBuffer {
         if (config.stage) identity['service.stage'] = config.stage;
         if (framework?.name) identity['flare.framework.name'] = framework.name;
         if (framework?.version) identity['flare.framework.version'] = framework.version;
-        return { ...this.resourceAttributes, ...identity };
+        return { ...this.deps.getResourceAttributes(), ...identity };
     }
 
     private clearTimer(): void {

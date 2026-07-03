@@ -28,7 +28,6 @@ const span = (id: string): BufferedSpan => ({
     endTimeUnixNano: 2,
     status: { code: 0 },
     recordAttributes: [],
-    resourceAttributes: { 'service.name': 'web' },
     droppedAttributesCount: 0,
     droppedEventsCount: 0,
     events: [],
@@ -40,6 +39,7 @@ const makeBuffer = (config: Config, api = new FakeApi()) =>
         getConfig: () => config,
         getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
         getFramework: () => null,
+        getResourceAttributes: () => ({ 'service.name': 'web' }),
         track: (p) => p,
         scheduler: new NoopFlushScheduler(),
     });
@@ -146,5 +146,26 @@ describe('SpanBuffer', () => {
         buffer.add(span('1'));
         buffer.clear();
         expect(buffer.length()).toBe(0);
+    });
+
+    it('evaluates getResourceAttributes once per flush, even when keepalive packs multiple trial envelopes', () => {
+        const api = new FakeApi();
+        const getResourceAttributes = vi.fn(() => ({ 'host.name': 'h' }));
+        const buffer = new SpanBuffer({
+            api,
+            getConfig: () => baseConfig({ maxSpanBufferSize: 100, keepaliveMaxBytes: 1_000_000 }),
+            getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
+            getFramework: () => null,
+            getResourceAttributes,
+            track: (p) => p,
+            scheduler: new NoopFlushScheduler(),
+        });
+        buffer.add(span('1'));
+        buffer.add(span('2'));
+        buffer.add(span('3'));
+        getResourceAttributes.mockClear();
+        buffer.flush({ keepalive: true });
+        expect(getResourceAttributes).toHaveBeenCalledTimes(1);
+        expect(api.traceEnvelopes).toHaveLength(1);
     });
 });

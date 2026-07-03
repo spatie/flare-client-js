@@ -41,7 +41,8 @@ export type TracerDeps = {
     getConfig: () => Config;
     getSdkInfo: () => SdkInfo;
     getFramework: () => Framework | null;
-    buildSpanAttributes: (userAttributes: Attributes) => { record: Attributes; resource: Attributes };
+    getScopeAttributes: () => Attributes;
+    getResourceAttributes: () => Attributes;
     track: <T>(p: Promise<T>) => Promise<T>;
     scheduler: FlushScheduler;
     activeSpanHolder?: ActiveSpanHolder;
@@ -67,6 +68,7 @@ export class Tracer {
             getConfig: deps.getConfig,
             getSdkInfo: deps.getSdkInfo,
             getFramework: deps.getFramework,
+            getResourceAttributes: deps.getResourceAttributes,
             track: deps.track,
             scheduler: deps.scheduler,
         });
@@ -156,7 +158,7 @@ export class Tracer {
 
         if (!config.enableTracing) {
             const span = this.makeSpan(
-                { traceId: makeTraceId(), spanId, parentSpanId: null, name, recording: false },
+                { traceId: makeTraceId(), spanId, parentSpanId: null, name, recording: false, isLocalRoot: true },
                 opts,
                 config,
             );
@@ -175,7 +177,11 @@ export class Tracer {
         }
         state.openSpanCount++;
 
-        const span = this.makeSpan({ traceId, spanId, parentSpanId, name, recording }, opts, config);
+        // The Tracer's real "local root" test: this span seeded (or is) the local root of its
+        // TraceState. True for new roots, continued roots (non-null remote parentSpanId), and
+        // foreign-parent roots; false for a child of an already-seen trace.
+        const isLocalRoot = state.localRootSpanId === spanId;
+        const span = this.makeSpan({ traceId, spanId, parentSpanId, name, recording, isLocalRoot }, opts, config);
         this.emitSpanEvent('start', span);
         return span;
     }
@@ -257,12 +263,25 @@ export class Tracer {
     }
 
     private makeSpan(
-        init: { traceId: string; spanId: string; parentSpanId: string | null; name: string; recording: boolean },
+        init: {
+            traceId: string;
+            spanId: string;
+            parentSpanId: string | null;
+            name: string;
+            recording: boolean;
+            isLocalRoot: boolean;
+        },
         opts: SpanOptions,
         config: Config,
     ): SpanImpl {
+        const scopeAttributes = init.recording && init.isLocalRoot ? this.deps.getScopeAttributes() : {};
         const span = new SpanImpl(
-            { ...init, startTimeUnixNano: opts.startTimeUnixNano ?? this.now(), epoch: this.epoch },
+            {
+                ...init,
+                startTimeUnixNano: opts.startTimeUnixNano ?? this.now(),
+                epoch: this.epoch,
+                scopeAttributes,
+            },
             {
                 maxAttributesPerSpan: config.maxAttributesPerSpan,
                 maxEventsPerSpan: config.maxEventsPerSpan,
@@ -292,7 +311,7 @@ export class Tracer {
         if (!span.isRecording) return;
         if (!this.deps.getConfig().enableTracing) return; // ended after disable/clear: no buffering
 
-        const { record, resource } = this.deps.buildSpanAttributes(span.attributes);
+        const record: Attributes = { ...span.scopeAttributes, ...span.attributes };
         const buffered: BufferedSpan = {
             traceId: span.traceId,
             spanId: span.spanId,
@@ -302,7 +321,6 @@ export class Tracer {
             endTimeUnixNano: span.endTimeUnixNano,
             status: span.status,
             recordAttributes: attributesToOpenTelemetry(record),
-            resourceAttributes: resource,
             droppedAttributesCount: span.droppedAttributesCount,
             droppedEventsCount: span.droppedEventsCount,
             events: span.events.map((e) => ({

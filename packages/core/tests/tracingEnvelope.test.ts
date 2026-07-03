@@ -16,7 +16,6 @@ const span = (over: Partial<BufferedSpan> = {}): BufferedSpan => ({
     endTimeUnixNano: 2,
     status: { code: 0 },
     recordAttributes: [],
-    resourceAttributes: {},
     droppedAttributesCount: 0,
     droppedEventsCount: 0,
     events: [],
@@ -76,7 +75,6 @@ describe('buildTracesEnvelope', () => {
                 { key: 'flare.span_type', value: { stringValue: 'browser_fetch' } },
                 { key: 'http.request.method', value: { stringValue: 'GET' } },
             ],
-            resourceAttributes: { 'service.name': 'web' },
             droppedAttributesCount: 1,
             droppedEventsCount: 0,
             events: [

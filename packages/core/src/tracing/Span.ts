@@ -8,6 +8,7 @@ export type SpanInit = {
     startTimeUnixNano: number;
     recording: boolean;
     epoch: number; // tracer generation at creation; stale after clear()
+    scopeAttributes: Attributes;
 };
 
 export type SpanDeps = {
@@ -28,6 +29,7 @@ export class SpanImpl implements Span {
     readonly isRecording: boolean;
     readonly epoch: number;
     readonly startTimeUnixNano: number;
+    readonly scopeAttributes: Attributes;
     endTimeUnixNano = 0;
     status: SpanStatus = { code: 0 };
     attributes: Attributes = {};
@@ -48,6 +50,7 @@ export class SpanImpl implements Span {
         this.isRecording = init.recording;
         this.epoch = init.epoch;
         this.startTimeUnixNano = init.startTimeUnixNano;
+        this.scopeAttributes = init.scopeAttributes;
     }
 
     setAttribute(key: string, value: AttributeValue): this {
