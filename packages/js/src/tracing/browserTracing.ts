@@ -1,5 +1,6 @@
 import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer } from '@flareapp/core';
 
+import { collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
 import { pageloadStartNano } from './navigationTiming';
@@ -30,13 +31,7 @@ function startRoot(flare: BrowserTracingFlare, spanType: string, startTimeUnixNa
         root = flare.startSpan(path, {
             spanType,
             startTimeUnixNano,
-            attributes: {
-                'context.url': location.href,
-                'context.route': path,
-                'context.user_agent': navigator.userAgent,
-                'context.viewport': `${window.innerWidth}x${window.innerHeight}`,
-                'flare.entry_point.type': 'web',
-            },
+            attributes: collectBrowserSpanContext(flare.config),
         });
         controller = new IdleRootController(
             {

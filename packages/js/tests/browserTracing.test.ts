@@ -30,7 +30,12 @@ function fakeFlare() {
     const setActiveRoot = vi.fn();
     const addSpanListener = vi.fn(() => () => {});
     const flare: BrowserTracingFlare = {
-        config: { idleTimeout: 1000, finalTimeout: 30000, childSpanTimeout: 15000 } as unknown as Config,
+        config: {
+            idleTimeout: 1000,
+            finalTimeout: 30000,
+            childSpanTimeout: 15000,
+            urlDenylist: /(?!)/,
+        } as unknown as Config,
         startSpan,
         tracer: { addSpanListener, setActiveRoot } as unknown as BrowserTracingFlare['tracer'],
     };
@@ -56,7 +61,10 @@ describe('browserTracing', () => {
         expect(name).toBe('/start');
         expect(opts.spanType).toBe('browser_pageload');
         expect(opts.attributes?.['flare.entry_point.type']).toBe('web');
-        expect(opts.attributes?.['context.route']).toBe('/start');
+        expect(opts.attributes?.['flare.entry_point.handler.identifier']).toBe('/start');
+        expect(opts.attributes?.['url.full']).toContain('/start');
+        expect('context.route' in (opts.attributes ?? {})).toBe(false);
+        expect('context.url' in (opts.attributes ?? {})).toBe(false);
     });
 
     it('starts a browser_navigation root and ends the prior root on pushState path change', () => {
