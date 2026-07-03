@@ -5,7 +5,7 @@ import cookie from './cookie';
 import request from './request';
 import requestData from './requestData';
 
-export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
+export function browserEntryPoint(config: Readonly<Config>): Attributes {
     if (typeof window === 'undefined') {
         return { 'flare.entry_point.type': 'server' };
     }
@@ -20,6 +20,18 @@ export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attr
             attrs['flare.entry_point.handler.identifier'] = window.location.pathname;
             attrs['flare.entry_point.handler.type'] = 'browser';
         }
+    }
+
+    return attrs;
+}
+
+export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
+    const attrs: Attributes = { ...browserEntryPoint(config) };
+
+    // No window (SSR/node): browserEntryPoint already returned { 'flare.entry_point.type': 'server' };
+    // request()/requestData()/cookie() below touch window unguarded, so stop here.
+    if (typeof window === 'undefined') {
+        return attrs;
     }
 
     // host.name is resource-level (see partition.ts RESOURCE_PREFIXES) so it lands in
