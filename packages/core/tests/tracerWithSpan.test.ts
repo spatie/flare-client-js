@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { NoopFlushScheduler } from '../src/logging';
 import { Tracer } from '../src/tracing/Tracer';
 import type { Config, SdkInfo, Span } from '../src/types';
+import { FakeApi } from './helpers/FakeApi';
 
 const config = (): Config =>
     ({
@@ -21,9 +22,9 @@ const config = (): Config =>
         maxAttributesPerSpanEvent: 128,
     }) as Config;
 
-const makeTracer = () =>
+const makeTracer = (api: FakeApi = new FakeApi()) =>
     new Tracer({
-        api: {} as never,
+        api,
         getConfig: config,
         getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
         getFramework: () => null,
@@ -34,6 +35,15 @@ const makeTracer = () =>
         now: () => 100,
         rng: () => 0,
     });
+
+// end() stamps endTimeUnixNano (0 until then), so a non-zero value proves the span was ended.
+const endTime = (span: Span | undefined): number => (span as unknown as { endTimeUnixNano: number }).endTimeUnixNano;
+
+// An ended recording span must have been buffered; flushing ships it to the api.
+const flushedSpanNames = (tracer: Tracer, api: FakeApi): string[] => {
+    tracer.flush();
+    return api.traceEnvelopes.flatMap((e) => e.resourceSpans[0].scopeSpans[0].spans.map((s) => s.name));
+};
 
 describe('Tracer.withSpan', () => {
     it('sets the span active during the sync callback and restores after', () => {
@@ -50,16 +60,35 @@ describe('Tracer.withSpan', () => {
     });
 
     it('ends the span and leaves status Unset on clean return', () => {
-        const tracer = makeTracer();
+        const api = new FakeApi();
+        const tracer = makeTracer(api);
         let captured: Span | undefined;
         tracer.withSpan('op', (span) => {
             captured = span;
         });
         expect((captured as unknown as { status: { code: number } }).status.code).toBe(0);
+        expect(endTime(captured)).not.toBe(0);
+        expect(flushedSpanNames(tracer, api)).toEqual(['op']);
     });
 
-    it('sets Error status and rethrows on a thrown error', () => {
-        const tracer = makeTracer();
+    it('ends the span and buffers it when the callback resolves asynchronously', async () => {
+        const api = new FakeApi();
+        const tracer = makeTracer(api);
+        let captured: Span | undefined;
+        const result = await tracer.withSpan('op', (span) => {
+            captured = span;
+            expect(endTime(captured)).toBe(0); // still open while the promise is pending
+            return Promise.resolve('done');
+        });
+        expect(result).toBe('done');
+        expect((captured as unknown as { status: { code: number } }).status.code).toBe(0);
+        expect(endTime(captured)).not.toBe(0);
+        expect(flushedSpanNames(tracer, api)).toEqual(['op']);
+    });
+
+    it('sets Error status, ends the span, and rethrows on a thrown error', () => {
+        const api = new FakeApi();
+        const tracer = makeTracer(api);
         let captured: Span | undefined;
         expect(() =>
             tracer.withSpan('op', (span) => {
@@ -71,10 +100,13 @@ describe('Tracer.withSpan', () => {
         expect(status.code).toBe(2);
         expect(status.message).toBe('boom');
         expect(tracer.getActiveSpan()).toBeUndefined();
+        expect(endTime(captured)).not.toBe(0);
+        expect(flushedSpanNames(tracer, api)).toEqual(['op']);
     });
 
-    it('sets Error status and re-rejects on a rejecting promise', async () => {
-        const tracer = makeTracer();
+    it('sets Error status, ends the span, and re-rejects on a rejecting promise', async () => {
+        const api = new FakeApi();
+        const tracer = makeTracer(api);
         let captured: Span | undefined;
         await expect(
             tracer.withSpan('op', (span) => {
@@ -85,6 +117,8 @@ describe('Tracer.withSpan', () => {
         const status = (captured as unknown as { status: { code: number; message?: string } }).status;
         expect(status.code).toBe(2);
         expect(status.message).toBe('async-boom');
+        expect(endTime(captured)).not.toBe(0);
+        expect(flushedSpanNames(tracer, api)).toEqual(['op']);
     });
 
     it('detects a thenable (not just instanceof Promise) and sets Error on rejection', async () => {
@@ -103,5 +137,6 @@ describe('Tracer.withSpan', () => {
         ).rejects.toThrow('thenable-boom');
         const status = (captured as unknown as { status: { code: number } }).status;
         expect(status.code).toBe(2);
+        expect(endTime(captured)).not.toBe(0);
     });
 });
