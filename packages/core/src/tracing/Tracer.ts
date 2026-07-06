@@ -161,6 +161,14 @@ export class Tracer {
         const config = this.deps.getConfig();
         const spanId = makeSpanId();
 
+        // The pending continuation (continueFromTraceparent) is a strict one-shot for
+        // the NEXT startSpan, whatever that span turns out to be: consumed by a
+        // parentless root, dropped when the span has a parent, dropped when tracing is
+        // disabled. It must never linger and attach a stale remote trace to an
+        // unrelated root later.
+        const continuation = this.pendingContinuation;
+        this.pendingContinuation = null;
+
         if (!config.enableTracing) {
             const span = this.makeSpan(
                 { traceId: makeTraceId(), spanId, parentSpanId: null, name, recording: false, isLocalRoot: true },
@@ -171,7 +179,7 @@ export class Tracer {
             return span;
         }
 
-        const { traceId, parentSpanId, state } = this.resolveTrace(spanId, name, opts, config);
+        const { traceId, parentSpanId, state } = this.resolveTrace(spanId, name, opts, config, continuation);
 
         let recording = state.recording;
         if (state.startedSpanCount >= config.maxSpansPerTrace) {
@@ -196,6 +204,7 @@ export class Tracer {
         name: string,
         opts: SpanOptions,
         config: Config,
+        continuation: { traceId: string; parentSpanId: string; sampled: boolean } | null,
     ): { traceId: string; parentSpanId: string | null; state: TraceState } {
         // forceRoot: never inherit the ambient active span. A navigation root started
         // while the app is inside withSpan(...) must not become a mid-trace child.
@@ -226,19 +235,18 @@ export class Tracer {
             return { traceId, parentSpanId: parent.spanId, state };
         }
 
-        // Continued trace (one-shot): consume the pending continuation.
-        if (this.pendingContinuation) {
-            const cont = this.pendingContinuation;
-            this.pendingContinuation = null;
+        // Continued trace: the continuation was captured and cleared by startSpan
+        // (strict one-shot); a parentless span here adopts it.
+        if (continuation) {
             const ctx: SamplingContext = {
                 name,
-                parentSampled: cont.sampled,
+                parentSampled: continuation.sampled,
                 attributes: opts.attributes ?? {},
                 spanType: opts.spanType,
             };
             const recording = resolveSampling(ctx, config, this.rng);
-            const state = this.createState(cont.traceId, spanId, recording);
-            return { traceId: cont.traceId, parentSpanId: cont.parentSpanId, state };
+            const state = this.createState(continuation.traceId, spanId, recording);
+            return { traceId: continuation.traceId, parentSpanId: continuation.parentSpanId, state };
         }
 
         // New root.

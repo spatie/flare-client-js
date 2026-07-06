@@ -69,4 +69,46 @@ describe('Tracer.continueFromTraceparent', () => {
         tracer.continueFromTraceparent('garbage');
         expect(tracer.startSpan('root').parentSpanId).toBeNull();
     });
+
+    it('is dropped when the next startSpan has a parent (strict one-shot)', () => {
+        const tracer = makeTracer();
+        const root = tracer.startSpan('root');
+        tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
+        const child = tracer.startSpan('child', { parent: root });
+        expect(child.traceId).toBe(root.traceId); // parent wins over the continuation
+        const later = tracer.startSpan('later'); // the continuation must not resurface here
+        expect(later.traceId).not.toBe(TID);
+        expect(later.parentSpanId).toBeNull();
+    });
+
+    it('is dropped when tracing is disabled at the next startSpan', () => {
+        const cfg = config({ enableTracing: false });
+        const tracer = makeTracer(cfg);
+        tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
+        tracer.startSpan('while-disabled'); // consumes and drops the continuation
+        cfg.enableTracing = true;
+        const root = tracer.startSpan('root');
+        expect(root.traceId).not.toBe(TID);
+        expect(root.parentSpanId).toBeNull();
+    });
+
+    it('a fresh continuation overwrites an unconsumed pending one', () => {
+        const tracer = makeTracer();
+        const otherTid = 'c'.repeat(32);
+        const otherSid = 'd'.repeat(16);
+        tracer.continueFromTraceparent(`00-${otherTid}-${otherSid}-01`);
+        tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
+        const root = tracer.startSpan('root');
+        expect(root.traceId).toBe(TID);
+        expect(root.parentSpanId).toBe(SID);
+    });
+
+    it('is discarded by clear()', () => {
+        const tracer = makeTracer();
+        tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
+        tracer.clear();
+        const root = tracer.startSpan('root');
+        expect(root.traceId).not.toBe(TID);
+        expect(root.parentSpanId).toBeNull();
+    });
 });
