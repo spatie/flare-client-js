@@ -20,7 +20,12 @@ import { parseTraceparent } from './traceparent';
 
 export const defaultNowNano = (): number => {
     const perf = (globalThis as { performance?: Performance }).performance;
-    const ms = perf && typeof perf.now === 'function' ? perf.timeOrigin + perf.now() : Date.now();
+    // timeOrigin is missing in some environments (older Safari, some Hermes builds
+    // and polyfills); undefined + now() would yield NaN timestamps on every span.
+    const ms =
+        perf && typeof perf.now === 'function' && typeof perf.timeOrigin === 'number'
+            ? perf.timeOrigin + perf.now()
+            : Date.now();
     return Math.round(ms * 1e6);
 };
 

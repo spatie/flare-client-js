@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NoopFlushScheduler } from '../src/logging';
-import { Tracer } from '../src/tracing/Tracer';
+import { defaultNowNano, Tracer } from '../src/tracing/Tracer';
 import type { Config, SdkInfo } from '../src/types';
 
 const config = (over: Partial<Config> = {}): Config =>
@@ -260,5 +260,33 @@ describe('Tracer.startSpan', () => {
             child = tracer.startSpan('navigation');
         });
         expect(child?.traceId).toBe(outerTraceId); // contrast: default nests
+    });
+});
+
+describe('defaultNowNano', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('uses performance.timeOrigin + performance.now() when both are available', () => {
+        vi.stubGlobal('performance', { now: () => 5, timeOrigin: 1000 });
+        expect(defaultNowNano()).toBe(Math.round(1005 * 1e6));
+    });
+
+    it('falls back to Date.now() when performance.timeOrigin is missing (no NaN)', () => {
+        // Some environments (older Safari, some Hermes builds) expose performance.now
+        // without timeOrigin; timeOrigin + now() would be NaN there.
+        vi.stubGlobal('performance', { now: () => 5 });
+        const before = Date.now() * 1e6;
+        const value = defaultNowNano();
+        const after = Date.now() * 1e6;
+        expect(Number.isFinite(value)).toBe(true);
+        expect(value).toBeGreaterThanOrEqual(before);
+        expect(value).toBeLessThanOrEqual(after);
+    });
+
+    it('falls back to Date.now() when performance is absent entirely', () => {
+        vi.stubGlobal('performance', undefined);
+        expect(Number.isFinite(defaultNowNano())).toBe(true);
     });
 });
