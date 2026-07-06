@@ -1,5 +1,6 @@
 import { buildTraceparent, type Span } from '@flareapp/core';
 
+import { fill, unfill } from './fill';
 import { type HttpTracer, isFlareIngestUrl, requestSpanAttributes, safeAbsolute } from './httpRequestSpan';
 import { shouldPropagate } from './propagation';
 
@@ -123,4 +124,48 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             throw error;
         }
     } as XhrSend;
+}
+
+// Mirrors instrumentFetch's leak-guard: if a third party wraps a method on top of
+// ours, unfill cannot restore it, and this flag keeps the leaked-but-inert wrapper
+// from being stacked with a second one on re-enable.
+let installed = false;
+
+/**
+ * Patch `XMLHttpRequest.prototype` (`open`, `setRequestHeader`, `send`) so outgoing
+ * XHR requests are traced. No-op where `XMLHttpRequest` is absent (SSR). Idempotent
+ * via `fill`. Reversible via `unpatchXHR`.
+ */
+export function instrumentXHR(tracer: HttpTracer): void {
+    if (installed) return;
+
+    const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest; location?: { origin?: string } };
+    const X = g.XMLHttpRequest;
+    if (typeof X !== 'function' || !X.prototype) return;
+
+    const origin = g.location?.origin ?? '';
+    const proto = X.prototype as unknown as Record<string, unknown>;
+    fill(proto, 'open', (o) => createXHROpen(o as XhrOpen) as unknown as typeof o);
+    fill(proto, 'setRequestHeader', (o) => createXHRSetRequestHeader(o as XhrSetHeader) as unknown as typeof o);
+    fill(proto, 'send', (o) => createXHRSend(tracer, o as XhrSend, origin) as unknown as typeof o);
+    installed = true;
+}
+
+/** Restore the original `XMLHttpRequest.prototype` methods. Safe if never patched. */
+export function unpatchXHR(): void {
+    const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
+    const X = g.XMLHttpRequest;
+    if (typeof X !== 'function' || !X.prototype) {
+        installed = false;
+        return;
+    }
+    const proto = X.prototype as unknown as Record<string, unknown>;
+    // Capture the current send BEFORE unfill so we can tell whether our wrapper
+    // actually left the chain (mirrors unpatchFetch, keyed on send: open and
+    // setRequestHeader are inert without it).
+    const currentSend = proto.send as ((...a: unknown[]) => unknown) & { __flare_original__?: unknown };
+    unfill(proto, 'open');
+    unfill(proto, 'setRequestHeader');
+    unfill(proto, 'send');
+    if (typeof currentSend !== 'function' || currentSend.__flare_original__) installed = false;
 }
