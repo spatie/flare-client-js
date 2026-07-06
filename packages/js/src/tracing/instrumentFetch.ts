@@ -1,22 +1,12 @@
-import { buildTraceparent, type Config, redactUrlQuery, type Span, type SpanOptions } from '@flareapp/core';
+import { buildTraceparent } from '@flareapp/core';
 
 import { fill, unfill } from './fill';
+import { type HttpTracer, isFlareIngestUrl, requestSpanAttributes, safeAbsolute } from './httpRequestSpan';
 import { type FetchInput, mergeTraceparentHeader, shouldPropagate } from './propagation';
 import { supportsNativeFetch } from './supportsNativeFetch';
 
 /** The subset of the Flare surface the fetch wrapper needs. `Flare` satisfies this structurally. */
-export type FetchTracer = {
-    readonly config: Config;
-    startSpan(name: string, opts?: SpanOptions): Span;
-};
-
-function safeAbsolute(url: string, origin: string): URL | null {
-    try {
-        return new URL(url, origin || undefined);
-    } catch {
-        return null;
-    }
-}
+export type FetchTracer = HttpTracer;
 
 function resolveRequest(input: FetchInput, init: RequestInit | undefined): { method: string; url: string } {
     let url: string;
@@ -28,14 +18,6 @@ function resolveRequest(input: FetchInput, init: RequestInit | undefined): { met
         url = typeof input === 'string' ? input : String(input);
     }
     return { method: (method ?? 'GET').toUpperCase(), url };
-}
-
-function isFlareIngestUrl(url: string, origin: string, config: Config): boolean {
-    const abs = safeAbsolute(url, origin);
-    if (!abs) return false;
-    return [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl].some(
-        (u) => typeof u === 'string' && u.length > 0 && abs.href.startsWith(u),
-    );
 }
 
 /**
@@ -60,14 +42,7 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
 
         const span = tracer.startSpan(`${method} ${pathname}`, {
             spanType: 'browser_fetch',
-            attributes: {
-                'http.request.method': method,
-                // Redact the query string the same way error reports do; unredacted
-                // url.full would leak tokens/reset codes that get scrubbed elsewhere.
-                'url.full': redactUrlQuery(abs ? abs.href : url, config.urlDenylist),
-                ...(abs ? { 'server.address': abs.hostname } : {}),
-                ...(abs && abs.port ? { 'server.port': Number(abs.port) } : {}),
-            },
+            attributes: requestSpanAttributes(method, abs, url, config),
         });
 
         let finalInit = init;
