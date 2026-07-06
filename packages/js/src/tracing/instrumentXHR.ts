@@ -64,6 +64,9 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         const config = tracer.config;
         const state = xhrState.get(this);
         if (!config.enableTracing || !state) return send();
+        // A completed request whose XHR is re-sent without a fresh open() would start a
+        // second span the native send() then rejects (InvalidStateError); pass it through.
+        if (state.ended) return send();
         if (isFlareIngestUrl(state.url, origin, config)) return send();
 
         const abs = safeAbsolute(state.url, origin);
@@ -98,6 +101,8 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             }
             try {
                 span.setAttribute('http.response.status_code', status);
+                // XHR status 0 at readyState 4 always means network/CORS failure or abort (unlike an
+                // opaque no-cors fetch response, which is status 0 but not an error), so map it to error.
                 if (status === 0 || status >= 500) span.setStatus({ code: 2 });
                 span.end();
             } catch {

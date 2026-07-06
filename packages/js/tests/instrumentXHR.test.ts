@@ -278,4 +278,18 @@ describe('createXHR* wrappers', () => {
 
         expect(startSpan).toHaveBeenCalledOnce();
     });
+
+    it('passes through a re-send on an already-completed request without a fresh open() (no second span)', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'https://app.example/api/x');
+        xhr.send();
+        xhr.fireDone(200);
+
+        // Re-send without an intervening open(): state.ended is already true.
+        xhr.send();
+
+        expect(startSpan).toHaveBeenCalledOnce();
+    });
 });
