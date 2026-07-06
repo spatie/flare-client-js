@@ -36,4 +36,28 @@ describe('js Flare tracing auto-wiring', () => {
         flare.configure({ enableTracing: false });
         expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBeUndefined();
     });
+
+    it('disable then re-enable does not stack a second wrapper when a third party wrapped fetch after Flare', () => {
+        g.fetch = nativeFetchStub();
+        const flare = new Flare();
+        flare.configure({ enableTracing: true });
+        const flareWrapped = g.fetch;
+
+        // A third party wraps on top, so the disable's unpatch cannot restore.
+        const thirdParty = function (this: unknown, ...args: Parameters<typeof fetch>) {
+            return flareWrapped.apply(this, args);
+        } as typeof fetch;
+        g.fetch = thirdParty;
+
+        flare.configure({ enableTracing: false });
+        expect(g.fetch).toBe(thirdParty); // leaked, expectedly
+
+        flare.configure({ enableTracing: true });
+        expect(g.fetch).toBe(thirdParty); // NOT re-wrapped: Flare's wrapper is still in the chain
+
+        // Simulate the third party unwinding so unpatch can restore and clear installed state.
+        g.fetch = flareWrapped;
+        flare.configure({ enableTracing: false });
+        expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBeUndefined();
+    });
 });

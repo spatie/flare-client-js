@@ -105,6 +105,11 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     startRoot(flare, 'browser_pageload', pageloadStart);
 
     const handle = (): void => {
+        // A third party may wrap history.pushState/replaceState on top of ours,
+        // in which case unfill cannot restore on stop and this closure leaks.
+        // `uninstall` doubles as the installed flag, so the leaked wrapper stays
+        // inert instead of starting roots and arming timers while tracing is off.
+        if (!uninstall) return;
         try {
             onUrlChanged(flare);
         } catch (error) {

@@ -211,6 +211,46 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
         }
     });
 
+    it('does not double-wrap on re-enable when a third party wrapped fetch after Flare', async () => {
+        const g = globalThis as { fetch: typeof fetch };
+        // oxlint-disable-next-line no-extra-bind
+        const native = (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
+        const before = g.fetch;
+        g.fetch = native;
+
+        try {
+            const { tracer, startSpan } = makeTracer();
+            instrumentFetch(tracer);
+            const flareWrapped = g.fetch;
+
+            // A third party wraps on top of Flare's wrapper, so unpatchFetch cannot
+            // restore (the current fetch is not Flare's tagged wrapper).
+            const thirdParty = function (this: unknown, ...args: Parameters<typeof fetch>) {
+                return flareWrapped.apply(this, args);
+            } as typeof fetch;
+            g.fetch = thirdParty;
+
+            unpatchFetch();
+            expect(g.fetch).toBe(thirdParty); // the leak is real
+
+            instrumentFetch(tracer); // re-enable must not stack a second wrapper
+            expect(g.fetch).toBe(thirdParty);
+
+            await g.fetch('https://app.example/api/x');
+            expect(startSpan).toHaveBeenCalledTimes(1); // one span per request, not two
+
+            // Once the third party unwinds, unpatch restores and re-instrumenting works again.
+            g.fetch = flareWrapped;
+            unpatchFetch();
+            expect(g.fetch).toBe(native);
+            instrumentFetch(tracer);
+            expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBe(native);
+        } finally {
+            unpatchFetch();
+            g.fetch = before;
+        }
+    });
+
     it('does not patch a non-native (polyfilled) fetch', () => {
         const g = globalThis as { fetch: typeof fetch };
         const polyfill = vi.fn(async () => new Response()) as unknown as typeof fetch; // toString has no [native code]

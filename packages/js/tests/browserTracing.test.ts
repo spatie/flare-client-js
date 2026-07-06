@@ -208,6 +208,35 @@ describe('browserTracing', () => {
         expect(flush).not.toHaveBeenCalled();
     });
 
+    it('a history wrapper leaked by a third-party wrap is inert after stop', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan, setActiveRoot } = fakeFlare();
+        const originalPushState = window.history.pushState;
+        startBrowserTracing(flare);
+
+        // A third party wraps pushState AFTER Flare, so unfill cannot restore on stop
+        // (the current function is not Flare's tagged wrapper) and Flare's wrapper leaks.
+        const flarePushState = window.history.pushState;
+        window.history.pushState = function (this: History, ...args: Parameters<History['pushState']>) {
+            return flarePushState.apply(this, args);
+        };
+
+        stopBrowserTracing();
+        expect(window.history.pushState).not.toBe(originalPushState); // the leak is real
+
+        try {
+            setActiveRoot.mockClear();
+            const before = startSpan.mock.calls.length;
+            window.history.pushState({}, '', '/leaked');
+
+            expect(startSpan.mock.calls.length).toBe(before); // no root started
+            expect(setActiveRoot).not.toHaveBeenCalled(); // no controller constructed
+        } finally {
+            window.history.pushState = originalPushState;
+        }
+    });
+
     it('stopBrowserTracing ends the active root and unpatches history', () => {
         vi.useFakeTimers();
         const { flare, setActiveRoot } = fakeFlare();
