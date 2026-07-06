@@ -86,20 +86,42 @@ test.describe('js playground', () => {
         expect(pageload && attr(pageload, 'flare.entry_point.type')).toEqual({ stringValue: 'web' });
     });
 
-    test('fetch span nests under the active pageload root', async ({ page, fakeFlare }) => {
-        await page.goto('/broken');
+    test('fetch span nests under the active navigation root', async ({ page, fakeFlare }) => {
+        await page.goto('/');
         await page.waitForLoadState('networkidle');
-        await page.getByTestId('trace-fetch').click(); // click promptly so the root is still active
 
-        const trace = await fakeFlare.waitForTrace({
+        // Don't race the pageload root's idle window (idleTimeout counts from Flare init,
+        // and goto + networkidle can eat all of it on a slow CI load). Instead start a
+        // fresh browser_navigation root: the History pushState patch opens it synchronously
+        // on the nav click, so the only gap before the fetch is one click to the next,
+        // between two elements that are already rendered.
+        await page.getByRole('link', { name: 'Broken' }).click();
+        await page.getByTestId('trace-fetch').click();
+
+        const fetchTrace = await fakeFlare.waitForTrace({
             timeout: 9000,
             predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
         });
-        const fetchSpan = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
+        const fetchSpan = spansOf(fetchTrace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
         expect(fetchSpan).toBeTruthy();
-        // The key assertion: the fetch is no longer its own root, it nests under the active root.
+        // The key assertion: the fetch is not its own root, it nests under the active root.
         // Root spans always serialize parentSpanId as null; a nested span carries the parent's spanId.
         expect(fetchSpan?.parentSpanId).toBeTruthy();
+
+        // And the parent is specifically the browser_navigation root of the same trace. The
+        // root only ends after its idle window, so it arrives in a later envelope than the
+        // fetch span (which the playground flushes eagerly); wait for it separately.
+        const rootTrace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some(
+                    (s) => hasSpanType(s, 'browser_navigation') && s.spanId === fetchSpan?.parentSpanId,
+                ),
+        });
+        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === fetchSpan?.parentSpanId);
+        expect(root).toBeTruthy();
+        expect(root?.traceId).toBe(fetchSpan?.traceId);
+        expect(root?.parentSpanId ?? null).toBeNull();
     });
 
     test('emits a browser_navigation root on in-app navigation', async ({ page, fakeFlare }) => {
@@ -141,8 +163,11 @@ test.describe('js playground', () => {
         page,
         fakeFlare,
     }) => {
-        await page.goto('/broken');
+        await page.goto('/');
         await page.waitForLoadState('networkidle');
+        // Same navigation-first pattern as the nesting spec: guarantee the fetch is a
+        // child (roots carry entry-point context, which would defeat the lean assertions).
+        await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
         const trace = await fakeFlare.waitForTrace({
@@ -151,6 +176,7 @@ test.describe('js playground', () => {
         });
         const fetchSpan = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
         expect(fetchSpan).toBeTruthy();
+        expect(fetchSpan?.parentSpanId).toBeTruthy(); // a child, not its own root
         // lean: carries its own http.* but not cookies or referrer/ready_state page context
         expect(attr(fetchSpan!, 'http.request.method')).toBeTruthy();
         expect(JSON.stringify(fetchSpan)).not.toContain('http.request.cookies');
