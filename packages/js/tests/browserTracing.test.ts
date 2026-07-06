@@ -29,6 +29,7 @@ function fakeFlare() {
     const startSpan = vi.fn((_name: string, _opts?: SpanOptions) => fakeSpan(_name));
     const setActiveRoot = vi.fn();
     const addSpanListener = vi.fn(() => () => {});
+    const flush = vi.fn();
     const flare: BrowserTracingFlare = {
         config: {
             idleTimeout: 1000,
@@ -37,9 +38,9 @@ function fakeFlare() {
             urlDenylist: /(?!)/,
         } as unknown as Config,
         startSpan,
-        tracer: { addSpanListener, setActiveRoot } as unknown as BrowserTracingFlare['tracer'],
+        tracer: { addSpanListener, setActiveRoot, flush } as unknown as BrowserTracingFlare['tracer'],
     };
-    return { flare, startSpan, setActiveRoot };
+    return { flare, startSpan, setActiveRoot, flush };
 }
 
 describe('browserTracing', () => {
@@ -141,6 +142,70 @@ describe('browserTracing', () => {
         expect(() => startBrowserTracing(flare)).not.toThrow();
         expect(created[0].end).toHaveBeenCalled(); // orphaned root ended
         expect(setActiveRoot).toHaveBeenLastCalledWith(undefined); // active root cleared
+    });
+
+    it('pagehide ends the open root, then keepalive-flushes', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan, setActiveRoot, flush } = fakeFlare();
+        startBrowserTracing(flare);
+        const root = startSpan.mock.results[0].value as { end: ReturnType<typeof vi.fn> };
+        setActiveRoot.mockClear();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(root.end).toHaveBeenCalled();
+        expect(setActiveRoot).toHaveBeenCalledWith(undefined);
+        expect(flush).toHaveBeenCalledWith({ keepalive: true });
+        // The flush must run AFTER the root ends, or the just-ended root misses the envelope.
+        expect(root.end.mock.invocationCallOrder[0]).toBeLessThan(flush.mock.invocationCallOrder[0]);
+    });
+
+    it('visibilitychange to hidden ends the open root and keepalive-flushes', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan, flush } = fakeFlare();
+        startBrowserTracing(flare);
+        const root = startSpan.mock.results[0].value as { end: ReturnType<typeof vi.fn> };
+
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+        try {
+            document.dispatchEvent(new Event('visibilitychange'));
+        } finally {
+            delete (document as { visibilityState?: string }).visibilityState;
+        }
+
+        expect(root.end).toHaveBeenCalled();
+        expect(flush).toHaveBeenCalledWith({ keepalive: true });
+    });
+
+    it('still keepalive-flushes on pagehide when the root already ended', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan, flush } = fakeFlare();
+        startBrowserTracing(flare);
+        vi.advanceTimersByTime(1000); // idleTimeout ends the pageload root
+        const root = startSpan.mock.results[0].value as { end: ReturnType<typeof vi.fn> };
+        expect(root.end).toHaveBeenCalledTimes(1);
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(root.end).toHaveBeenCalledTimes(1); // not ended twice
+        expect(flush).toHaveBeenCalledWith({ keepalive: true });
+    });
+
+    it('removes the pagehide and visibilitychange listeners on stop', () => {
+        vi.useFakeTimers();
+        const { flare, flush } = fakeFlare();
+        startBrowserTracing(flare);
+        stopBrowserTracing();
+
+        window.dispatchEvent(new Event('pagehide'));
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+        try {
+            document.dispatchEvent(new Event('visibilitychange'));
+        } finally {
+            delete (document as { visibilityState?: string }).visibilityState;
+        }
+
+        expect(flush).not.toHaveBeenCalled();
     });
 
     it('stopBrowserTracing ends the active root and unpatches history', () => {

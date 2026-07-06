@@ -21,4 +21,14 @@ describe('Flare browser tracing wiring', () => {
         flare.configure({ enableTracing: false });
         expect(flare.tracer.getActiveSpan()).toBeUndefined();
     });
+
+    it('pagehide ends the open pageload root so it ships with its children', () => {
+        const flare = new Flare();
+        flare.configure({ enableTracing: true });
+        expect(flare.tracer.getActiveSpan()).toBeDefined();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(flare.tracer.getActiveSpan()).toBeUndefined(); // root ended, not left open on unload
+    });
 });
