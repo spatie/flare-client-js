@@ -23,11 +23,34 @@ export function shouldPropagate(url: string, currentOrigin: string, targets?: (s
 }
 
 /**
+ * Snapshot an iterable HeadersInit (Map, URLSearchParams, cross-realm Headers)
+ * into an array of string pairs. Returns null when iteration throws or yields
+ * a malformed entry; callers must then pass the source through untouched so a
+ * bad merge never breaks the host request (fetch will reject it the same way
+ * it would have without tracing).
+ */
+function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
+    try {
+        const pairs: [string, string][] = [];
+        for (const entry of source) {
+            if (entry === null || typeof entry !== 'object') return null;
+            const pair = Array.from(entry as ArrayLike<unknown>);
+            if (pair.length !== 2) return null;
+            pairs.push([String(pair[0]), String(pair[1])]);
+        }
+        return pairs;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Return a NEW `RequestInit` carrying `traceparent`, without mutating the
- * caller's `Request` or `init`. Handles fetch's three headers shapes plus the
- * `Request`-input case. The returned init is passed as the second fetch arg so
- * the spec's override semantics put the header on the wire while leaving the
- * caller's `Request` (and its single-shot body) intact.
+ * caller's `Request` or `init`. Handles fetch's headers shapes (Headers,
+ * pair arrays, other pair iterables, plain records) plus the `Request`-input
+ * case. The returned init is passed as the second fetch arg so the spec's
+ * override semantics put the header on the wire while leaving the caller's
+ * `Request` (and its single-shot body) intact.
  */
 export function mergeTraceparentHeader(
     input: FetchInput,
@@ -45,6 +68,15 @@ export function mergeTraceparentHeader(
         // Drop any caller-supplied traceparent (any case) before appending ours, or the
         // wire carries two values and W3C parsers treat the header as malformed.
         headers = [...source.filter(([k]) => String(k).toLowerCase() !== 'traceparent'), ['traceparent', traceparent]];
+    } else if (source && typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
+        // Fetch's WebIDL conversion accepts ANY iterable of string pairs as
+        // HeadersInit: Map, URLSearchParams, polyfilled or cross-realm Headers.
+        // Those have no enumerable own properties, so the record branch below
+        // would see an empty object and silently drop every caller header.
+        const pairs = headerPairsFrom(source as unknown as Iterable<unknown>);
+        headers = pairs
+            ? [...pairs.filter(([k]) => k.toLowerCase() !== 'traceparent'), ['traceparent', traceparent]]
+            : source;
     } else if (source) {
         // Same reason: strip case-variant keys (TraceParent, TRACEPARENT) before setting.
         const merged: Record<string, string> = {};

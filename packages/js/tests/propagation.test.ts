@@ -66,6 +66,81 @@ describe('mergeTraceparentHeader', () => {
         expect(init.headers).toEqual([['traceparent', TP]]);
     });
 
+    it('merges into a Map headers init without dropping caller headers', () => {
+        const headers = new Map([
+            ['authorization', 'Bearer token'],
+            ['a', '1'],
+        ]);
+        const init = mergeTraceparentHeader(
+            'https://app.example/x',
+            { headers: headers as unknown as HeadersInit },
+            TP,
+        );
+        expect(init.headers).toEqual([
+            ['authorization', 'Bearer token'],
+            ['a', '1'],
+            ['traceparent', TP],
+        ]);
+    });
+
+    it('does not mutate the caller-supplied Map', () => {
+        const headers = new Map([['a', '1']]);
+        mergeTraceparentHeader('https://app.example/x', { headers: headers as unknown as HeadersInit }, TP);
+        expect([...headers]).toEqual([['a', '1']]);
+    });
+
+    it('replaces a case-variant traceparent in a Map init (no duplicate on the wire)', () => {
+        const headers = new Map([
+            ['TraceParent', 'old'],
+            ['a', '1'],
+        ]);
+        const init = mergeTraceparentHeader(
+            'https://app.example/x',
+            { headers: headers as unknown as HeadersInit },
+            TP,
+        );
+        expect(init.headers).toEqual([
+            ['a', '1'],
+            ['traceparent', TP],
+        ]);
+    });
+
+    it('merges into a URLSearchParams-shaped iterable init', () => {
+        const headers = new URLSearchParams({ a: '1' });
+        const init = mergeTraceparentHeader(
+            'https://app.example/x',
+            { headers: headers as unknown as HeadersInit },
+            TP,
+        );
+        expect(init.headers).toEqual([
+            ['a', '1'],
+            ['traceparent', TP],
+        ]);
+    });
+
+    it('passes a throwing iterable through untouched instead of throwing out of fetch', () => {
+        const headers: Iterable<unknown> = {
+            *[Symbol.iterator]() {
+                yield ['a', '1'];
+                throw new Error('broken iterable');
+            },
+        };
+        const init = mergeTraceparentHeader('https://app.example/x', { headers: headers as HeadersInit }, TP);
+        expect(init.headers).toBe(headers);
+    });
+
+    it('passes an iterable with malformed pairs through untouched', () => {
+        const headers = new Map<string, string>([['a', '1']]);
+        const malformed: Iterable<unknown> = {
+            *[Symbol.iterator]() {
+                yield* headers;
+                yield ['too', 'many', 'parts'];
+            },
+        };
+        const init = mergeTraceparentHeader('https://app.example/x', { headers: malformed as HeadersInit }, TP);
+        expect(init.headers).toBe(malformed);
+    });
+
     it('replaces a case-variant traceparent in an object init', () => {
         const init = mergeTraceparentHeader('https://app.example/x', { headers: { TraceParent: 'old', a: '1' } }, TP);
         expect(init.headers).toEqual({ a: '1', traceparent: TP });
