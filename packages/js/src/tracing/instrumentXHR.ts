@@ -31,6 +31,10 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
                 hasAppTraceparent: false,
                 ended: false,
             });
+        } else {
+            // Clear any prior entry so a reused instance can't resurrect stale, already-ended
+            // state on a later send().
+            xhrState.delete(this);
         }
         return (original as (this: XMLHttpRequest, ...a: unknown[]) => void).apply(this, [method, url, ...rest]);
     } as XhrOpen;
@@ -107,10 +111,14 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             // The DONE listener never fires on a synchronous send throw, so remove it
             // here to keep the happy path's cleanup symmetric (no listener left dangling).
             this.removeEventListener('readystatechange', onDone);
-            span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
-            if (!state.ended) {
-                state.ended = true;
-                span.end();
+            try {
+                span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
+                if (!state.ended) {
+                    state.ended = true;
+                    span.end();
+                }
+            } catch {
+                // Instrumentation must never mask the host app's original error.
             }
             throw error;
         }

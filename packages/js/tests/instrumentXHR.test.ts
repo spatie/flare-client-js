@@ -264,4 +264,18 @@ describe('createXHR* wrappers', () => {
 
         expect(xhr.listenerCount('readystatechange')).toBe(0);
     });
+
+    it('clears stale state on an open bail so a reused instance creates no span on the next send', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'https://app.example/api/x');
+        xhr.send();
+        xhr.fireDone(200);
+
+        (xhr.open as any)('GET'); // bail: no url -> stale state must be cleared
+        xhr.send();
+
+        expect(startSpan).toHaveBeenCalledOnce();
+    });
 });
