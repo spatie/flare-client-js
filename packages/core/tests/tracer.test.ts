@@ -208,6 +208,37 @@ describe('Tracer.startSpan', () => {
         expect(child.isRecording).toBe(false);
     });
 
+    it('does not invoke the sampler for a plain parent whose trace state already exists', () => {
+        let calls = 0;
+        const cfg = config({
+            tracesSampler: () => {
+                calls++;
+                return true;
+            },
+        });
+        const tracer = makeTracer(cfg);
+        const root = tracer.startSpan('root');
+        expect(calls).toBe(1);
+        const child = tracer.startSpan('child', { parent: { traceId: root.traceId, spanId: root.spanId } });
+        expect(child.traceId).toBe(root.traceId);
+        expect(calls).toBe(1); // existing state found, no spurious sampler invocation
+    });
+
+    it('does not throw out of startSpan when a customer tracesSampler throws; span is not sampled', () => {
+        const cfg = config({
+            tracesSampler: () => {
+                throw new Error('sampler boom');
+            },
+        });
+        const tracer = makeTracer(cfg);
+        let span: ReturnType<Tracer['startSpan']> | undefined;
+        expect(() => {
+            span = tracer.startSpan('root');
+        }).not.toThrow();
+        expect(span?.isRecording).toBe(false);
+        expect(() => span?.end()).not.toThrow();
+    });
+
     it('forceRoot ignores the ambient active span and starts a new trace', () => {
         const tracer = makeTracer(config());
         let outerTraceId = '';

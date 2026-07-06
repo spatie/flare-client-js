@@ -206,8 +206,10 @@ export class Tracer {
             const traceId = parent.traceId;
             // A real Span carries its trace's recording decision; a manually stitched
             // {traceId, spanId} parent does not. Run the sampler instead of assuming
-            // recording, so tracesSampleRate 0 does not still buffer and ship.
-            const fallbackRecording =
+            // recording, so tracesSampleRate 0 does not still buffer and ship. Lazy so
+            // the sampler (side effects, rng consumption) only runs when new state is
+            // actually seeded.
+            const fallbackRecording = (): boolean =>
                 'isRecording' in parent
                     ? (parent as Span).isRecording
                     : resolveSampling(
@@ -242,7 +244,7 @@ export class Tracer {
         return { traceId, parentSpanId: null, state };
     }
 
-    private getOrSeedState(traceId: string, localRootSpanId: string, fallbackRecording: boolean): TraceState {
+    private getOrSeedState(traceId: string, localRootSpanId: string, fallbackRecording: () => boolean): TraceState {
         const existing = this.traceStates.get(traceId);
         if (existing) {
             // Refresh recency: delete + re-insert so it moves to the most-recent end
@@ -251,7 +253,7 @@ export class Tracer {
             this.traceStates.set(traceId, existing);
             return existing;
         }
-        return this.createState(traceId, localRootSpanId, fallbackRecording);
+        return this.createState(traceId, localRootSpanId, fallbackRecording());
     }
 
     private createState(traceId: string, localRootSpanId: string, recording: boolean): TraceState {
