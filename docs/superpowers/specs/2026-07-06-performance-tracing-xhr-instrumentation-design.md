@@ -163,8 +163,9 @@ install/uninstall pair.
 6. If `shouldPropagate(abs ? abs.href : state.url, origin, config.tracePropagationTargets)` **and**
    `!state.hasAppTraceparent`: `try { this.setRequestHeader('traceparent', buildTraceparent(span.traceId, span.spanId, span.isRecording)); } catch { /* wrong ready-state */ }`.
 7. `this.addEventListener('readystatechange', onDone)` where `onDone` closes over `state` (see completion below).
-8. Call original `send`. Wrap in try/catch: on a synchronous throw, `span.setStatus({ code: 2, message })`, end the span
-   (guarded by `state.ended`), and rethrow.
+8. Call original `send`. Wrap in try/catch: on a synchronous throw, remove the `readystatechange` listener (it never
+   fires on a sync send throw, so cleanup stays symmetric with the happy path), `span.setStatus({ code: 2, message })`,
+   end the span (guarded by `state.ended`), and rethrow.
 
 **Completion listener (`onDone`, closure over `state`):**
 
