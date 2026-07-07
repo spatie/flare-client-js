@@ -1,27 +1,49 @@
 import { describe, expect, it } from 'vitest';
 
+import { safeAbsolute } from '../src/tracing/httpRequestSpan';
 import { mergeTraceparentHeader, shouldPropagate } from '../src/tracing/propagation';
 
 const ORIGIN = 'https://app.example';
 
 describe('shouldPropagate', () => {
     it('allows same-origin and relative URLs by default', () => {
-        expect(shouldPropagate('https://app.example/api', ORIGIN)).toBe(true);
-        expect(shouldPropagate('/api/products', ORIGIN)).toBe(true);
+        expect(
+            shouldPropagate('https://app.example/api', safeAbsolute('https://app.example/api', ORIGIN), ORIGIN),
+        ).toBe(true);
+        expect(shouldPropagate('/api/products', safeAbsolute('/api/products', ORIGIN), ORIGIN)).toBe(true);
     });
 
     it('blocks cross-origin URLs by default', () => {
-        expect(shouldPropagate('https://other.example/api', ORIGIN)).toBe(false);
+        expect(
+            shouldPropagate('https://other.example/api', safeAbsolute('https://other.example/api', ORIGIN), ORIGIN),
+        ).toBe(false);
     });
 
     it('honors an explicit allow-list (string includes + RegExp)', () => {
-        expect(shouldPropagate('https://other.example/api', ORIGIN, ['other.example'])).toBe(true);
-        expect(shouldPropagate('https://other.example/graphql', ORIGIN, [/\/graphql$/])).toBe(true);
-        expect(shouldPropagate('https://other.example/api', ORIGIN, [/\/graphql$/])).toBe(false);
+        expect(
+            shouldPropagate('https://other.example/api', safeAbsolute('https://other.example/api', ORIGIN), ORIGIN, [
+                'other.example',
+            ]),
+        ).toBe(true);
+        expect(
+            shouldPropagate(
+                'https://other.example/graphql',
+                safeAbsolute('https://other.example/graphql', ORIGIN),
+                ORIGIN,
+                [/\/graphql$/],
+            ),
+        ).toBe(true);
+        expect(
+            shouldPropagate('https://other.example/api', safeAbsolute('https://other.example/api', ORIGIN), ORIGIN, [
+                /\/graphql$/,
+            ]),
+        ).toBe(false);
     });
 
     it('empty allow-list disables all injection, including same-origin', () => {
-        expect(shouldPropagate('https://app.example/api', ORIGIN, [])).toBe(false);
+        expect(
+            shouldPropagate('https://app.example/api', safeAbsolute('https://app.example/api', ORIGIN), ORIGIN, []),
+        ).toBe(false);
     });
 });
 

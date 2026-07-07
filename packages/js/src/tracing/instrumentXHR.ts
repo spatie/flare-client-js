@@ -1,8 +1,15 @@
-import { buildTraceparent, type Span } from '@flareapp/core';
+import { type Span } from '@flareapp/core';
 
 import { createPatcher } from './createPatcher';
-import { type HttpTracer, isFlareIngestUrl, requestSpanAttributes, safeAbsolute } from './httpRequestSpan';
-import { shouldPropagate } from './propagation';
+import {
+    endHttpRequestSpan,
+    finishHttpSpanError,
+    type HttpTracer,
+    isFlareIngestUrl,
+    requestSpanAttributes,
+    safeAbsolute,
+    traceparentFor,
+} from './httpRequestSpan';
 
 type XhrOpen = XMLHttpRequest['open'];
 type XhrSend = XMLHttpRequest['send'];
@@ -86,9 +93,10 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         // A completed request whose XHR is re-sent without a fresh open() would start a
         // second span the native send() then rejects (InvalidStateError); pass it through.
         if (state.ended) return send();
-        if (isFlareIngestUrl(state.url, origin, config)) return send();
 
         const abs = safeAbsolute(state.url, origin);
+        if (isFlareIngestUrl(abs, config)) return send();
+
         const pathname = abs ? abs.pathname : state.url;
         const span = tracer.startSpan(`${state.method} ${pathname}`, {
             spanType: 'browser_xhr',
@@ -96,14 +104,14 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         });
         state.span = span;
 
-        if (
-            !state.hasAppTraceparent &&
-            shouldPropagate(abs ? abs.href : state.url, origin, config.tracePropagationTargets)
-        ) {
-            try {
-                this.setRequestHeader('traceparent', buildTraceparent(span.traceId, span.spanId, span.isRecording));
-            } catch {
-                // setRequestHeader throws unless the request is in the OPENED state; ignore.
+        if (!state.hasAppTraceparent) {
+            const tp = traceparentFor(span, abs, state.url, origin, config);
+            if (tp) {
+                try {
+                    this.setRequestHeader('traceparent', tp);
+                } catch {
+                    // setRequestHeader throws unless the request is in the OPENED state; ignore.
+                }
             }
         }
 
@@ -119,11 +127,9 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
                 // Reading status can throw on some platforms; treat as 0 (no response).
             }
             try {
-                span.setAttribute('http.response.status_code', status);
                 // XHR status 0 at readyState 4 always means network/CORS failure or abort (unlike an
                 // opaque no-cors fetch response, which is status 0 but not an error), so map it to error.
-                if (status === 0 || status >= 500) span.setStatus({ code: 2 });
-                span.end();
+                endHttpRequestSpan(span, status, { zeroIsError: true });
             } catch {
                 // Instrumentation must never throw into the host app.
             }
@@ -141,12 +147,9 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             // The DONE listener never fires on a synchronous send throw, so remove it
             // here to keep the happy path's cleanup symmetric (no listener left dangling).
             this.removeEventListener('readystatechange', onDone);
+            state.ended = true;
             try {
-                span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
-                if (!state.ended) {
-                    state.ended = true;
-                    span.end();
-                }
+                finishHttpSpanError(span, error);
             } catch {
                 // Instrumentation must never mask the host app's original error.
             }

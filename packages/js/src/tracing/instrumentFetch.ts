@@ -1,8 +1,14 @@
-import { buildTraceparent } from '@flareapp/core';
-
 import { createPatcher } from './createPatcher';
-import { type HttpTracer, isFlareIngestUrl, requestSpanAttributes, safeAbsolute } from './httpRequestSpan';
-import { type FetchInput, mergeTraceparentHeader, shouldPropagate } from './propagation';
+import {
+    endHttpRequestSpan,
+    finishHttpSpanError,
+    type HttpTracer,
+    isFlareIngestUrl,
+    requestSpanAttributes,
+    safeAbsolute,
+    traceparentFor,
+} from './httpRequestSpan';
+import { type FetchInput, mergeTraceparentHeader } from './propagation';
 import { supportsNativeFetch } from './supportsNativeFetch';
 
 /** The subset of the Flare surface the fetch wrapper needs. `Flare` satisfies this structurally. */
@@ -35,9 +41,9 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
         if (!config.enableTracing) return call(init);
 
         const { method, url } = resolveRequest(input, init);
-        if (isFlareIngestUrl(url, origin, config)) return call(init);
-
         const abs = safeAbsolute(url, origin);
+        if (isFlareIngestUrl(abs, config)) return call(init);
+
         const pathname = abs ? abs.pathname : url;
 
         const span = tracer.startSpan(`${method} ${pathname}`, {
@@ -46,14 +52,11 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
         });
 
         let finalInit = init;
-        if (shouldPropagate(abs ? abs.href : url, origin, config.tracePropagationTargets)) {
-            const traceparent = buildTraceparent(span.traceId, span.spanId, span.isRecording);
-            finalInit = mergeTraceparentHeader(input, init, traceparent);
-        }
+        const traceparent = traceparentFor(span, abs, url, origin, config);
+        if (traceparent) finalInit = mergeTraceparentHeader(input, init, traceparent);
 
         const finishError = (error: unknown): Promise<never> => {
-            span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
-            span.end();
+            finishHttpSpanError(span, error);
             return Promise.reject(error);
         };
 
@@ -66,9 +69,7 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
 
         return promise.then(
             (response) => {
-                span.setAttribute('http.response.status_code', response.status);
-                if (response.status >= 500) span.setStatus({ code: 2 });
-                span.end();
+                endHttpRequestSpan(span, response.status);
                 return response;
             },
             (error: unknown) => finishError(error),

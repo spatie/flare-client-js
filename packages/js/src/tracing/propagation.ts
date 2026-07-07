@@ -1,25 +1,24 @@
 export type FetchInput = string | URL | Request;
 
-function isSameOrigin(url: string, currentOrigin: string): boolean {
-    try {
-        return new URL(url, currentOrigin || undefined).origin === currentOrigin;
-    } catch {
-        return false;
-    }
-}
-
 /**
  * Decide whether a W3C `traceparent` header may be attached to `url`.
- * Default: same-origin + relative. With `targets`: match by String.includes
- * (string entry) or RegExp.test. `targets: []` disables everything.
+ * Default: same-origin + relative (`abs`, the caller's already-parsed URL, is
+ * compared by origin; null -> not same-origin, matching a failed parse).
+ * With `targets`: match by String.includes (string entry) or RegExp.test
+ * against the raw `url`. `targets: []` disables everything.
  * Mirrors OTel/Sentry `tracePropagationTargets` semantics.
  */
-export function shouldPropagate(url: string, currentOrigin: string, targets?: (string | RegExp)[]): boolean {
+export function shouldPropagate(
+    url: string,
+    abs: URL | null,
+    currentOrigin: string,
+    targets?: (string | RegExp)[],
+): boolean {
     if (targets) {
         if (targets.length === 0) return false;
         return targets.some((t) => (typeof t === 'string' ? url.includes(t) : t.test(url)));
     }
-    return isSameOrigin(url, currentOrigin);
+    return abs !== null && abs.origin === currentOrigin;
 }
 
 /**
