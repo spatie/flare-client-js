@@ -67,4 +67,38 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         xhr.open('GET', 'https://app.example/two');
         expect(startSpan).not.toHaveBeenCalled();
     });
+
+    it('a third party wrapping send does not wedge open permanently (Finding 2 regression)', () => {
+        const proto = XMLHttpRequest.prototype as unknown as Record<string, { __flare_original__?: unknown }>;
+        const { tracer, startSpan } = makeTracer();
+
+        instrumentXHR(tracer);
+        const flareSend = proto.send;
+
+        // A third party wraps `send` on top of Flare's wrapper, so unpatchXHR cannot
+        // restore it (mirrors instrumentFetch.test.ts's third-party test).
+        const thirdParty = function (this: XMLHttpRequest, ...args: unknown[]): unknown {
+            return (flareSend as unknown as (...a: unknown[]) => unknown).apply(this, args);
+        };
+        proto.send = thirdParty as unknown as { __flare_original__?: unknown };
+
+        unpatchXHR();
+        expect(proto.send).toBe(thirdParty); // the leak is real
+
+        instrumentXHR(tracer); // re-enable must not permanently wedge `open`
+
+        // (a) open is still Flare's wrapper -> tracing is not permanently dead.
+        expect((proto.open as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
+
+        // (b) driving one traced request through open() -> send() creates exactly one
+        // span -> re-instrumenting did not stack a second `send` wrapper underneath
+        // the still-leaked third party.
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', 'https://app.example/one');
+        xhr.send();
+        expect(startSpan).toHaveBeenCalledTimes(1);
+
+        // Unwind the third party so afterEach's unpatchXHR can fully restore natives.
+        proto.send = flareSend;
+    });
 });

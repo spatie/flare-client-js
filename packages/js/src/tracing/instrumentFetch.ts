@@ -1,6 +1,6 @@
 import { buildTraceparent } from '@flareapp/core';
 
-import { fill, unfill } from './fill';
+import { createPatcher } from './createPatcher';
 import { type HttpTracer, isFlareIngestUrl, requestSpanAttributes, safeAbsolute } from './httpRequestSpan';
 import { type FetchInput, mergeTraceparentHeader, shouldPropagate } from './propagation';
 import { supportsNativeFetch } from './supportsNativeFetch';
@@ -76,11 +76,11 @@ export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, 
     };
 }
 
-// Tracks whether Flare's wrapper is (still) somewhere in the fetch chain. `fill`'s
-// own idempotency tag only sees the CURRENT global fetch: when a third party wraps
-// on top of ours, `unpatchFetch` cannot restore, and without this flag a later
-// `instrumentFetch` would stack a second wrapper (two spans per request).
-let installed = false;
+// Owns the installed flag for the single `fetch` method. A wrapper leaked by a
+// failed unpatch stays live and checks enableTracing per call, so one wrapper in
+// the chain is always enough. See createPatcher for the atomic install/uninstall
+// semantics shared with instrumentXHR's three-method patch.
+const patcher = createPatcher();
 
 /**
  * Patch the global `fetch` so outgoing requests are traced. No-op when there is
@@ -88,27 +88,19 @@ let installed = false;
  * future XHR patch). Idempotent via `fill`. Reversible via `unpatchFetch`.
  */
 export function instrumentFetch(tracer: FetchTracer): void {
-    // A wrapper leaked by a failed unpatch stays live and checks enableTracing per
-    // call, so one wrapper in the chain is always enough.
-    if (installed) return;
+    if (patcher.installed) return;
 
     const g = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
     if (typeof g.fetch !== 'function') return;
     if (!supportsNativeFetch()) return;
 
     const origin = g.location?.origin ?? '';
-    fill(g as unknown as Record<string, unknown>, 'fetch', (original) =>
-        createFetchWrapper(tracer, original as typeof fetch, origin),
-    );
-    installed = true;
+    patcher.install(g as unknown as Record<string, unknown>, [
+        { name: 'fetch', wrap: (original) => createFetchWrapper(tracer, original as typeof fetch, origin) },
+    ]);
 }
 
 /** Restore the original global `fetch`. Safe if never patched. */
 export function unpatchFetch(): void {
-    const g = globalThis as unknown as Record<string, unknown>;
-    const current = g.fetch as (typeof fetch & { __flare_original__?: unknown }) | undefined;
-    unfill(g, 'fetch');
-    // Only mark uninstalled when the wrapper actually left the chain: either unfill
-    // just restored it (the current fetch carried our tag) or fetch is gone entirely.
-    if (typeof current !== 'function' || current.__flare_original__) installed = false;
+    patcher.uninstall(globalThis as unknown as Record<string, unknown>);
 }

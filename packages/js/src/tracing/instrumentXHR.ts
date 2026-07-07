@@ -1,6 +1,6 @@
 import { buildTraceparent, type Span } from '@flareapp/core';
 
-import { fill, unfill } from './fill';
+import { createPatcher } from './createPatcher';
 import { type HttpTracer, isFlareIngestUrl, requestSpanAttributes, safeAbsolute } from './httpRequestSpan';
 import { shouldPropagate } from './propagation';
 
@@ -131,10 +131,12 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
     } as XhrSend;
 }
 
-// Mirrors instrumentFetch's leak-guard: if a third party wraps a method on top of
-// ours, unfill cannot restore it, and this flag keeps the leaked-but-inert wrapper
-// from being stacked with a second one on re-enable.
-let installed = false;
+// Owns ONE installed flag across all three methods, so a third party wrapping just
+// one of them (e.g. `send`) cannot wedge the others. See createPatcher for the
+// atomic install/uninstall semantics this fixes (Finding 2: a per-method/single-flag
+// design like instrumentFetch's is unsafe once methods share state, since `send`
+// depends on state `open` populates).
+const patcher = createPatcher();
 
 /**
  * Patch `XMLHttpRequest.prototype` (`open`, `setRequestHeader`, `send`) so outgoing
@@ -142,7 +144,7 @@ let installed = false;
  * via `fill`. Reversible via `unpatchXHR`.
  */
 export function instrumentXHR(tracer: HttpTracer): void {
-    if (installed) return;
+    if (patcher.installed) return;
 
     const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest; location?: { origin?: string } };
     const X = g.XMLHttpRequest;
@@ -150,27 +152,17 @@ export function instrumentXHR(tracer: HttpTracer): void {
 
     const origin = g.location?.origin ?? '';
     const proto = X.prototype as unknown as Record<string, unknown>;
-    fill(proto, 'open', (o) => createXHROpen(o as XhrOpen) as unknown as typeof o);
-    fill(proto, 'setRequestHeader', (o) => createXHRSetRequestHeader(o as XhrSetHeader) as unknown as typeof o);
-    fill(proto, 'send', (o) => createXHRSend(tracer, o as XhrSend, origin) as unknown as typeof o);
-    installed = true;
+    patcher.install(proto, [
+        { name: 'open', wrap: (o) => createXHROpen(o as XhrOpen) },
+        { name: 'setRequestHeader', wrap: (o) => createXHRSetRequestHeader(o as XhrSetHeader) },
+        { name: 'send', wrap: (o) => createXHRSend(tracer, o as XhrSend, origin) },
+    ]);
 }
 
 /** Restore the original `XMLHttpRequest.prototype` methods. Safe if never patched. */
 export function unpatchXHR(): void {
     const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
     const X = g.XMLHttpRequest;
-    if (typeof X !== 'function' || !X.prototype) {
-        installed = false;
-        return;
-    }
-    const proto = X.prototype as unknown as Record<string, unknown>;
-    // Capture the current send BEFORE unfill so we can tell whether our wrapper
-    // actually left the chain (mirrors unpatchFetch, keyed on send: open and
-    // setRequestHeader are inert without it).
-    const currentSend = proto.send as ((...a: unknown[]) => unknown) & { __flare_original__?: unknown };
-    unfill(proto, 'open');
-    unfill(proto, 'setRequestHeader');
-    unfill(proto, 'send');
-    if (typeof currentSend !== 'function' || currentSend.__flare_original__) installed = false;
+    if (typeof X !== 'function' || !X.prototype) return;
+    patcher.uninstall(X.prototype as unknown as Record<string, unknown>);
 }
