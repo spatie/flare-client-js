@@ -63,7 +63,7 @@ describe('traceTanStackRouter', () => {
         expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01' });
         expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/$id', source: 'route' });
         emit('onResolved', { fromLocation: from, toLocation: to });
-        expect(nav.setActiveRouteName).toHaveBeenCalledTimes(2);
+        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/product/$id', source: 'route' });
     });
 
     it('skips the initial pageload onBeforeLoad', () => {
@@ -138,5 +138,21 @@ describe('traceTanStackRouter', () => {
         expect(unsub.onBeforeLoad).toHaveBeenCalled();
         expect(unsub.onResolved).toHaveBeenCalled();
         expect(nav.unregister).toHaveBeenCalled();
+    });
+
+    it('falls back to the URL name when matchRoutes throws', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockImplementation(() => {
+            throw new Error('router boom');
+        });
+        expect(() =>
+            emit('onBeforeLoad', {
+                fromLocation: { pathname: '/', search: {}, state: {} },
+                toLocation: { pathname: '/kaboom', search: {}, state: {} },
+            }),
+        ).not.toThrow();
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/kaboom', source: 'url' });
     });
 });

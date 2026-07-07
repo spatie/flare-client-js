@@ -85,6 +85,10 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
         } catch {
             // ignore
         }
-        nav.unregister();
+        try {
+            nav.unregister();
+        } catch {
+            // ignore
+        }
     };
 }
