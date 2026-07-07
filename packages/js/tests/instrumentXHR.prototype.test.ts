@@ -1,33 +1,8 @@
 // @vitest-environment jsdom
-import type { Config, Span, SpanOptions } from '@flareapp/core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import type { HttpTracer } from '../src/tracing/httpRequestSpan';
 import { instrumentXHR, unpatchXHR } from '../src/tracing/instrumentXHR';
-
-function makeTracer() {
-    const span: Span = {
-        traceId: 'a'.repeat(32),
-        spanId: 'b'.repeat(16),
-        parentSpanId: null,
-        name: '',
-        isRecording: true,
-        setAttribute() {
-            return this;
-        },
-        setStatus() {
-            return this;
-        },
-        addEvent() {
-            return this;
-        },
-        end() {},
-    };
-    const config = { enableTracing: true } as unknown as Config;
-    const startSpan = vi.fn((_n: string, _o?: SpanOptions) => span);
-    const tracer: HttpTracer = { config, startSpan };
-    return { tracer, startSpan };
-}
+import { makeTracer } from './helpers';
 
 describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
     afterEach(() => unpatchXHR());

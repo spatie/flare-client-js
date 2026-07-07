@@ -1,49 +1,10 @@
-import type { Config, Span, SpanOptions } from '@flareapp/core';
+import type { SpanOptions } from '@flareapp/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createFetchWrapper, type FetchTracer, instrumentFetch, unpatchFetch } from '../src/tracing/instrumentFetch';
+import { createFetchWrapper, instrumentFetch, unpatchFetch } from '../src/tracing/instrumentFetch';
+import { makeTracer } from './helpers';
 
 const ORIGIN = 'https://app.example';
-
-function fakeSpan() {
-    const calls = { attrs: {} as Record<string, unknown>, status: undefined as unknown, ended: false };
-    const span: Span = {
-        traceId: 'a'.repeat(32),
-        spanId: 'b'.repeat(16),
-        parentSpanId: null,
-        name: '',
-        isRecording: true,
-        setAttribute(k, v) {
-            calls.attrs[k] = v;
-            return this;
-        },
-        setStatus(s) {
-            calls.status = s;
-            return this;
-        },
-        addEvent() {
-            return this;
-        },
-        end() {
-            calls.ended = true;
-        },
-    };
-    return { span, calls };
-}
-
-function makeTracer(overrides: Partial<Config> = {}) {
-    const { span, calls } = fakeSpan();
-    const config = {
-        enableTracing: true,
-        ingestUrl: 'https://ingress.flareapp.io/v1/errors',
-        logsIngestUrl: 'https://ingress.flareapp.io/v1/logs',
-        tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
-        ...overrides,
-    } as unknown as Config;
-    const startSpan = vi.fn((_name: string, _opts?: SpanOptions) => span);
-    const tracer: FetchTracer = { config, startSpan };
-    return { tracer, startSpan, span, calls };
-}
 
 const okFetch = (status = 200) => vi.fn(async () => new Response(null, { status })) as unknown as typeof fetch;
 
