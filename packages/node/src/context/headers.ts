@@ -1,10 +1,8 @@
 import type { Attributes } from '@flareapp/core';
 
 /**
- * Case-insensitively look up a header value. Returns the first defined value
- * for the lowercased name, or undefined. Array values (rare but valid for
- * some headers) are coalesced to the first element since the consumers in
- * this package treat the value as scalar.
+ * Case-insensitively look up a header value. Returns the first defined match, or undefined. Array values
+ * are coalesced to the first element since consumers here treat the value as scalar.
  */
 export function findHeader(
     headers: Record<string, string | string[] | undefined> | undefined,
@@ -21,29 +19,18 @@ export function findHeader(
 }
 
 /**
- * Default-redacted header names. The pattern is anchored to the FULL header
- * name (`^...$`) and case-insensitive so it catches `Authorization`,
- * `AUTHORIZATION`, `authorization`, etc. Anchoring matters: an unanchored
- * `cookie` would match `X-Some-Cookie-Hint` too, which we do NOT want — only
- * the exact header by name should be redacted by default.
- *
- * Covers the usual credential carriers (`authorization`, `cookie`, etc) plus
- * common proxy-set headers that often expose client IPs (`forwarded`,
- * `x-forwarded-for`, `x-forwarded-user`). Users add domain-specific entries
- * via `configureNode({ headerDenylist: ... })`.
+ * Default-redacted header names. Anchored to the full name (`^...$`) and case-insensitive: anchoring is
+ * load-bearing so an unanchored `cookie` doesn't also match `X-Some-Cookie-Hint`. Covers credential
+ * carriers plus proxy headers that expose client IPs. Users extend via `configureNode({ headerDenylist })`.
  */
 export const DEFAULT_HEADER_DENYLIST =
     /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-csrf-token|x-xsrf-token|x-auth-token|forwarded|x-forwarded-(?:for|user))$/i;
 
 /**
- * Combine the built-in denylist with an optional user-supplied one.
- *
- * - No custom regex          -> use the default as-is.
- * - Custom + replace = true  -> use only the custom pattern (with `g`/`y`
- *                               flags stripped so `.test()` stays stateless).
- * - Custom + replace = false -> union: `(?:default)|(?:custom)`, forcing case
- *                               insensitivity since header names are
- *                               case-insensitive over the wire.
+ * Combine the built-in denylist with an optional custom one.
+ * - No custom: the default as-is.
+ * - Custom + replace: only the custom pattern (`g`/`y` stripped so `.test()` stays stateless).
+ * - Custom + no replace: union `(?:default)|(?:custom)`, forced case-insensitive (header names are).
  */
 export function resolveHeaderDenylist(custom?: RegExp, replaceDefault = false): RegExp {
     if (!custom) return DEFAULT_HEADER_DENYLIST;
@@ -52,26 +39,15 @@ export function resolveHeaderDenylist(custom?: RegExp, replaceDefault = false): 
 }
 
 /**
- * Project an HTTP request `headers` object into report attributes.
+ * Project an HTTP request `headers` object into report attributes, keyed `http.request.header.<name>`.
  *
- * Behavior per header:
- *
- * - **Unset values** (entry exists but the value is `undefined`) are dropped
- *   entirely — `node:http` represents "header was not sent" this way.
- * - **Names are lowercased.** OTel's attribute convention uses lowercase
- *   header keys, and HTTP header names are case-insensitive anyway.
- * - **Allowlist gate.** If `headerAllowlist` is set, only headers whose
- *   lowercased name matches are emitted; everything else is silently dropped
- *   (NOT redacted, dropped). This is the strongest filter — useful for
- *   compliance scenarios where you must opt into headers explicitly.
- * - **Array values** (`set-cookie` can be `string[]`) are joined with `, ` so
- *   the emitted value is a flat string, matching the on-the-wire shape that
- *   most HTTP clients render.
- * - **Denylist redaction.** If the name matches `headerDenylist`, the value
- *   is replaced with `'[redacted]'` (the key still appears so consumers can
- *   tell the header was present).
- *
- * Output keys are `http.request.header.<lowercased-name>`, per OTel.
+ * Per header:
+ * - Unset values (`undefined`) are dropped; `node:http` represents "not sent" this way.
+ * - Names are lowercased (OTel convention; header names are case-insensitive anyway).
+ * - Allowlist gate: if `headerAllowlist` is set, non-matching headers are dropped (not redacted). The
+ *   strongest filter, for compliance opt-in.
+ * - Array values (e.g. `set-cookie: string[]`) are joined with `, `.
+ * - Denylist redaction: matching names get value `'[redacted]'` (key still appears so presence is known).
  */
 export function projectHeaders(
     headers: Record<string, string | string[] | undefined> | undefined,

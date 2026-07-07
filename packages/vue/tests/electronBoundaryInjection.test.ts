@@ -3,10 +3,9 @@ import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
-// The REAL inject entry boundary + a real Electron RendererFlare. Drives the full path:
-// boundary resolves the injected instance at setup -> reportSilently -> RendererFlare.sendReport
-// -> bridge. (The existing electron cross-package test covers the flareVue plugin path; this closes
-// the gap for the FlareErrorBoundary component end-to-end through the bridge.)
+// Real inject-entry boundary + real Electron RendererFlare, driving the full path: boundary resolves
+// the injected instance at setup -> reportSilently -> RendererFlare.sendReport -> bridge. Closes the
+// gap the existing electron cross-package test leaves (that one covers the flareVue plugin path).
 import { FlareErrorBoundary } from '../src/inject';
 
 const ThrowingChild = defineComponent({

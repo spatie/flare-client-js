@@ -22,8 +22,8 @@ describe('parseTraceparent', () => {
     });
 
     it('reads the sampled bit from the trace-flags bit field', () => {
-        // trace-flags is a bit field; only bit 0 (sampled) is defined. OTel SDKs also
-        // set bit 1 (random-trace-id), emitting 03/09 — those are still sampled.
+        // trace-flags is a bit field; only bit 0 (sampled) is defined. OTel SDKs also set bit 1 (random-trace-id),
+        // emitting 03/09, which are still sampled.
         expect(parseTraceparent(`00-${TID}-${SID}-00`)?.sampled).toBe(false);
         expect(parseTraceparent(`00-${TID}-${SID}-01`)?.sampled).toBe(true);
         expect(parseTraceparent(`00-${TID}-${SID}-02`)?.sampled).toBe(false); // random bit only

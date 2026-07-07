@@ -1,12 +1,10 @@
 export type FetchInput = string | URL | Request;
 
 /**
- * Decide whether a W3C `traceparent` header may be attached to `url`.
- * Default: same-origin + relative (`abs`, the caller's already-parsed URL, is
- * compared by origin; null -> not same-origin, matching a failed parse).
- * With `targets`: match by String.includes (string entry) or RegExp.test
- * against the raw `url`. `targets: []` disables everything.
- * Mirrors OTel/Sentry `tracePropagationTargets` semantics.
+ * Decide whether a W3C `traceparent` header may attach to `url`. Mirrors OTel/Sentry
+ * `tracePropagationTargets` semantics.
+ * Default: same-origin (`abs` compared by origin; null counts as not same-origin).
+ * With `targets`: String.includes (string) or RegExp.test against raw `url`; `[]` disables all.
  */
 export function shouldPropagate(
     url: string,
@@ -22,11 +20,9 @@ export function shouldPropagate(
 }
 
 /**
- * Snapshot an iterable HeadersInit (Map, URLSearchParams, cross-realm Headers)
- * into an array of string pairs. Returns null when iteration throws or yields
- * a malformed entry; callers must then pass the source through untouched so a
- * bad merge never breaks the host request (fetch will reject it the same way
- * it would have without tracing).
+ * Snapshot an iterable HeadersInit (Map, URLSearchParams, cross-realm Headers) into string
+ * pairs. Returns null on a throwing/malformed entry; callers must then pass the source through
+ * untouched so a bad merge never breaks the host request.
  */
 function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
     try {
@@ -44,15 +40,12 @@ function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
 }
 
 /**
- * Return a NEW `RequestInit` carrying `traceparent`, without mutating the
- * caller's `Request` or `init` — UNLESS the caller already supplied its own
- * `traceparent` (any case), in which case this is caller-wins: `init` is
- * returned UNCHANGED (possibly `undefined`) and nothing is injected, matching
- * XHR's `hasAppTraceparent` skip. Handles fetch's headers shapes (Headers,
- * pair arrays, other pair iterables, plain records) plus the `Request`-input
- * case. When Flare does inject, the returned init is passed as the second
- * fetch arg so the spec's override semantics put the header on the wire while
- * leaving the caller's `Request` (and its single-shot body) intact.
+ * Return a new `RequestInit` carrying `traceparent` without mutating the caller's `Request` or
+ * `init`. Caller-wins: if the caller already set `traceparent` (any case), `init` is returned
+ * unchanged (possibly undefined) and nothing is injected, matching XHR's `hasAppTraceparent` skip.
+ * Handles all fetch headers shapes (Headers, pair arrays, other pair iterables, plain records) plus
+ * the `Request`-input case. On inject, the init is passed as fetch's second arg so the header lands
+ * on the wire while the caller's `Request` (and its single-shot body) stays intact.
  */
 export function mergeTraceparentHeader(
     input: FetchInput,
@@ -62,11 +55,9 @@ export function mergeTraceparentHeader(
     const source: HeadersInit | undefined =
         init?.headers ?? (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
 
-    // Caller-wins is decided WITHIN each shape branch below, alongside injection, so every
-    // source is walked at most once. A separate detect-then-inject pass would walk a pair-
-    // iterable source (Map, URLSearchParams, cross-realm Headers, a generator) twice; for a
-    // genuine one-shot iterator the first walk exhausts it, so the second sees nothing and
-    // silently drops every caller header.
+    // Caller-wins is decided within each shape branch below, alongside injection, so every source
+    // is walked at most once. A separate detect-then-inject pass would walk a pair-iterable source
+    // twice; a one-shot iterator's first walk exhausts it, so the second drops every caller header.
     let headers: HeadersInit;
     if (source instanceof Headers) {
         if (source.has('traceparent')) return init; // caller-wins
@@ -76,10 +67,9 @@ export function mergeTraceparentHeader(
         if (source.some(([k]) => String(k).toLowerCase() === 'traceparent')) return init; // caller-wins
         headers = [...source, ['traceparent', traceparent]];
     } else if (source && typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
-        // Fetch's WebIDL conversion accepts ANY iterable of string pairs as
-        // HeadersInit: Map, URLSearchParams, polyfilled or cross-realm Headers.
-        // Those have no enumerable own properties, so the record branch below
-        // would see an empty object and silently drop every caller header.
+        // Fetch's WebIDL conversion accepts any iterable of string pairs as HeadersInit (Map,
+        // URLSearchParams, polyfilled/cross-realm Headers). Those have no enumerable own props,
+        // so the record branch below would see an empty object and drop every caller header.
         const pairs = headerPairsFrom(source as unknown as Iterable<unknown>);
         if (pairs === null) {
             headers = source; // throwing/malformed -> passthrough (inject nothing)
@@ -98,8 +88,8 @@ export function mergeTraceparentHeader(
     }
 
     const result: RequestInit = { ...init, headers };
-    // A Request with a ReadableStream body requires `duplex` when re-issued with an
-    // init; without it fetch throws and breaks a host request that worked pre-tracing.
+    // A Request with a ReadableStream body requires `duplex` when re-issued with an init;
+    // without it fetch throws and breaks a host request that worked pre-tracing.
     if (
         (result as RequestInit & { duplex?: string }).duplex === undefined &&
         typeof Request !== 'undefined' &&

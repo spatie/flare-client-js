@@ -157,11 +157,9 @@ describe('createFetchWrapper', () => {
 describe('instrumentFetch / unpatchFetch on globalThis', () => {
     it('patches global fetch when native, then restores it', async () => {
         const g = globalThis as { fetch: typeof fetch };
-        // `isNativeFetch` checks `Function.prototype.toString.call(fn)`, which ignores an own
-        // `fn.toString` override (the "not fooled by a spoofed toString" guarantee covered by
-        // supportsNativeFetch.test.ts). A bound function genuinely reports `[native code]` from that
-        // prototype method, so it's detected as native without any global mutation. The `.bind` is
-        // load-bearing for exactly that reason, not redundant.
+        // `isNativeFetch` uses `Function.prototype.toString.call(fn)`, ignoring an own `fn.toString`
+        // override. A bound function reports `[native code]` from that prototype method, so it's
+        // detected as native without global mutation. The `.bind` is load-bearing, not redundant.
         // oxlint-disable-next-line no-extra-bind
         const native = (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
         const before = g.fetch;

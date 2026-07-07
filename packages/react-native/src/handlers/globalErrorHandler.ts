@@ -14,22 +14,16 @@ function getErrorUtils(): ErrorUtilsLike | undefined {
 }
 
 /**
- * Wrap RN's `ErrorUtils` global handler. The wrapper reports the error and then
- * delegates to the previously-registered handler, so React Native's own behavior
- * (red box in dev, process crash in prod) is preserved — we observe, we do not
- * swallow. No-op when `ErrorUtils` is unavailable.
+ * Wrap RN's `ErrorUtils` global handler. The wrapper reports the error then delegates to the previous
+ * handler, preserving RN's own behavior (red box in dev, crash in prod): observe, don't swallow. No-op
+ * when `ErrorUtils` is absent.
  *
- * Fatal delivery (`onFatal`). On a FATAL error in a PRODUCTION bundle the
- * previous handler is what tears the app down, and our report is an async
- * `fetch` the OS would kill the instant the app dies — so a bare report almost
- * never sends. When `onFatal` is supplied we DEFER the previous handler until
- * `onFatal()` settles; it drains the transport via core's `flush(timeoutMs)`,
- * buying the report time to send before the crash. RN does not crash on its own
- * (the default handler triggers it), so deferring the delegate genuinely delays
- * the crash. This mirrors Sentry's React Native SDK. It is skipped in `__DEV__`
- * (don't fight the red box / debugger) and guarded by a re-entrancy latch, so a
- * second fatal arriving mid-flush delegates immediately rather than racing two
- * shutdowns.
+ * Fatal delivery (`onFatal`): on a fatal error in production, the previous handler tears the app down and
+ * our report is an async `fetch` the OS kills the instant the app dies, so a bare report rarely sends. When
+ * `onFatal` is supplied we defer the previous handler until it settles, draining the transport via core's
+ * `flush(timeoutMs)` first. Skipped in `__DEV__` (don't fight the red box / debugger) and guarded by a
+ * re-entrancy latch, so a second fatal arriving mid-flush delegates immediately rather than racing two
+ * shutdowns. Mirrors Sentry's RN SDK.
  *
  * Returns an uninstaller that restores the previous handler.
  */
@@ -47,7 +41,7 @@ export function installGlobalErrorHandler(
         try {
             report(convertToError(error), Boolean(isFatal));
         } catch {
-            // Reporting must never prevent RN's own error handling below.
+            // Reporting must never block RN's own error handling below.
         }
 
         if (isFatal && onFatal && !inDevMode() && !handlingFatal) {
@@ -55,11 +49,9 @@ export function installGlobalErrorHandler(
             void onFatal()
                 .catch(() => {})
                 .then(() => {
-                    // Delegate to the crash-triggering handler with the latch STILL
-                    // set, then clear it. In production `previous` tears the app down
-                    // so the latch never reopens; in a dev/test setup where `previous`
-                    // returns, a fatal arriving during it still delegates immediately
-                    // instead of starting a second flush cycle.
+                    // Delegate to the crash-triggering handler with the latch still set, then clear it. In
+                    // production `previous` tears the app down so the latch never reopens; if `previous`
+                    // returns (dev/test), a fatal during it delegates immediately, not a second flush cycle.
                     try {
                         previous?.(error, isFatal);
                     } finally {
@@ -75,9 +67,8 @@ export function installGlobalErrorHandler(
     errorUtils.setGlobalHandler(handler);
 
     return () => {
-        // No ErrorUtils API exists to clear a handler, so when there was no
-        // previous one we restore a swallowing no-op. RN always installs a
-        // default handler, so `previous` is effectively never undefined.
+        // No ErrorUtils API clears a handler, so with no previous one we restore a swallowing no-op. RN
+        // always installs a default handler, so `previous` is effectively never undefined.
         errorUtils.setGlobalHandler(previous ?? (() => {}));
     };
 }

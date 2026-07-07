@@ -9,9 +9,9 @@ type FatalOptions = {
 };
 
 /**
- * Fatal callbacks for Electron main. Mirrors @flareapp/node's buildFatalCallbacks but exits via
- * the injected `exit` (defaulting to app.exit at the call site), which is immediate and skips
- * before-quit/will-quit, correct after an uncaught exception.
+ * Fatal callbacks for Electron main. Mirrors @flareapp/node's buildFatalCallbacks but exits via the
+ * injected `exit` (app.exit at the call site), which is immediate and skips before-quit/will-quit,
+ * correct after an uncaught exception.
  */
 export function buildFatalCallbacks(flare: Flare, getOpts: () => FatalOptions, exit: (code: number) => void) {
     return {
@@ -26,10 +26,8 @@ export function buildFatalCallbacks(flare: Flare, getOpts: () => FatalOptions, e
             } catch {
                 // swallow
             }
-            // Only drain other in-flight reports when we're about to exit. In
-            // 'report' mode the process keeps running, so those reports settle
-            // on their own and flushing here would just waste time. Mirrors
-            // onRejection.
+            // Only drain other in-flight reports when about to exit. In 'report' mode the process
+            // keeps running, so they settle on their own. Mirrors onRejection.
             if (opts.uncaughtExceptionMode === 'report-and-exit') {
                 await flare.flush(opts.shutdownTimeoutMs);
                 exit(1);
@@ -60,9 +58,8 @@ type Callbacks = {
 };
 
 /**
- * Owns the lifecycle of the two process-level error listeners for the Electron main process.
- * Mirrors node's ProcessHandlerManager. Attach/detach the two process listeners, reconciling
- * against the desired modes.
+ * Owns the lifecycle of the two process-level error listeners for the Electron main process,
+ * reconciling attach/detach against the desired modes. Mirrors node's ProcessHandlerManager.
  */
 export class ProcessHandlerManager {
     private uncaughtHandler: ((err: unknown, origin: string) => void) | null = null;

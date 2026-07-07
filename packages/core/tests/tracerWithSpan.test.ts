@@ -124,8 +124,8 @@ describe('Tracer.withSpan', () => {
     it('detects a thenable (not just instanceof Promise) and sets Error on rejection', async () => {
         const tracer = makeTracer();
         let captured: Span | undefined;
-        // A thenable that is NOT a Promise instance; instanceof Promise would miss it,
-        // take the sync path, and leave status Unset (code 0) — this test catches that.
+        // A thenable that is not a Promise instance; instanceof Promise would miss it, take the sync path, and leave
+        // status Unset (code 0). This test catches that.
         const rejecting = Promise.reject(new Error('thenable-boom'));
         // eslint-disable-next-line unicorn/no-thenable
         const thenable = { then: (res: unknown, rej: unknown) => rejecting.then(res as never, rej as never) }; // oxlint-disable-line unicorn/no-thenable

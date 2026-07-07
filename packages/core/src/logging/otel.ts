@@ -1,8 +1,9 @@
 import type { AnyValue, AttributeValue, Attributes, KeyValue } from '../types';
 
-// `inPath` tracks ancestors on the current branch only (added on enter, removed on
-// exit), mirroring flatJsonStringify's decycle. A global "seen" set would mis-flag
-// the same object referenced twice in sibling branches as circular.
+/**
+ * `inPath` tracks ancestors on the current branch only (added on enter, removed on exit), mirroring
+ * flatJsonStringify's decycle. A global "seen" set would mis-flag an object referenced twice in sibling branches.
+ */
 export function valueToOpenTelemetry(value: AttributeValue, inPath: WeakSet<object> = new WeakSet()): AnyValue | null {
     if (typeof value === 'string') return { stringValue: value };
     if (typeof value === 'boolean') return { boolValue: value };

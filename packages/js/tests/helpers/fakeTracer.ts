@@ -30,10 +30,9 @@ export function fakeSpan() {
 }
 
 /**
- * `startSpan` creates a FRESH fake span per call (each with its own `calls`), pushing every
- * one's `calls` onto `spans` in call order so multi-request tests can inspect span A vs span B
- * independently. `span`/`calls` still point at the first span so every single-request test can
- * keep using them unchanged.
+ * `startSpan` creates a fresh fake span per call (each with its own `calls`), pushing every one's
+ * `calls` onto `spans` in call order so multi-request tests can inspect span A vs span B. `span`
+ * and `calls` still point at the first span so single-request tests keep using them unchanged.
  */
 export function makeTracer(overrides: Partial<Config> = {}) {
     const first = fakeSpan();

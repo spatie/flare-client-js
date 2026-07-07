@@ -24,8 +24,10 @@ export type FlareReactErrorHandlerOptions = {
     }) => void;
 };
 
-// Returns a callback shaped to match react-error-boundary's `onError` prop, so consumers using
-// that library can report to Flare without wrapping their app in our own boundary.
+/**
+ * Callback shaped to match react-error-boundary's `onError` prop, so consumers using that library
+ * can report to Flare without our own boundary.
+ */
 export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions): FlareReactErrorHandlerCallback {
     const flare = resolveFlare(options?.flare);
     tagReactFramework(flare);
@@ -46,7 +48,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        // See FlareErrorBoundary: rejection is swallowed so the reporter can't crash the host.
+        // See FlareErrorBoundary: rejection swallowed so the reporter can't crash the host.
         flare.reportSilently(errorObject, contextToAttributes(finalContext));
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });

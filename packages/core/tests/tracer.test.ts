@@ -199,8 +199,8 @@ describe('Tracer.startSpan', () => {
     });
 
     it('runs the sampler for a plain parent with unknown recording state (no default-to-recording)', () => {
-        // A manually stitched {traceId, spanId} parent carries no recording decision.
-        // With tracesSampleRate 0 the child must be sampled out, not assumed recording.
+        // A manually stitched {traceId, spanId} parent carries no recording decision, so at tracesSampleRate 0 the
+        // child must be sampled out, not assumed recording.
         const tracer = makeTracer(config({ tracesSampleRate: 0 }));
         const child = tracer.startSpan('child', {
             parent: { traceId: 'f'.repeat(32), spanId: 'e'.repeat(16) },
@@ -274,8 +274,8 @@ describe('defaultNowNano', () => {
     });
 
     it('falls back to Date.now() when performance.timeOrigin is missing (no NaN)', () => {
-        // Some environments (older Safari, some Hermes builds) expose performance.now
-        // without timeOrigin; timeOrigin + now() would be NaN there.
+        // Some environments (older Safari, some Hermes builds) expose performance.now without timeOrigin; timeOrigin +
+        // now() would be NaN there.
         vi.stubGlobal('performance', { now: () => 5 });
         const before = Date.now() * 1e6;
         const value = defaultNowNano();

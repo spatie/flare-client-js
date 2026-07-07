@@ -1,8 +1,5 @@
 // @vitest-environment node
-/**
- * Tests that collectBrowser is safe to call in a Node (SSR) environment
- * where `window` is not defined.
- */
+/** collectBrowser is safe to call in a Node (SSR) environment where `window` is undefined. */
 import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 import { describe, expect, it } from 'vitest';
 

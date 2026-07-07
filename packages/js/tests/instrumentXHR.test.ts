@@ -140,9 +140,8 @@ describe('createXHR* wrappers', () => {
 
     it("still injects Flare's traceparent when the apps own setRequestHeader throws (Finding 6)", () => {
         const { tracer } = makeTracer();
-        // The native setRequestHeader throws for a forbidden value (e.g. a stray newline from
-        // interpolation); the app's header never lands. Flare's own tp value is well-formed, so
-        // it must not trip the same throw.
+        // Native setRequestHeader throws for a forbidden value (e.g. a stray newline); the app's
+        // header never lands. Flare's own tp value is well-formed, so it must not trip the throw.
         const { xhr, headers } = instrument(tracer, {
             headerThrows: (name, value) => name.toLowerCase() === 'traceparent' && value === 'bad\nvalue',
         });

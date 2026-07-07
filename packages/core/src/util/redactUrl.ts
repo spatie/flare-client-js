@@ -1,6 +1,5 @@
-// Matched against query-string keys (and, in framework SDKs, against prop/route-param keys).
-// Values for matching keys are replaced with [redacted] before the data is sent to Flare so
-// credentials/PII don't leak in error reports.
+// Matched against query-string keys (and, in framework SDKs, prop/route-param keys). Values for matching keys are
+// replaced with [redacted] before sending so credentials/PII don't leak in error reports.
 export const DEFAULT_URL_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 

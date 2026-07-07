@@ -62,9 +62,8 @@ describe('Logger record/buffer', () => {
     });
 
     it('drops a single record larger than logFlushMaxBytes at capture', () => {
-        // Cap sits above a minimal record's serialized size (~140B incl. timestamp,
-        // severity, empty attribute maps) but below the 500-char record (~640B), so
-        // only the big one is dropped at capture.
+        // Cap sits above a minimal record (~140B) but below the 500-char record (~640B), so only the big one is
+        // dropped at capture.
         const logger = makeLogger(makeConfig({ logFlushMaxBytes: 300, maxLogBufferSize: 100 }));
         logger.info('x'.repeat(500));
         expect(logger.bufferLength()).toBe(0);
@@ -73,9 +72,8 @@ describe('Logger record/buffer', () => {
     });
 
     it('trims oldest records past maxLogBufferSize (keyless, so the count-cap flush no-ops)', () => {
-        // With a key, hitting the count cap would flush-and-clear, so the buffer
-        // would never accumulate to the cap. key: null makes flush no-op, so the
-        // hard trim is what bounds the buffer — which is exactly what we assert.
+        // With a key, hitting the count cap would flush-and-clear so the buffer never reaches the cap. key: null makes
+        // flush a no-op, so the hard trim is what bounds the buffer, which is what we assert.
         const logger = makeLogger(makeConfig({ key: null, maxLogBufferSize: 3, logFlushIntervalMs: 999_999 }));
         for (let i = 0; i < 10; i++) logger.info(`m${i}`);
         expect(logger.bufferLength()).toBe(3);
@@ -169,7 +167,7 @@ describe('Logger triggers', () => {
         expect(bodies).toContainEqual({ stringValue: 'small-1' });
         expect(bodies).toContainEqual({ stringValue: 'small-2' });
         expect(bodies.some((b) => 'stringValue' in b && b.stringValue.length > 1000)).toBe(false);
-        // The over-budget record is not dropped — a backgrounded tab may resume.
+        // The over-budget record is not dropped; a backgrounded tab may resume.
         expect(logger.bufferLength()).toBe(1);
     });
 
@@ -181,8 +179,8 @@ describe('Logger triggers', () => {
         );
         logger.info('x'.repeat(5000)); // > keepaliveMaxBytes, < logFlushMaxBytes
 
-        // visibilitychange:hidden on a backgrounded (not unloading) tab. Nothing fits
-        // the keepalive budget, so no envelope ships and the record must survive.
+        // visibilitychange:hidden on a backgrounded (not unloading) tab. Nothing fits the keepalive budget, so no
+        // envelope ships and the record must survive.
         logger.flush({ keepalive: true });
         expect(api.logEnvelopes).toHaveLength(0);
         expect(logger.bufferLength()).toBe(1);
@@ -213,9 +211,8 @@ describe('Logger triggers', () => {
 
     it('weight cap flushes-and-clears with a key (ships, does not trim away)', () => {
         const api = new FakeApi();
-        // logFlushMaxBytes chosen so a SINGLE record stays under it (no oversized
-        // drop at capture), but TWO cross it — so the 2nd push fires the weight
-        // trigger. Each ~250-char message serializes to ~380B incl. envelope keys.
+        // logFlushMaxBytes chosen so a single record stays under it (no oversized drop), but two cross it, so the 2nd
+        // push fires the weight trigger. Each ~250-char message serializes to ~380B incl. envelope keys.
         const logger = makeLogger(
             makeConfig({ logFlushMaxBytes: 700, maxLogBufferSize: 100, logFlushIntervalMs: 999_999 }),
             api,

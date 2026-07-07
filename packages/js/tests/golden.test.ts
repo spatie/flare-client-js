@@ -67,9 +67,8 @@ test('emits the canonical golden report shape', async () => {
 
     const actual = fakeApi.lastReport!;
 
-    // Stacktrace codeSnippet depends on whether the test environment can
-    // fetch the source file -- strip it before snapshotting to keep the
-    // fixture machine-independent.
+    // codeSnippet depends on whether the test environment can fetch the source file; strip it
+    // before snapshotting to keep the fixture machine-independent.
     for (const frame of actual.stacktrace) {
         delete frame.codeSnippet;
     }
