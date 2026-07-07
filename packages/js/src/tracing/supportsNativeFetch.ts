@@ -4,11 +4,10 @@ export function isNativeFetch(fn: unknown): boolean {
 }
 
 /**
- * Whether the current global `fetch` is native. A polyfilled fetch (e.g.
- * whatwg-fetch) is XHR-backed; we skip instrumenting it so the future XHR patch
- * is the single source for those requests. Ported from Sentry's
- * supportsNativeFetch, including the hidden-iframe fallback used when another
- * library has already wrapped `fetch` so the direct toString check is unreliable.
+ * Whether the current global `fetch` is native. A polyfilled fetch (e.g. whatwg-fetch) is
+ * XHR-backed; skip instrumenting it so the XHR patch is the single source for those requests.
+ * Ported from Sentry, including the hidden-iframe fallback used when another library has already
+ * wrapped `fetch` and the direct toString check is unreliable.
  */
 export function supportsNativeFetch(): boolean {
     const g = globalThis as { fetch?: unknown; document?: Document };

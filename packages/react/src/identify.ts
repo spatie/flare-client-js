@@ -3,12 +3,12 @@ import * as React from 'react';
 
 import { PACKAGE_VERSION } from './constants';
 
-// Per-instance guards. A boolean cannot serve injection: with a singleton AND an
-// injected RendererFlare, each instance must be tagged independently.
+// Per-instance guards. A boolean can't serve injection: with a singleton and an injected
+// RendererFlare, each instance must be tagged independently.
 const sdkTagged = new WeakSet<object>();
 const frameworkTagged = new WeakSet<object>();
 
-// Web path: full identity on the default singleton (sdk + framework).
+/** Web path: full identity on the default singleton (sdk + framework). */
 export function registerReactSdkIdentity(flare: Flare): void {
     if (!sdkTagged.has(flare)) {
         sdkTagged.add(flare);
@@ -17,8 +17,10 @@ export function registerReactSdkIdentity(flare: Flare): void {
     tagReactFramework(flare);
 }
 
-// Injected path: framework tag ONLY. Never touch sdkInfo — that would clobber the
-// injected instance's own SDK name (e.g. @flareapp/electron).
+/**
+ * Injected path: framework tag only. Never touch sdkInfo, which would clobber the injected
+ * instance's own SDK name (e.g. @flareapp/electron).
+ */
 export function tagReactFramework(flare: Flare): void {
     if (frameworkTagged.has(flare)) {
         return;

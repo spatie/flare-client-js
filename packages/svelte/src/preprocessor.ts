@@ -54,11 +54,9 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
-            // Skip a script the markup hook already injected. For a scriptless component the markup
-            // hook adds a `<script>` with our registration; Svelte then runs THIS script hook over
-            // that injected block within the same preprocessor pass. Without this guard we inject a
-            // second time, producing a duplicate `const __flare_node__` -> "already been declared"
-            // compile error.
+            // For a scriptless component the markup hook adds a `<script>` with our registration,
+            // then Svelte runs this script hook over that injected block in the same pass. Without
+            // this guard we inject a second `const __flare_node__` -> "already been declared" error.
             if (content.includes('__flare_node__')) {
                 return;
             }

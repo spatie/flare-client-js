@@ -11,10 +11,9 @@ export type ResolveVersionOptions = {
 };
 
 /**
- * Resolve the sourcemap version shared by the Babel plugin and the CLI.
- * Precedence: explicit `version` > `FLARE_SOURCEMAP_VERSION` env > package.json
- * `version` (with a warning). Never a random value — a random default would
- * silently desync the inlined runtime value from the uploaded `version_id`.
+ * Resolve the sourcemap version shared by the Babel plugin and the CLI. Precedence: explicit
+ * `version` > `FLARE_SOURCEMAP_VERSION` env > package.json `version` (with a warning). Never random: a
+ * random default would silently desync the inlined runtime value from the uploaded `version_id`.
  */
 export function resolveVersion({ version, cwd = process.cwd() }: ResolveVersionOptions = {}): string {
     if (version) {
@@ -43,13 +42,11 @@ export function resolveVersion({ version, cwd = process.cwd() }: ResolveVersionO
 }
 
 /**
- * Version resolution for the AUTOMATIC native upload path. Unlike resolveVersion it
- * NEVER falls back to package.json: the hook runs in android/ or ios/, a different
- * cwd than Metro, so a package.json fallback would read a different (or missing)
- * file and silently desync from the version the Babel plugin inlined. The only
- * input guaranteed identical to both halves is FLARE_SOURCEMAP_VERSION. Returns
- * null when unresolved so the caller can skip-with-banner rather than upload a
- * guaranteed-mismatched map.
+ * Version resolution for the automatic native upload path. Unlike resolveVersion, never falls back to
+ * package.json: the hook runs in android/ or ios/ (a different cwd than Metro), so a package.json
+ * fallback would read a different or missing file and desync from the version the Babel plugin
+ * inlined. FLARE_SOURCEMAP_VERSION is the only input guaranteed identical to both halves. Returns null
+ * when unresolved so the caller can skip-with-banner rather than upload a mismatched map.
  */
 export function resolveAutoVersion(version?: string): string | null {
     if (version) {

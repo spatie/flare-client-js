@@ -47,11 +47,10 @@ describe('addUploadBuildPhase', () => {
         expect(serialised).toContain('flare-marker');
     });
 
-    // The in-memory checks above say nothing about whether the phase survives being
-    // written back to the pbxproj text format — the xcode lib quote-escapes shellScript
-    // (`'"' + script.replace(/"/g,'\\"') + '"'`), and our real script is multi-line with
-    // embedded quotes, which is exactly where that lib is fragile. writeSync() exercises
-    // the serializer end to end.
+    // The in-memory checks above don't prove the phase survives serialization to pbxproj text. The
+    // xcode lib quote-escapes shellScript (`'"' + script.replace(/"/g,'\\"') + '"'`), and our real
+    // script is multi-line with embedded quotes, exactly where that lib is fragile. writeSync()
+    // exercises the serializer end to end.
     test('survives pbxproj serialization (writeSync)', () => {
         const project = parseFixture();
         addUploadBuildPhase(project, 'set -e\necho "flare-marker"\n');
@@ -60,8 +59,8 @@ describe('addUploadBuildPhase', () => {
         expect(pbxproj).toContain('flare-marker');
     });
 
-    // "Based on dependency analysis" unchecked → no "ambiguous dependencies / runs on
-    // every build" warning from Xcode. Serialized as `alwaysOutOfDate = 1`.
+    // "Based on dependency analysis" unchecked, no "ambiguous dependencies / runs on every build"
+    // warning from Xcode. Serialized as `alwaysOutOfDate = 1`.
     test('marks the phase always-out-of-date so Xcode does not warn', () => {
         const project = parseFixture();
         addUploadBuildPhase(project, 'echo flare');

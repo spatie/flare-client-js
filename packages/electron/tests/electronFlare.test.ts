@@ -11,7 +11,7 @@ function fakeApp() {
         isReady: () => true,
         isPackaged: false,
         on: vi.fn(),
-        // off is needed once Task 11 makes the constructor attach crash listeners and dispose() detach them.
+        // off is needed: the constructor attaches crash listeners and dispose() detaches them.
         off: vi.fn(),
     };
 }
@@ -253,8 +253,8 @@ describe('ElectronFlare', () => {
 
         const handler = ipcMain.handlers['flare:report'];
         const reportJson = JSON.stringify({ seenAtUnixNano: 2, stacktrace: [], events: [], attributes: {} });
-        // A report from a trusted file: sender should be accepted (trustedProtocols.includes must not throw,
-        // byte cap must still be active). If defaults were clobbered this line would throw.
+        // A trusted file: sender is accepted; if defaults were clobbered, trustedProtocols.includes
+        // would throw here.
         await handler({ senderFrame: { url: 'file:///a.html' } }, reportJson);
 
         expect(sent.length).toBe(1);

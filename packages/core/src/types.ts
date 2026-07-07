@@ -5,14 +5,10 @@ export type AttributeValue = string | number | boolean | null | AttributeValue[]
 export type Attributes = Record<string, AttributeValue>;
 
 /**
- * An identified user passed to `Flare.setUser`. The four known fields project to the
- * report keys the Flare backend reads: `id`→`user.id`, `email`→`user.email`,
- * `fullName`→`user.full_name`, `ipAddress`→`client.address`. Any OTHER key is bundled
- * into `user.attributes`.
- *
- * Caveat: the open index signature means a misspelled known field (e.g. `fullname` or
- * `full_name` instead of `fullName`) does NOT raise a type error — it silently lands in
- * `user.attributes` rather than the identity key. Spell the four known fields exactly.
+ * An identified user passed to `Flare.setUser`. Known fields project to the backend keys: `id`->`user.id`,
+ * `email`->`user.email`, `fullName`->`user.full_name`, `ipAddress`->`client.address`. Any other key lands in
+ * `user.attributes`. Caveat: the open index signature means a misspelled known field (e.g. `full_name` for `fullName`)
+ * silently lands in `user.attributes` with no type error. Spell the four known fields exactly.
  */
 export type User = {
     id?: string | number;
@@ -47,11 +43,9 @@ export type Config = {
     tracesSampleRate: number;
     tracesSampler?: TracesSampler;
     /**
-     * URLs to which a W3C `traceparent` header may be attached on outgoing
-     * requests. Default (unset): same-origin + relative only. `[]` disables
-     * all injection. Each entry matches by String.includes (string) or
-     * RegExp.test. Note: attaching `traceparent` cross-origin forces a CORS
-     * preflight; the target server must allow the `traceparent` request header.
+     * URLs a W3C `traceparent` header may be attached to on outgoing requests. Default (unset): same-origin + relative
+     * only; `[]` disables all injection. Each entry matches by String.includes (string) or RegExp.test. Attaching
+     * cross-origin forces a CORS preflight; the target server must allow the `traceparent` request header.
      */
     tracePropagationTargets?: (string | RegExp)[];
     /** Idle-span: ms of no open child spans before a pageload/navigation root closes. Browser default 1000. */
@@ -131,7 +125,7 @@ export type SdkInfo = { name: string; version: string };
 
 export type Framework = { name: string; version?: string };
 
-// --- Logging ---
+// Logging
 
 export type AnyValue =
     | { stringValue: string }
@@ -180,7 +174,7 @@ export type BufferedLog = {
     resourceAttributes: Attributes;
 };
 
-// --- Tracing ---
+// Tracing
 
 export type SpanStatusCode = 0 | 1 | 2; // Unset | Ok | Error (OTel)
 
@@ -244,7 +238,7 @@ export type BufferedSpan = {
 export type OtelSpan = {
     traceId: string;
     spanId: string;
-    parentSpanId: string | null; // ALWAYS present; null for roots
+    parentSpanId: string | null; // always present; null for roots
     name: string;
     startTimeUnixNano: number;
     endTimeUnixNano: number;

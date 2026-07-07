@@ -20,8 +20,8 @@ import { parseTraceparent } from './traceparent';
 
 export const defaultNowNano = (): number => {
     const perf = (globalThis as { performance?: Performance }).performance;
-    // timeOrigin is missing in some environments (older Safari, some Hermes builds
-    // and polyfills); undefined + now() would yield NaN timestamps on every span.
+    // timeOrigin is missing in some environments (older Safari, some Hermes builds/polyfills); undefined + now() would
+    // yield NaN timestamps on every span. Fall back to Date.now().
     const ms =
         perf && typeof perf.now === 'function' && typeof perf.timeOrigin === 'number'
             ? perf.timeOrigin + perf.now()
@@ -88,8 +88,7 @@ export class Tracer {
     }
 
     setActiveRoot(span?: Span): void {
-        // setActiveRoot is optional on the holder interface (non-breaking); a holder
-        // that does not support active roots simply ignores it.
+        // setActiveRoot is optional on the holder interface; a holder without active-root support ignores it.
         this.holder.setActiveRoot?.(span);
     }
 
@@ -161,11 +160,9 @@ export class Tracer {
         const config = this.deps.getConfig();
         const spanId = makeSpanId();
 
-        // The pending continuation (continueFromTraceparent) is a strict one-shot for
-        // the NEXT startSpan, whatever that span turns out to be: consumed by a
-        // parentless root, dropped when the span has a parent, dropped when tracing is
-        // disabled. It must never linger and attach a stale remote trace to an
-        // unrelated root later.
+        // Pending continuation (continueFromTraceparent) is a strict one-shot for the NEXT startSpan: consumed by a
+        // parentless root, dropped when the span has a parent or tracing is disabled. Never lingers, so it can't attach
+        // a stale remote trace to an unrelated later root.
         const continuation = this.pendingContinuation;
         this.pendingContinuation = null;
 
@@ -190,8 +187,7 @@ export class Tracer {
         }
         state.openSpanCount++;
 
-        // The Tracer's real "local root" test: this span seeded (or is) the local root of its
-        // TraceState. True for new roots, continued roots (non-null remote parentSpanId), and
+        // "Local root" test: this span seeded (or is) its TraceState's local root. True for new, continued, and
         // foreign-parent roots; false for a child of an already-seen trace.
         const isLocalRoot = state.localRootSpanId === spanId;
         const span = this.makeSpan({ traceId, spanId, parentSpanId, name, recording, isLocalRoot }, opts, config);
@@ -206,23 +202,21 @@ export class Tracer {
         config: Config,
         continuation: { traceId: string; parentSpanId: string; sampled: boolean } | null,
     ): { traceId: string; parentSpanId: string | null; state: TraceState } {
-        // forceRoot: never inherit the ambient active span. A navigation root started
-        // while the app is inside withSpan(...) must not become a mid-trace child.
+        // forceRoot: never inherit the ambient active span. A navigation root started inside withSpan(...) must not
+        // become a mid-trace child.
         let parent = opts.forceRoot ? opts.parent : (opts.parent ?? this.holder.getActive());
 
-        // A Span created before a clear() is stale: it must not parent or re-seed live
-        // state. Plain {traceId, spanId} objects have no epoch and are never stale.
+        // A Span created before a clear() is stale: must not parent or re-seed live state. Plain {traceId, spanId}
+        // objects have no epoch and are never stale.
         if (parent && 'epoch' in parent && (parent as { epoch: number }).epoch !== this.epoch) {
             parent = undefined;
         }
 
         if (parent && 'spanId' in parent && 'traceId' in parent) {
             const traceId = parent.traceId;
-            // A real Span carries its trace's recording decision; a manually stitched
-            // {traceId, spanId} parent does not. Run the sampler instead of assuming
-            // recording, so tracesSampleRate 0 does not still buffer and ship. Lazy so
-            // the sampler (side effects, rng consumption) only runs when new state is
-            // actually seeded.
+            // A real Span carries its trace's recording decision; a manually stitched {traceId, spanId} parent does
+            // not. Run the sampler instead of assuming recording, so tracesSampleRate 0 does not still buffer and ship.
+            // Lazy so the sampler (side effects, rng consumption) only runs when new state is actually seeded.
             const fallbackRecording = (): boolean =>
                 'isRecording' in parent
                     ? (parent as Span).isRecording
@@ -235,8 +229,7 @@ export class Tracer {
             return { traceId, parentSpanId: parent.spanId, state };
         }
 
-        // Continued trace: the continuation was captured and cleared by startSpan
-        // (strict one-shot); a parentless span here adopts it.
+        // Continued trace: continuation captured and cleared by startSpan (one-shot); a parentless span adopts it.
         if (continuation) {
             const ctx: SamplingContext = {
                 name,
@@ -260,8 +253,7 @@ export class Tracer {
     private getOrSeedState(traceId: string, localRootSpanId: string, fallbackRecording: () => boolean): TraceState {
         const existing = this.traceStates.get(traceId);
         if (existing) {
-            // Refresh recency: delete + re-insert so it moves to the most-recent end
-            // of the Map, making eviction true LRU rather than FIFO.
+            // Refresh recency: delete + re-insert moves it to the Map's most-recent end, making eviction true LRU.
             this.traceStates.delete(traceId);
             this.traceStates.set(traceId, existing);
             return existing;
@@ -270,9 +262,8 @@ export class Tracer {
     }
 
     private createState(traceId: string, localRootSpanId: string, recording: boolean): TraceState {
-        // Bounded backstop: an app that never ends spans must not grow the map forever.
-        // The Map is kept in recency order (getOrSeedState refreshes on access), so the
-        // first key is the least-recently-used; evict it when at the cap.
+        // Bounded backstop: an app that never ends spans must not grow the map forever. The Map is kept in recency
+        // order (getOrSeedState refreshes on access), so the first key is the LRU; evict it at the cap.
         if (this.traceStates.size >= this.maxLiveTraces) {
             const lru = this.traceStates.keys().next().value;
             if (lru !== undefined) this.traceStates.delete(lru);
@@ -338,9 +329,8 @@ export class Tracer {
         if (!span.isRecording) return;
         if (!this.deps.getConfig().enableTracing) return; // ended after disable/clear: no buffering
 
-        // Buffering runs inside the app's span.end() call (e.g. the fetch wrapper's
-        // success path). Serializing exotic attribute values must never throw out of
-        // end() and reject a host request; a failed buffer just drops the span.
+        // Buffering runs inside the app's span.end() call (e.g. the fetch wrapper's success path). Serializing exotic
+        // attribute values must never throw out of end() and reject a host request; a failed buffer just drops the span.
         try {
             const record: Attributes = { ...span.scopeAttributes, ...span.attributes };
             const buffered: BufferedSpan = {

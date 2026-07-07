@@ -1,5 +1,5 @@
-// Electron-safe entry. NO @flareapp/js root import, NO default registration. The caller MUST
-// pass `flare` (plugin option / boundary prop); resolveFlare throws at wiring time if absent.
+// Electron-safe entry: no @flareapp/js root import, no default registration. The caller must pass
+// `flare` (plugin option / boundary prop); resolveFlare throws at wiring time if absent.
 export { FlareErrorBoundary } from './FlareErrorBoundary';
 export { flareVue } from './flareVue';
 export { DEFAULT_PROPS_DENYLIST } from './constants';

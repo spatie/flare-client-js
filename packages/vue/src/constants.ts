@@ -4,7 +4,7 @@ import type { ErrorOrigin } from './types';
 
 declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
 
-// Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version).
+/** Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version). */
 export const PACKAGE_VERSION =
     typeof process !== 'undefined' && typeof process.env?.PACKAGE_VERSION !== 'undefined'
         ? process.env.PACKAGE_VERSION
@@ -26,7 +26,7 @@ export const MAX_PROP_ARRAY_LENGTH = 100;
 export const MAX_PROP_OBJECT_KEYS = 100;
 
 export const INFO_TO_ORIGIN: Record<string, ErrorOrigin> = {
-    // Development strings
+    // Development strings.
     'setup function': 'setup',
     'render function': 'render',
     'component update': 'render',
@@ -59,7 +59,7 @@ export const INFO_TO_ORIGIN: Record<string, ErrorOrigin> = {
     'app warnHandler': 'lifecycle',
     'app unmount cleanup function': 'lifecycle',
 
-    // Production codes
+    // Production codes.
     '0': 'setup',
     '1': 'render',
     '2': 'watcher',

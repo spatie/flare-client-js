@@ -31,8 +31,8 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                 );
             }
 
-            // The webpack plugin auto-detects the server compiler (via target/name) and emits
-            // base-free originalFile paths, so registering it for every build is safe.
+            // The webpack plugin auto-detects the server compiler and emits base-free paths, so
+            // registering it for every build is safe.
             config.plugins.push(
                 new FlareWebpackPlugin({
                     apiKey: options.apiKey,
@@ -44,9 +44,8 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                 }),
             );
 
-            // Make sure the server build emits .js.map files so the plugin has something to
-            // upload. Only set this for production server builds, and never override a devtool
-            // the user has already configured.
+            // Emit .js.map for production server builds so the plugin has something to upload.
+            // Never override a devtool the user already configured.
             if (context.isServer && !context.dev && config.devtool == null) {
                 config.devtool = 'source-map';
             }

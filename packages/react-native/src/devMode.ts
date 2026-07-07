@@ -1,6 +1,5 @@
-// `__DEV__` is a React Native global (true in dev bundles, false and
-// dead-code-eliminated in production). Declared here for the type-checker;
-// guarded with `typeof` so non-RN environments (e.g. ESM test runners) are safe.
+// `__DEV__` is an RN global (true in dev bundles, dead-code-eliminated in production). Declared for the
+// type-checker; guarded with `typeof` so non-RN environments (ESM test runners) are safe.
 declare const __DEV__: boolean | undefined;
 
 /** True only in a React Native dev bundle. Safe (false) everywhere else. */

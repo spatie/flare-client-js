@@ -8,12 +8,12 @@ vi.mock('@flareapp/js', () => ({
     flare: {
         report: (...args: unknown[]) => mockReport(...args),
         reportSilently: (...args: unknown[]) => mockReport(...args),
-        // Handler creation now tags the resolved instance — the default mock MUST have these.
+        // Handler creation tags the resolved instance, so the default mock must have these.
         setFramework: vi.fn(),
         setSdkInfo: vi.fn(),
     },
-    // The production code imports convertToError from '@flareapp/core', not this mock. It is kept
-    // here only as a harmless safety net so the mocked '@flareapp/js' surface stays self-contained.
+    // Production imports convertToError from '@flareapp/core', not this mock; kept only as a
+    // safety net so the mocked '@flareapp/js' surface stays self-contained.
     convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
 }));
 import { flare as mockedRoot } from '@flareapp/js';
@@ -401,8 +401,8 @@ describe('flareReactErrorHandler', () => {
         test('resolves the instance once at creation, not per call', () => {
             const injected = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
             // Probe resolution directly. A setFramework-based probe is masked by the per-instance
-            // WeakSet in tagReactFramework (same instance dedupes to one call whether resolved at
-            // creation or per call), so it would pass even with the per-call bug.
+            // WeakSet in tagReactFramework (same instance dedupes to one call either way), so it
+            // would pass even with the per-call bug.
             const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
             const handler = flareReactErrorHandler({ flare: injected });
             handler(new Error('a'), {});

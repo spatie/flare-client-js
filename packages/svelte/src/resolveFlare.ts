@@ -4,8 +4,8 @@ declare const process: { env: Record<string, string | undefined> };
 
 let defaultProvider: (() => Flare) | null = null;
 
-// `process.env.NODE_ENV` is replaced inline by bundlers (vite/webpack). The try/catch keeps a
-// process-less environment safe: treat "undetermined" as production (warn, never crash).
+// `process.env.NODE_ENV` is replaced inline by bundlers. The try/catch keeps a process-less
+// environment safe: treat "undetermined" as production (warn, never crash).
 function isDevMode(): boolean {
     try {
         return process.env.NODE_ENV !== 'production';
@@ -14,10 +14,10 @@ function isDevMode(): boolean {
     }
 }
 
-// Called once by the web entry (index.ts) as an import side effect.
+/** Called once by the web entry (index.ts) as an import side effect. */
 export function registerDefaultFlare(provider: () => Flare): void {
     // Tripwire: a web default registering while the Electron bridge exists means a renderer pulled
-    // the package root — directly, or via component-tracking codegen emitting the root specifier
+    // the package root, directly or via component-tracking codegen emitting the root specifier
     // (set the preprocessor's importSource to '@flareapp/svelte/inject' to avoid that). It drags
     // the keyed @flareapp/js singleton and its global side effects into the renderer.
     if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__flare) {
@@ -25,8 +25,8 @@ export function registerDefaultFlare(provider: () => Flare): void {
             '[flare] @flareapp/svelte (web root) was imported in a renderer where the Electron ' +
             'bridge is present, pulling the keyed @flareapp/js singleton into the renderer. ' +
             "Import @flareapp/svelte/inject (and set the preprocessor importSource to '@flareapp/svelte/inject') instead.";
-        // Dev: throw so the misconfiguration is impossible to miss. Production: warn instead, so a
-        // shipped app isn't crashed by a (recoverable) reporting-setup mistake.
+        // Dev: throw so the misconfiguration can't be missed. Production: warn, so a shipped app
+        // isn't crashed by a recoverable reporting-setup mistake.
         if (isDevMode()) {
             throw new Error(message);
         }
@@ -35,7 +35,7 @@ export function registerDefaultFlare(provider: () => Flare): void {
     defaultProvider = provider;
 }
 
-// Resolve at WIRING time (handler creation / component setup), never inside a report path.
+/** Resolve at wiring time (handler creation / component setup), never inside a report path. */
 export function resolveFlare(explicit?: Flare): Flare {
     if (explicit) {
         return explicit;

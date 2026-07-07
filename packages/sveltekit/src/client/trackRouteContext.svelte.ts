@@ -6,10 +6,9 @@ import { redactQueryParams } from '../redactQueryParams.js';
 let tracking = false;
 
 /**
- * Starts tracking the current SvelteKit route and syncing it to Flare's persistent context.
- * Call once during client-side initialization (e.g. in +layout.svelte or hooks.client.ts).
- * After calling this, every report (including manual flare.report() calls) includes the
- * current route ID, URL, params, and redacted query parameters.
+ * Track the current SvelteKit route, syncing it to Flare's persistent context. Call once during
+ * client init (e.g. +layout.svelte or hooks.client.ts). Every subsequent report (including manual
+ * flare.report() calls) then carries the route ID, URL, params, and redacted query parameters.
  */
 export function trackRouteContext(): void {
     if (tracking) return;
