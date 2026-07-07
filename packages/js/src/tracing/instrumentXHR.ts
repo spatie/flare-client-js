@@ -74,11 +74,15 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
  */
 export function createXHRSetRequestHeader(original: XhrSetHeader): XhrSetHeader {
     return function (this: XMLHttpRequest, name: string, value: string): void {
+        // Call the native setRequestHeader first: if it throws (e.g. a forbidden header value),
+        // the app's header never landed, so we must NOT record hasAppTraceparent — otherwise
+        // send() would suppress Flare's injection and the request would carry no traceparent at
+        // all. The throw itself is the app's own error and is left to propagate untouched.
+        original.call(this, name, value);
         if (typeof name === 'string' && name.toLowerCase() === 'traceparent') {
             const state = xhrState.get(this);
             if (state) state.hasAppTraceparent = true;
         }
-        return original.call(this, name, value);
     };
 }
 

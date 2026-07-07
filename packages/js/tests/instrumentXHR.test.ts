@@ -58,7 +58,7 @@ function makeTracer(overrides: Partial<Config> = {}) {
 }
 
 /** A minimal XMLHttpRequest stand-in that records header/listener calls and can fire readystatechange. */
-function fakeXHR(opts: { sendImpl?: () => void } = {}) {
+function fakeXHR(opts: { sendImpl?: () => void; headerThrows?: (name: string, value: string) => boolean } = {}) {
     const headers: Record<string, string> = {};
     const listeners: Record<string, Array<() => void>> = {};
     const setHeaderSpy = vi.fn();
@@ -70,6 +70,8 @@ function fakeXHR(opts: { sendImpl?: () => void } = {}) {
             opts.sendImpl?.();
         },
         setRequestHeader(name: string, value: string) {
+            // Mirrors the native behavior: a forbidden value throws BEFORE the header is recorded.
+            if (opts.headerThrows?.(name, value)) throw new Error('forbidden header value');
             setHeaderSpy(name, value);
             headers[name.toLowerCase()] = value;
         },
@@ -92,7 +94,10 @@ function fakeXHR(opts: { sendImpl?: () => void } = {}) {
 }
 
 /** Wire the three factories onto a fake XHR instance and return it ready to open/send. */
-function instrument(tracer: HttpTracer, opts: { sendImpl?: () => void } = {}) {
+function instrument(
+    tracer: HttpTracer,
+    opts: { sendImpl?: () => void; headerThrows?: (name: string, value: string) => boolean } = {},
+) {
     const f = fakeXHR(opts);
     const origOpen = f.xhr.open;
     const origSend = f.xhr.send;
@@ -181,6 +186,23 @@ describe('createXHR* wrappers', () => {
 
         // send() must not add a second traceparent header
         expect(setHeaderSpy.mock.calls.some(([name]) => String(name).toLowerCase() === 'traceparent')).toBe(false);
+    });
+
+    it('still injects Flares traceparent when the apps own setRequestHeader throws (Finding 6)', () => {
+        const { tracer } = makeTracer();
+        // The native setRequestHeader throws for a forbidden value (e.g. a stray newline from
+        // interpolation); the app's header never lands. Flare's own tp value is well-formed, so
+        // it must not trip the same throw.
+        const { xhr, headers } = instrument(tracer, {
+            headerThrows: (name, value) => name.toLowerCase() === 'traceparent' && value === 'bad\nvalue',
+        });
+
+        xhr.open('GET', 'https://app.example/api/x');
+        expect(() => xhr.setRequestHeader('traceparent', 'bad\nvalue')).toThrow();
+        xhr.send();
+
+        // The app's header never landed, so send() must NOT treat hasAppTraceparent as set.
+        expect(headers.traceparent).toBe(`00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`);
     });
 
     it('marks error status on HTTP >= 500', () => {
