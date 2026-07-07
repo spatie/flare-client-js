@@ -10,7 +10,8 @@
     },
     "dependencies": {
         "@flareapp/js": "*",
-        "@flareapp/playgrounds-shared": "*"
+        "@flareapp/playgrounds-shared": "*",
+        "axios": "^1.18.1"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
