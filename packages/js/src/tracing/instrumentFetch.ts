@@ -11,9 +11,6 @@ import {
 import { type FetchInput, mergeTraceparentHeader } from './propagation';
 import { supportsNativeFetch } from './supportsNativeFetch';
 
-/** The subset of the Flare surface the fetch wrapper needs. `Flare` satisfies this structurally. */
-export type FetchTracer = HttpTracer;
-
 function resolveRequest(input: FetchInput, init: RequestInit | undefined): { method: string; url: string } {
     let url: string;
     let method = init?.method;
@@ -32,7 +29,7 @@ function resolveRequest(input: FetchInput, init: RequestInit | undefined): { met
  * Pure factory: `origin` is injected (node test env has no `location`), so this
  * is directly unit-testable without a browser.
  */
-export function createFetchWrapper(tracer: FetchTracer, original: typeof fetch, origin: string): typeof fetch {
+export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, origin: string): typeof fetch {
     return function (this: unknown, input: FetchInput, init?: RequestInit): Promise<Response> {
         const call = (i?: RequestInit): Promise<Response> =>
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
@@ -88,7 +85,7 @@ const patcher = createPatcher();
  * no `fetch` or it is not native (a polyfilled/XHR-backed fetch is left for the
  * future XHR patch). Idempotent via `fill`. Reversible via `unpatchFetch`.
  */
-export function instrumentFetch(tracer: FetchTracer): void {
+export function instrumentFetch(tracer: HttpTracer): void {
     if (patcher.installed) return;
 
     const g = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
