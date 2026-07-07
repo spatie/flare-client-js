@@ -158,6 +158,42 @@ describe('registerNavigationSource', () => {
         expect(startSpan.mock.calls[1]![0]).toBe('/b');
     });
 
+    it('a registered source survives a stop/start tracing toggle and still drives navigation', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        // Toggle tracing off then on: stopBrowserTracing deliberately does not
+        // clear navSource, only activeFlare/currentRoot. A brand new Flare session
+        // (fresh startSpan mock) takes over as the active flare.
+        stopBrowserTracing();
+        const { flare: flare2, startSpan: startSpan2, spans: spans2 } = fakeFlare();
+        startBrowserTracing(flare2);
+
+        // The SAME handle still drives navigation, now against the new flare.
+        src.startNavigation({ path: '/b' });
+        expect(startSpan2).toHaveBeenCalledTimes(2); // restarted pageload root + the new nav root
+        const nav = startSpan2.mock.calls[1]!;
+        expect(nav[0]).toBe('/b');
+        expect(nav[1]!.spanType).toBe('browser_navigation');
+        expect(nav[1]!.attributes?.['flare.route.source']).toBe('url');
+
+        // It also renames the now-current root (the '/b' navigation root) on flare2.
+        src.setActiveRouteName({ name: '/x', source: 'route' });
+        expect(spans2[1].span.name).toBe('/x');
+        expect(spans2[1].attrs['flare.entry_point.handler.identifier']).toBe('/x');
+        expect(spans2[1].attrs['flare.route.source']).toBe('route');
+
+        // Built-in History detection is still suppressed after the re-start: a
+        // pushState opens no extra root because navSource survived the toggle.
+        window.history.pushState({}, '', '/c');
+        expect(startSpan2).toHaveBeenCalledTimes(2);
+
+        src.unregister();
+    });
+
     it('operations no-op when tracing is not active', () => {
         const src = registerNavigationSource(); // no startBrowserTracing
         expect(() => {
