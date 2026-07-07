@@ -32,8 +32,15 @@ function fakeSpan() {
     return { span, calls };
 }
 
+/**
+ * `startSpan` creates a FRESH fake span per call (each with its own `calls`), pushing every
+ * one's `calls` onto `spans` in call order so multi-request tests can inspect span A vs span B
+ * independently. `span`/`calls` still point at the first span so every existing single-request
+ * test keeps working unchanged.
+ */
 function makeTracer(overrides: Partial<Config> = {}) {
-    const { span, calls } = fakeSpan();
+    const first = fakeSpan();
+    const spans: Array<ReturnType<typeof fakeSpan>['calls']> = [];
     const config = {
         enableTracing: true,
         ingestUrl: 'https://ingress.flareapp.io/v1/errors',
@@ -41,9 +48,13 @@ function makeTracer(overrides: Partial<Config> = {}) {
         tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
         ...overrides,
     } as unknown as Config;
-    const startSpan = vi.fn((_name: string, _opts?: SpanOptions) => span);
+    const startSpan = vi.fn((_name: string, _opts?: SpanOptions) => {
+        const { span, calls } = spans.length === 0 ? first : fakeSpan();
+        spans.push(calls);
+        return span;
+    });
     const tracer: HttpTracer = { config, startSpan };
-    return { tracer, startSpan, span, calls };
+    return { tracer, startSpan, span: first.span, calls: first.calls, spans };
 }
 
 /** A minimal XMLHttpRequest stand-in that records header/listener calls and can fire readystatechange. */
@@ -290,6 +301,45 @@ describe('createXHR* wrappers', () => {
         // Re-send without an intervening open(): state.ended is already true.
         xhr.send();
 
+        expect(startSpan).toHaveBeenCalledOnce();
+    });
+
+    it('ends the prior span as aborted on a mid-flight re-open, so the next DONE cannot cross-end it (Finding 1)', () => {
+        const { tracer, startSpan, spans } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'https://app.example/api/a');
+        xhr.send();
+
+        // Mid-flight re-open: per WHATWG this terminates /a with no DONE event.
+        xhr.open('GET', 'https://app.example/api/b');
+        xhr.send();
+
+        xhr.fireDone(404);
+
+        const [callsA, callsB] = spans;
+        expect(callsA.ended).toBe(true);
+        expect(callsA.attrs['http.response.status_code']).toBeUndefined();
+        expect(callsA.status).toEqual({ code: 2 });
+
+        expect(callsB.ended).toBe(true);
+        expect(callsB.attrs['http.response.status_code']).toBe(404);
+
+        expect(startSpan).toHaveBeenCalledTimes(2);
+        expect(xhr.listenerCount('readystatechange')).toBe(0);
+    });
+
+    it('ends the prior span when re-opened mid-flight but never re-sent (Finding 1)', () => {
+        const { tracer, startSpan, spans } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'https://app.example/api/a');
+        xhr.send();
+
+        // Re-open mid-flight, but never send /b.
+        xhr.open('GET', 'https://app.example/api/b');
+
+        expect(spans[0].ended).toBe(true);
         expect(startSpan).toHaveBeenCalledOnce();
     });
 });

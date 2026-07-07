@@ -11,7 +11,8 @@ type XhrSetHeader = XMLHttpRequest['setRequestHeader'];
 type XhrState = {
     method: string;
     url: string;
-    span?: Span;
+    span?: Span; // set at send; nulled once the span ends (Finding 9: no dangling Span ref)
+    onDone?: () => void; // the readystatechange listener; set at send; nulled once detached
     hasAppTraceparent: boolean;
     ended: boolean;
 };
@@ -25,6 +26,24 @@ const xhrState = new WeakMap<XMLHttpRequest, XhrState>();
 /** Patch `open` to capture method/URL. Bails (records no state) when either is missing. */
 export function createXHROpen(original: XhrOpen): XhrOpen {
     return function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
+        // WHATWG: calling open() on an in-flight request terminates it with NO DONE
+        // readystatechange. If we left the prior span/listener in place, the NEXT request's
+        // DONE would fire both listeners and cross-end the prior span with this one's status
+        // (Finding 1). End it now, as aborted, and detach its listener before it can happen.
+        const prior = xhrState.get(this);
+        if (prior && prior.span && !prior.ended) {
+            prior.ended = true;
+            if (prior.onDone) this.removeEventListener('readystatechange', prior.onDone);
+            try {
+                prior.span.setStatus({ code: 2 }); // aborted: no HTTP response was received
+                prior.span.end();
+            } catch {
+                // Instrumentation must never throw into the host app.
+            }
+            prior.span = undefined;
+            prior.onDone = undefined;
+        }
+
         if (method && url != null && String(url) !== '') {
             xhrState.set(this, {
                 method: String(method).toUpperCase(),
@@ -108,8 +127,13 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             } catch {
                 // Instrumentation must never throw into the host app.
             }
+            // Release refs now that the request is done, so the WeakMap entry (kept alive for
+            // the re-send `ended` guard) no longer pins the Span or this closure (Finding 9).
+            state.span = undefined;
+            state.onDone = undefined;
         };
         this.addEventListener('readystatechange', onDone);
+        state.onDone = onDone;
 
         try {
             return send();
@@ -126,6 +150,10 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             } catch {
                 // Instrumentation must never mask the host app's original error.
             }
+            // Same ref-release as the DONE path (Finding 9) — the throw below still leaves the
+            // WeakMap entry in place for the re-send `ended` guard.
+            state.span = undefined;
+            state.onDone = undefined;
             throw error;
         }
     } as XhrSend;

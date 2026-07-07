@@ -86,7 +86,9 @@ Sentry's XHR instrumentation was read in full during design. Summary of the comp
   what our fetch patch uses, with the same idempotency and leaked-wrapper guard.
 - **No `onreadystatechange`-property proxy.** `addEventListener('readystatechange', …)` coexists with an app's
   `xhr.onreadystatechange` without clobbering it, so Sentry's property-proxy path is unnecessary. Each completion
-  listener closes over its own request's `state`, so a reused XHR instance cannot cross-end another request's span.
+  listener closes over its own request's `state`, but that alone does not prevent a reused XHR instance from
+  cross-ending another request's span: a mid-flight `open()` explicitly ends the prior request's span (aborted) and
+  detaches its listener before the next request's DONE can fire it.
 
 ## Trace model for this slice
 
