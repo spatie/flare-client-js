@@ -120,8 +120,8 @@ fetch.
     }
     ```
 - `type HttpTracer = { readonly config: Config; startSpan(name: string, opts?: SpanOptions): Span }` — the structural
-  subset both wrappers need. `FetchTracer` in `instrumentFetch.ts` becomes `export type FetchTracer = HttpTracer` so the
-  existing export keeps working.
+  subset both wrappers need. `instrumentFetch.ts` types its wrapper directly against `HttpTracer` (Finding 12 removed
+  the now-redundant `FetchTracer` alias).
 
 `instrumentFetch.ts` is refactored to import these three helpers and the type; its own copies are deleted. The fetch
 unit tests must stay green unchanged — this is the proof the extraction is behavior-preserving.

@@ -48,8 +48,10 @@ export function requestSpanAttributes(method: string, abs: URL | null, url: stri
 /**
  * The success/completion mapping shared by fetch and XHR: record the status code and
  * mark the span as an error on a 5xx. `zeroIsError` additionally maps status 0 to an
- * error — true for XHR (status 0 at DONE is always a network/CORS failure or abort),
- * false for fetch (an opaque no-cors response is status 0 but not an error).
+ * error. XHR passes it only for http(s) URLs, where status 0 at DONE is always a
+ * network/CORS failure or abort; for file:// and custom schemes a successful response
+ * is also status 0, so it is not mapped to error there. Fetch never passes it (an
+ * opaque no-cors response is status 0 but not an error).
  */
 export function endHttpRequestSpan(span: Span, status: number, opts?: { zeroIsError?: boolean }): void {
     span.setAttribute('http.response.status_code', status);

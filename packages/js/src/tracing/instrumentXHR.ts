@@ -30,7 +30,11 @@ type XhrState = {
 // are GC'd with the request.
 const xhrState = new WeakMap<XMLHttpRequest, XhrState>();
 
-/** Patch `open` to capture method/URL. Bails (records no state) when either is missing. */
+/**
+ * Patch `open` to capture method/URL. Bails (records no state) when either is missing.
+ * Calling `open()` on an in-flight request ends that prior request's span (marked aborted)
+ * and detaches its `readystatechange` listener before the new request's method/URL are captured.
+ */
 export function createXHROpen(original: XhrOpen): XhrOpen {
     return function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
         // WHATWG: calling open() on an in-flight request terminates it with NO DONE

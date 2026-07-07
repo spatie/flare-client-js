@@ -138,7 +138,7 @@ describe('createXHR* wrappers', () => {
         expect(setHeaderSpy.mock.calls.some(([name]) => String(name).toLowerCase() === 'traceparent')).toBe(false);
     });
 
-    it('still injects Flares traceparent when the apps own setRequestHeader throws (Finding 6)', () => {
+    it("still injects Flare's traceparent when the apps own setRequestHeader throws (Finding 6)", () => {
         const { tracer } = makeTracer();
         // The native setRequestHeader throws for a forbidden value (e.g. a stray newline from
         // interpolation); the app's header never lands. Flare's own tp value is well-formed, so
