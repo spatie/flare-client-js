@@ -305,7 +305,13 @@ unchanged when no integration registers, modulo the one deliberate addition of t
 ## Out of scope / follow-ups
 
 - **Other routers** (React Router v7, Vue Router v4, SvelteKit 2 client) — each a follow-on slice reusing
-  this seam.
+  this seam. **Carry-forward (learned during the TanStack build, 2026-07-07):** `startRoot` reads
+  `url.full` / `flare.entry_point.value` from the LIVE `location` via `collectBrowserSpanContext`. That is
+  correct for TanStack (it commits the URL through the History API BEFORE `onBeforeLoad` fires), but Vue
+  Router's `beforeEach` and SvelteKit's `beforeNavigate` fire BEFORE the URL commits — so those slices
+  must thread the destination URL into the root's context (or `setActiveRouteName` must also carry a URL),
+  or their navigation roots will carry the previous page's `url.full`. The seam already accepts an
+  explicit destination `path` for the name for exactly this reason; the URL context needs the same.
 - **SvelteKit server↔client correlation** (inbound `traceparent` in `handle`, SSR trace `<meta>` tags,
   client-side continuation) — net-new on both ends; its own slice (research §8.4).
 - **Param-syntax canonicalization** across frameworks — deferred to the backend-contract work.
