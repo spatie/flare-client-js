@@ -5,6 +5,8 @@ import { GlobalScopeProvider, USER_FIELD_KEYS, USER_IDENTITY_KEYS, type ScopePro
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
 import { NullFileReader } from './stacktrace/NullFileReader';
+import { ActiveSpanHolder, InMemoryActiveSpanHolder } from './tracing/context';
+import { Tracer } from './tracing/Tracer';
 import {
     AttributeValue,
     Attributes,
@@ -15,6 +17,8 @@ import {
     MessageLevel,
     Report,
     SdkInfo,
+    Span,
+    SpanOptions,
     User,
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
@@ -27,6 +31,7 @@ export class Flare {
     private inflight = new Set<Promise<void>>();
 
     private _logger!: Logger;
+    private _tracer!: Tracer;
 
     private _config: Config = {
         key: null,
@@ -48,6 +53,16 @@ export class Flare {
         logFlushIntervalMs: 5000,
         logFlushMaxBytes: 800_000,
         keepaliveMaxBytes: 60_000,
+        enableTracing: false,
+        tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
+        tracesSampleRate: 1,
+        maxSpanBufferSize: 100,
+        spanFlushIntervalMs: 5000,
+        spanFlushMaxBytes: 800_000,
+        maxSpansPerTrace: 1024,
+        maxAttributesPerSpan: 128,
+        maxEventsPerSpan: 128,
+        maxAttributesPerSpanEvent: 128,
     };
 
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
@@ -71,6 +86,7 @@ export class Flare {
         private fileReader: FileReader = new NullFileReader(),
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
         scheduler: FlushScheduler = new NoopFlushScheduler(),
+        activeSpanHolder: ActiveSpanHolder = new InMemoryActiveSpanHolder(),
     ) {
         this._logger = new Logger({
             api: this.api,
@@ -80,6 +96,18 @@ export class Flare {
             buildLogAttributes: (userAttributes) => this.buildLogAttributes(userAttributes),
             track: (p) => this.track(p),
             scheduler,
+        });
+
+        this._tracer = new Tracer({
+            api: this.api,
+            getConfig: () => this._config,
+            getSdkInfo: () => this.sdkInfo,
+            getFramework: () => this.framework,
+            getScopeAttributes: () => this.getScopeAttributes(),
+            getResourceAttributes: () => this.spanResourceAttributes(),
+            track: (p) => this.track(p),
+            scheduler,
+            activeSpanHolder,
         });
     }
 
@@ -225,6 +253,7 @@ export class Flare {
      */
     flush(timeoutMs = 2000): Promise<void> {
         this._logger.flush();
+        this._tracer.flush();
         const pending = [...this.inflight];
         if (pending.length === 0) return Promise.resolve();
         return new Promise<void>((resolve) => {
@@ -248,22 +277,40 @@ export class Flare {
         return this._logger;
     }
 
+    get tracer(): Tracer {
+        return this._tracer;
+    }
+
+    startSpan(name: string, opts?: SpanOptions): Span {
+        return this._tracer.startSpan(name, opts);
+    }
+
+    withSpan<T>(name: string, fn: (span: Span) => T, opts?: SpanOptions): T {
+        return this._tracer.withSpan(name, fn, opts);
+    }
+
     light(key: string = KEY, debug?: boolean): this {
         this._config.key = key;
         if (debug !== undefined) {
             this._config.debug = debug;
         }
         this._logger.flush();
+        this._tracer.flush();
         return this;
     }
 
     configure(config: Partial<Config>): this {
         const wasLogsEnabled = this._config.enableLogs;
+        const wasTracingEnabled = this._config.enableTracing;
 
         this._config = { ...this._config, ...config };
 
         if (config.sampleRate !== undefined) {
             this._config.sampleRate = Math.max(0, Math.min(1, config.sampleRate));
+        }
+
+        if (config.tracesSampleRate !== undefined) {
+            this._config.tracesSampleRate = Math.max(0, Math.min(1, config.tracesSampleRate));
         }
 
         this._config.urlDenylist = resolveDenylist(
@@ -277,6 +324,13 @@ export class Flare {
         }
         if (config.key !== undefined) {
             this._logger.flush();
+        }
+
+        if (wasTracingEnabled && this._config.enableTracing === false) {
+            this._tracer.clear();
+        }
+        if (config.key !== undefined) {
+            this._tracer.flush();
         }
 
         return this;
@@ -553,6 +607,23 @@ export class Flare {
             resource,
             record: this.assembleAttributes(collectorRecord, userAttributes, false),
         };
+    }
+
+    private getScopeAttributes(): Attributes {
+        // The scope-derived record a LOCAL ROOT span carries: user context (addContext /
+        // addContextGroup), entry-point overrides, framework-in-context.custom. The Tracer
+        // snapshots this at span START, so a long-lived root does not pick up scope
+        // mutations from the next page (drift). Spans never auto-run the DOM context
+        // collector; children get no scope at all. Mirrors the PHP client, where the
+        // request root carries the request/user context and child recorders stay lean.
+        return this.assembleAttributes({}, {}, false);
+    }
+
+    private spanResourceAttributes(): Attributes {
+        // Resource is stable per page (host.name). Reuse the existing collector but keep only
+        // its resource partition, discarding record-level context (cookies/url) so nothing
+        // heavy or drifting reaches spans. Evaluated once per flush, not per span.
+        return partitionAttributes(this.contextCollector(this._config)).resource;
     }
 
     private buildReport(input: {
