@@ -6,17 +6,16 @@ type Wrapped<F> = F & { __flare_original__?: F };
 export type MethodPatch = { name: string; wrap: (original: unknown) => unknown };
 
 /**
- * Own ONE `installed` flag across a set of methods patched on the same target
- * object, so a multi-method patch (e.g. XHR's open/setRequestHeader/send) installs
- * and restores atomically. A per-method flag, or none at all relying only on
- * `fill`'s own idempotency tag, is unsafe once more than one method shares state:
- * if a third party wraps just ONE of the methods on top of ours (e.g. `send`), the
- * others would restore to native while the leaked one stays live, corrupting the
- * state the methods share (XHR's `open` populates state that `send` depends on).
+ * Own one `installed` flag across a set of methods patched on the same target object, so a
+ * multi-method patch (e.g. XHR's open/setRequestHeader/send) installs and restores atomically.
+ * A per-method flag (or relying only on `fill`'s idempotency tag) is unsafe once methods share
+ * state: if a third party wraps just one method on top of ours, the others restore to native
+ * while the leaked one stays live, corrupting shared state (XHR's `open` populates what `send`
+ * depends on).
  *
- * The target is passed on every `install`/`uninstall` call rather than captured at
- * creation, since callers re-derive it fresh each time (`globalThis.fetch` may not
- * exist yet at SSR; `XMLHttpRequest.prototype` is looked up from the current global).
+ * Target is passed on every `install`/`uninstall` rather than captured at creation, since callers
+ * re-derive it fresh (`globalThis.fetch` may not exist yet at SSR; `XMLHttpRequest.prototype` is
+ * looked up from the current global).
  */
 export function createPatcher() {
     let installed = false;
@@ -37,14 +36,12 @@ export function createPatcher() {
         },
 
         /**
-         * Restore every patched method on `target`, but only if ALL of them are still
-         * cleanly restorable: for each, the current value is either not a function, or
-         * still carries `__flare_original__` (our wrapper is still the top of its
-         * chain). If ANY method has a third-party wrapper on top of ours, restore
-         * NOTHING and keep `installed` true: our wrappers are all still live in their
-         * chains and stay inert via their own `enableTracing` check, so tracing is
-         * correctly off now and correctly resumes on the next `install` (which no-ops,
-         * since the wrappers are already in place), with no double-wrapping.
+         * Restore every patched method on `target`, but only if all are still cleanly restorable:
+         * each current value is either not a function, or still carries `__flare_original__` (our
+         * wrapper is still the top of its chain). If any method has a third-party wrapper on top of
+         * ours, restore nothing and keep `installed` true: our wrappers stay live in their chains
+         * and inert via their own `enableTracing` check, so tracing is off now and resumes on the
+         * next `install` (a no-op, since the wrappers are already in place) with no double-wrapping.
          */
         uninstall(target: Record<string, unknown>): void {
             if (!installed) return;

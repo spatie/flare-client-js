@@ -1,18 +1,14 @@
 /**
- * Shared unhandled-rejection routing. A rejection "reason" can be anything a
- * promise was rejected with: an Error, an Error-like object carrying a `.stack`,
- * a string, or a plain object. The browser `unhandledrejection` listener
- * (`@flareapp/js`) and the React Native engine rejection tracker
- * (`@flareapp/react-native`) need the SAME routing so a report looks identical
- * across SDKs, so it lives here instead of being copy-pasted (and drifting) per
- * client.
+ * Shared unhandled-rejection routing. A rejection reason can be anything a promise rejected with: an Error, a
+ * stack-bearing object, a string, or a plain object. The browser `unhandledrejection` listener (`@flareapp/js`) and the
+ * React Native rejection tracker (`@flareapp/react-native`) share this routing so reports look identical across SDKs.
  */
 
 export type RejectionReporter = {
     // Error / stack-bearing reasons: preserve the stack.
     reportSilently: (error: Error) => void;
-    // Stackless reasons: empty-stack `UnhandledRejection` shaping. May return a
-    // promise (core's does); `routeRejection` swallows any rejection from it.
+    // Stackless reasons: empty-stack `UnhandledRejection` shaping. May return a promise (core's does);
+    // `routeRejection` swallows any rejection from it.
     reportUnhandledRejection: (message: string) => unknown;
 };
 
@@ -21,8 +17,7 @@ export function describeRejectionReason(reason: unknown): string {
     if (typeof reason === 'string') return reason;
     if (reason && typeof reason === 'object') {
         const message = (reason as { message?: unknown }).message;
-        // An empty `.message` carries no signal; fall through to JSON.stringify so
-        // the report shows the object's actual shape instead of a blank message.
+        // An empty `.message` carries no signal; fall through to JSON.stringify so the report shows the object's shape.
         if (typeof message === 'string' && message) return message;
         try {
             return JSON.stringify(reason);
@@ -38,14 +33,10 @@ function hasStack(reason: unknown): reason is { stack: string } {
 }
 
 /**
- * Route a rejection reason to the reporter: an Error (or any stack-bearing
- * object) goes to `reportSilently` so the STACK survives; only a stackless
- * reason falls back to `reportUnhandledRejection` (string message, empty-stack
- * `UnhandledRejection` class). Any rejection from `reportUnhandledRejection`'s
- * returned promise is swallowed so a transport failure cannot itself surface as
- * an unhandled rejection. `reportSilently` is assumed not to throw synchronously
- * (core's does its work asynchronously); it is intentionally not wrapped, so a
- * synchronous throw there would propagate.
+ * Route a rejection reason: an Error (or any stack-bearing object) goes to `reportSilently` so the stack survives; a
+ * stackless reason falls back to `reportUnhandledRejection` (string message, empty-stack `UnhandledRejection`). Any
+ * rejection from `reportUnhandledRejection`'s promise is swallowed so a transport failure cannot itself surface as an
+ * unhandled rejection. `reportSilently` is assumed async and not wrapped, so a synchronous throw there would propagate.
  */
 export function routeRejection(reporter: RejectionReporter, reason: unknown): void {
     if (reason instanceof Error) {

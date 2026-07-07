@@ -62,8 +62,8 @@ describe('parseMinifiedReactError', () => {
             'Minified React error #418; visit https://react.dev/errors/418?args[]=%E0%A4%A&args[]=ok for the full message',
         );
 
-        // `%E0%A4%A` is a malformed percent escape; decodeURIComponent would throw.
-        // The parser must not throw mid-error-handling and keeps the raw value instead.
+        // `%E0%A4%A` is a malformed percent escape; decodeURIComponent would throw. The parser must
+        // not throw mid-error-handling, keeping the raw value instead.
         expect(parseMinifiedReactError(error)).toEqual({
             number: 418,
             args: ['%E0%A4%A', 'ok'],

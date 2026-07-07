@@ -44,8 +44,8 @@ describe('@flareapp/react/inject reports through an injected RendererFlare', () 
         const reactCtx = parsed.attributes['context.custom'].react;
         expect(Array.isArray(reactCtx.componentStack)).toBe(true);
         expect(reactCtx.componentStack.join(' ')).toContain('App');
-        // No-root is guarded authoritatively by react's dist-grep (verify:inject); importing
-        // the inject entry here additionally must not have installed any global flare singleton.
+        // react's dist-grep (verify:inject) guards no-root; here we also check the inject entry
+        // installed no global flare singleton.
         expect((globalThis as Record<string, unknown>).flare).toBeUndefined();
     });
 });

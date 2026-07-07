@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Verifies that `new Flare()` from @flareapp/js produces browser-wired behavior:
- * - telemetry.sdk.name is '@flareapp/js'
- * - flare.entry_point.type is 'web' (browser context collected)
- * - flare.entry_point.value is a non-empty string (derived from window.location.href)
+ * `new Flare()` from @flareapp/js produces browser-wired behavior: sdk name '@flareapp/js',
+ * entry_point.type 'web', and a non-empty entry_point.value from window.location.href.
  */
 import { NullFileReader } from '@flareapp/core';
 import { describe, expect, it } from 'vitest';

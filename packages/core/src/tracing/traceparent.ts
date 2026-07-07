@@ -16,7 +16,7 @@ export function parseTraceparent(header: string): { traceId: string; parentSpanI
     if (!HEX32.test(traceId) || traceId === ZERO32) return null;
     if (!HEX16.test(spanId) || spanId === ZERO16) return null;
     if (!HEX8.test(flags)) return null;
-    // trace-flags is a bit field (W3C). Only the low bit (sampled) is defined;
-    // current OTel SDKs also set the random-trace-id bit, emitting 03/09/etc.
+    // trace-flags is a W3C bit field. Only the low bit (sampled) is defined; current OTel SDKs also set the
+    // random-trace-id bit, emitting 03/09/etc, so mask instead of comparing.
     return { traceId, parentSpanId: spanId, sampled: (parseInt(flags, 16) & 0x01) === 1 };
 }

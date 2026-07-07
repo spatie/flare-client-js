@@ -84,7 +84,7 @@ function callHandler(
     try {
         app.config.errorHandler!(...args);
     } catch {
-        // Hook callbacks or flare.report() may throw
+        // Hook callbacks or flare.report() may throw.
     }
 }
 
@@ -358,7 +358,7 @@ describe('flareVue', () => {
         try {
             app.config.errorHandler!(new Error('original'), null, 'setup function');
         } catch {
-            // report() throwing is expected to propagate
+            // report() throwing is expected to propagate.
         }
 
         expect(spy).not.toHaveBeenCalled();
@@ -791,7 +791,7 @@ describe('flareVue', () => {
         app.use(flareVue, { flare: injected });
         app.config.errorHandler!(new Error('a'), null, 'render');
         app.config.errorHandler!(new Error('b'), null, 'render');
-        expect(resolveSpy).toHaveBeenCalledTimes(1); // resolved at install, NOT per error
+        expect(resolveSpy).toHaveBeenCalledTimes(1); // resolved at install, not per error
         resolveSpy.mockRestore();
     });
 });

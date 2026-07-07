@@ -11,10 +11,9 @@ export type LoggerDeps = {
     getConfig: () => Config;
     getSdkInfo: () => SdkInfo;
     getFramework: () => Framework | null;
-    // Returns attributes ALREADY split into resource-level (only the collector's
-    // resource keys) and record-level (collector record keys + scope + entry point
-    // + user attrs). The Logger does NOT partition — only the collector output is
-    // partitionable; scope/user/entry-point attributes always stay record-level.
+    // Returns attributes already split into resource-level (only the collector's resource keys) and record-level
+    // (collector record keys + scope + entry point + user attrs). The Logger does not partition; only the collector
+    // output is partitionable, scope/user/entry-point attributes always stay record-level.
     buildLogAttributes: (userAttributes: Attributes) => { record: Attributes; resource: Attributes };
     track: <T>(p: Promise<T>) => Promise<T>;
     scheduler: FlushScheduler;
@@ -60,10 +59,8 @@ export class Logger {
         return this.buffer.length;
     }
 
-    // Mirrors the PHP client's Logger::record(message, level, context, attributes):
-    // the everyday `context` is nested under `log.context` (rendered as the "Context"
-    // section in Flare), while `attributes` is an advanced raw passthrough spread flat
-    // onto the record (subject to the same resource/record partitioning).
+    // Mirrors PHP's Logger::record: everyday `context` nests under `log.context` (Flare's "Context" section), while
+    // `attributes` is a raw passthrough spread flat onto the record (same resource/record partitioning).
     private record(level: MessageLevel, message: string, context: Attributes, attributes: Attributes): void {
         const config = this.deps.getConfig();
         if (!config.enableLogs) return;
@@ -81,26 +78,22 @@ export class Logger {
             resourceAttributes: resource,
         };
 
-        // Oversized-record guard: a single record bigger than the byte cap can
-        // never ship (and would make the trim unsatisfiable). Drop at capture.
+        // Oversized-record guard: a single record over the byte cap can never ship (and makes the trim
+        // unsatisfiable). Drop at capture.
         if (this.estimateBytes(buffered) > config.logFlushMaxBytes) {
             if (config.debug) console.error('Flare: dropping oversized log record');
             return;
         }
 
         this.buffer.push(buffered);
-        // Last-write-wins: the envelope stamps ALL batched records with this single
-        // most-recent resource map. That is correct ONLY because every
-        // resource-prefixed key in the partition allowlist is instance-static for the
-        // process lifetime (the one varying process.* key, process.uptime, is held
-        // back to record-level via the partition's exception set). A future collector
-        // emitting a request-varying resource-prefixed key would silently mis-stamp
-        // batched records.
+        // Last-write-wins: the envelope stamps ALL batched records with this single most-recent resource map. Correct
+        // ONLY because every resource-prefixed key in the partition allowlist is instance-static for the process
+        // lifetime (the one varying key, process.uptime, is held to record-level via the partition's exception set). A
+        // future collector emitting a request-varying resource key would silently mis-stamp batched records.
         this.resourceAttributes = resource;
 
-        // Triggers run BEFORE the trim: a keyed over-cap push flushes-and-clears
-        // here (data shipped); the trim is only the safety net when the flush
-        // no-ops (no key).
+        // Triggers run BEFORE the trim: a keyed over-cap push flushes-and-clears here (data shipped); the trim is only
+        // the safety net when the flush no-ops (no key).
         this.evaluateTriggers(config);
         this.trim(config);
     }
@@ -139,10 +132,8 @@ export class Logger {
         if (!config.enableLogs) return;
         if (this.buffer.length === 0) return;
 
-        // Key gate: never send unauthenticated. Use assertKey (not a bare
-        // truthiness check) so debug mode logs the same missing-key diagnostic
-        // reports get. Reset the timer (one-shot fired) but keep the buffer so
-        // records survive until a key is set.
+        // Key gate: never send unauthenticated. assertKey (not bare truthiness) so debug mode logs the same missing-key
+        // diagnostic reports get. Reset the timer but keep the buffer so records survive until a key is set.
         if (!assertKey(config.key, config.debug)) {
             this.clearTimer();
             return;
@@ -150,17 +141,14 @@ export class Logger {
 
         this.clearTimer();
 
-        // keepalive fires on visibilitychange:hidden, which also fires when a tab is
-        // merely backgrounded (not just on unload). packForKeepalive ships only what
-        // fits the browser's ~64KB keepalive budget, so retain the over-budget tail in
-        // the buffer instead of clearing it — a resumed tab can still send those records
-        // normally. A real unload discards the buffer with the page either way.
+        // keepalive fires on visibilitychange:hidden, which also fires on mere backgrounding (not just unload).
+        // packForKeepalive ships only what fits the browser's ~64KB keepalive budget, so the over-budget tail is
+        // retained (a resumed tab can still send it normally). A real unload discards the buffer with the page anyway.
         let records: BufferedLog[];
         if (opts?.keepalive) {
             records = this.packForKeepalive(config);
             this.buffer = this.buffer.filter((log) => !records.includes(log));
-            // Re-arm the interval so retained records flush on resume without waiting
-            // for the next captured log.
+            // Re-arm the interval so retained records flush on resume without waiting for the next captured log.
             if (this.buffer.length > 0) this.armTimer(config);
         } else {
             records = this.buffer;
@@ -230,26 +218,17 @@ export class Logger {
     }
 
     private estimateBytes(log: BufferedLog): number {
-        // Intentionally approximate heuristic used ONLY for the soft batching caps
-        // (logFlushMaxBytes weight-flush, oversized-record drop guard, trim loop).
-        // Two known approximations:
-        //   1. .length counts UTF-16 code units, not UTF-8 bytes — multi-byte
-        //      characters may be under- or over-counted vs the real wire size.
-        //   2. BufferedLog includes resourceAttributes, which are hoisted to the
-        //      envelope resource object and sent once per request, not per record —
-        //      so repeated resource attributes are counted once per record here.
-        // Both are acceptable: these caps are soft batching heuristics and /v1/logs
-        // has no hard per-request byte limit.  The HARD keepalive cap is measured
-        // separately with exact UTF-8 bytes in packForKeepalive(), because that one
-        // is a real browser-enforced limit (~64 KB on keepalive request bodies).
-        //
-        // flatJsonStringify (not JSON.stringify) because record attributes are raw
-        // user data that can contain cycles.
+        // Approximate heuristic used ONLY for the soft batching caps (weight-flush, oversized-record drop, trim loop).
+        // Two known approximations: (1) .length counts UTF-16 code units, not UTF-8 bytes; (2) resourceAttributes are
+        // hoisted to the envelope and sent once per request, but counted once per record here. Both acceptable: these
+        // caps are soft and /v1/logs has no hard per-request byte limit. The HARD keepalive cap is measured separately
+        // with exact UTF-8 bytes in packForKeepalive (~64 KB, real browser-enforced). flatJsonStringify (not
+        // JSON.stringify) because record attributes are raw user data that can contain cycles.
         return flatJsonStringify(log).length;
     }
 
     private bufferBytes(): number {
-        // Uses estimateBytes() — see its comment for the deliberate approximations.
+        // Uses estimateBytes(); see its comment for the deliberate approximations.
         return this.buffer.reduce((sum, log) => sum + this.estimateBytes(log), 0);
     }
 }

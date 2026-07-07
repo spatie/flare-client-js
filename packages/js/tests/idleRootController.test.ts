@@ -138,7 +138,7 @@ describe('IdleRootController', () => {
         h.emit('end', c1); // clears the first child timer, arms idle
 
         // Second batch starts before idle fires; a stuck child should force-end at
-        // childSpanTimeout measured from THIS batch, proving a fresh timer was armed.
+        // childSpanTimeout measured from this batch, proving a fresh timer was armed.
         h.advance(500); // < idleTimeout, so root still open
         h.emit('start', fakeSpan('c2', 'T')); // stays open, re-arms child timeout
         h.advance(15000);

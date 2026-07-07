@@ -17,8 +17,8 @@ describe('expo config plugin', () => {
             };
         };
 
-        // The flare.json write must land whichever platform EAS prebuilds, so a
-        // dangerous mod is registered for BOTH platforms.
+        // flare.json must land whichever platform EAS prebuilds, so a dangerous mod is registered for
+        // both.
         expect(typeof out.mods?.ios?.dangerous).toBe('function');
         expect(typeof out.mods?.android?.dangerous).toBe('function');
         // Platform-specific native mods: iOS build phase + Android gradle apply.

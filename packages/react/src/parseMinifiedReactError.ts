@@ -4,9 +4,8 @@ const NUMBER_PATTERN = /Minified React error #(\d+)/;
 const ARG_PATTERN = /args\[\]=([^&\s]*)/g;
 const URL_PATTERN = /(https?:\/\/\S+)/;
 
-// decodeURIComponent throws on malformed percent escapes (e.g. "%E0%A4%A"). This
-// runs while the boundary/handler is already processing an error, so a throw here
-// must not escape. Fall back to the raw value instead.
+// decodeURIComponent throws on malformed percent escapes (e.g. "%E0%A4%A"). This runs while the
+// boundary/handler is already processing an error, so a throw must not escape; fall back to raw.
 function safeDecode(value: string): string {
     try {
         return decodeURIComponent(value);

@@ -174,7 +174,7 @@ describe('createFlareErrorHandler', () => {
         const handler = createFlareErrorHandler({ flare: injected });
         await handler(new Error('a'), () => {});
         await handler(new Error('b'), () => {});
-        expect(resolveSpy).toHaveBeenCalledTimes(1); // resolved at creation, NOT per call
+        expect(resolveSpy).toHaveBeenCalledTimes(1); // resolved at creation, not per call
         resolveSpy.mockRestore();
     });
 });

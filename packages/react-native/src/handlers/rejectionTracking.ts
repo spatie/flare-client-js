@@ -14,9 +14,8 @@ type HermesInternalLike = {
     enablePromiseRejectionTracker?: (options: EnableOptions) => void;
 };
 
-// The reporter shape and reason-routing (Error/stack-bearing -> reportSilently,
-// stackless -> reportUnhandledRejection) are shared with the browser listener;
-// they live in `@flareapp/core` (`routeRejection`) so the two SDKs cannot drift.
+// Reporter shape and reason-routing (stack-bearing -> reportSilently, stackless -> reportUnhandledRejection)
+// live in `@flareapp/core` (`routeRejection`), shared with the browser listener so the SDKs can't drift.
 export type { RejectionReporter };
 
 export type RejectionDeps = {
@@ -25,10 +24,9 @@ export type RejectionDeps = {
 };
 
 /**
- * Inputs to engine detection. Both default to the live runtime sources; tests
- * inject explicit values (e.g. `requirePolyfill: null`) to drive each branch
- * deterministically — necessary because the `promise` polyfill is hoisted into
- * the test env as a transitive dependency of react-native.
+ * Inputs to engine detection. Both default to the live runtime sources; tests inject explicit values (e.g.
+ * `requirePolyfill: null`) to drive each branch deterministically, since the `promise` polyfill is hoisted
+ * into the test env as a transitive dependency of react-native.
  */
 export type RejectionEngineDeps = {
     hermes?: HermesInternalLike | null;
@@ -36,18 +34,15 @@ export type RejectionEngineDeps = {
 };
 
 /**
- * Resolve the promise-rejection enabler for the ACTIVE JS engine.
+ * Resolve the promise-rejection enabler for the active JS engine, null when neither is reachable.
  *
- * - Hermes (RN's default engine since 0.70) tracks rejections on its native
- *   Promise via `global.HermesInternal.enablePromiseRejectionTracker`. The
- *   `promise` npm polyfill is NOT the runtime Promise on Hermes, so the
- *   polyfill's `rejection-tracking.enable()` would hook unused objects and
- *   silently never fire — we must use the Hermes hook here.
- * - JSC / non-Hermes: RN polyfills `global.Promise` with the `promise` package,
- *   so `promise/setimmediate/rejection-tracking.enable()` is the real hook.
+ * - Hermes (RN's default since 0.70): tracks on its native Promise via
+ *   `global.HermesInternal.enablePromiseRejectionTracker`. The `promise` npm polyfill is not the runtime
+ *   Promise here, so its `rejection-tracking.enable()` would hook unused objects and never fire.
+ * - JSC / non-Hermes: RN polyfills `global.Promise` with the `promise` package, so
+ *   `promise/setimmediate/rejection-tracking.enable()` is the real hook.
  *
- * Returns null when neither is reachable. Exported (with injectable deps) for
- * direct unit testing of the ordering; not re-exported from the package entry.
+ * Exported (with injectable deps) for unit-testing the ordering; not re-exported from the package entry.
  */
 export function resolveRejectionEnabler(deps: RejectionEngineDeps = {}): RejectionEnabler | null {
     const hermes =
@@ -67,7 +62,7 @@ export function resolveRejectionEnabler(deps: RejectionEngineDeps = {}): Rejecti
                 return (options) => tracker.enable(options);
             }
         } catch {
-            // polyfill not present — fall through to null
+            // polyfill not present; fall through to null
         }
     }
 
@@ -75,25 +70,19 @@ export function resolveRejectionEnabler(deps: RejectionEngineDeps = {}): Rejecti
 }
 
 /**
- * Best-effort capture of unhandled promise rejections, engine-aware. RN routes
- * these through its engine's tracker (NOT `window.onunhandledrejection`):
- * `HermesInternal.enablePromiseRejectionTracker` on Hermes, the `promise`
- * polyfill on JSC. Reasons are routed exactly like the browser
- * `unhandledrejection` handler (core's `routeRejection`), so Error reasons keep
- * their stack via `reportSilently`.
+ * Best-effort, engine-aware capture of unhandled promise rejections. RN routes these through the engine's
+ * tracker (not `window.onunhandledrejection`): `HermesInternal.enablePromiseRejectionTracker` on Hermes,
+ * the `promise` polyfill on JSC. Reasons route like the browser handler (core's `routeRejection`), so Error
+ * reasons keep their stack via `reportSilently`.
  *
- * Engine-dependent, NOT version-dependent: if no engine hook is reachable this
- * is a no-op (uncaught throws via ErrorUtils still work) and emits a dev-only
- * debug line; it must never crash. The `enable(...)` invocation is wrapped so a
- * throwing engine hook degrades to no-op instead of propagating.
+ * If no engine hook is reachable this is a no-op (uncaught throws via ErrorUtils still work) with a dev-only
+ * debug line; it must never crash. The `enable(...)` call is wrapped so a throwing hook degrades to no-op.
  *
- * Chaining caveat: enabling REPLACES the engine's current callbacks (RN
- * registers its own dev warning) and neither engine exposes a getter for the
- * previous ones, so we cannot truly chain RN's default. To avoid swallowing that
- * developer signal, `onUnhandled` re-emits a `console.warn` in dev (`__DEV__`).
+ * Chaining caveat: enabling replaces the engine's current callbacks (RN registers its own dev warning) and
+ * neither engine exposes a getter for the previous ones, so we can't chain RN's default. To avoid swallowing
+ * that signal, `onUnhandled` re-emits a `console.warn` in dev.
  *
- * Returns an uninstaller that re-enables with no-op callbacks (no clean disable
- * exists on either engine).
+ * Returns an uninstaller that re-enables with no-op callbacks (no clean disable exists on either engine).
  */
 export function installRejectionTracking(reporter: RejectionReporter, deps: RejectionDeps = {}): () => void {
     const enable = deps.enable !== undefined ? deps.enable : resolveRejectionEnabler();
@@ -116,7 +105,7 @@ export function installRejectionTracking(reporter: RejectionReporter, deps: Reje
             onHandled: () => {},
         });
     } catch {
-        // A throwing engine hook must not crash app startup — degrade to no-op.
+        // A throwing engine hook must not crash app startup; degrade to no-op.
         if (inDevMode()) {
             console.debug('[flare] Promise-rejection hook threw on enable; rejections not captured.');
         }

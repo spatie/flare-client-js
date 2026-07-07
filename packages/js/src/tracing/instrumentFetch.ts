@@ -24,10 +24,9 @@ function resolveRequest(input: FetchInput, init: RequestInit | undefined): { met
 }
 
 /**
- * Build a fetch replacement that opens a `browser_fetch` span per call, injects
- * `traceparent` on propagation-eligible URLs, and ends the span on settle.
- * Pure factory: `origin` is injected (node test env has no `location`), so this
- * is directly unit-testable without a browser.
+ * Build a fetch replacement that opens a `browser_fetch` span per call, injects `traceparent` on
+ * propagation-eligible URLs, and ends the span on settle. Pure factory: `origin` is injected (node
+ * test env has no `location`), so this is unit-testable without a browser.
  */
 export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, origin: string): typeof fetch {
     return function (this: unknown, input: FetchInput, init?: RequestInit): Promise<Response> {
@@ -74,16 +73,15 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
     };
 }
 
-// Owns the installed flag for the single `fetch` method. A wrapper leaked by a
-// failed unpatch stays live and checks enableTracing per call, so one wrapper in
-// the chain is always enough. See createPatcher for the atomic install/uninstall
-// semantics shared with instrumentXHR's three-method patch.
+// Owns the installed flag for the single `fetch` method. A wrapper leaked by a failed unpatch
+// stays live and checks enableTracing per call, so one wrapper in the chain is always enough.
+// See createPatcher for the shared atomic install/uninstall semantics.
 const patcher = createPatcher();
 
 /**
- * Patch the global `fetch` so outgoing requests are traced. No-op when there is
- * no `fetch` or it is not native (a polyfilled/XHR-backed fetch is left for the
- * future XHR patch). Idempotent via `fill`. Reversible via `unpatchFetch`.
+ * Patch the global `fetch` so outgoing requests are traced. No-op when there is no `fetch` or it
+ * is not native (a polyfilled/XHR-backed fetch is left for the XHR patch). Idempotent via `fill`.
+ * Reversible via `unpatchFetch`.
  */
 export function instrumentFetch(tracer: HttpTracer): void {
     if (patcher.installed) return;

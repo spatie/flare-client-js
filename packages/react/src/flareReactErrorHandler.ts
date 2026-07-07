@@ -25,8 +25,10 @@ export type FlareReactErrorHandlerOptions = {
     }) => void;
 };
 
-// Returns a callback shaped to match react-error-boundary's `onError` prop, so consumers using
-// that library can report to Flare without wrapping their app in our own boundary.
+/**
+ * Callback shaped to match react-error-boundary's `onError` prop, so consumers using that library
+ * can report to Flare without our own boundary.
+ */
 export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions): FlareReactErrorHandlerCallback {
     const flare = resolveFlare(options?.flare);
     tagReactFramework(flare);
@@ -47,8 +49,8 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        // We build parse the minified react error after the beforeSubmit hook, because users are not allowed to mess with that data.
-        // It's an internal field of the protocol, and the backend needs it to parse the error message out of the minified error.
+        // See FlareErrorBoundary: minified error parsed after beforeSubmit, rejection swallowed so the
+        // reporter can't crash the host.
         flare.reportSilently(errorObject, contextToAttributes(finalContext, parseMinifiedReactError(errorObject)));
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });

@@ -1,9 +1,11 @@
 import { CHROMIUM_STACK_REGEX, FIREFOX_SAFARI_STACK_REGEX } from './constants';
 import { ComponentStackFrame } from './types';
 
-// React's `errorInfo.componentStack` is a newline-separated, browser-formatted string. We parse it
-// into structured frames here so the Flare UI can render proper file/line links instead of a blob.
-// Falls back to component-name-only when the format is unrecognised (rather than dropping the line).
+/**
+ * Parse React's newline-separated, browser-formatted `errorInfo.componentStack` into structured
+ * frames so the Flare UI can render file/line links. Unrecognised lines fall back to
+ * component-name-only rather than being dropped.
+ */
 export function parseComponentStack(stack: string): ComponentStackFrame[] {
     return stack
         .split(/\s*\n\s*/g)
@@ -31,7 +33,7 @@ export function parseComponentStack(stack: string): ComponentStackFrame[] {
                 };
             }
 
-            // For unrecognized formats, we'll strip the leading "at " if it is present
+            // Unrecognized format: strip a leading "at " if present.
             const component = line.replace(/^at\s+/, '');
 
             return {

@@ -156,7 +156,7 @@ describe('browserTracing', () => {
         expect(root.end).toHaveBeenCalled();
         expect(setActiveRoot).toHaveBeenCalledWith(undefined);
         expect(flush).toHaveBeenCalledWith({ keepalive: true });
-        // The flush must run AFTER the root ends, or the just-ended root misses the envelope.
+        // The flush must run after the root ends, or the just-ended root misses the envelope.
         expect(root.end.mock.invocationCallOrder[0]).toBeLessThan(flush.mock.invocationCallOrder[0]);
     });
 
@@ -215,7 +215,7 @@ describe('browserTracing', () => {
         const originalPushState = window.history.pushState;
         startBrowserTracing(flare);
 
-        // A third party wraps pushState AFTER Flare, so unfill cannot restore on stop
+        // A third party wraps pushState after Flare, so unfill cannot restore on stop
         // (the current function is not Flare's tagged wrapper) and Flare's wrapper leaks.
         const flarePushState = window.history.pushState;
         window.history.pushState = function (this: History, ...args: Parameters<History['pushState']>) {

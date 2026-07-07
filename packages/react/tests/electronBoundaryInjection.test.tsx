@@ -3,10 +3,9 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-// The REAL inject entry boundary + a real Electron RendererFlare. Drives the full path:
-// boundary resolves the injected instance -> reportSilently -> RendererFlare.sendReport -> bridge.
-// (The existing electron cross-package test covers the flareReactErrorHandler path; this closes
-// the gap for the FlareErrorBoundary component end-to-end through the bridge.)
+// Real inject-entry boundary + real Electron RendererFlare, driving the full path: boundary resolves
+// the injected instance -> reportSilently -> RendererFlare.sendReport -> bridge. Closes the gap the
+// existing electron cross-package test leaves (that one covers the flareReactErrorHandler path).
 import { FlareErrorBoundary } from '../src/inject';
 
 function ThrowingComponent(): React.ReactElement {
