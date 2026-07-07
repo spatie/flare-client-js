@@ -94,9 +94,10 @@ export type NavigationSource = {
     // generally safe for the seam's future consumers. The parameterized name is
     // applied via setActiveRouteName once known.
     startNavigation(opts?: { path?: string }): void;
-    // Rename the currently-active root (pageload OR navigation) to the parameterized route
-    // and set its source flag. Used both for the initial-pageload enrichment and to upgrade
-    // a navigation root's name when the router resolves. No-op if no root is open / it ended.
+    // Rename the currently-active root (pageload OR navigation) to the parameterized route,
+    // keep its flare.entry_point.handler.identifier attribute in lockstep with the name, and
+    // set its source flag. Used both for the initial-pageload enrichment and to upgrade a
+    // navigation root's name when the router resolves. No-op if no root is open / it ended.
     setActiveRouteName(route: RouteName): void;
     // Restore the default History-based navigation detection.
     unregister(): void;
@@ -126,10 +127,13 @@ Supporting changes in `browserTracing`:
   current root.
 - `startNavigation(opts?)` ends the current `IdleRootController` and opens a `browser_navigation` root
   named after `opts.path ?? location.pathname` (`source: 'url'`) with correct timing.
-- `setActiveRouteName(route)` assigns `root.name = route.name` and sets the source attribute on the
-  currently-active root (pageload or navigation) **only while it is open** (guarded via the controller's
-  `isEnded`); it no-ops otherwise. `Span.name` is a mutable field, so no core change is needed; the guard
-  preserves the "don't mutate an ended span" invariant that `setAttribute`/`setStatus` already enforce.
+- `setActiveRouteName(route)` assigns `root.name = route.name`, rewrites the root's
+  `flare.entry_point.handler.identifier` attribute to the same value (that attribute holds the raw
+  pathname at open and is the identifier the backend reads — leaving it stale while renaming the span
+  would ship two conflicting identifiers), and sets the source attribute, all on the currently-active
+  root (pageload or navigation) **only while it is open** (guarded via the controller's `isEnded`); it
+  no-ops otherwise. `Span.name` is a mutable field, so no core change is needed; the guard preserves the
+  "don't mutate an ended span" invariant that `setAttribute`/`setStatus` already enforce.
 
 Default behavior when no integration registers is unchanged, with one deliberate addition: every root the
 orchestrator opens (pageload and navigation, integration or not) sets the provisional
@@ -177,11 +181,13 @@ Behavior:
   #4892). Resolving via `matchRoutes` instead of reading `router.state.matches` works at any point in the
   lifecycle (no dependency on when router state commits) and matches Sentry.
 - **Initial pageload**: at registration, resolve the current location through `matchRoutes` and call
-  `setActiveRouteName` against the already-running pageload root immediately; subscribe once to
-  `onResolved` to correct the name if a loader redirect changed the route, then drop that listener. The
-  `fromLocation === undefined` initial-load signal is confirmed by TanStack's docs ("fromLocation can be
-  undefined on the initial load") and by Sentry's source (it uses exactly `!fromLocation` to skip the
-  initial load in its navigation subscriber).
+  `setActiveRouteName` against the already-running pageload root immediately; the shared `onResolved`
+  subscription corrects the name if a loader redirect changed the route, gated on
+  `fromLocation === undefined` — a condition only the initial load produces (the router's resolved
+  location is set from the first resolution onward), so the correction is effectively one-shot without
+  separate listener bookkeeping. The `fromLocation === undefined` initial-load signal is confirmed by
+  TanStack's docs ("fromLocation can be undefined on the initial load") and by Sentry's source (it uses
+  exactly `!fromLocation` to skip the initial load in its navigation subscriber).
 - Returns a cleanup that unsubscribes from the router and calls `NavigationSource.unregister()`
   (restoring default History detection; token-guarded, see the seam). Safe to call zero or multiple
   times.
@@ -227,6 +233,9 @@ router; do the same if the optional peer dep creates type-checking friction for 
 
 - The root span **name** is the parameterized route template as the router emits it (native `$id`
   syntax), or the raw URL path when no template is resolvable.
+- The roots' existing `flare.entry_point.handler.identifier` attribute stays in lockstep with the name:
+  it holds the raw pathname at open and `setActiveRouteName` rewrites it to the route template, so the
+  identifier the backend reads never contradicts the span name.
 - A **source flag** attribute distinguishes the two: proposed key `flare.route.source` with values
   `route | url`, set on every browser root at open (`url`) and flipped to `route` by
   `setActiveRouteName`. Both the key and the broader browser-perf attribute contract are **provisional** —
