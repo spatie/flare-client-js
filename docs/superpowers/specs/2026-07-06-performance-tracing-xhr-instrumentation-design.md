@@ -146,7 +146,7 @@ install/uninstall pair.
 
 **`open(method, url, ...rest)` wrapper:**
 
-- If `method` or `url` is missing/empty → call original, record no state.
+- If `method` or `url` is missing (null/undefined) → call original, record no state.
 - Else `xhrState.set(this, { method: String(method).toUpperCase(), url: String(url), hasAppTraceparent: false, ended: false })`,
   then call original with all args (preserve `async`/`user`/`password`).
 - `String(url)` handles URL objects and other stringifiers, matching Sentry's `parseXhrUrlArg`.

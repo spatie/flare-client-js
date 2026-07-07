@@ -299,6 +299,26 @@ describe('createXHR* wrappers', () => {
         expect(startSpan).not.toHaveBeenCalled();
     });
 
+    it('traces an empty-string URL, matching fetch (Finding 7)', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        // An empty string resolves against the document base URL, same as fetch(''); it is a
+        // performable request and must not be treated as missing.
+        xhr.open('GET', '');
+        xhr.send();
+
+        expect(startSpan).toHaveBeenCalledOnce();
+        expect(startSpan).toHaveBeenCalledWith('GET /', {
+            spanType: 'browser_xhr',
+            attributes: {
+                'http.request.method': 'GET',
+                'url.full': 'https://app.example/',
+                'server.address': 'app.example',
+            },
+        });
+    });
+
     it('ends the span and rethrows when the underlying send throws synchronously', () => {
         const { tracer, calls } = makeTracer();
         const { xhr } = instrument(tracer, {

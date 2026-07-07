@@ -51,10 +51,11 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
             prior.onDone = undefined;
         }
 
-        if (method && url != null && String(url) !== '') {
+        if (method && url != null) {
+            const urlStr = String(url);
             xhrState.set(this, {
                 method: String(method).toUpperCase(),
-                url: String(url),
+                url: urlStr,
                 hasAppTraceparent: false,
                 ended: false,
             });
