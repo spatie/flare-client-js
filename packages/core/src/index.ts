@@ -3,6 +3,7 @@ export type {
     AttributeValue,
     Attributes,
     BufferedLog,
+    BufferedSpan,
     Config,
     EntryPointHandler,
     Framework,
@@ -11,11 +12,19 @@ export type {
     LogsEnvelope,
     MessageLevel,
     OtelLogRecord,
+    OtelSpan,
     OverriddenGrouping,
     Report,
+    SamplingContext,
     SdkInfo,
+    Span,
     SpanEvent,
+    SpanOptions,
+    SpanStatus,
+    SpanStatusCode,
     StackFrame,
+    TracesEnvelope,
+    TracesSampler,
     User,
 } from './types';
 
@@ -45,6 +54,16 @@ export type { ScopeProvider } from './Scope';
 
 export { Logger, NoopFlushScheduler } from './logging';
 export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';
+
+export {
+    Tracer,
+    defaultNowNano,
+    InMemoryActiveSpanHolder,
+    buildTracesEnvelope,
+    buildTraceparent,
+    parseTraceparent,
+} from './tracing';
+export type { TracerDeps, ActiveSpanHolder } from './tracing';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
 export type { FileReader } from './stacktrace/fileReader';

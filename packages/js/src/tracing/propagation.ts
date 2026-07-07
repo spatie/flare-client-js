@@ -1,0 +1,112 @@
+export type FetchInput = string | URL | Request;
+
+/**
+ * Decide whether a W3C `traceparent` header may be attached to `url`.
+ * Default: same-origin + relative (`abs`, the caller's already-parsed URL, is
+ * compared by origin; null -> not same-origin, matching a failed parse).
+ * With `targets`: match by String.includes (string entry) or RegExp.test
+ * against the raw `url`. `targets: []` disables everything.
+ * Mirrors OTel/Sentry `tracePropagationTargets` semantics.
+ */
+export function shouldPropagate(
+    url: string,
+    abs: URL | null,
+    currentOrigin: string,
+    targets?: (string | RegExp)[],
+): boolean {
+    if (targets) {
+        if (targets.length === 0) return false;
+        return targets.some((t) => (typeof t === 'string' ? url.includes(t) : t.test(url)));
+    }
+    return abs !== null && abs.origin === currentOrigin;
+}
+
+/**
+ * Snapshot an iterable HeadersInit (Map, URLSearchParams, cross-realm Headers)
+ * into an array of string pairs. Returns null when iteration throws or yields
+ * a malformed entry; callers must then pass the source through untouched so a
+ * bad merge never breaks the host request (fetch will reject it the same way
+ * it would have without tracing).
+ */
+function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
+    try {
+        const pairs: [string, string][] = [];
+        for (const entry of source) {
+            if (entry === null || typeof entry !== 'object') return null;
+            const pair = Array.from(entry as ArrayLike<unknown>);
+            if (pair.length !== 2) return null;
+            pairs.push([String(pair[0]), String(pair[1])]);
+        }
+        return pairs;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Return a NEW `RequestInit` carrying `traceparent`, without mutating the
+ * caller's `Request` or `init` — UNLESS the caller already supplied its own
+ * `traceparent` (any case), in which case this is caller-wins: `init` is
+ * returned UNCHANGED (possibly `undefined`) and nothing is injected, matching
+ * XHR's `hasAppTraceparent` skip. Handles fetch's headers shapes (Headers,
+ * pair arrays, other pair iterables, plain records) plus the `Request`-input
+ * case. When Flare does inject, the returned init is passed as the second
+ * fetch arg so the spec's override semantics put the header on the wire while
+ * leaving the caller's `Request` (and its single-shot body) intact.
+ */
+export function mergeTraceparentHeader(
+    input: FetchInput,
+    init: RequestInit | undefined,
+    traceparent: string,
+): RequestInit | undefined {
+    const source: HeadersInit | undefined =
+        init?.headers ?? (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
+
+    // Caller-wins is decided WITHIN each shape branch below, alongside injection, so every
+    // source is walked at most once. A separate detect-then-inject pass would walk a pair-
+    // iterable source (Map, URLSearchParams, cross-realm Headers, a generator) twice; for a
+    // genuine one-shot iterator the first walk exhausts it, so the second sees nothing and
+    // silently drops every caller header.
+    let headers: HeadersInit;
+    if (source instanceof Headers) {
+        if (source.has('traceparent')) return init; // caller-wins
+        headers = new Headers(source);
+        headers.set('traceparent', traceparent);
+    } else if (Array.isArray(source)) {
+        if (source.some(([k]) => String(k).toLowerCase() === 'traceparent')) return init; // caller-wins
+        headers = [...source, ['traceparent', traceparent]];
+    } else if (source && typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
+        // Fetch's WebIDL conversion accepts ANY iterable of string pairs as
+        // HeadersInit: Map, URLSearchParams, polyfilled or cross-realm Headers.
+        // Those have no enumerable own properties, so the record branch below
+        // would see an empty object and silently drop every caller header.
+        const pairs = headerPairsFrom(source as unknown as Iterable<unknown>);
+        if (pairs === null) {
+            headers = source; // throwing/malformed -> passthrough (inject nothing)
+        } else if (pairs.some(([k]) => k.toLowerCase() === 'traceparent')) {
+            return init; // caller-wins
+        } else {
+            headers = [...pairs, ['traceparent', traceparent]];
+        }
+    } else if (source) {
+        if (Object.keys(source as Record<string, string>).some((k) => k.toLowerCase() === 'traceparent')) {
+            return init; // caller-wins
+        }
+        headers = { ...(source as Record<string, string>), traceparent };
+    } else {
+        headers = { traceparent };
+    }
+
+    const result: RequestInit = { ...init, headers };
+    // A Request with a ReadableStream body requires `duplex` when re-issued with an
+    // init; without it fetch throws and breaks a host request that worked pre-tracing.
+    if (
+        (result as RequestInit & { duplex?: string }).duplex === undefined &&
+        typeof Request !== 'undefined' &&
+        input instanceof Request &&
+        input.body != null
+    ) {
+        (result as RequestInit & { duplex?: string }).duplex = 'half';
+    }
+    return result;
+}

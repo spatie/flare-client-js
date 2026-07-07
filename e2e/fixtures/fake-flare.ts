@@ -63,12 +63,29 @@ const waitForLog = async (options: WaitOptions = {}): Promise<FakeFlareRecord> =
     throw new Error(`waitForLog timed out after ${timeout}ms (${lastCount} logs captured)`);
 };
 
+const waitForTrace = async (options: WaitOptions = {}): Promise<FakeFlareRecord> => {
+    const { timeout = 6000, predicate } = options;
+    const deadline = Date.now() + timeout;
+    let lastCount = 0;
+    while (Date.now() < deadline) {
+        const records = await fetchReports();
+        const traces = records.filter((r) => r.endpoint === 'traces');
+        const match = predicate ? traces.find(predicate) : traces[0];
+        if (match) return match;
+        lastCount = traces.length;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`waitForTrace timed out after ${timeout}ms (${lastCount} traces captured)`);
+};
+
 export type FakeFlare = {
     reset: typeof reset;
     reports: () => Promise<FakeFlareRecord[]>;
     logs: () => Promise<FakeFlareRecord[]>;
+    traces: () => Promise<FakeFlareRecord[]>;
     waitForReport: typeof waitForReport;
     waitForLog: typeof waitForLog;
+    waitForTrace: typeof waitForTrace;
     assertNoReports: typeof assertNoReports;
 };
 
@@ -79,8 +96,10 @@ export const test = base.extend<{ fakeFlare: FakeFlare }>({
             reset,
             reports: async () => (await fetchReports()).filter((r) => r.endpoint === 'reports'),
             logs: async () => (await fetchReports()).filter((r) => r.endpoint === 'logs'),
+            traces: async () => (await fetchReports()).filter((r) => r.endpoint === 'traces'),
             waitForReport,
             waitForLog,
+            waitForTrace,
             assertNoReports,
         });
     },
