@@ -83,11 +83,33 @@ describe('mergeTraceparentHeader', () => {
         expect(req.headers.get('traceparent')).toBeNull(); // caller's Request untouched
     });
 
+    it('returns undefined when a Request already carries its own traceparent and no init is given (caller wins)', () => {
+        const req = new Request('https://app.example/x', { headers: { traceparent: 'old' } });
+        expect(mergeTraceparentHeader(req, undefined, TP)).toBeUndefined();
+
+        // A stream-bodied variant must short-circuit on caller-wins before the duplex handling
+        // below it ever runs, so duplex is left exactly as the caller set it.
+        const streamReq = new Request('https://app.example/x', {
+            method: 'POST',
+            headers: { traceparent: 'old' },
+            body: new ReadableStream(),
+            duplex: 'half',
+        } as RequestInit & { duplex: 'half' });
+        expect(mergeTraceparentHeader(streamReq, undefined, TP)).toBeUndefined();
+    });
+
     it('keeps a caller-supplied traceparent in an array init unchanged (caller wins)', () => {
         const original: RequestInit = { headers: [['traceparent', 'old']] };
         const init = mergeTraceparentHeader('https://app.example/x', original, TP);
         expect(init).toBe(original); // returned unchanged, not a clone
         expect(init!.headers).toEqual([['traceparent', 'old']]);
+    });
+
+    it('keeps a CASE-VARIANT caller-supplied traceparent in an array init unchanged (caller wins)', () => {
+        const original: RequestInit = { headers: [['TraceParent', 'old']] };
+        const init = mergeTraceparentHeader('https://app.example/x', original, TP);
+        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init!.headers).toEqual([['TraceParent', 'old']]);
     });
 
     it('merges into a Map headers init without dropping caller headers', () => {
@@ -136,6 +158,21 @@ describe('mergeTraceparentHeader', () => {
         );
         expect(init!.headers).toEqual([
             ['a', '1'],
+            ['traceparent', TP],
+        ]);
+    });
+
+    it('does not drop caller headers from a ONE-SHOT iterable HeadersInit (regression)', () => {
+        // A generator's [Symbol.iterator]() returns itself, so iterating it twice yields the
+        // full sequence once and nothing the second time. Any code path that walks the source
+        // more than once (e.g. a caller-wins pre-pass followed by a separate injection pass)
+        // silently drops these caller headers on the second walk.
+        const headers: Iterable<unknown> = (function* () {
+            yield ['authorization', 'Bearer token'];
+        })();
+        const init = mergeTraceparentHeader('https://app.example/x', { headers: headers as HeadersInit }, TP);
+        expect(init!.headers).toEqual([
+            ['authorization', 'Bearer token'],
             ['traceparent', TP],
         ]);
     });

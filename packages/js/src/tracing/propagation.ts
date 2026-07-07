@@ -44,24 +44,6 @@ function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
 }
 
 /**
- * True when `source` already carries a case-insensitive `traceparent`, across
- * every `HeadersInit` shape `mergeTraceparentHeader` handles. A throwing or
- * malformed iterable is treated as "not detected" (returns false) so it falls
- * through to that function's existing untouched-passthrough branch rather
- * than being (mis)reported as caller-supplied.
- */
-function hasTraceparent(source: HeadersInit | undefined): boolean {
-    if (!source) return false;
-    if (source instanceof Headers) return source.has('traceparent');
-    if (Array.isArray(source)) return source.some(([k]) => String(k).toLowerCase() === 'traceparent');
-    if (typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
-        const pairs = headerPairsFrom(source as unknown as Iterable<unknown>);
-        return pairs !== null && pairs.some(([k]) => k.toLowerCase() === 'traceparent');
-    }
-    return Object.keys(source as Record<string, string>).some((k) => k.toLowerCase() === 'traceparent');
-}
-
-/**
  * Return a NEW `RequestInit` carrying `traceparent`, without mutating the
  * caller's `Request` or `init` — UNLESS the caller already supplied its own
  * `traceparent` (any case), in which case this is caller-wins: `init` is
@@ -80,13 +62,18 @@ export function mergeTraceparentHeader(
     const source: HeadersInit | undefined =
         init?.headers ?? (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
 
-    if (hasTraceparent(source)) return init;
-
+    // Caller-wins is decided WITHIN each shape branch below, alongside injection, so every
+    // source is walked at most once. A separate detect-then-inject pass would walk a pair-
+    // iterable source (Map, URLSearchParams, cross-realm Headers, a generator) twice; for a
+    // genuine one-shot iterator the first walk exhausts it, so the second sees nothing and
+    // silently drops every caller header.
     let headers: HeadersInit;
     if (source instanceof Headers) {
+        if (source.has('traceparent')) return init; // caller-wins
         headers = new Headers(source);
         headers.set('traceparent', traceparent);
     } else if (Array.isArray(source)) {
+        if (source.some(([k]) => String(k).toLowerCase() === 'traceparent')) return init; // caller-wins
         headers = [...source, ['traceparent', traceparent]];
     } else if (source && typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
         // Fetch's WebIDL conversion accepts ANY iterable of string pairs as
@@ -94,8 +81,17 @@ export function mergeTraceparentHeader(
         // Those have no enumerable own properties, so the record branch below
         // would see an empty object and silently drop every caller header.
         const pairs = headerPairsFrom(source as unknown as Iterable<unknown>);
-        headers = pairs ? [...pairs, ['traceparent', traceparent]] : source;
+        if (pairs === null) {
+            headers = source; // throwing/malformed -> passthrough (inject nothing)
+        } else if (pairs.some(([k]) => k.toLowerCase() === 'traceparent')) {
+            return init; // caller-wins
+        } else {
+            headers = [...pairs, ['traceparent', traceparent]];
+        }
     } else if (source) {
+        if (Object.keys(source as Record<string, string>).some((k) => k.toLowerCase() === 'traceparent')) {
+            return init; // caller-wins
+        }
         headers = { ...(source as Record<string, string>), traceparent };
     } else {
         headers = { traceparent };
