@@ -27,15 +27,19 @@ function resolveTimeouts(config: Config): IdleTimeouts {
     };
 }
 
-function startRoot(flare: BrowserTracingFlare, spanType: string, startTimeUnixNano: number): void {
-    const path = location.pathname;
+function startRoot(
+    flare: BrowserTracingFlare,
+    spanType: string,
+    startTimeUnixNano: number,
+    name: string = location.pathname,
+): void {
     let root: Span | undefined;
     try {
-        root = flare.startSpan(path, {
+        root = flare.startSpan(name, {
             spanType,
             startTimeUnixNano,
             forceRoot: true,
-            attributes: collectBrowserSpanContext(flare.config),
+            attributes: { ...collectBrowserSpanContext(flare.config), 'flare.route.source': 'url' },
         });
         controller = new IdleRootController(
             {
@@ -79,7 +83,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
             // A failing prior-root teardown must not stop the new root from starting.
         }
     }
-    startRoot(flare, 'browser_navigation', defaultNowNano());
+    startRoot(flare, 'browser_navigation', defaultNowNano(), path);
 }
 
 /**
