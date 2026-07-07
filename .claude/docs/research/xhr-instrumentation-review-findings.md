@@ -109,6 +109,12 @@ duplicate-header tests accordingly.
 
 ### 5. Any instance disabling tracing unpatches globally
 
+> DEFERRED (2026-07-07, review-fixes round): not fixed this round by decision. It is Medium and
+> pre-existing (not introduced by the XHR slice), and a robust fix needs an instrumentation
+> registry that reworks the fetch/XHR wrapper tracer binding and `browserTracing.ts` root
+> ownership. Tracked as its own follow-on slice. The multi-instance case is more than
+> hypothetical because `@flareapp/electron`'s `RendererFlare` extends the browser `Flare`.
+
 `packages/js/src/browser.ts:46` (disable branch). CONFIRMED; pre-existing for fetch, extended to
 XHR by this slice.
 
