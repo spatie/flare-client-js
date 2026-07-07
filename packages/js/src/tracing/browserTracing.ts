@@ -12,12 +12,23 @@ export type BrowserTracingFlare = {
     tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush'>;
 };
 
+export type RouteName = { name: string; source: 'route' | 'url' };
+export type NavigationSource = {
+    startNavigation(opts?: { path?: string }): void;
+    setActiveRouteName(route: RouteName): void;
+    unregister(): void;
+};
+
 let controller: IdleRootController | null = null;
 let uninstall: (() => void) | null = null;
 let lastPath = '';
 // Page-global: a document's real pageload window can only be traced once. Guards
 // against re-enabling after a disable fabricating a second backdated pageload.
 let pageloadTraced = false;
+
+let navSource: object | null = null;
+let activeFlare: BrowserTracingFlare | null = null;
+let currentRoot: Span | null = null;
 
 function resolveTimeouts(config: Config): IdleTimeouts {
     return {
@@ -53,11 +64,13 @@ function startRoot(
             },
             resolveTimeouts(flare.config),
         );
+        currentRoot = root;
     } catch (error) {
         // Instrumentation must never break the app. If root creation or the idle
         // controller fails, undo any partial state (end the orphaned span, clear
         // the active root) and leave tracing inert rather than throwing.
         controller = null;
+        currentRoot = null;
         try {
             root?.end();
         } catch {
@@ -76,6 +89,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
     const path = location.pathname;
     if (path === lastPath) return;
     lastPath = path;
+    if (navSource) return; // a framework integration drives navigation; keep lastPath current, open no root
     if (controller && !controller.isEnded) {
         try {
             controller.endNow();
@@ -96,6 +110,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') return;
     if (uninstall) return;
 
+    activeFlare = flare;
     lastPath = location.pathname;
 
     const finalTimeoutNano = resolveTimeouts(flare.config).finalTimeout * 1e6;
@@ -175,5 +190,56 @@ export function stopBrowserTracing(): void {
         uninstall();
         uninstall = null;
     }
+    activeFlare = null;
+    currentRoot = null;
     lastPath = '';
+}
+
+/**
+ * Register the caller as the page's navigation source. While registered, the
+ * built-in History-based navigation detection opens no roots (it still keeps
+ * `lastPath` current); the caller drives navigation via the returned handle.
+ * Last-wins: a second registration replaces the first, and a stale handle's
+ * methods (including `unregister`) no-op — so an HMR-replaced bootstrap cannot
+ * tear down a newer registration.
+ */
+export function registerNavigationSource(): NavigationSource {
+    const token = {};
+    if (navSource && activeFlare?.config.debug) console.debug('Flare: navigation source replaced');
+    navSource = token;
+    const active = (): boolean => navSource === token;
+    const here = (): string => (typeof location !== 'undefined' ? location.pathname : '');
+
+    return {
+        startNavigation(opts) {
+            if (!active() || !activeFlare) return;
+            const path = opts?.path ?? here();
+            lastPath = path;
+            if (controller && !controller.isEnded) {
+                try {
+                    controller.endNow();
+                } catch {
+                    // a failing prior-root teardown must not stop the new root
+                }
+            }
+            startRoot(activeFlare, 'browser_navigation', defaultNowNano(), path);
+        },
+        setActiveRouteName(route) {
+            if (!active()) return;
+            if (currentRoot && controller && !controller.isEnded) {
+                try {
+                    currentRoot.name = route.name;
+                    currentRoot.setAttribute('flare.entry_point.handler.identifier', route.name);
+                    currentRoot.setAttribute('flare.route.source', route.source);
+                } catch {
+                    // instrumentation must never throw into the host app
+                }
+            }
+        },
+        unregister() {
+            if (!active()) return;
+            navSource = null;
+            lastPath = here();
+        },
+    };
 }
