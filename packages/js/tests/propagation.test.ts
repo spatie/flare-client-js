@@ -52,17 +52,17 @@ describe('mergeTraceparentHeader', () => {
 
     it('synthesizes an init when the caller passed none', () => {
         const init = mergeTraceparentHeader('https://app.example/x', undefined, TP);
-        expect((init.headers as Record<string, string>).traceparent).toBe(TP);
+        expect((init!.headers as Record<string, string>).traceparent).toBe(TP);
     });
 
     it('merges into a plain-object headers init', () => {
         const init = mergeTraceparentHeader('https://app.example/x', { headers: { a: '1' } }, TP);
-        expect(init.headers).toEqual({ a: '1', traceparent: TP });
+        expect(init!.headers).toEqual({ a: '1', traceparent: TP });
     });
 
     it('merges into an array-of-tuples headers init', () => {
         const init = mergeTraceparentHeader('https://app.example/x', { headers: [['a', '1']] }, TP);
-        expect(init.headers).toEqual([
+        expect(init!.headers).toEqual([
             ['a', '1'],
             ['traceparent', TP],
         ]);
@@ -71,21 +71,23 @@ describe('mergeTraceparentHeader', () => {
     it('clones a Headers instance without mutating the original', () => {
         const original = new Headers({ a: '1' });
         const init = mergeTraceparentHeader('https://app.example/x', { headers: original }, TP);
-        expect((init.headers as Headers).get('traceparent')).toBe(TP);
+        expect((init!.headers as Headers).get('traceparent')).toBe(TP);
         expect(original.get('traceparent')).toBeNull(); // not mutated
     });
 
     it('reads headers from a Request input without mutating it', () => {
         const req = new Request('https://app.example/x', { headers: { a: '1' } });
         const init = mergeTraceparentHeader(req, undefined, TP);
-        expect((init.headers as Headers).get('traceparent')).toBe(TP);
-        expect((init.headers as Headers).get('a')).toBe('1');
+        expect((init!.headers as Headers).get('traceparent')).toBe(TP);
+        expect((init!.headers as Headers).get('a')).toBe('1');
         expect(req.headers.get('traceparent')).toBeNull(); // caller's Request untouched
     });
 
-    it('replaces a caller-supplied traceparent in an array init (no duplicate on the wire)', () => {
-        const init = mergeTraceparentHeader('https://app.example/x', { headers: [['traceparent', 'old']] }, TP);
-        expect(init.headers).toEqual([['traceparent', TP]]);
+    it('keeps a caller-supplied traceparent in an array init unchanged (caller wins)', () => {
+        const original: RequestInit = { headers: [['traceparent', 'old']] };
+        const init = mergeTraceparentHeader('https://app.example/x', original, TP);
+        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init!.headers).toEqual([['traceparent', 'old']]);
     });
 
     it('merges into a Map headers init without dropping caller headers', () => {
@@ -98,7 +100,7 @@ describe('mergeTraceparentHeader', () => {
             { headers: headers as unknown as HeadersInit },
             TP,
         );
-        expect(init.headers).toEqual([
+        expect(init!.headers).toEqual([
             ['authorization', 'Bearer token'],
             ['a', '1'],
             ['traceparent', TP],
@@ -111,20 +113,18 @@ describe('mergeTraceparentHeader', () => {
         expect([...headers]).toEqual([['a', '1']]);
     });
 
-    it('replaces a case-variant traceparent in a Map init (no duplicate on the wire)', () => {
+    it('keeps a case-variant caller-supplied traceparent in a Map init unchanged (caller wins)', () => {
         const headers = new Map([
             ['TraceParent', 'old'],
             ['a', '1'],
         ]);
-        const init = mergeTraceparentHeader(
-            'https://app.example/x',
-            { headers: headers as unknown as HeadersInit },
-            TP,
-        );
-        expect(init.headers).toEqual([
+        const original: RequestInit = { headers: headers as unknown as HeadersInit };
+        const init = mergeTraceparentHeader('https://app.example/x', original, TP);
+        expect(init).toBe(original); // returned unchanged, not a clone
+        expect([...headers]).toEqual([
+            ['TraceParent', 'old'],
             ['a', '1'],
-            ['traceparent', TP],
-        ]);
+        ]); // the Map itself is not converted or mutated
     });
 
     it('merges into a URLSearchParams-shaped iterable init', () => {
@@ -134,7 +134,7 @@ describe('mergeTraceparentHeader', () => {
             { headers: headers as unknown as HeadersInit },
             TP,
         );
-        expect(init.headers).toEqual([
+        expect(init!.headers).toEqual([
             ['a', '1'],
             ['traceparent', TP],
         ]);
@@ -148,7 +148,7 @@ describe('mergeTraceparentHeader', () => {
             },
         };
         const init = mergeTraceparentHeader('https://app.example/x', { headers: headers as HeadersInit }, TP);
-        expect(init.headers).toBe(headers);
+        expect(init!.headers).toBe(headers);
     });
 
     it('passes an iterable with malformed pairs through untouched', () => {
@@ -160,12 +160,21 @@ describe('mergeTraceparentHeader', () => {
             },
         };
         const init = mergeTraceparentHeader('https://app.example/x', { headers: malformed as HeadersInit }, TP);
-        expect(init.headers).toBe(malformed);
+        expect(init!.headers).toBe(malformed);
     });
 
-    it('replaces a case-variant traceparent in an object init', () => {
-        const init = mergeTraceparentHeader('https://app.example/x', { headers: { TraceParent: 'old', a: '1' } }, TP);
-        expect(init.headers).toEqual({ a: '1', traceparent: TP });
+    it('keeps a case-variant caller-supplied traceparent in an object init unchanged (caller wins)', () => {
+        const original: RequestInit = { headers: { TraceParent: 'old', a: '1' } };
+        const init = mergeTraceparentHeader('https://app.example/x', original, TP);
+        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init!.headers).toEqual({ TraceParent: 'old', a: '1' });
+    });
+
+    it('keeps a caller-supplied traceparent on a Headers instance unchanged (caller wins)', () => {
+        const original: RequestInit = { headers: new Headers({ traceparent: 'old', a: '1' }) };
+        const init = mergeTraceparentHeader('https://app.example/x', original, TP);
+        expect(init).toBe(original); // returned unchanged, not a clone
+        expect((init!.headers as Headers).get('traceparent')).toBe('old');
     });
 
     it('preserves duplex for a stream-bodied Request so fetch does not throw', () => {
@@ -176,12 +185,12 @@ describe('mergeTraceparentHeader', () => {
             duplex: 'half',
         } as RequestInit & { duplex: 'half' });
         const init = mergeTraceparentHeader(req, undefined, TP);
-        expect((init as RequestInit & { duplex?: string }).duplex).toBe('half');
+        expect((init as RequestInit & { duplex?: string })!.duplex).toBe('half');
     });
 
     it('leaves duplex untouched for a bodyless Request', () => {
         const req = new Request('https://app.example/x');
         const init = mergeTraceparentHeader(req, undefined, TP);
-        expect((init as RequestInit & { duplex?: string }).duplex).toBeUndefined();
+        expect((init as RequestInit & { duplex?: string })!.duplex).toBeUndefined();
     });
 });

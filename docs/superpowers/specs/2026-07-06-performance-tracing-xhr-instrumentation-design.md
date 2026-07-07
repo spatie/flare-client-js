@@ -74,6 +74,8 @@ Sentry's XHR instrumentation was read in full during design. Summary of the comp
    Without that knowledge, a second `setRequestHeader('traceparent', …)` **merges** into one malformed header
    (`traceparent: v1, v2`; the spec merges repeat calls with the same name). This is exactly the duplicate-header case
    the fetch `mergeTraceparentHeader` already strips. So XHR must patch three prototype methods, not two.
+   (Update: `mergeTraceparentHeader` no longer strips — it was changed to caller-wins, so both fetch's merge and XHR's
+   `hasAppTraceparent` skip now resolve to the same caller-wins outcome.)
 3. **Bail in `open` when method or URL is missing** (passthrough, record no state). The initial plan omitted this.
 
 ### Deliberate divergences from Sentry (and why they are safe here)

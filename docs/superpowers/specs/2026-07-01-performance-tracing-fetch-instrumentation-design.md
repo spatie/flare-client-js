@@ -77,11 +77,14 @@ New code lives in `packages/js/src/tracing/`. One config field is added to core 
       is set, a URL matches if it satisfies a string-includes or `RegExp.test` against any entry (Sentry semantics).
       `targets: []` disables all injection.
     - `addTracingHeadersToFetchRequest(input, init, traceparent)` — the three-shape merge (research §6.2.2). Resolves the
-      header source (prefer `init.headers`, else `input.headers` if `input` is a `Request`, else none), branches on its
-      type (`Headers` → clone + `set`; array of tuples → spread + push; plain object → spread + key), and returns a new
-      `init` object. **Never mutates the caller's `Request` or `init`.** Returns `{ ...init, headers }` so the fetch
-      spec's override semantics put the new header on the wire while the caller's `Request` is left intact (avoids
-      "body already consumed" on single-shot request bodies).
+      header source (prefer `init.headers`, else `input.headers` if `input` is a `Request`, else none). **Caller-wins:**
+      if the source already carries a `traceparent` (any case), returns `init` UNCHANGED and injects nothing, matching
+      XHR's `hasAppTraceparent` skip — an app doing its own distributed tracing keeps its header regardless of which
+      HTTP client a library uses underneath. Only when the caller set none does it branch on the source's type
+      (`Headers` → clone + `set`; array of tuples → spread + push; plain object → spread + key) and return a new `init`
+      object. **Never mutates the caller's `Request` or `init`.** Returns `{ ...init, headers }` so the fetch spec's
+      override semantics put the new header on the wire while the caller's `Request` is left intact (avoids "body
+      already consumed" on single-shot request bodies).
 - **`instrumentFetch.ts`** — `instrumentFetch(flare)` and `unpatchFetch()`. `instrumentFetch` bails out (no-op) when
   the environment has no callable `fetch` (`typeof globalThis.fetch !== 'function'`) or when `supportsNativeFetch()`
   returns false (a polyfilled, XHR-backed `fetch` must not be instrumented as if it were native). Otherwise it uses
@@ -185,7 +188,8 @@ isolation:
   `globalThis.fetch` is not callable.
 - `addTracingHeadersToFetchRequest`: all three header shapes (`Headers`, array of tuples, plain object) plus the
   `Request`-input path; asserts the caller's original `Request`/`init` is not mutated and the merged `init` carries the
-  `traceparent`.
+  `traceparent` when the caller set none, and that a caller-supplied `traceparent` (any case, any shape) is returned
+  unchanged with Flare's not injected.
 - `shouldPropagate`: same-origin and relative → true; cross-origin → false when unset (`undefined`); `[]` → false
   (distinct from unset); matches a `tracePropagationTargets` string and `RegExp`.
 - Not-sampled path still injects `traceparent` with flag `00`.

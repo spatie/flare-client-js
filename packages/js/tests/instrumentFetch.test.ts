@@ -98,6 +98,17 @@ describe('createFetchWrapper', () => {
         expect(headers.traceparent).toBeUndefined();
     });
 
+    it('does not inject our traceparent when the app already set one (caller wins, matching XHR)', async () => {
+        const { tracer } = makeTracer();
+        const original = okFetch();
+        const wrapped = createFetchWrapper(tracer, original, ORIGIN);
+
+        await wrapped('https://app.example/api/x', { headers: { traceparent: '00-appappapp-child-01' } });
+
+        const passedInit = (original as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+        expect((passedInit.headers as Record<string, string>).traceparent).toBe('00-appappapp-child-01');
+    });
+
     it('marks error status on HTTP >= 500', async () => {
         const { tracer, calls } = makeTracer();
         const wrapped = createFetchWrapper(tracer, okFetch(503), ORIGIN);
