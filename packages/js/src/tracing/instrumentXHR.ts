@@ -127,9 +127,12 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
                 // Reading status can throw on some platforms; treat as 0 (no response).
             }
             try {
-                // XHR status 0 at readyState 4 always means network/CORS failure or abort (unlike an
-                // opaque no-cors fetch response, which is status 0 but not an error), so map it to error.
-                endHttpRequestSpan(span, status, { zeroIsError: true });
+                // status 0 at DONE is "no HTTP response" (network/CORS failure/abort) only for http(s).
+                // For file:// and custom (e.g. Electron registerFileProtocol/registerBufferProtocol)
+                // schemes a SUCCESSFUL response is also status 0, so it must NOT be mapped to error.
+                // A null `abs` (unparseable URL) also does not map to error: don't guess a scheme.
+                const zeroIsError = abs !== null && (abs.protocol === 'http:' || abs.protocol === 'https:');
+                endHttpRequestSpan(span, status, { zeroIsError });
             } catch {
                 // Instrumentation must never throw into the host app.
             }

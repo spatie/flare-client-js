@@ -196,7 +196,7 @@ describe('createXHR* wrappers', () => {
         expect(calls.ended).toBe(true);
     });
 
-    it('marks error status and emits status_code 0 on network failure (status 0 at DONE)', () => {
+    it('marks error status and emits status_code 0 on network failure (status 0 at DONE, https)', () => {
         const { tracer, calls } = makeTracer();
         const { xhr } = instrument(tracer);
 
@@ -206,6 +206,32 @@ describe('createXHR* wrappers', () => {
 
         expect(calls.attrs['http.response.status_code']).toBe(0);
         expect(calls.status).toEqual({ code: 2 });
+        expect(calls.ended).toBe(true);
+    });
+
+    it('marks error status on status 0 for a plain http:// URL too', () => {
+        const { tracer, calls } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'http://app.example/api/x');
+        xhr.send();
+        xhr.fireDone(0);
+
+        expect(calls.attrs['http.response.status_code']).toBe(0);
+        expect(calls.status).toEqual({ code: 2 });
+        expect(calls.ended).toBe(true);
+    });
+
+    it('does NOT map status 0 to error for a file:// URL (a successful local-resource response is also status 0)', () => {
+        const { tracer, calls } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'file:///local/report.json');
+        xhr.send();
+        xhr.fireDone(0);
+
+        expect(calls.attrs['http.response.status_code']).toBe(0);
+        expect(calls.status).toBeUndefined();
         expect(calls.ended).toBe(true);
     });
 

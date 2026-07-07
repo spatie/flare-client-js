@@ -181,8 +181,9 @@ try {
     /* some platforms throw */
 }
 try {
+    const zeroIsError = abs !== null && (abs.protocol === 'http:' || abs.protocol === 'https:');
     state.span!.setAttribute('http.response.status_code', status);
-    if (status === 0 || status >= 500) state.span!.setStatus({ code: 2 });
+    if ((zeroIsError && status === 0) || status >= 500) state.span!.setStatus({ code: 2 });
     state.span!.end();
 } catch {
     /* instrumentation must never throw into the host app */
@@ -190,12 +191,16 @@ try {
 ```
 
 `status === 0` at DONE means no HTTP response was received (network failure, CORS block, abort, or timeout) — the XHR
-analog of a fetch promise rejection, which fetch maps to `code: 2`. `status >= 500` mirrors fetch's server-error
-mapping. Everything else ends `Unset`. The `http.response.status_code` attribute is emitted unconditionally, including
-the `0`, matching Sentry (`setHttpStatus(span, status_code)` fires whenever `status_code` is defined, and `this.status`
-is always a number). This is a minor, deliberate divergence from strict fetch parity: a fetch network-failure span
-carries no `status_code` (fetch rejects before a response exists), whereas an XHR network-failure span carries
-`status_code: 0` — truthful for XHR, and it distinguishes "never got a response" from a real HTTP error.
+analog of a fetch promise rejection, which fetch maps to `code: 2` — but **only for an http(s) URL**. `file://` and
+custom schemes (e.g. Electron's `registerFileProtocol`/`registerBufferProtocol`, which `@flareapp/electron`'s
+`RendererFlare` inherits this instrumentation through) report status 0 on a genuinely successful response too, so the
+mapping is gated on `abs.protocol` being `http:`/`https:`; a null `abs` (unparseable URL) also does not map to error.
+`status >= 500` mirrors fetch's server-error mapping and is unconditional. Everything else ends `Unset`. The
+`http.response.status_code` attribute is emitted unconditionally, including the `0`, matching Sentry
+(`setHttpStatus(span, status_code)` fires whenever `status_code` is defined, and `this.status` is always a number).
+This is a minor, deliberate divergence from strict fetch parity: a fetch network-failure span carries no `status_code`
+(fetch rejects before a response exists), whereas an XHR network-failure span carries `status_code: 0` — truthful for
+XHR, and it distinguishes "never got a response" from a real HTTP error.
 
 **Install / uninstall:**
 
@@ -262,8 +267,9 @@ Cases:
   `tracePropagationTargets` is set.
 - **App-set `traceparent` suppresses ours**: when the app calls `setRequestHeader('traceparent', …)` before `send`, our
   injection is skipped (no second `setRequestHeader('traceparent')` call).
-- Marks `code: 2` on `status >= 500`; marks `code: 2` on `status === 0` **and emits `http.response.status_code: 0`**;
-  ends `Unset` on a normal 2xx.
+- Marks `code: 2` on `status >= 500`; marks `code: 2` on `status === 0` for an http(s) URL **and emits
+  `http.response.status_code: 0`**; does **not** mark `code: 2` on `status === 0` for a `file://` URL (still emits
+  `status_code: 0`); ends `Unset` on a normal 2xx.
 - Sets `http.response.status_code` from `this.status` at DONE (including `0`); guards a throwing `status` getter.
 - Skips Flare ingest URLs entirely (no span, passthrough).
 - Passes through untouched when tracing is disabled.
