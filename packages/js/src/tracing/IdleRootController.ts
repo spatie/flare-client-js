@@ -19,11 +19,10 @@ export type IdleRootDeps = {
 type Timer = ReturnType<typeof setTimeout> | null;
 
 /**
- * Owns one root span's idle lifecycle. The root stays open while child spans in
- * its trace are active; it closes after `idleTimeout` of no open children
- * (trimmed to the last child's end), a `finalTimeout` hard cap, or a
- * `childSpanTimeout` stuck-child cap. Deps are injected so it is unit-testable
- * without real timers or a real tracer.
+ * Owns one root span's idle lifecycle. The root stays open while child spans in its trace are
+ * active; it closes after `idleTimeout` of no open children (trimmed to the last child's end), a
+ * `finalTimeout` hard cap, or a `childSpanTimeout` stuck-child cap. Deps are injected so it is
+ * unit-testable without real timers or a real tracer.
  */
 export class IdleRootController {
     private openChildren = 0;
@@ -64,15 +63,14 @@ export class IdleRootController {
         if (phase === 'start') {
             this.openChildren++;
             this.clearIdle();
-            // childSpanTimeout is anchored to the start of a non-empty period (the 0->1
-            // transition), not to each individual child; a continuously-busy root force-ends
-            // childSpanTimeout ms after the batch began.
+            // childSpanTimeout is anchored to the 0->1 transition, not each child; a continuously
+            // busy root force-ends childSpanTimeout ms after the batch began.
             if (this.openChildren === 1) this.armChildTimeout();
         } else {
             this.openChildren = Math.max(0, this.openChildren - 1);
-            // endTimeUnixNano is 0 (SpanImpl's unset sentinel) until end() runs; end() sets it
-            // before dispatching this event, so a real child always has a non-zero value here.
-            // `||` treats the 0 sentinel as "unset" and falls back to now(), matching SpanImpl.
+            // endTimeUnixNano is 0 (SpanImpl's unset sentinel) until end() runs, which sets it
+            // before dispatching this event, so a real child is non-zero here. `||` treats the 0
+            // sentinel as unset and falls back to now(), matching SpanImpl.
             this.lastChildEndTime = span.endTimeUnixNano || this.deps.now();
             if (this.openChildren === 0) {
                 this.clearChildTimeout();

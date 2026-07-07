@@ -15,8 +15,8 @@ export type BrowserTracingFlare = {
 let controller: IdleRootController | null = null;
 let uninstall: (() => void) | null = null;
 let lastPath = '';
-// Page-global: a document's real pageload window can only be traced once. Guards
-// against re-enabling after a disable fabricating a second backdated pageload.
+// Page-global: a document's real pageload window can only be traced once. Guards against
+// re-enabling after a disable fabricating a second backdated pageload.
 let pageloadTraced = false;
 
 function resolveTimeouts(config: Config): IdleTimeouts {
@@ -50,9 +50,8 @@ function startRoot(flare: BrowserTracingFlare, spanType: string, startTimeUnixNa
             resolveTimeouts(flare.config),
         );
     } catch (error) {
-        // Instrumentation must never break the app. If root creation or the idle
-        // controller fails, undo any partial state (end the orphaned span, clear
-        // the active root) and leave tracing inert rather than throwing.
+        // Instrumentation must never break the app. On failure, undo partial state (end the
+        // orphaned span, clear the active root) and leave tracing inert rather than throwing.
         controller = null;
         try {
             root?.end();
@@ -83,10 +82,9 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
 }
 
 /**
- * Start framework-agnostic browser tracing: a backdated `browser_pageload` root,
- * plus `browser_navigation` roots on SPA route changes detected by patching the
- * History API (`pushState`/`replaceState`) and listening for `popstate`.
- * No-op outside a browser. Idempotent (a second call while running is ignored).
+ * Start framework-agnostic browser tracing: a backdated `browser_pageload` root, plus
+ * `browser_navigation` roots on SPA route changes (History API `pushState`/`replaceState` patch
+ * plus `popstate`). No-op outside a browser. Idempotent.
  */
 export function startBrowserTracing(flare: BrowserTracingFlare): void {
     if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') return;
@@ -105,10 +103,9 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     startRoot(flare, 'browser_pageload', pageloadStart);
 
     const handle = (): void => {
-        // A third party may wrap history.pushState/replaceState on top of ours,
-        // in which case unfill cannot restore on stop and this closure leaks.
-        // `uninstall` doubles as the installed flag, so the leaked wrapper stays
-        // inert instead of starting roots and arming timers while tracing is off.
+        // A third party may wrap history.pushState/replaceState on top of ours, so unfill can't
+        // restore on stop and this closure leaks. `uninstall` doubles as the installed flag, so the
+        // leaked wrapper stays inert instead of starting roots and arming timers while tracing is off.
         if (!uninstall) return;
         try {
             onUrlChanged(flare);
@@ -126,10 +123,9 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     fill(history as unknown as Record<string, unknown>, 'replaceState', wrap);
     window.addEventListener('popstate', handle);
 
-    // On page teardown the open root must be force-ended (Sentry does the same on
-    // pagehide) and then keepalive-flushed from HERE: BrowserFlushScheduler's own
-    // visibilitychange listener registered earlier, so by the time it flushed the
-    // just-ended root was not buffered yet. Re-flushing an empty buffer is a no-op.
+    // On page teardown the open root must be force-ended and then keepalive-flushed from here:
+    // BrowserFlushScheduler's own visibilitychange listener registered earlier, so when it flushed
+    // the just-ended root was not buffered yet. Re-flushing an empty buffer is a no-op.
     const endRootAndFlush = (): void => {
         if (controller && !controller.isEnded) {
             try {
@@ -162,7 +158,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
 
 /**
  * Stop browser tracing: end the active root and restore the History API. Idempotent.
- * Page-global singleton: stops whatever tracing session is active, not a per-Flare-instance session.
+ * Page-global singleton: stops whatever session is active, not a per-Flare-instance one.
  */
 export function stopBrowserTracing(): void {
     if (controller && !controller.isEnded) controller.endNow();

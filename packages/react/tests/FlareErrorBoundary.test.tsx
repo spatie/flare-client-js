@@ -10,8 +10,8 @@ vi.mock('@flareapp/js', () => ({
     flare: {
         report: (...a: unknown[]) => mockReport(...a),
         reportSilently: (...a: unknown[]) => mockReport(...a),
-        // The boundary constructor calls tagReactFramework(resolved) on the default path,
-        // so the mocked singleton MUST expose setFramework (and setSdkInfo) or construction throws.
+        // The boundary constructor calls tagReactFramework(resolved) on the default path, so the
+        // mocked singleton must expose setFramework (and setSdkInfo) or construction throws.
         setFramework: vi.fn(),
         setSdkInfo: vi.fn(),
     },
@@ -33,7 +33,7 @@ function ThrowingComponent({ shouldThrow = true }: { shouldThrow?: boolean }) {
 }
 
 describe('FlareErrorBoundary', () => {
-    // React logs caught errors to console.error - suppress during tests
+    // React logs caught errors to console.error; suppress during tests.
     let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -373,7 +373,7 @@ describe('FlareErrorBoundary', () => {
 
         expect(mockReport).toHaveBeenCalledOnce();
 
-        // Component will throw again after reset
+        // Component throws again after reset.
         fireEvent.click(screen.getByText('Reset'));
 
         expect(mockReport).toHaveBeenCalledTimes(2);
@@ -385,9 +385,8 @@ describe('FlareErrorBoundary', () => {
             throw new Error('beforeEvaluate error');
         });
 
-        // beforeEvaluate throwing inside componentDidCatch propagates the error
-        // through React, which escalates it and unmounts the tree.
-        // There is no try/catch around the callback in componentDidCatch.
+        // beforeEvaluate throwing inside componentDidCatch propagates through React, which escalates
+        // it and unmounts the tree. There is no try/catch around the callback in componentDidCatch.
         expect(() =>
             render(
                 <FlareErrorBoundary fallback={<div>Error</div>} beforeEvaluate={beforeEvaluate}>

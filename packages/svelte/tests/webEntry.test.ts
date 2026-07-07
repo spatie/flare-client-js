@@ -13,7 +13,7 @@ describe('@flareapp/svelte web entry', () => {
 
         await import('../src/index.js');
 
-        // SvelteKit contract: identity is set at IMPORT (module load), not deferred.
+        // SvelteKit contract: identity is set at import (module load), not deferred.
         expect(setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/svelte' }));
         expect(setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
 

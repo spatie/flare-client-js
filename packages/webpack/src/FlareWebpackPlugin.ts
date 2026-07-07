@@ -173,9 +173,8 @@ export class FlareWebpackPlugin {
 
             try {
                 const content = readFileSync(mapPath, 'utf8');
-                // Server (Node/SSR) runtime stack frames are filesystem / file:// paths, not URLs,
-                // so the web public-path prefix is meaningless and breaks suffix matching on the
-                // backend. Upload the bundle-relative path for server builds.
+                // Server runtime frames are file:// paths, not URLs, so the public-path prefix
+                // breaks backend suffix matching. Upload the bundle-relative path for server builds.
                 const originalFile = isServer ? jsFile : `${publicPath}${jsFile}`;
                 sourcemaps.push({
                     sourcemap: { originalFile, content },

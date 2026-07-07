@@ -739,9 +739,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        // No error occurred, so there's no fallback rendered.
-        // We can't click the reset button since there's no error state.
-        // This test verifies onReset is not called when no error occurs.
+        // No error, so no fallback and no reset button to click; onReset must not fire.
         expect(onReset).not.toHaveBeenCalled();
     });
 
@@ -910,14 +908,14 @@ describe('FlareErrorBoundary', () => {
 
         expect(wrapper.text()).toBe('Error');
 
-        // Same reference, should not reset
+        // Same reference: no reset.
         await wrapper.setProps({ resetKeys: [obj] });
         await nextTick();
 
         expect(onReset).not.toHaveBeenCalled();
         expect(wrapper.text()).toBe('Error');
 
-        // Different reference with same shape, should reset
+        // Different reference, same shape: reset.
         shouldThrow = false;
         await wrapper.setProps({ resetKeys: [{ id: 1 }] });
         await nextTick();
@@ -1275,8 +1273,8 @@ describe('FlareErrorBoundary', () => {
     });
 
     test('resolves at setup (before any error), not at capture time', () => {
-        // Zero errors thrown. If resolution happened in onErrorCaptured it would be 0; proving it
-        // is 1 here proves resolution is at setup/wiring time. A single-error probe could not
+        // Zero errors thrown. If resolution happened in onErrorCaptured the count would be 0;
+        // getting 1 here proves resolution is at setup/wiring time. A single-error probe couldn't
         // distinguish setup-time from capture-time (both yield one call).
         const injected = { reportSilently: vi.fn(), setSdkInfo: vi.fn(), setFramework: vi.fn() } as any;
         const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');

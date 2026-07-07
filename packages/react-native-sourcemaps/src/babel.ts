@@ -2,35 +2,27 @@ import type * as Babel from '@babel/core';
 
 import { resolveVersion } from './version';
 
-// The app imports `flareSourcemapVersion` from this runtime entry; the plugin
-// inlines it. A typed import (rather than `process.env.FLARE_SOURCEMAP_VERSION`)
-// means no Node types, no ambient declarations, and no "looks like a runtime env
-// var but isn't" confusion for app authors.
 const RUNTIME_SOURCE = '@flareapp/react-native-sourcemaps/runtime';
 const EXPORT_NAME = 'flareSourcemapVersion';
 
-// Type queries on dynamic imports: no runtime import of @babel/* is emitted.
-// `Types` is the shape of the `t` helper object; the others are AST interfaces.
-// They resolve via @types/babel__core (dev dependency).
+// Type-only import queries: no runtime import of @babel/* is emitted. Resolve via
+// @types/babel__core (dev dependency).
 type Types = typeof import('@babel/types');
 type ImportDeclarationNode = import('@babel/types').ImportDeclaration;
 type ImportSpecifierNode = import('@babel/types').ImportSpecifier;
 
 /**
- * Babel plugin that inlines `flareSourcemapVersion` (imported from
- * `@flareapp/react-native-sourcemaps/runtime`) with the resolved version string at
- * bundle time, then removes the now-dead import so nothing of this package ships at
- * runtime. The version is resolved once per file (lazily, only when the import is
- * present) via the shared `resolveVersion()`.
+ * Babel plugin that inlines `flareSourcemapVersion` (imported from `.../runtime`) with the resolved
+ * version string at bundle time, then removes the now-dead import so nothing of this package ships at
+ * runtime. Version resolved once per file, lazily (only when the import is present).
  */
 export default function flareSourcemapsBabelPlugin({ types: t }: { types: Types }): Babel.PluginObj {
     let version: string | undefined;
 
     return {
         name: '@flareapp/react-native-sourcemaps',
-        // Babel caches plugin instances across files/transforms, so reset the
-        // per-file resolved version before each file (also correct for rebuilds
-        // where FLARE_SOURCEMAP_VERSION changes between runs).
+        // Babel caches plugin instances across files, so reset the per-file version before each file
+        // (also correct for rebuilds where FLARE_SOURCEMAP_VERSION changes between runs).
         pre() {
             version = undefined;
         },
@@ -68,8 +60,8 @@ export default function flareSourcemapsBabelPlugin({ types: t }: { types: Types 
                     return;
                 }
 
-                // Drop the import: either the whole declaration, or just the
-                // specifiers we inlined if the user imported other names too.
+                // Drop the import: whole declaration, or just the inlined specifiers if other names
+                // were imported too.
                 if (remaining.length === 0) {
                     path.remove();
                 } else {

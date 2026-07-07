@@ -24,7 +24,7 @@ export function safeAbsolute(url: string, origin: string): URL | null {
     }
 }
 
-/** True when `abs` targets one of Flare's own ingest endpoints (never traced). Callers parse the URL once via `safeAbsolute` and pass the result. */
+/** True when `abs` targets one of Flare's own ingest endpoints (never traced). */
 export function isFlareIngestUrl(abs: URL | null, config: Config): boolean {
     if (!abs) return false;
     return [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl].some(
@@ -33,8 +33,8 @@ export function isFlareIngestUrl(abs: URL | null, config: Config): boolean {
 }
 
 /**
- * Build the shared request-span attributes for a fetch/XHR call. `url.full` is
- * redacted the same way error reports are, so tokens/reset codes never leak.
+ * Shared request-span attributes for a fetch/XHR call. `url.full` is redacted the same way error
+ * reports are, so tokens/reset codes never leak.
  */
 export function requestSpanAttributes(method: string, abs: URL | null, url: string, config: Config): Attributes {
     return {
@@ -46,12 +46,10 @@ export function requestSpanAttributes(method: string, abs: URL | null, url: stri
 }
 
 /**
- * The success/completion mapping shared by fetch and XHR: record the status code and
- * mark the span as an error on a 5xx. `zeroIsError` additionally maps status 0 to an
- * error. XHR passes it only for http(s) URLs, where status 0 at DONE is always a
- * network/CORS failure or abort; for file:// and custom schemes a successful response
- * is also status 0, so it is not mapped to error there. Fetch never passes it (an
- * opaque no-cors response is status 0 but not an error).
+ * Completion mapping shared by fetch and XHR: record the status and mark an error on 5xx.
+ * `zeroIsError` additionally maps status 0 to error. XHR passes it only for http(s), where status
+ * 0 at DONE is always a network/CORS failure or abort; file:// and custom schemes return 0 on
+ * success, so it isn't set there. Fetch never passes it (an opaque no-cors response is 0, not error).
  */
 export function endHttpRequestSpan(span: Span, status: number, opts?: { zeroIsError?: boolean }): void {
     span.setAttribute('http.response.status_code', status);
@@ -59,15 +57,15 @@ export function endHttpRequestSpan(span: Span, status: number, opts?: { zeroIsEr
     span.end();
 }
 
-/** The error-finish shared by fetch and XHR: mark the span as an error and end it. */
+/** Error-finish shared by fetch and XHR: mark the span an error and end it. */
 export function finishHttpSpanError(span: Span, error: unknown): void {
     span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
     span.end();
 }
 
 /**
- * The propagation gate + `traceparent` header build shared by fetch and XHR. Returns
- * null when `shouldPropagate` rejects the URL (caller then skips header injection).
+ * Propagation gate plus `traceparent` build shared by fetch and XHR. Returns null when
+ * `shouldPropagate` rejects the URL (caller then skips header injection).
  */
 export function traceparentFor(
     span: Span,

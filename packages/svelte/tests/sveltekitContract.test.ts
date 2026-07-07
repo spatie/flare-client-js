@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 // SvelteKit does `export * from '@flareapp/svelte'` and relies on (a) the web entry registering
-// SDK identity AT IMPORT, and (b) the full export surface remaining intact so the re-export works.
+// SDK identity at import, and (b) the full export surface remaining intact so the re-export works.
 describe('@flareapp/svelte web entry — SvelteKit contract', () => {
     beforeEach(() => {
         vi.resetModules();

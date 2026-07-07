@@ -1,21 +1,17 @@
 import { LogsEnvelope, Report, TracesEnvelope } from '../types';
 import { flatJsonStringify } from '../util';
 
-// A browser rejects a keepalive fetch with a network error when the sum of its
-// body and every other in-flight keepalive body exceeds ~64 KiB (Fetch spec).
-// logs and traces share one Api, so on pagehide two ~60 KB envelopes would breach
-// that limit and one would be dropped. We track the in-flight total and downgrade
-// a request to a normal fetch when it would breach the budget, keeping a margin
-// under 64 KiB. A downgraded request still ships on soft backgrounding, and on a
-// real unload it is no worse off than the rejection it replaces.
+// A browser rejects a keepalive fetch when the sum of its body and every other in-flight keepalive body exceeds ~64 KiB
+// (Fetch spec). logs and traces share one Api, so on pagehide two ~60 KB envelopes would breach that and one would be
+// dropped. Track the in-flight total and downgrade a request to a normal fetch when it would breach the budget. A
+// downgraded request still ships on soft backgrounding, and on a real unload is no worse off than the rejection.
 const MAX_PENDING_KEEPALIVE_BYTES = 60_000;
 const MAX_PENDING_KEEPALIVE_REQUESTS = 15;
 
 const textEncoder = new TextEncoder();
 
 export class Api {
-    // Per-Api budget: correct for the single-instance model. Two Flare instances on
-    // one page do not share this counter (see the documented one-instance assumption).
+    // Per-Api budget: correct for the single-instance model. Two Flare instances on one page do not share this counter.
     private pendingKeepaliveBytes = 0;
     private pendingKeepaliveRequests = 0;
 

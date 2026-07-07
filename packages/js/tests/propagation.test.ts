@@ -88,7 +88,7 @@ describe('mergeTraceparentHeader', () => {
         expect(mergeTraceparentHeader(req, undefined, TP)).toBeUndefined();
 
         // A stream-bodied variant must short-circuit on caller-wins before the duplex handling
-        // below it ever runs, so duplex is left exactly as the caller set it.
+        // runs, so duplex is left exactly as the caller set it.
         const streamReq = new Request('https://app.example/x', {
             method: 'POST',
             headers: { traceparent: 'old' },
@@ -163,10 +163,9 @@ describe('mergeTraceparentHeader', () => {
     });
 
     it('does not drop caller headers from a ONE-SHOT iterable HeadersInit (regression)', () => {
-        // A generator's [Symbol.iterator]() returns itself, so iterating it twice yields the
-        // full sequence once and nothing the second time. Any code path that walks the source
-        // more than once (e.g. a caller-wins pre-pass followed by a separate injection pass)
-        // silently drops these caller headers on the second walk.
+        // A generator's [Symbol.iterator]() returns itself, so iterating twice yields the full
+        // sequence once and nothing the second time. Any path that walks the source more than once
+        // (e.g. a caller-wins pre-pass plus a separate injection pass) drops these headers.
         const headers: Iterable<unknown> = (function* () {
             yield ['authorization', 'Bearer token'];
         })();

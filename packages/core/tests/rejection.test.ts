@@ -12,9 +12,8 @@ describe('describeRejectionReason', () => {
     });
 
     test('falls through to JSON for an object with an empty .message', () => {
-        // An empty message is useless; the serialized object carries more signal.
-        // This locks the deliberate divergence from the pre-refactor browser path,
-        // which returned the empty string.
+        // An empty message is useless; the serialized object carries more signal. Locks the deliberate divergence from
+        // the pre-refactor browser path, which returned the empty string.
         expect(describeRejectionReason({ message: '', code: 42 })).toBe('{"message":"","code":42}');
     });
 

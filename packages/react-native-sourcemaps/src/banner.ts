@@ -16,10 +16,9 @@ export type FailureBannerInfo = {
 const BORDER = '='.repeat(60);
 
 /**
- * Mask an API key for display in a build log, which CI commonly archives. A key
- * long enough to stay unguessable keeps a short head/tail so the user can still
- * recognise WHICH key it was; a short key is fully masked. Never returns the key
- * in full, so the secret cannot leak through the failure banner.
+ * Mask an API key for display in a build log (CI commonly archives these). Long keys keep a short
+ * head/tail hint so the user can recognise which key it was; short keys are fully masked. Never
+ * returns the key in full.
  */
 export function maskApiKey(apiKey: string): string {
     if (apiKey.length <= 12) {
@@ -29,13 +28,10 @@ export function maskApiKey(apiKey: string): string {
 }
 
 /**
- * The deliberately large failure banner. A one-line "failed to upload" is too easy
- * to miss in a long native-build log, so this is a bordered block surrounded by
- * blank lines. Resolved values are interpolated into the re-run command so the
- * user can copy-paste it; unknown values show a labelled placeholder (in the
- * version-unset case `version` stays a placeholder — it is the value to supply).
- * The API key is the one exception: it is MASKED, never printed in full, because
- * this banner lands in the native build log.
+ * Deliberately large failure banner (a one-line "failed to upload" is too easy to miss in a native
+ * build log). Resolved values are interpolated into a copy-pasteable re-run command; unknown values
+ * show a labelled placeholder. The API key is masked, never printed in full, since this lands in the
+ * build log.
  */
 export function formatFailureBanner(info: FailureBannerInfo): string {
     const sourcemap = info.sourcemap ?? '<path-to-map>';

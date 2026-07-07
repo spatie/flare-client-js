@@ -40,12 +40,9 @@ export function createStackTrace(error: Error, debug: boolean, fileReader: FileR
     });
 }
 
-// Hermes (React Native's default engine) emits stack frames like
-// `onPress@address at index.android.bundle:1:1234`. error-stack-parser keeps the
-// `address at ` literal as part of the fileName, which breaks both sourcemap matching
-// (the backend matches the bundle path against the uploaded relative_filename) and
-// source display. Strip the prefix so `file` is the real bundle path. No real file
-// path begins with `address at `, so this is a no-op on other engines.
+// Hermes (RN's default engine) emits frames like `onPress@address at index.android.bundle:1:1234`. error-stack-parser
+// keeps the `address at ` literal in the fileName, breaking sourcemap matching and source display. Strip it so `file`
+// is the real bundle path. No real path begins with `address at `, so this is a no-op on other engines.
 const HERMES_ADDRESS_PREFIX = 'address at ';
 
 function normalizeFileName(fileName: string | undefined): string | undefined {

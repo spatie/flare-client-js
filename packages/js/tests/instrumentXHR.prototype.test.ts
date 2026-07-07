@@ -50,8 +50,7 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         instrumentXHR(tracer);
         const flareSend = proto.send;
 
-        // A third party wraps `send` on top of Flare's wrapper, so unpatchXHR cannot
-        // restore it (mirrors instrumentFetch.test.ts's third-party test).
+        // A third party wraps `send` on top of Flare's wrapper, so unpatchXHR cannot restore it.
         const thirdParty = function (this: XMLHttpRequest, ...args: unknown[]): unknown {
             return (flareSend as unknown as (...a: unknown[]) => unknown).apply(this, args);
         };
@@ -65,9 +64,8 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         // (a) open is still Flare's wrapper -> tracing is not permanently dead.
         expect((proto.open as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
 
-        // (b) driving one traced request through open() -> send() creates exactly one
-        // span -> re-instrumenting did not stack a second `send` wrapper underneath
-        // the still-leaked third party.
+        // (b) one traced request through open() -> send() creates exactly one span, so
+        // re-instrumenting did not stack a second `send` wrapper under the leaked third party.
         const xhr = new XMLHttpRequest();
         xhr.open('GET', 'https://app.example/one');
         xhr.send();

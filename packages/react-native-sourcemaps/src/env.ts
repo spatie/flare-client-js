@@ -1,28 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Highest precedence first: a value in .env.local wins over the same key in .env.
-// An already-set process.env value (an explicit shell export, or an EAS env var)
-// wins over both, because we never overwrite a key that already exists.
+// Ordered by precedence: .env.local wins over .env. An already-set process.env value (shell export
+// or EAS env var) wins over both, since we never overwrite an existing key.
 const ENV_FILES = ['.env.local', '.env'];
 
 /**
- * Load FLARE_* variables from .env.local / .env in `rootDir` into process.env,
- * without overwriting anything already set.
+ * Load FLARE_* variables from .env.local / .env in `rootDir` into process.env, without overwriting
+ * anything already set.
  *
- * The native build hooks run in a fresh process whose environment often does NOT
- * carry the upload key: the app's .env files are loaded by Metro at JS runtime, not
- * at native build time, and a build launched from an IDE — or served by a reused
- * Gradle daemon with a stale environment — won't see a key you exported in your
- * shell. Reading the key from the FILE here makes "drop FLARE_API_KEY in .env.local"
- * work the way developers expect, on both platforms, without re-exporting it per
- * build.
+ * Native build hooks run in a fresh process that often lacks the upload key: .env files are loaded by
+ * Metro at JS runtime not native build time, and an IDE build (or a stale reused Gradle daemon) won't
+ * see a key exported in your shell. Reading it from the file makes "drop FLARE_API_KEY in .env.local"
+ * work on both platforms without re-exporting per build.
  *
- * Only FLARE_-prefixed keys are read, so this never pulls unrelated secrets from the
- * file into the process. Minimal parser (no dependency): `KEY=value`, an optional
- * `export ` prefix, surrounding single/double quotes stripped, blank and `#` comment
- * lines ignored. Inline comments are NOT stripped (a `#` is treated as part of the
- * value), which is fine for the alphanumeric keys Flare issues.
+ * Only FLARE_-prefixed keys are read, never unrelated secrets. Minimal parser (no dependency):
+ * `KEY=value`, optional `export ` prefix, surrounding quotes stripped, blank and `#` comment lines
+ * ignored. Inline comments are not stripped (fine for the alphanumeric keys Flare issues).
  */
 export function loadEnvFiles(rootDir: string): void {
     for (const file of ENV_FILES) {
@@ -30,7 +24,7 @@ export function loadEnvFiles(rootDir: string): void {
         try {
             raw = readFileSync(join(rootDir, file), 'utf8');
         } catch {
-            continue; // absent or unreadable — nothing to load from this file
+            continue; // absent or unreadable, nothing to load
         }
 
         for (const [key, value] of parseFlareEnv(raw)) {
