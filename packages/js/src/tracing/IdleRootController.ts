@@ -14,6 +14,12 @@ export type IdleRootDeps = {
     setTimeout: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
     clearTimeout: (handle: ReturnType<typeof setTimeout>) => void;
     rootStartTime: number; // unix nanos, base for finalTimeout
+    // Floor for a trimmed close: when a root closes with no in-flight children its
+    // end is this floor (read lazily), never `now()`. Navigation passes its start
+    // time (an instant nav trims to ~0); pageload passes the Navigation Timing
+    // load-event end so a childless pageload reports its real load duration instead
+    // of being padded by the whole idleTimeout window.
+    endFloor: () => number;
 };
 
 type Timer = ReturnType<typeof setTimeout> | null;
@@ -53,7 +59,10 @@ export class IdleRootController {
     }
 
     endNow(): void {
-        this.finish(this.deps.now());
+        // Force-ended (route change / pagehide). With no child in flight, trim to the
+        // floor instead of padding to the force-end moment; with an open child use
+        // now() so in-flight work is not cut short before it even started.
+        this.finish(this.openChildren > 0 ? this.deps.now() : this.trimmedEnd());
     }
 
     private onSpanEvent(phase: 'start' | 'end', span: Span): void {
@@ -85,8 +94,18 @@ export class IdleRootController {
         this.clearIdle();
         this.idleTimer = this.deps.setTimeout(() => {
             if (this.openChildren > 0) return;
-            this.finish(this.lastChildEndTime ?? this.deps.now());
+            this.finish(this.trimmedEnd());
         }, this.timeouts.idleTimeout);
+    }
+
+    /**
+     * End time for a trimmed close: the later of the injected floor and the last
+     * child's end, so a root never pads out to `now()`. With no children it is the
+     * floor itself (navigation start, or the pageload load-event end); with children
+     * it stretches to cover the last one.
+     */
+    private trimmedEnd(): number {
+        return Math.max(this.deps.endFloor(), this.lastChildEndTime ?? 0);
     }
 
     private clearIdle(): void {

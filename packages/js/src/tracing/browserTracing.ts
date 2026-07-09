@@ -3,7 +3,7 @@ import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer }
 import { collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
-import { pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
+import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 
 /** Structural subset of the js Flare this orchestrator needs. */
 export type BrowserTracingFlare = {
@@ -61,6 +61,9 @@ function startRoot(
                 setTimeout: (fn, ms) => setTimeout(fn, ms),
                 clearTimeout: (handle) => clearTimeout(handle),
                 rootStartTime: startTimeUnixNano,
+                // Childless-close floor: a pageload ends at its real load-event mark,
+                // a navigation at its own start (an instant client nav trims to ~0).
+                endFloor: spanType === 'browser_pageload' ? pageloadEndNano : () => startTimeUnixNano,
             },
             resolveTimeouts(flare.config),
         );
