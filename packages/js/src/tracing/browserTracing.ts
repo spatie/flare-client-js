@@ -9,7 +9,7 @@ import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './
 export type BrowserTracingFlare = {
     readonly config: Config;
     startSpan(name: string, opts?: SpanOptions): Span;
-    tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush'>;
+    tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
 };
 
 export type RouteName = { name: string; source: 'route' | 'url' };
@@ -245,4 +245,12 @@ export function registerNavigationSource(): NavigationSource {
             lastPath = here();
         },
     };
+}
+
+/**
+ * Internal accessor for sibling tracing modules (the component-profiler seam) that
+ * need the live tracer. Returns the Flare currently driving browser tracing, or null.
+ */
+export function activeTracingFlare(): BrowserTracingFlare | null {
+    return activeFlare;
 }
