@@ -1,9 +1,16 @@
 # React Component Profiler — Design
 
-Status: approved (brainstorm)
-Date: 2026-07-10
+Status: revised post-review — ready for planning
+Date: 2026-07-10 (revised 2026-07-10 after design review)
 Branch: `feat/react-component-profiler` (off `research/tracing-framework-routers`, tip `10d91ce`)
 Supersedes: the uncommitted POC (`packages/react/src/profiler.ts` + playground wiring), which is a reference only.
+
+Revision (2026-07-10, post-review): closed three timing/sampling gaps found in review. (1) `recordComponentSpan`
+now gates on the live root (`tracer.getActiveSpan()` still matching the reserved `traceId`) and drops the span
+otherwise, so a late / racing / post-idle mount can never seed a fresh `TraceState` and re-sample — the
+no-re-sample invariant now holds by construction. (2) A `hasRecorded` ref guards the mount effect so StrictMode's
+replayed setup cannot buffer a duplicate `spanId`; dev and production both emit one span (the earlier "two spans in
+dev" note is dropped). (3) Suspense is a documented v1 limitation, not engineered around.
 
 ## Goal
 
@@ -84,17 +91,22 @@ functions bound to the singleton browser tracer:
 ```ts
 export type ComponentTraceContext = { traceId: string; parentSpanId: string };
 
-// The active pageload/navigation root a top-level component should nest under.
-// Returns null when tracing is off, no root is active, or the root is not recording.
+// The active pageload/navigation root a top-level component should nest under, read
+// from `tracer.getActiveSpan()` (the holder's active root, which IdleRootController
+// clears on close). Returns null when tracing is off, no root is active, or the root
+// is not recording.
 export function activeComponentRoot(): ComponentTraceContext | null;
 
 // A 16-hex span id a component reserves for itself, so its descendants can reference
 // it as their parent before this component's span is actually recorded.
 export function reserveSpanId(): string;
 
-// Record a completed mount span (spanType 'browser_react_component'). No-op when
-// tracing is off or not recording. Follows the ROOT's sampling decision by reusing the
-// existing trace state (it never re-samples per component).
+// Record a completed mount span (spanType 'browser_react_component'). Records ONLY
+// while the reserved root is still the live, recording active root (its traceId still
+// matches `tracer.getActiveSpan()`); otherwise it DROPS the span. That is what makes
+// the "reuse the root's decision, never re-sample per component" guarantee hold: it
+// either records under the live root (whose TraceState still exists, so the decision
+// is reused) or records nothing. No-op when tracing is off.
 export function recordComponentSpan(span: {
     name: string;
     spanId: string;
@@ -105,10 +117,26 @@ export function recordComponentSpan(span: {
 }): void;
 ```
 
-`recordComponentSpan` is implemented as `tracer.startSpan(name, { spanId, parent: { traceId, spanId: parentSpanId },
-spanType: 'browser_react_component', startTimeUnixNano, attributes }).end(endTimeUnixNano)`. Because the parent is a
-plain `{ traceId, spanId }` whose trace state already exists (seeded by the root), the tracer reuses that state and
-its recording decision rather than re-sampling.
+`recordComponentSpan` first gates on the live root: `const root = tracer.getActiveSpan(); if (!root || root.traceId
+!== parent.traceId || !root.isRecording) return;`. `getActiveSpan()` returns the holder's active root, which
+`IdleRootController.finish` clears to `undefined` on close, so a matching `traceId` proves the reserved root is still
+open (unlike the module-global `currentRoot`, which is not nulled on idle-close). Exposing it means widening the
+`BrowserTracingFlare.tracer` `Pick` to include `getActiveSpan` (the runtime object is a full `Tracer`).
+
+When the gate passes, the root's `TraceState` is still in `traceStates`, so `tracer.startSpan(name, { spanId,
+parent: { traceId, spanId: parentSpanId }, spanType: 'browser_react_component', startTimeUnixNano, attributes
+}).end(endTimeUnixNano)` reuses that state and its recording decision — the plain `{ traceId, spanId }` parent path
+in `resolveTrace` finds existing state and does not re-sample.
+
+When the gate fails — the root idle-closed during a mount gap, or a later navigation replaced it — the span is
+dropped. This is deliberate: without the gate, `startSpan` would find no `TraceState` for the dead trace, seed a
+fresh one, and re-sample it independently via `resolveSampling`, producing a re-sampled, root-detached phantom child
+of an already-shipped root. Dropping keeps the per-component no-re-sample invariant true by construction.
+
+The common case is not dropped: each recorded component span is a start+end pair, and `IdleRootController` re-arms
+the root's idle timer every time a child span ends, so a continuously-mounting subtree keeps its own root alive.
+Only a mount gap longer than `idleTimeout` (typically a Suspense data wait) or a subsequent navigation trips the
+drop path.
 
 ### 3. `@flareapp/react/profiler` (`packages/react/src/profiler.ts`)
 
@@ -126,8 +154,10 @@ its recording decision rather than re-sampling.
     - **Otherwise** it reserves its own `spanId` (`reserveSpanId()`) and captures `startNano` at first render (both
       in lazy refs), provides `{ traceId: resolvedParent.traceId, parentSpanId: ownSpanId }` to children, and in a
       mount `useLayoutEffect` (falling back to `useEffect` under SSR, to match `componentDidMount` timing while
-      preserving bottom-up ordering) calls `recordComponentSpan(...)` with `resolvedParent`, its reserved id,
-      `startNano`, and the current time as end.
+      preserving bottom-up ordering) records its span exactly once — a `hasRecorded` ref guards the effect body so
+      StrictMode's replayed setup does not buffer a second span under the same reserved id (see
+      [StrictMode](#strictmode-and-leak-safety)) — calling `recordComponentSpan(...)` with `resolvedParent`, its
+      reserved id, `startNano`, and the current time as end.
 - `withFlareProfiler(Component, { name? })`: renders `<FlareProfiler name={resolvedName}>` around `Component`.
 
 ## Timing and nesting model (the crux)
@@ -135,8 +165,10 @@ its recording decision rather than re-sampling.
 - `startNano` is captured at first render (the component begins mounting). `endNano` is captured in the mount
   effect (the subtree has mounted).
 - React renders top-down (a parent's `startNano` precedes its children's) and fires mount effects bottom-up (a
-  child's `endNano` precedes its parent's). So a parent `[start, end]` encloses every child both by time and by
-  `parent_span_id`. Both axes agree; the waterfall nests correctly.
+  child's `endNano` precedes its parent's). Within a single synchronous commit a parent `[start, end]` therefore
+  encloses every child both by time and by `parent_span_id`, and the waterfall nests correctly. This holds only
+  within a synchronous commit; a `<Suspense>` boundary inside the subtree can break enclosure (see
+  [Suspense](#suspense)).
 - Reserved ids solve the ordering trap: a child records in its own effect _before_ its parent's effect runs, but
   it already knows the parent's reserved id from render-time context, so the structural link is available even
   though the parent's span object does not exist yet.
@@ -144,7 +176,23 @@ its recording decision rather than re-sampling.
   under the nearest _profiled_ ancestor.
 - Orphan degradation: if a profiled ancestor's span is dropped (sampling or `maxSpansPerTrace`), its descendants'
   `parent_span_id` points at a missing span. Flare's tree builder treats that as an orphan and reparents it to the
-  root (`sp-agg-traces/helpers.ts:74`). Acceptable; covered by a test.
+  root (`sp-agg-traces/helpers.ts:74`). Acceptable; covered by a test. Because effects fire bottom-up, an ancestor
+  is recorded after its descendants and so is the more likely victim of a `maxSpansPerTrace` cap; orphaning is the
+  designed-for degradation, not a rare edge.
+- Late-mount drop: a component records only while its reserved root is still the live active root (the seam's
+  live-root gate). A subtree that finishes mounting after the root idle-closed, or whose root a later navigation
+  replaced, records nothing rather than re-sampling and attaching to a dead trace.
+
+## Suspense
+
+`<Suspense>` inside a profiled subtree is a documented v1 limitation, not engineered around. There is no
+Suspense-specific code: the live-root gate already covers the one case that needs handling (a child that resumes
+after its root closed is dropped, not re-sampled). Two behaviors to note in the docs so they are not read as bugs:
+
+- A suspended child's `startNano` is captured before it suspends, so its span covers the suspense wait. Read the
+  duration as "time to mount, including data waits in the subtree."
+- A `<Suspense>` boundary between a profiled parent and child can end the parent span before the child resumes, so
+  the child may render outside its parent in the waterfall, or (if the wait exceeds `idleTimeout`) be dropped.
 
 ## StrictMode and leak-safety
 
@@ -152,15 +200,21 @@ Start and end are recorded together in the mount effect, so only committed fiber
 no open-span leak. This is mandatory: `IdleRootController` blocks idle-close on open children (the POC's 15006ms
 `childSpanTimeout`), unlike Sentry's transaction which drops unfinished spans.
 
-Documented runtime consequence: under React `<StrictMode>` in development, mount → unmount → remount produces
-**two** `browser_react_component` spans per component; production produces **one**. This must be called out in the
-docs so the duplicate dev spans are not read as a bug.
+Record-once guard: under React `<StrictMode>` in development React runs the mount effect twice on the same fiber
+(setup → cleanup → setup) to surface effect bugs. The reserved `spanId` and `startNano` live in refs that persist
+across that replay, so an unguarded effect would buffer the span **twice with the same `spanId`** — a span-id
+collision in the trace, not two distinct spans. A `hasRecorded` ref makes the effect record exactly once per
+committed fiber: the first setup records and sets the flag; the replayed setup no-ops. A genuine unmount/remount is
+a new fiber with a fresh ref and correctly records a new span. Dev and production both emit one span per mount, so
+there is no duplicate dev behavior to document.
 
 ## Config, gating, overhead
 
 - Gated on `enableTracing` and an active, recording root: `activeComponentRoot()` returns null otherwise and the
   component records nothing.
-- Follows the root's sampling decision; no per-component re-sampling.
+- Follows the root's sampling decision, never re-sampling per component: a component span is either recorded under
+  the live root (reusing its `TraceState` and decision) or dropped (the seam's live-root gate; see [Timing and
+  nesting model](#timing-and-nesting-model-the-crux)). No code path samples a component independently.
 - No separate `enableReactProfiler` flag or profiler-specific sample rate in v1 (YAGNI). Wrapping a component is
   the opt-in.
 - Cost when not recording: one context read plus a null check per profiled component; no span work.
@@ -191,13 +245,20 @@ active.
     - tracing disabled: nothing recorded;
     - name precedence (explicit > displayName > name);
     - never throws when the seam throws (inject a throwing seam);
-    - StrictMode double-mount: two spans in development (documents the behavior);
-    - orphan: a child whose profiled parent's span is absent still records with a `parent_span_id` (graceful).
+    - StrictMode: the record-once guard emits exactly one span per mount in development (not two) with no duplicate
+      `spanId`;
+    - orphan: a child whose profiled parent's span is absent still records with a `parent_span_id` (graceful);
+    - late mount: a component whose reserved root has already ended when its mount effect runs records nothing (no
+      re-sample, no root-detached span);
+    - Suspense boundary: a suspended child records under its profiled ancestor when it resumes within the root
+      window (documents the timing behavior).
 - `packages/js/tests/componentProfiler.test.ts`:
     - `activeComponentRoot()` returns the root context when a recording root is active; null when tracing is off,
       no root is active, or the root is not recording;
     - `recordComponentSpan(...)` buffers a `browser_react_component` span with the right ids, parent, and times, and
-      follows the root's recording decision (no re-sample).
+      follows the root's recording decision (no re-sample);
+    - `recordComponentSpan(...)` drops the span (nothing buffered, no re-sample) when `tracer.getActiveSpan()` no
+      longer matches the parent's `traceId` — the root idle-closed or a new navigation root took over.
 - `packages/core`: `startSpan` honors an explicit `spanId`.
 - Playground: wire a handful of components in `playgrounds/react` (for example ProductsPage, ProductPage,
   ProductGallery, AddToCartButton) to exercise the tree for manual and e2e runs. The local-only `flare.ts` test
@@ -211,6 +272,8 @@ active.
 - `packages/core/src/tracing/Tracer.ts` — `opts.spanId ?? makeSpanId()`.
 - `packages/core/tests/…` — explicit-`spanId` test.
 - `packages/js/src/tracing/componentProfiler.ts` — the seam (new).
+- `packages/js/src/tracing/browserTracing.ts` — widen the `BrowserTracingFlare.tracer` `Pick` to expose
+  `getActiveSpan` for the seam's live-root gate.
 - `packages/js/src/browser.ts` — export the seam.
 - `packages/js/tests/componentProfiler.test.ts` — seam tests (new).
 - `packages/react/src/profiler.ts` — `FlareProfiler` + `withFlareProfiler` + context (rewrites the POC file).
@@ -235,3 +298,5 @@ Until this lands, component spans store as `unknown` for other users. The featur
   slice.
 - `useFlareProfiler` hook.
 - Per-component enable flag.
+- Suspense-boundary-aware timing. v1 documents the distortion (see [Suspense](#suspense)) instead of resetting or
+  clamping spans across boundaries.
