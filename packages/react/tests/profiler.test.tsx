@@ -183,6 +183,30 @@ describe('FlareProfiler', () => {
             expect(byName.Lazy).toMatchObject({ parent: { parentSpanId: 's1' } });
         });
     });
+
+    it('re-homes a descendant to the live root when the inherited ancestor context is from a dead trace', () => {
+        // Ancestor (a persistent layout) mounts under the initial pageload trace R1.
+        seam.activeComponentRoot.mockReturnValue({ traceId: 'R1', parentSpanId: 'r1root' });
+        const { rerender } = render(<FlareProfiler name="Layout">{null}</FlareProfiler>);
+
+        // Pageload trace R1 closes; a client navigation opens a fresh trace R2. The ancestor
+        // does NOT remount (rerender, same fiber), so its provided context stays frozen at R1.
+        seam.activeComponentRoot.mockReturnValue({ traceId: 'R2', parentSpanId: 'r2root' });
+        rerender(
+            <FlareProfiler name="Layout">
+                <FlareProfiler name="Descendant">
+                    <div>x</div>
+                </FlareProfiler>
+            </FlareProfiler>,
+        );
+
+        const byName = Object.fromEntries(calls().map((c) => [c.name, c]));
+        // Ancestor recorded once, under its own live trace at mount time (R1).
+        expect(byName.Layout).toMatchObject({ parent: { traceId: 'R1', parentSpanId: 'r1root' } });
+        // Descendant inherited the stale R1 context but RE-HOMES to the live R2 root instead of
+        // pinning to the dead trace (which the live-root gate would drop in production).
+        expect(byName.Descendant).toMatchObject({ parent: { traceId: 'R2', parentSpanId: 'r2root' } });
+    });
 });
 
 describe('withFlareProfiler', () => {

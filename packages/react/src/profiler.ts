@@ -39,7 +39,13 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     const parentRef = useRef<ComponentTraceContext | null | undefined>(undefined);
     if (parentRef.current === undefined) {
         try {
-            parentRef.current = context ?? activeComponentRoot();
+            const live = activeComponentRoot();
+            // Prefer an inherited ancestor context only while it still belongs to the live
+            // trace. A profiled component that persists across navigations (e.g. a layout)
+            // froze its context under the pageload trace; once that root closes and a client
+            // navigation opens a new root, a descendant must re-home to the LIVE root rather
+            // than pin the subtree to the dead trace (which the live-root gate would drop).
+            parentRef.current = context && live && context.traceId === live.traceId ? context : live;
         } catch {
             parentRef.current = null; // resolved to transparent; never throw into the host
         }
