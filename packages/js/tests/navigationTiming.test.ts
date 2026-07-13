@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { computePageloadStartNano, resolvePageloadStartNano } from '../src/tracing/navigationTiming';
+import {
+    computePageloadEndNano,
+    computePageloadStartNano,
+    resolvePageloadStartNano,
+} from '../src/tracing/navigationTiming';
 
 describe('computePageloadStartNano', () => {
     it('returns timeOrigin + entry.startTime in nanoseconds', () => {
@@ -34,5 +38,24 @@ describe('resolvePageloadStartNano', () => {
         const backdated = 1_000 * 1e6;
         const now = backdated + 2_000 * 1e6; // within the cap, but already traced
         expect(resolvePageloadStartNano(backdated, now, FINAL, true)).toBe(now);
+    });
+});
+
+describe('computePageloadEndNano', () => {
+    const NOW = 9_999 * 1e6;
+
+    it('returns timeOrigin + loadEventEnd in nanoseconds', () => {
+        // timeOrigin 1_000 ms, loadEventEnd 488 ms → 1_488 ms → * 1e6 ns
+        expect(computePageloadEndNano(1_000, 488, 300, NOW)).toBe(1_488 * 1e6);
+    });
+
+    it('falls back to domContentLoadedEventEnd when the load event has not fired yet', () => {
+        // loadEventEnd 0 (unset) → use DCL 300 ms
+        expect(computePageloadEndNano(1_000, 0, 300, NOW)).toBe(1_300 * 1e6);
+    });
+
+    it('falls back to now when neither the load nor DCL event has fired', () => {
+        expect(computePageloadEndNano(1_000, 0, 0, NOW)).toBe(NOW);
+        expect(computePageloadEndNano(1_000, undefined, undefined, NOW)).toBe(NOW);
     });
 });

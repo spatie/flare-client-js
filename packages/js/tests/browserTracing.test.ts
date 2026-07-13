@@ -64,6 +64,7 @@ describe('browserTracing', () => {
         expect(opts.forceRoot).toBe(true); // must not become a child of an ambient active span
         expect(opts.attributes?.['flare.entry_point.type']).toBe('web');
         expect(opts.attributes?.['flare.entry_point.handler.identifier']).toBe('/start');
+        expect(opts.attributes?.['flare.route.source']).toBe('url');
         expect(opts.attributes?.['url.full']).toContain('/start');
         expect('context.route' in (opts.attributes ?? {})).toBe(false);
         expect('context.url' in (opts.attributes ?? {})).toBe(false);

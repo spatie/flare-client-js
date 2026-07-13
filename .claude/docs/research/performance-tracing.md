@@ -954,14 +954,24 @@ Two integration shapes, both v7:
 
 - First-class events: `router.subscribe(eventName, listener)`. Order: `onBeforeNavigate` (start) → `onBeforeLoad` →
   `onLoad` → `onBeforeRouteMount` → `onResolved` (end) → `onRendered`. Payload: `{ fromLocation?, toLocation,
-pathChanged, hrefChanged, hashChanged }`.
-- Initial pageload distinction: likely `fromLocation === undefined` on first `onResolved` — **not stated explicitly in
-  docs; verify.** (Flagged.)
+pathChanged, hrefChanged, hashChanged }`. **Caveat (added 2026-07-07): `onBeforeNavigate` is suppressed once a
+  loader redirect is pending (`router-core` gates the emit on `!stores.redirect`; TanStack/router#3920), so it does
+  NOT fire for every navigation — use `onBeforeLoad` as the nav-start hook, as Sentry's integration does. A redirect
+  chain emits one `onBeforeLoad` per hop but a single `onResolved`.**
+- Initial pageload distinction: `fromLocation === undefined`. **Confirmed 2026-07-07:** the router-events guide
+  states "fromLocation can be undefined on the initial load", and Sentry's integration uses exactly `!fromLocation`
+  to skip the initial load in its navigation subscriber.
 - Parameterized name: read `router.state.matches[last].fullPath` / `routeId` (TanStack uses `$param`; normalize
   `$postId`→`:postId` if backend expects colon form). Guard against `""` fullPath for pathless routes (issue #4892).
-- **First-party Sentry integration now exists** (`tanstackRouterBrowserTracingIntegration`), exported from
-  `@sentry/react/tanstackrouter`, `@sentry/vue/tanstackrouter`, `@sentry/solid/tanstackrouter`, and
-  `@sentry/tanstackstart-react`. **Doc previously stated "no first-party integration" — corrected 2026-06-15.**
+  Sentry instead resolves matches on demand via `router.matchRoutes(pathname, search, { preload: false,
+throwOnError: false })` — independent of when router state commits — and treats a `__root__`-only match list as
+  "nothing matched" (falls back to the URL name). Verified in source 2026-07-07.
+- **First-party Sentry integration now exists** (`tanstackRouterBrowserTracingIntegration`). **Corrected 2026-07-07:**
+  for React it is exported from the MAIN `@sentry/react` entry — the published exports map has no subpaths; only
+  `@sentry/solid` documents a `/tanstackrouter` subpath import. TanStack Start has the dedicated
+  `@sentry/tanstackstart-react`. It vendors structural router types instead of taking a TanStack peer dep, and pins
+  minimum router version `1.64.0`. (This doc previously claimed `@sentry/{react,vue}/tanstackrouter` entry points;
+  earlier still, "no first-party integration" — corrected 2026-06-15.)
 - Docs: tanstack.com/router/latest/docs/guide/router-events, /api/router/RouterEventsType.
 
 ### 8.3 Vue Router v4
@@ -1006,8 +1016,10 @@ when implementing the Flare equivalents. Paths may drift; re-verify against the 
 
 **TanStack Router** (`tanstackRouterBrowserTracingIntegration(router)`)
 
-- Per-host packages each re-export from a `tanstackrouter` entry point:
-  `@sentry/react/tanstackrouter`, `@sentry/vue/tanstackrouter`, `@sentry/solid/tanstackrouter`.
+- Source per host package (`packages/react/src/tanstackrouter.ts`, vendored types in
+  `packages/react/src/vendor/tanstackrouter-types.ts`), re-exported from the package's MAIN entry for React
+  (**corrected 2026-07-07**: the published `@sentry/react` exports map has no subpaths — this doc previously
+  claimed per-host `tanstackrouter` entry points; only `@sentry/solid` documents a `/tanstackrouter` subpath).
 - TanStack Start dedicated package: `@sentry/tanstackstart-react` (e2e example
   `dev-packages/e2e-tests/test-applications/tanstackstart-react/src/router.tsx`).
 - Underlying instrumentation lives under each host package's source tree (`packages/react/src/tanstackrouter.*`,
@@ -1039,21 +1051,23 @@ when implementing the Flare equivalents. Paths may drift; re-verify against the 
 
 ### 8.6 Cross-router summary
 
-| Router             | Nav start                                    | Nav end                             | Parameterized name                       | Param syntax | Sentry official |
-| ------------------ | -------------------------------------------- | ----------------------------------- | ---------------------------------------- | ------------ | --------------- |
-| React Router v7    | `useLocation` change / data-router subscribe | `useEffect` after commit            | `matchRoutes()` → join `route.path`      | `:id`        | Yes (lib + fw)  |
-| TanStack Router v1 | `subscribe('onBeforeNavigate')`              | `'onResolved'`                      | `state.matches[last].fullPath`/`routeId` | `$id`        | Yes             |
-| Vue Router v4      | `beforeEach`                                 | `afterEach`                         | `to.matched[last].path` / `to.name`      | `:id`        | Yes             |
-| SvelteKit 2        | `navigating` non-null / `beforeNavigate`     | `navigating`→null / `afterNavigate` | `route.id`                               | `[id]`       | Yes (+ server)  |
+| Router             | Nav start                                    | Nav end                             | Parameterized name                     | Param syntax | Sentry official |
+| ------------------ | -------------------------------------------- | ----------------------------------- | -------------------------------------- | ------------ | --------------- |
+| React Router v7    | `useLocation` change / data-router subscribe | `useEffect` after commit            | `matchRoutes()` → join `route.path`    | `:id`        | Yes (lib + fw)  |
+| TanStack Router v1 | `subscribe('onBeforeLoad')` (#3920)          | `'onResolved'`                      | `matchRoutes()` → `fullPath`/`routeId` | `$id`        | Yes             |
+| Vue Router v4      | `beforeEach`                                 | `afterEach`                         | `to.matched[last].path` / `to.name`    | `:id`        | Yes             |
+| SvelteKit 2        | `navigating` non-null / `beforeNavigate`     | `navigating`→null / `afterNavigate` | `route.id`                             | `[id]`       | Yes (+ server)  |
 
 ### Open questions (routers)
 
 1. React Router v7 framework (Remix-style) mode instrumentation API — was Beta; verify.
     - **Resolved 2026-06-15:** shipped as the dedicated `@sentry/react-router` package; see §8.5 for source path.
 2. TanStack initial-pageload detection (no explicit flag confirmed) and absence of a first-party Sentry integration.
-    - **Partly resolved 2026-06-15:** first-party `tanstackRouterBrowserTracingIntegration` now exists across
-      `@sentry/{react,vue,solid,tanstackstart-react}/tanstackrouter`. Initial-pageload detection still unverified —
-      read the integration source and reverify.
+    - **Partly resolved 2026-06-15:** first-party `tanstackRouterBrowserTracingIntegration` exists (export paths
+      corrected 2026-07-07 — see §8.2/§8.5).
+    - **Resolved 2026-07-07:** initial-pageload detection is `fromLocation === undefined` (documented by TanStack,
+      used by Sentry's source). The same review established `onBeforeLoad`, not `onBeforeNavigate`, as the reliable
+      nav-start event (TanStack/router#3920).
 3. Vue: exact name-resolution precedence inside Sentry not source-verified.
 4. Param-syntax normalization — does the backend want one canonical placeholder form across routers? Backend decision.
 5. SvelteKit `$app/stores` → `$app/state` migration timing vs the version we target.

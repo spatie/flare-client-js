@@ -55,3 +55,12 @@ export { catchWindowErrors } from './browser/catchWindowErrors';
 export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
+export { registerNavigationSource, type NavigationSource, type RouteName } from './tracing/browserTracing';
+export {
+    activeComponentRoot,
+    reserveSpanId,
+    recordComponentSpan,
+    nowNano,
+    type ComponentTraceContext,
+} from './tracing/componentProfiler';
+export { BrowserSpanType } from './tracing/spanTypes';
