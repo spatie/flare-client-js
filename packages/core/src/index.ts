@@ -62,6 +62,7 @@ export {
     buildTracesEnvelope,
     buildTraceparent,
     parseTraceparent,
+    spanId,
 } from './tracing';
 export type { TracerDeps, ActiveSpanHolder } from './tracing';
 

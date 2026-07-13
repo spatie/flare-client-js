@@ -1,5 +1,6 @@
 import '@flareapp/playgrounds-shared/styles.css';
 import { FlareErrorBoundary } from '@flareapp/react';
+import { traceTanStackRouter } from '@flareapp/react/tanstack-router';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -9,6 +10,7 @@ import { initFlare } from './flare';
 import { router } from './router';
 
 initFlare();
+traceTanStackRouter(router);
 
 // Track the router pathname via router.subscribe so the boundary can read it
 // without being mounted inside RouterProvider. The boundary needs to wrap

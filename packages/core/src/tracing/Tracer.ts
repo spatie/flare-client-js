@@ -158,7 +158,7 @@ export class Tracer {
 
     startSpan(name: string, opts: SpanOptions = {}): Span {
         const config = this.deps.getConfig();
-        const spanId = makeSpanId();
+        const spanId = opts.spanId ?? makeSpanId();
 
         // Pending continuation (continueFromTraceparent) is a strict one-shot for the NEXT startSpan: consumed by a
         // parentless root, dropped when the span has a parent or tracing is disabled. Never lingers, so it can't attach

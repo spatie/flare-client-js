@@ -84,3 +84,34 @@ at [flareapp.io/docs/react/general/installation](https://flareapp.io/docs/react/
 ## License
 
 The MIT License (MIT). Please see [License File](../../LICENSE.md) for more information.
+
+## Component profiler (`@flareapp/react/profiler`)
+
+Opt-in mount profiling: wrap a component to record a `browser_react_component` span for
+its mount, nested under the active page-load / navigation trace. Requires tracing to be
+enabled (`enableTracing: true`).
+
+```tsx
+import { FlareProfiler, withFlareProfiler } from '@flareapp/react/profiler';
+
+// Wrap at the definition:
+export default withFlareProfiler(ProductPage);
+
+// Or wrap an inline subtree:
+<FlareProfiler name="Gallery">
+    <ProductGallery />
+</FlareProfiler>;
+```
+
+Spans nest into a tree: a profiled child nests under its nearest profiled ancestor;
+unprofiled components in between are transparent. A component with no active trace
+(tracing off, or no page-load/navigation root) records nothing and renders normally.
+
+**Naming:** the span name is `name` (prop or `withFlareProfiler(Component, { name })`),
+then `Component.displayName`, then `Component.name`. Minified production builds can
+mangle `Component.name`, so pass an explicit `name` or set `displayName` for production.
+
+**Suspense (v1 limitation):** a `<Suspense>` boundary inside a profiled subtree can end a
+parent span before a suspended child resumes, so the child may appear outside its parent
+in the waterfall, and its duration includes the data wait. If the wait outlasts the
+trace's idle window the child span is dropped rather than attached to a closed trace.
