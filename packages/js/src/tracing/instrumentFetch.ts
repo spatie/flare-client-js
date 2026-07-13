@@ -9,6 +9,7 @@ import {
     traceparentFor,
 } from './httpRequestSpan';
 import { type FetchInput, mergeTraceparentHeader } from './propagation';
+import { BrowserSpanType } from './spanTypes';
 import { supportsNativeFetch } from './supportsNativeFetch';
 
 function resolveRequest(input: FetchInput, init: RequestInit | undefined): { method: string; url: string } {
@@ -44,7 +45,7 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
         const pathname = abs ? abs.pathname : url;
 
         const span = tracer.startSpan(`${method} ${pathname}`, {
-            spanType: 'browser_fetch',
+            spanType: BrowserSpanType.Fetch,
             attributes: requestSpanAttributes(method, abs, url, config),
         });
 

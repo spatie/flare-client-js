@@ -63,3 +63,4 @@ export {
     nowNano,
     type ComponentTraceContext,
 } from './tracing/componentProfiler';
+export { BrowserSpanType } from './tracing/spanTypes';

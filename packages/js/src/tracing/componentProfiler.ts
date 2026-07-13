@@ -4,10 +4,9 @@
 import { defaultNowNano, spanId as makeSpanId } from '@flareapp/core';
 
 import { activeTracingFlare } from './browserTracing';
+import { BrowserSpanType } from './spanTypes';
 
 export type ComponentTraceContext = { traceId: string; parentSpanId: string };
-
-const COMPONENT_SPAN_TYPE = 'browser_react_component';
 
 /** Unix nanos on the same clock the tracer uses for span timestamps. */
 export const nowNano = defaultNowNano;
@@ -56,7 +55,7 @@ export function recordComponentSpan(span: {
             .startSpan(span.name, {
                 spanId: span.spanId,
                 parent: { traceId: span.parent.traceId, spanId: span.parent.parentSpanId },
-                spanType: COMPONENT_SPAN_TYPE,
+                spanType: BrowserSpanType.ReactComponent,
                 startTimeUnixNano: span.startTimeUnixNano,
                 attributes: { ...span.attributes, 'flare.react.component': span.name },
             })
