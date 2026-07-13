@@ -7,6 +7,7 @@ export {
     flatJsonStringify,
     glowsToEvents,
     now,
+    redactObjectValues,
     redactUrlQuery,
     resolveDenylist,
 } from '@flareapp/core';

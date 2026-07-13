@@ -10,7 +10,10 @@ type WebpackConfig = { plugins: unknown[]; devtool?: string | false } & Record<s
 type WebpackContext = { isServer: boolean; dev?: boolean } & Record<string, unknown>;
 
 export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjsPluginOptions): NextConfig {
-    const removeSourcemaps = options.removeSourcemaps ?? false;
+    // Default to removing sourcemaps because this wrapper force-enables productionBrowserSourceMaps
+    // below. Without removal, Next.js would emit public, browser-referenced .map files containing the
+    // app's original client source and leave them in the served output for anyone to download.
+    const removeSourcemaps = options.removeSourcemaps ?? true;
     const version = options.version ?? randomUUID();
 
     const existingExperimental = (nextConfig.experimental as Record<string, unknown> | undefined) ?? {};

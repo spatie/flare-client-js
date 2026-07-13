@@ -38,6 +38,7 @@ export {
     flatJsonStringify,
     glowsToEvents,
     now,
+    redactObjectValues,
     redactUrlQuery,
     resolveDenylist,
     routeRejection,

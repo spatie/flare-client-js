@@ -31,7 +31,13 @@ export type {
     StackFrame,
     User,
 } from '@flareapp/core';
-export { convertToError, DEFAULT_URL_DENYLIST, redactUrlQuery, resolveDenylist } from '@flareapp/core';
+export {
+    convertToError,
+    DEFAULT_URL_DENYLIST,
+    redactObjectValues,
+    redactUrlQuery,
+    resolveDenylist,
+} from '@flareapp/core';
 
 /** @deprecated use redactUrlQuery instead - same behavior, more honest name */
 export { redactUrlQuery as redactFullPath } from '@flareapp/core';

@@ -43,7 +43,7 @@ export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attr
 
     Object.assign(attrs, request(config.urlDenylist));
     Object.assign(attrs, requestData(config.urlDenylist));
-    Object.assign(attrs, cookie());
+    Object.assign(attrs, cookie(config.urlDenylist));
 
     return attrs;
 };

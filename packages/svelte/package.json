@@ -84,6 +84,7 @@
     },
     "dependencies": {
         "@flareapp/core": "2.6.0",
-        "error-stack-parser": "^2.1.4"
+        "error-stack-parser": "^2.1.4",
+        "magic-string": "^0.30.21"
     }
 }

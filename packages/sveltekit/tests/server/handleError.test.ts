@@ -76,6 +76,21 @@ describe('handleErrorWithFlare (server)', () => {
         expect(svelteKit.query.token).toBe('[redacted]');
     });
 
+    test('redacts sensitive route params by key', async () => {
+        const handler = handleErrorWithFlare();
+        const event = {
+            url: new URL('http://localhost/reset-password/tok'),
+            params: { token: 'tok', id: '42' },
+            route: { id: '/reset-password/[token]' },
+        };
+
+        await handler({ error: new Error('test'), event, status: 500, message: 'Internal Error' });
+
+        const svelteKit = mockReport.mock.calls[0][1]['context.custom'].svelte.svelteKit;
+        expect(svelteKit.params.token).toBe('[redacted]');
+        expect(svelteKit.params.id).toBe('42');
+    });
+
     test('passes through to user handler', async () => {
         const userHandler = vi.fn();
         const handler = handleErrorWithFlare(userHandler);

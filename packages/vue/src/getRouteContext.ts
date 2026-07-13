@@ -1,4 +1,4 @@
-import { redactUrlQuery as redactFullPath } from '@flareapp/core';
+import { redactObjectValues, redactUrlQuery as redactFullPath } from '@flareapp/core';
 
 import { DEFAULT_PROPS_DENYLIST } from './constants';
 import { serializeProps } from './serializeProps';
@@ -40,12 +40,17 @@ export function getRouteContext(router: unknown, options: GetRouteContextOptions
     const params = r.params && typeof r.params === 'object' ? (r.params as Record<string, unknown>) : {};
     const query = r.query && typeof r.query === 'object' ? (r.query as Record<string, unknown>) : {};
 
+    // Redact denylisted top-level keys via the shared core helper; serializeProps still size-bounds
+    // and walks nested values.
+    const redactedParams = redactObjectValues(params, denylist);
+    const redactedQuery = redactObjectValues(query, denylist);
+
     return {
         name: typeof name === 'string' ? name : typeof name === 'symbol' ? name.toString() : null,
         path: typeof r.path === 'string' ? r.path : '',
         fullPath: typeof r.fullPath === 'string' ? redactFullPath(r.fullPath, denylist) : '',
-        params: serializeProps(params, ROUTE_PARAMS_DEPTH, denylist) as Record<string, RouteParamValue>,
-        query: serializeProps(query, ROUTE_PARAMS_DEPTH, denylist) as Record<
+        params: serializeProps(redactedParams, ROUTE_PARAMS_DEPTH, denylist) as Record<string, RouteParamValue>,
+        query: serializeProps(redactedQuery, ROUTE_PARAMS_DEPTH, denylist) as Record<
             string,
             RouteQueryValue | RouteQueryValue[]
         >,
