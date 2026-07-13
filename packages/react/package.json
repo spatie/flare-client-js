@@ -61,11 +61,21 @@
                 "types": "./dist/tanstack-router.d.cts",
                 "default": "./dist/tanstack-router.cjs"
             }
+        },
+        "./profiler": {
+            "import": {
+                "types": "./dist/profiler.d.mts",
+                "default": "./dist/profiler.mjs"
+            },
+            "require": {
+                "types": "./dist/profiler.d.cts",
+                "default": "./dist/profiler.cjs"
+            }
         }
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts src/inject.ts src/tanstack-router.ts --format cjs,esm --dts --env.PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --clean",
+        "build": "tsdown src/index.ts src/inject.ts src/tanstack-router.ts src/profiler.ts --format cjs,esm --dts --env.PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --clean",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
         "verify:inject": "node scripts/verify-inject-no-root.mjs",

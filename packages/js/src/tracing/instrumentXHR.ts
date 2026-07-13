@@ -10,6 +10,7 @@ import {
     safeAbsolute,
     traceparentFor,
 } from './httpRequestSpan';
+import { BrowserSpanType } from './spanTypes';
 
 type XhrOpen = XMLHttpRequest['open'];
 type XhrSend = XMLHttpRequest['send'];
@@ -108,7 +109,7 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
 
         const pathname = abs ? abs.pathname : state.url;
         const span = tracer.startSpan(`${state.method} ${pathname}`, {
-            spanType: 'browser_xhr',
+            spanType: BrowserSpanType.Xhr,
             attributes: requestSpanAttributes(state.method, abs, state.url, config),
         });
         state.span = span;

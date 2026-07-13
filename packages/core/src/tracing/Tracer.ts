@@ -159,7 +159,7 @@ export class Tracer {
 
     startSpan(name: string, opts: SpanOptions = {}): Span {
         const config = this.deps.getConfig();
-        const spanId = makeSpanId();
+        const spanId = opts.spanId ?? makeSpanId();
 
         // The pending continuation (continueFromTraceparent) is a strict one-shot for
         // the NEXT startSpan, whatever that span turns out to be: consumed by a

@@ -4,12 +4,13 @@ import { collectBrowserSpanContext } from '../browser/context/collectBrowserSpan
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
+import { BrowserSpanType } from './spanTypes';
 
 /** Structural subset of the js Flare this orchestrator needs. */
 export type BrowserTracingFlare = {
     readonly config: Config;
     startSpan(name: string, opts?: SpanOptions): Span;
-    tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush'>;
+    tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
 };
 
 export type RouteName = { name: string; source: 'route' | 'url' };
@@ -40,7 +41,7 @@ function resolveTimeouts(config: Config): IdleTimeouts {
 
 function startRoot(
     flare: BrowserTracingFlare,
-    spanType: string,
+    spanType: BrowserSpanType,
     startTimeUnixNano: number,
     name: string = location.pathname,
 ): void {
@@ -63,7 +64,7 @@ function startRoot(
                 rootStartTime: startTimeUnixNano,
                 // Childless-close floor: a pageload ends at its real load-event mark,
                 // a navigation at its own start (an instant client nav trims to ~0).
-                endFloor: spanType === 'browser_pageload' ? pageloadEndNano : () => startTimeUnixNano,
+                endFloor: spanType === BrowserSpanType.Pageload ? pageloadEndNano : () => startTimeUnixNano,
             },
             resolveTimeouts(flare.config),
         );
@@ -100,7 +101,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
             // A failing prior-root teardown must not stop the new root from starting.
         }
     }
-    startRoot(flare, 'browser_navigation', defaultNowNano(), path);
+    startRoot(flare, BrowserSpanType.Navigation, defaultNowNano(), path);
 }
 
 /**
@@ -124,7 +125,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
         pageloadTraced,
     );
     pageloadTraced = true;
-    startRoot(flare, 'browser_pageload', pageloadStart);
+    startRoot(flare, BrowserSpanType.Pageload, pageloadStart);
 
     const handle = (): void => {
         // A third party may wrap history.pushState/replaceState on top of ours,
@@ -225,7 +226,7 @@ export function registerNavigationSource(): NavigationSource {
                     // a failing prior-root teardown must not stop the new root
                 }
             }
-            startRoot(activeFlare, 'browser_navigation', defaultNowNano(), path);
+            startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path);
         },
         setActiveRouteName(route) {
             if (!active()) return;
@@ -245,4 +246,12 @@ export function registerNavigationSource(): NavigationSource {
             lastPath = here();
         },
     };
+}
+
+/**
+ * Internal accessor for sibling tracing modules (the component-profiler seam) that
+ * need the live tracer. Returns the Flare currently driving browser tracing, or null.
+ */
+export function activeTracingFlare(): BrowserTracingFlare | null {
+    return activeFlare;
 }
