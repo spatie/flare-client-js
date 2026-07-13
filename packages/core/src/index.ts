@@ -32,6 +32,7 @@ export {
     assert,
     assertKey,
     convertToError,
+    createIdentityTagger,
     DEFAULT_URL_DENYLIST,
     describeRejectionReason,
     extractCode,
@@ -42,8 +43,11 @@ export {
     redactUrlQuery,
     resolveDenylist,
     routeRejection,
+    safeClone,
+    safeDecode,
+    toCustomContext,
 } from './util';
-export type { RejectionReporter } from './util';
+export type { RejectionReporter, SafeCloneOptions, SdkTaggable } from './util';
 
 export { Api } from './api';
 

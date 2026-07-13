@@ -1,6 +1,7 @@
 import { catchWindowErrors, Flare } from './browser';
 
 export { Flare } from './browser';
+export { createFlareResolver } from './createFlareResolver';
 
 export const flare = new Flare();
 
@@ -37,6 +38,7 @@ export {
     redactObjectValues,
     redactUrlQuery,
     resolveDenylist,
+    toCustomContext,
 } from '@flareapp/core';
 
 /** @deprecated use redactUrlQuery instead - same behavior, more honest name */

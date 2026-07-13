@@ -119,6 +119,20 @@ describe('serializeProps', () => {
         expect(serializeProps({ bare }, 5)).toEqual({ bare: { a: 1 } });
     });
 
+    test('replaces a throwing enumerable getter with a sentinel instead of throwing', () => {
+        // A Vue reactive proxy has Object.prototype, so it passes isPlainObject and its getters are
+        // read during the walk. A getter that throws must not crash the Vue error handler.
+        const input = {
+            safe: 1,
+            get boom(): unknown {
+                throw new Error('reactive getter blew up');
+            },
+        };
+
+        expect(() => serializeProps(input, 5)).not.toThrow();
+        expect(serializeProps(input, 5)).toEqual({ safe: 1, boom: '[Getter threw]' });
+    });
+
     test('ignores symbol-keyed properties on input', () => {
         const sym = Symbol('hidden');
         const input: Record<string | symbol, unknown> = { a: 1 };
