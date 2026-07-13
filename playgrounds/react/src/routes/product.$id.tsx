@@ -1,5 +1,6 @@
 import { productById, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
-import { createRoute } from '@tanstack/react-router';
+import { withFlareProfiler } from '@flareapp/react/profiler';
+import { createRoute, RouteComponent } from '@tanstack/react-router';
 
 import { cart } from '../cart';
 import { flare } from '../flare';
@@ -30,14 +31,7 @@ const ProductPage = () => {
                 <h1 className="text-2xl font-semibold">{product.title}</h1>
                 <p className="text-sm opacity-70">Photograph by {product.photographer}</p>
                 <div className="text-xl font-mono">${(product.priceCents / 100).toFixed(2)}</div>
-                <button
-                    type="button"
-                    data-testid={testIds.addToCart(product.id)}
-                    onClick={() => cart.add(product.id)}
-                    className="rounded-lg bg-brand-ink text-white py-3 hover:opacity-90"
-                >
-                    Add to cart
-                </button>
+                <AddToCartButton testId={testIds.addToCart(product.id)} onClick={() => cart.add(product.id)} />
                 <button
                     type="button"
                     onClick={triggerBroken}
@@ -53,5 +47,19 @@ const ProductPage = () => {
 export const productRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/product/$id',
-    component: ProductPage,
+    component: withFlareProfiler(ProductPage, { name: 'ProductPage' }) as RouteComponent,
 });
+
+const AddToCartButton = withFlareProfiler(
+    ({ testId, onClick }: { testId: any; onClick: () => void }) => (
+        <button
+            type="button"
+            data-testid={testId}
+            onClick={onClick}
+            className="rounded-lg bg-brand-ink text-white py-3 hover:opacity-90"
+        >
+            Add to cart
+        </button>
+    ),
+    { name: 'AddToCartButton' },
+);

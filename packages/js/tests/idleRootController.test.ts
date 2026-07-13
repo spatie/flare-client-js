@@ -27,7 +27,7 @@ function fakeSpan(id: string, traceId: string, endTime = 0): Span {
 }
 
 // Controllable harness: manual timers keyed by id (deadline in nanos), manual clock, manual listener.
-function harness(root: Span) {
+function harness(root: Span, endFloor: () => number = () => 0) {
     let listener: ((e: { phase: 'start' | 'end'; span: Span }) => void) | null = null;
     let clock = 0;
     const timers = new Map<number, { fn: () => void; at: number }>();
@@ -53,6 +53,7 @@ function harness(root: Span) {
             timers.delete(h as unknown as number);
         },
         rootStartTime: 0,
+        endFloor,
     };
 
     return {
@@ -89,6 +90,26 @@ describe('IdleRootController', () => {
 
         expect(root.end).toHaveBeenCalledWith(500 * 1e6);
         expect(h.setActiveRoot).toHaveBeenLastCalledWith(undefined);
+    });
+
+    it('a childless root ends at the end floor, not padded to now() (the idle-padding bug)', () => {
+        // A pageload whose window had no fetch/xhr children must close at its real
+        // load-event floor (here 700ms), NOT at start + idleTimeout (1000ms).
+        const root = fakeSpan('root', 'T');
+        const h = harness(root, () => 700 * 1e6);
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
+        h.advance(1000); // idleTimeout elapses with no child ever started
+        expect(root.end).toHaveBeenCalledWith(700 * 1e6);
+    });
+
+    it('a childless navigation-style root (floor = start) trims to ~zero, not idleTimeout', () => {
+        const root = fakeSpan('root', 'T');
+        const h = harness(root, () => 0); // navigation floor is the root start
+        const controller = new IdleRootController(h.deps, TIMEOUTS);
+        expect(controller.isEnded).toBe(false);
+        h.advance(1000);
+        expect(root.end).toHaveBeenCalledWith(0);
     });
 
     it('a new child before idle fires cancels the pending close', () => {
@@ -157,15 +178,27 @@ describe('IdleRootController', () => {
         expect(root.end).toHaveBeenCalledTimes(1);
     });
 
-    it('endNow ends immediately and is idempotent', () => {
+    it('endNow with no open children ends at the floor (not now()) and is idempotent', () => {
+        // Force-ended (route change / pagehide) while idle: trim to the floor, don't
+        // pad to the moment of the force-end.
         const root = fakeSpan('root', 'T');
-        const h = harness(root);
-        h.setClock(42);
+        const h = harness(root, () => 300 * 1e6);
+        h.setClock(42 * 1e6);
         const c = new IdleRootController(h.deps, TIMEOUTS);
         c.endNow();
         c.endNow();
         expect(root.end).toHaveBeenCalledTimes(1);
-        expect(root.end).toHaveBeenCalledWith(42);
+        expect(root.end).toHaveBeenCalledWith(300 * 1e6);
         expect(c.isEnded).toBe(true);
+    });
+
+    it('endNow with an open child ends at now() (in-flight work is not cut short)', () => {
+        const root = fakeSpan('root', 'T');
+        const h = harness(root, () => 0);
+        const c = new IdleRootController(h.deps, TIMEOUTS);
+        h.emit('start', fakeSpan('c1', 'T')); // child still in flight
+        h.setClock(900 * 1e6);
+        c.endNow();
+        expect(root.end).toHaveBeenCalledWith(900 * 1e6);
     });
 });

@@ -261,6 +261,15 @@ describe('Tracer.startSpan', () => {
         });
         expect(child?.traceId).toBe(outerTraceId); // contrast: default nests
     });
+
+    it('uses an explicit spanId from opts instead of generating one', () => {
+        const tracer = makeTracer(config());
+        const root = tracer.startSpan('root');
+        const child = tracer.startSpan('child', { parent: root, spanId: 'abc1230000000000' });
+        expect(child.spanId).toBe('abc1230000000000');
+        expect(child.parentSpanId).toBe(root.spanId);
+        expect(child.traceId).toBe(root.traceId);
+    });
 });
 
 describe('defaultNowNano', () => {

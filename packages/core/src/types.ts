@@ -190,6 +190,8 @@ export type SpanOptions = {
      * root opened inside `withSpan(...)` does not become a mid-trace child.
      */
     forceRoot?: boolean;
+    /** Use this exact span id instead of generating one (manual span stitching). */
+    spanId?: string;
 };
 
 export interface Span {
