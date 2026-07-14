@@ -20,6 +20,10 @@ export type IdleRootDeps = {
     // load-event end so a childless pageload reports its real load duration instead
     // of being padded by the whole idleTimeout window.
     endFloor: () => number;
+    // When true, the root opens with its idle-close suppressed until releaseHold() runs. The
+    // finalTimeout / childSpanTimeout backstops still apply. Used by framework navigation roots
+    // that cannot be named until the router settles, past the idle window.
+    held?: boolean;
 };
 
 type Timer = ReturnType<typeof setTimeout> | null;
@@ -37,6 +41,7 @@ export class IdleRootController {
     private finalTimer: Timer = null;
     private childTimer: Timer = null;
     private ended = false;
+    private held = false;
     private unsubscribe: () => void;
 
     constructor(
@@ -50,6 +55,7 @@ export class IdleRootController {
         const remainingMs = Math.max(0, timeouts.finalTimeout - elapsedMs);
         this.finalTimer = deps.setTimeout(() => this.finish(deps.now()), remainingMs);
 
+        this.held = !!deps.held;
         this.armIdle();
     }
 
@@ -60,8 +66,25 @@ export class IdleRootController {
     endNow(): void {
         // Force-ended (route change / pagehide). With no child in flight, trim to the
         // floor instead of padding to the force-end moment; with an open child use
-        // now() so in-flight work is not cut short before it even started.
-        this.finish(this.openChildren > 0 ? this.deps.now() : this.trimmedEnd());
+        // now() so in-flight work is not cut short before it even started. A held root is
+        // mid-loader-window by definition, so treat it like one with open children: close at
+        // now() so the trace records the work that ran, not a ~0 trim to the start floor.
+        this.finish(this.openChildren > 0 || this.held ? this.deps.now() : this.trimmedEnd());
+    }
+
+    /**
+     * Release a navigation hold. A childless root closes at `now()` (so its duration spans
+     * start→settle, capturing the loader window); a root with children re-arms the normal idle
+     * lifecycle so trailing work keeps it open. No-op when never held or already ended.
+     */
+    releaseHold(): void {
+        if (this.ended || !this.held) return;
+        this.held = false;
+        if (this.openChildren > 0) {
+            this.armIdle();
+        } else {
+            this.finish(this.deps.now());
+        }
     }
 
     private onSpanEvent(phase: 'start' | 'end', span: Span): void {
@@ -90,6 +113,7 @@ export class IdleRootController {
 
     private armIdle(): void {
         this.clearIdle();
+        if (this.held) return; // hold suppresses idle-close until releaseHold()
         this.idleTimer = this.deps.setTimeout(() => {
             if (this.openChildren > 0) return;
             this.finish(this.trimmedEnd());

@@ -73,20 +73,54 @@ test('omits url.query when no search string is present', () => {
     expect('url.query' in attributes).toBe(false);
 });
 
-test('emits http.request.cookies as parsed object', () => {
-    const attributes = cookie();
+test('emits http.request.cookies as parsed object, redacting denylisted names', () => {
+    const attributes = cookie(DEFAULT_URL_DENYLIST);
 
+    // `session` matches the denylist, `theme` does not.
     expect(attributes['http.request.cookies']).toEqual({
-        session: 'abc',
+        session: '[redacted]',
         theme: 'dark',
     });
 });
 
-test('preserves = characters inside cookie values (e.g. base64)', () => {
+test('redacts every cookie whose name matches the denylist', () => {
     clearCookies();
-    (window.document as any).cookie = 'token=abc==';
+    (window.document as any).cookie = 'token=jwt-value';
+    (window.document as any).cookie = 'csrf=csrf-value';
+    (window.document as any).cookie = 'theme=dark';
 
-    const attributes = cookie();
+    const cookies = cookie(DEFAULT_URL_DENYLIST)['http.request.cookies'] as Record<string, string>;
 
-    expect((attributes['http.request.cookies'] as Record<string, string>).token).toBe('abc==');
+    expect(cookies.token).toBe('[redacted]');
+    expect(cookies.csrf).toBe('[redacted]');
+    expect(cookies.theme).toBe('dark');
+});
+
+test('preserves = characters inside non-denylisted cookie values (e.g. base64)', () => {
+    clearCookies();
+    (window.document as any).cookie = 'data=abc==';
+
+    const attributes = cookie(DEFAULT_URL_DENYLIST);
+
+    expect((attributes['http.request.cookies'] as Record<string, string>).data).toBe('abc==');
+});
+
+test('stores a cookie literally named __proto__ instead of dropping it', () => {
+    // Feed a raw cookie string directly: jsdom's cookie jar would otherwise reject/normalize the name.
+    // The accessor is defined on Document.prototype, so an own-property override on the instance
+    // shadows it; deleting that override restores the original getter.
+    Object.defineProperty(window.document, 'cookie', {
+        configurable: true,
+        get: () => '__proto__=danger; theme=dark',
+    });
+
+    try {
+        const cookies = cookie(DEFAULT_URL_DENYLIST)['http.request.cookies'] as Record<string, string>;
+
+        expect(Object.prototype.hasOwnProperty.call(cookies, '__proto__')).toBe(true);
+        expect(cookies['__proto__']).toBe('danger');
+        expect(cookies.theme).toBe('dark');
+    } finally {
+        delete (window.document as any).cookie;
+    }
 });

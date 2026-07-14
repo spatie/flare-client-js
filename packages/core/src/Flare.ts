@@ -198,10 +198,15 @@ export class Flare {
             this._config.tracesSampleRate = Math.max(0, Math.min(1, config.tracesSampleRate));
         }
 
-        this._config.urlDenylist = resolveDenylist(
-            config.urlDenylist,
-            config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
-        );
+        // Only re-resolve the denylist when this call actually carries denylist config. Otherwise the spread
+        // above already preserved the previously resolved denylist, and re-resolving with an undefined `custom`
+        // would clobber a custom denylist back to the default, silently re-exposing data the user asked to redact.
+        if (config.urlDenylist !== undefined || config.replaceDefaultUrlDenylist !== undefined) {
+            this._config.urlDenylist = resolveDenylist(
+                config.urlDenylist,
+                config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
+            );
+        }
 
         // Only clear the buffer/timer on a real enabled->disabled transition.
         if (wasLogsEnabled && this._config.enableLogs === false) {

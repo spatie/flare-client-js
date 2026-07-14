@@ -50,6 +50,15 @@ describe('getRouteContext', () => {
         });
     });
 
+    test('redacts sensitive route params by key', () => {
+        mockPage.url = new URL('http://localhost/reset-password/tok');
+        mockPage.params = { token: 'tok', id: '42' };
+
+        const context = getRouteContext();
+
+        expect(context.params).toEqual({ token: '[redacted]', id: '42' });
+    });
+
     test('handles null route id', () => {
         mockPage.route = { id: null };
 
