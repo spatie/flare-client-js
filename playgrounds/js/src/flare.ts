@@ -7,8 +7,8 @@ export const initFlare = (): void => {
     if (url) {
         flare.configure({
             ingestUrl: url,
-            logsIngestUrl: url.replace('/api/reports', '/api/logs'),
-            tracesIngestUrl: url.replace('/api/reports', '/api/traces'),
+            logsIngestUrl: url.replace('/v1/errors', '/v1/logs'),
+            tracesIngestUrl: url.replace('/v1/errors', '/v1/traces'),
             // e2e-only timing: keep the pageload/navigation root active long enough for a
             // prompt Playwright click to land and nest under it, then flush an ended root
             // fast so arrival assertions don't need to wait out the (5s) production default.

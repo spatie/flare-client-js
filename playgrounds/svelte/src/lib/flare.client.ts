@@ -7,7 +7,7 @@ export const initFlareClient = (): void => {
     if (url) {
         flare.configure({
             ingestUrl: url,
-            logsIngestUrl: url.replace('/api/reports', '/api/logs'),
+            logsIngestUrl: url.replace('/v1/errors', '/v1/logs'),
         });
     }
 
