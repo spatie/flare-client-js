@@ -22,31 +22,32 @@ integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads
 
 ## Monorepo structure
 
-npm workspaces monorepo with 9 published packages, 1 internal package, 4 framework playground apps, a shared fixture
+npm workspaces monorepo with 9 published packages, 1 internal package, 5 framework playground apps, a shared fixture
 package, and a Playwright-based e2e suite:
 
-| Package                            | npm name                            | Purpose                                                                                        |
-| ---------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `packages/core`                    | `@flareapp/core`                    | Environment-agnostic Flare core (shared between js + node)                                     |
-| `packages/js`                      | `@flareapp/js`                      | Core client — error capture, stack traces, context, API reporting                              |
-| `packages/react`                   | `@flareapp/react`                   | React `FlareErrorBoundary` error boundary component; `/inject` entry for Electron renderers    |
-| `packages/vue`                     | `@flareapp/vue`                     | Vue error handler plugin (`flareVue()`); `/inject` entry for Electron renderers                |
-| `packages/svelte`                  | `@flareapp/svelte`                  | Svelte 5 `FlareErrorBoundary` with props serialization; `/inject` entry for Electron renderers |
-| `packages/sveltekit`               | `@flareapp/sveltekit`               | SvelteKit error hooks (`handleErrorWithFlare`) + route context                                 |
-| `packages/vite`                    | `@flareapp/vite`                    | Vite build plugin for sourcemap upload with retry logic                                        |
-| `packages/webpack`                 | `@flareapp/webpack`                 | Webpack 5 plugin for sourcemap upload                                                          |
-| `packages/nextjs`                  | `@flareapp/nextjs`                  | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload                                   |
-| `packages/node`                    | `@flareapp/node`                    | Node.js SDK (process handlers, AsyncLocalStorage scope)                                        |
-| `packages/react-native`            | `@flareapp/react-native`            | React Native SDK (pure-JS, Expo + bare; ErrorUtils + boundary capture)                         |
-| `packages/react-native-sourcemaps` | `@flareapp/react-native-sourcemaps` | RN/Metro sourcemap upload: Babel version inlining + `flare-rn-sourcemaps` upload CLI           |
-| `packages/electron`                | `@flareapp/electron`                | Electron SDK (main + preload + renderer, IPC-unified)                                          |
-| `packages/flare-api`               | `@flareapp/flare-api`               | Shared API client for sourcemap uploads (private, not published)                               |
-| `playgrounds/shared`               | `@flareapp/playgrounds-shared`      | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens                              |
-| `playgrounds/js`                   | `@flareapp/playgrounds-js`          | Vanilla TS + Vite webshop (port 5180)                                                          |
-| `playgrounds/react`                | `@flareapp/playgrounds-react`       | React 19 + TanStack Router webshop (port 5181)                                                 |
-| `playgrounds/vue`                  | `@flareapp/playgrounds-vue`         | Vue 3 + vue-router webshop (port 5182)                                                         |
-| `playgrounds/svelte`               | `@flareapp/playgrounds-svelte`      | SvelteKit (adapter-node) webshop (port 5183)                                                   |
-| `e2e/`                             | (not a workspace)                   | Playwright specs + fake-flare-server fixture                                                   |
+| Package                            | npm name                             | Purpose                                                                                        |
+| ---------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `packages/core`                    | `@flareapp/core`                     | Environment-agnostic Flare core (shared between js + node)                                     |
+| `packages/js`                      | `@flareapp/js`                       | Core client — error capture, stack traces, context, API reporting                              |
+| `packages/react`                   | `@flareapp/react`                    | React `FlareErrorBoundary` error boundary component; `/inject` entry for Electron renderers    |
+| `packages/vue`                     | `@flareapp/vue`                      | Vue error handler plugin (`flareVue()`); `/inject` entry for Electron renderers                |
+| `packages/svelte`                  | `@flareapp/svelte`                   | Svelte 5 `FlareErrorBoundary` with props serialization; `/inject` entry for Electron renderers |
+| `packages/sveltekit`               | `@flareapp/sveltekit`                | SvelteKit error hooks (`handleErrorWithFlare`) + route context                                 |
+| `packages/vite`                    | `@flareapp/vite`                     | Vite build plugin for sourcemap upload with retry logic                                        |
+| `packages/webpack`                 | `@flareapp/webpack`                  | Webpack 5 plugin for sourcemap upload                                                          |
+| `packages/nextjs`                  | `@flareapp/nextjs`                   | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload                                   |
+| `packages/node`                    | `@flareapp/node`                     | Node.js SDK (process handlers, AsyncLocalStorage scope)                                        |
+| `packages/react-native`            | `@flareapp/react-native`             | React Native SDK (pure-JS, Expo + bare; ErrorUtils + boundary capture)                         |
+| `packages/react-native-sourcemaps` | `@flareapp/react-native-sourcemaps`  | RN/Metro sourcemap upload: Babel version inlining + `flare-rn-sourcemaps` upload CLI           |
+| `packages/electron`                | `@flareapp/electron`                 | Electron SDK (main + preload + renderer, IPC-unified)                                          |
+| `packages/flare-api`               | `@flareapp/flare-api`                | Shared API client for sourcemap uploads (private, not published)                               |
+| `playgrounds/shared`               | `@flareapp/playgrounds-shared`       | Shared TS fixtures: products, scenarios, testIds, Tailwind tokens                              |
+| `playgrounds/js`                   | `@flareapp/playgrounds-js`           | Vanilla TS + Vite webshop (port 5180)                                                          |
+| `playgrounds/react`                | `@flareapp/playgrounds-react`        | React 19 + TanStack Router webshop (port 5181)                                                 |
+| `playgrounds/vue`                  | `@flareapp/playgrounds-vue`          | Vue 3 + vue-router webshop (port 5182)                                                         |
+| `playgrounds/svelte`               | `@flareapp/playgrounds-svelte`       | SvelteKit (adapter-node) webshop (port 5183)                                                   |
+| `playgrounds/react-router`         | `@flareapp/playgrounds-react-router` | React Router v7 (data mode) + `traceReactRouter` webshop (port 5185)                           |
+| `e2e/`                             | (not a workspace)                    | Playwright specs + fake-flare-server fixture                                                   |
 
 ## Tech stack
 
@@ -66,11 +67,12 @@ npm run test               # Run vitest across workspaces (after build)
 npm run typescript         # Type-check all packages
 npm run format             # Run oxfmt on all files
 npm run lint               # Run oxlint across all packages
-npm run test:e2e           # Run Playwright suite across all 4 framework playgrounds
+npm run test:e2e           # Run Playwright suite across all 5 framework playgrounds
 npm run playgrounds:js     # Boot the vanilla JS playground on http://localhost:5180
 npm run playgrounds:react  # Boot the React playground on http://localhost:5181
 npm run playgrounds:vue    # Boot the Vue playground on http://localhost:5182
 npm run playgrounds:svelte # Boot the SvelteKit playground on http://localhost:5183
+npm run playgrounds:react-router # Boot the React Router v7 playground on http://localhost:5185
 ```
 
 ## Key source files
@@ -135,9 +137,10 @@ SDK uniformly across frameworks.
 Playwright config at `playwright.config.ts`, specs at `e2e/specs/*.spec.ts`. One project per framework, single
 worker (the fake server has shared in-memory state), `webServer` boots each playground's `vite dev` automatically.
 
-- `e2e/fake-flare-server/`: standalone node http server (no deps). `POST /api/reports` and `POST /api/sourcemaps`
-  record the body. `GET /__inspect/reports` and `POST /__inspect/reset` are the inspection API used by the test
-  fixture. CORS open. Boots on `FAKE_FLARE_PORT` (default 7765 — avoid 4318, OrbStack squats on it).
+- `e2e/fake-flare-server/`: standalone node http server (no deps). Ingest paths mirror the real Flare ingress:
+  `POST /v1/errors`, `POST /v1/traces`, `POST /v1/logs` (plus `POST /api/sourcemaps`) record the body. `GET
+/__inspect/reports` and `POST /__inspect/reset` are the inspection API used by the test fixture. CORS open. Boots
+  on `FAKE_FLARE_PORT` (default 7765 — avoid 4318, OrbStack squats on it).
 - `e2e/global-setup.ts` / `global-teardown.ts`: boots/stops the fake server around the test run.
 - `e2e/fixtures/fake-flare.ts`: Playwright fixture exposing `reset()`, `reports()`, `waitForReport({ predicate })`,
   `assertNoReports()`. Each test auto-resets the server before running.
