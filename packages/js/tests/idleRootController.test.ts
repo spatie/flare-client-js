@@ -221,6 +221,25 @@ describe('IdleRootController', () => {
         expect(controller.isEnded).toBe(true);
     });
 
+    it('held root survives idleTimeout after a child starts and ends during the hold', () => {
+        // The loader-navigation flow: the loader's fetch child opens and closes while the root is
+        // held. The child-end path re-arms idle, but the hold must keep suppressing it so the root
+        // stays open until the router settles and releaseHold() closes it at settle time.
+        const root = fakeSpan('root', 'T');
+        const h = harness(root, () => 0);
+        const controller = new IdleRootController({ ...h.deps, held: true }, TIMEOUTS);
+        const child = fakeSpan('c1', 'T', 2000 * 1e6);
+        h.emit('start', child);
+        h.emit('end', child);
+        h.advance(1000); // idleTimeout elapses with no open children; a held root must not close
+        expect(root.end).not.toHaveBeenCalled();
+        expect(controller.isEnded).toBe(false);
+        h.setClock(5000 * 1e6);
+        controller.releaseHold(); // childless at settle -> close at now(), spanning the loader window
+        expect(root.end).toHaveBeenCalledWith(5000 * 1e6);
+        expect(controller.isEnded).toBe(true);
+    });
+
     it('releaseHold with an open child hands back to the idle lifecycle', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root, () => 0);

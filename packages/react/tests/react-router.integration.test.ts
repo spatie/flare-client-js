@@ -61,6 +61,36 @@ describe('traceReactRouter against a real react-router data router', () => {
         expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
     });
 
+    it('stamps the exact destination url (origin + path + search) on a query-string navigation', async () => {
+        const { router } = await boot();
+        await router.navigate('/product/p01?tab=specs');
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation.mock.calls[0]![0].url).toBe(`${window.location.origin}/product/p01?tab=specs`);
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+    });
+
+    it('detects a same-pathname search-only change as a navigation', async () => {
+        const { router } = await boot();
+        await router.navigate('/product/p01?tab=specs');
+        nav.startNavigation.mockClear();
+        nav.settleNavigation.mockClear();
+        await router.navigate('/product/p01?tab=reviews');
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation.mock.calls[0]![0].url).toBe(`${window.location.origin}/product/p01?tab=reviews`);
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+    });
+
+    it('detects a same-pathname hash-only change as a navigation and keeps the hash in the url', async () => {
+        const { router } = await boot();
+        await router.navigate('/product/p01');
+        nav.startNavigation.mockClear();
+        nav.settleNavigation.mockClear();
+        await router.navigate('/product/p01#reviews');
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation.mock.calls[0]![0].url).toBe(`${window.location.origin}/product/p01#reviews`);
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+    });
+
     it('reconstructs nested params', async () => {
         const { router } = await boot();
         await router.navigate('/stores/s1/products/p9');
