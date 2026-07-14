@@ -190,6 +190,20 @@ describe('getRouteContext', () => {
             expect(getRouteContext(router)!.params).toEqual({ sessionId: '[redacted]', id: '42' });
         });
 
+        test('redacts a denylisted param whose value is a non-string (object)', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: { token: { nested: 'secret' }, id: '42' },
+                query: {},
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.params).toEqual({ token: '[redacted]', id: '42' });
+        });
+
         test('accepts a custom denylist', () => {
             const router = createMockRouter({
                 name: 'r',

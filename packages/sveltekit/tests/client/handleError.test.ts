@@ -5,6 +5,7 @@ import { handleErrorWithFlare } from '../../src/client/handleError';
 const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
+    toCustomContext: (framework: string, payload: unknown) => ({ 'context.custom': { [framework]: payload } }),
     convertToError: (e: unknown) => {
         if (e instanceof Error) return e;
         if (typeof e === 'string') return new Error(e);

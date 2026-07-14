@@ -21,6 +21,8 @@ import {
     unpatchXHR,
 } from './tracing';
 
+export { createFlareResolver } from './createFlareResolver';
+
 export class Flare extends CoreFlare {
     constructor(
         api: Api = new Api(),
