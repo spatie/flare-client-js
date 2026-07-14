@@ -66,8 +66,10 @@ export class IdleRootController {
     endNow(): void {
         // Force-ended (route change / pagehide). With no child in flight, trim to the
         // floor instead of padding to the force-end moment; with an open child use
-        // now() so in-flight work is not cut short before it even started.
-        this.finish(this.openChildren > 0 ? this.deps.now() : this.trimmedEnd());
+        // now() so in-flight work is not cut short before it even started. A held root is
+        // mid-loader-window by definition, so treat it like one with open children: close at
+        // now() so the trace records the work that ran, not a ~0 trim to the start floor.
+        this.finish(this.openChildren > 0 || this.held ? this.deps.now() : this.trimmedEnd());
     }
 
     /**
