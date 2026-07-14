@@ -32,8 +32,21 @@ describe('collectBrowserSpanContext', () => {
         expect(attrs['url.full']).toBe('https://app.test/product/p01?ref=x');
         expect(attrs['flare.entry_point.value']).toBe('https://app.test/product/p01?ref=x');
         expect(attrs['flare.entry_point.handler.identifier']).toBe('/product/p01');
-        // non-URL keys still reflect the live document
-        expect(attrs['user_agent.original']).toBeTypeOf('string');
+        // non-URL keys are NOT derived from the override: they still reflect the live document.
+        expect(attrs['user_agent.original']).toBe(window.navigator.userAgent);
+        expect(attrs['document.ready_state']).toBe(window.document.readyState);
+        expect('http.request.referrer' in attrs).toBe(true);
+    });
+
+    it('redacts denylisted query values on the override path (url.full and entry_point.value)', () => {
+        // The override URL must run through redactUrlQuery just like the live-location path, or a
+        // framework navigation root would leak denylisted query values. The default test config's
+        // denylist matches nothing, so use one that matches the token param here.
+        const denylistConfig = { urlDenylist: /token/i } as unknown as Parameters<typeof collectBrowserSpanContext>[0];
+        const attrs = collectBrowserSpanContext(denylistConfig, 'https://app.test/checkout?token=secret&x=1');
+        expect(attrs['url.full']).toBe('https://app.test/checkout?token=[redacted]&x=1');
+        expect(attrs['flare.entry_point.value']).toBe('https://app.test/checkout?token=[redacted]&x=1');
+        expect(attrs['url.full']).not.toContain('secret');
     });
 
     it('ignores a malformed href override and uses the live location', () => {
