@@ -221,6 +221,15 @@ handles or latches it. Consequences:
   `RootLayout` renders *inside* `RouterProvider`, so `useLocation()` is available
   directly (no `router.subscribe` shim).
 
+**Scope of capture.** Wrapping `<Outlet/>` means this boundary catches child-route
+*render* errors only. Two classes are intentionally out of scope and fall through
+to RR's own default boundary (which latches them in `router.state.errors`): (a) a
+render error thrown by `RootLayout` itself (header / `useCartCount`), and (b)
+loader/action errors — RR routes those to its error path, never a React render
+throw, and no route defines an `errorElement`. No playground scenario exercises
+either, so this is an accepted limitation; a future scenario that throws in the
+layout or a loader would need an explicit `errorElement`/handler to reach Flare.
+
 **Validation-first risk:** the assumption that RR's default root boundary does
 not intercept a child-route render error before the inner `FlareErrorBoundary` is
 the single behavior to confirm first during implementation (via the
