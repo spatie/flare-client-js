@@ -38,6 +38,11 @@ const devProjects = [
         testMatch: /svelte\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5183', browserName: 'chromium' as const },
     },
+    {
+        name: 'react-router',
+        testMatch: /react-router\.spec\.ts$/,
+        use: { baseURL: 'http://localhost:5185', browserName: 'chromium' as const },
+    },
 ];
 
 const prodProjects = [
@@ -76,6 +81,13 @@ const devWebServers = [
         reuseExistingServer: !process.env.CI,
         timeout: 90_000,
         env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-svelte' },
+    },
+    {
+        command: 'npm run dev --workspace=@flareapp/playgrounds-react-router',
+        url: 'http://localhost:5185',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+        env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-react-router' },
     },
 ];
 
