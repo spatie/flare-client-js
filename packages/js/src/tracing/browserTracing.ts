@@ -15,8 +15,9 @@ export type BrowserTracingFlare = {
 
 export type RouteName = { name: string; source: 'route' | 'url' };
 export type NavigationSource = {
-    startNavigation(opts?: { path?: string }): void;
+    startNavigation(opts?: { path?: string; url?: string; hold?: boolean }): void;
     setActiveRouteName(route: RouteName): void;
+    settleNavigation(route: RouteName): void;
     unregister(): void;
 };
 
@@ -44,6 +45,8 @@ function startRoot(
     spanType: BrowserSpanType,
     startTimeUnixNano: number,
     name: string = location.pathname,
+    urlOverride?: string,
+    hold?: boolean,
 ): void {
     let root: Span | undefined;
     try {
@@ -51,7 +54,7 @@ function startRoot(
             spanType,
             startTimeUnixNano,
             forceRoot: true,
-            attributes: { ...collectBrowserSpanContext(flare.config), 'flare.route.source': 'url' },
+            attributes: { ...collectBrowserSpanContext(flare.config, urlOverride), 'flare.route.source': 'url' },
         });
         controller = new IdleRootController(
             {
@@ -65,6 +68,7 @@ function startRoot(
                 // Childless-close floor: a pageload ends at its real load-event mark,
                 // a navigation at its own start (an instant client nav trims to ~0).
                 endFloor: spanType === BrowserSpanType.Pageload ? pageloadEndNano : () => startTimeUnixNano,
+                held: hold,
             },
             resolveTimeouts(flare.config),
         );
@@ -195,6 +199,19 @@ export function stopBrowserTracing(): void {
     lastPath = '';
 }
 
+/** Rename the current root and keep its identifier + source attribute in lockstep. No-op if it closed. */
+function applyRouteName(route: RouteName): void {
+    if (currentRoot && controller && !controller.isEnded) {
+        try {
+            currentRoot.name = route.name;
+            currentRoot.setAttribute('flare.entry_point.handler.identifier', route.name);
+            currentRoot.setAttribute('flare.route.source', route.source);
+        } catch {
+            // instrumentation must never throw into the host app
+        }
+    }
+}
+
 /**
  * Register the caller as the page's navigation source. While registered, the
  * built-in History-based navigation detection opens no roots (it still keeps
@@ -222,15 +239,18 @@ export function registerNavigationSource(): NavigationSource {
                     // a failing prior-root teardown must not stop the new root
                 }
             }
-            startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path);
+            startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path, opts?.url, opts?.hold);
         },
         setActiveRouteName(route) {
             if (!active()) return;
-            if (currentRoot && controller && !controller.isEnded) {
+            applyRouteName(route);
+        },
+        settleNavigation(route) {
+            if (!active()) return;
+            applyRouteName(route);
+            if (controller && !controller.isEnded) {
                 try {
-                    currentRoot.name = route.name;
-                    currentRoot.setAttribute('flare.entry_point.handler.identifier', route.name);
-                    currentRoot.setAttribute('flare.route.source', route.source);
+                    controller.releaseHold();
                 } catch {
                     // instrumentation must never throw into the host app
                 }

@@ -202,4 +202,69 @@ describe('registerNavigationSource', () => {
             src.unregister();
         }).not.toThrow();
     });
+
+    it('startNavigation stamps url.full from the destination url, not the live location', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a'); // live location is /a
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/product/p01', url: 'https://app.test/product/p01' });
+
+        const nav = startSpan.mock.calls[1]!;
+        expect(nav[1]!.attributes?.['url.full']).toBe('https://app.test/product/p01');
+        expect(nav[1]!.attributes?.['flare.entry_point.value']).toBe('https://app.test/product/p01');
+        expect(nav[1]!.attributes?.['flare.entry_point.handler.identifier']).toBe('/product/p01');
+        src.unregister();
+    });
+
+    it('a held navigation root does not idle-close before settleNavigation, then closes on settle', () => {
+        vi.useFakeTimers();
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/product/p01', url: 'https://app.test/product/p01', hold: true });
+        const navRoot = spans[1].span as unknown as { end: ReturnType<typeof vi.fn> };
+
+        vi.advanceTimersByTime(1000); // idleTimeout would normally close it
+        expect(navRoot.end).not.toHaveBeenCalled();
+
+        src.settleNavigation({ name: '/product/:id', source: 'route' });
+        expect(spans[1].span.name).toBe('/product/:id');
+        expect(spans[1].attrs['flare.entry_point.handler.identifier']).toBe('/product/:id');
+        expect(spans[1].attrs['flare.route.source']).toBe('route');
+        expect(navRoot.end).toHaveBeenCalled();
+        src.unregister();
+    });
+
+    it('settleNavigation no-ops when the held root already force-closed (finalTimeout)', () => {
+        vi.useFakeTimers();
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+        src.startNavigation({ path: '/slow', url: 'https://app.test/slow', hold: true });
+
+        vi.advanceTimersByTime(30000); // finalTimeout force-closes the held root
+        src.settleNavigation({ name: '/slow/:id', source: 'route' });
+
+        expect(spans[1].span.name).not.toBe('/slow/:id'); // name-drop for a genuinely stuck nav
+        src.unregister();
+    });
+
+    it('omitting url and hold preserves the prior live-location, idle-closing behavior', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/b' }); // no url, no hold (the TanStack path)
+        const navRoot = spans[1].span as unknown as { end: ReturnType<typeof vi.fn> };
+        expect(startSpan.mock.calls[1]![1]!.attributes?.['url.full']).toContain('/a'); // live location
+        vi.advanceTimersByTime(1000);
+        expect(navRoot.end).toHaveBeenCalled(); // idle-closes as before (no hold)
+        src.unregister();
+    });
 });
