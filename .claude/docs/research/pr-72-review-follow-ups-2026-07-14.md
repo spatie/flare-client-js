@@ -9,6 +9,11 @@ This doc holds every remaining minor and nit so they can be handed to agents lat
 exactly what to change, where, and how to verify. Items are independent unless noted. None of them
 block merging PR #72.
 
+**Resolved this session** (commits `188dedf`, `d3f3c1a`, `6dcf167`, pushed to PR #72): the hold-lifecycle
+cluster **A2, A3, A4, A5** — `unregister()` now releases the hold; `endNow()` closes a held root at `now()`;
+`childSpanTimeout`-while-held and override-path redaction are pinned by tests. `@flareapp/js` suite 181/181,
+typecheck clean.
+
 Severity legend: minor = real but low-impact defect or gap; nit = hygiene/documentation.
 
 ---
@@ -35,7 +40,7 @@ Severity legend: minor = real but low-impact defect or gap; nit = hygiene/docume
   url B, assert final `url.full`), plus an integration test in
   `packages/react/tests/react-router.integration.test.ts` with a loader returning `redirect('/other')`.
 
-### A2. `unregister()` during a held navigation leaves the root held until `finalTimeout` (minor)
+### A2. `unregister()` during a held navigation leaves the root held until `finalTimeout` (minor) — ✅ DONE (`d3f3c1a`)
 
 - Files: `packages/js/src/tracing/browserTracing.ts` (`registerNavigationSource().unregister`),
   `packages/js/tests/navigationSource.test.ts`.
@@ -48,7 +53,7 @@ Severity legend: minor = real but low-impact defect or gap; nit = hygiene/docume
 - Verify: new unit test: register, `startNavigation({ hold: true })`, `unregister()`, advance
   `idleTimeout`, assert the root closed (and did not wait for `finalTimeout`).
 
-### A3. `endNow()` on a childless held root reports ~0 duration (minor)
+### A3. `endNow()` on a childless held root reports ~0 duration (minor) — ✅ DONE (`188dedf`)
 
 - Files: `packages/js/src/tracing/IdleRootController.ts` (`endNow`),
   `packages/js/tests/idleRootController.test.ts`.
@@ -60,7 +65,7 @@ Severity legend: minor = real but low-impact defect or gap; nit = hygiene/docume
 - Verify: unit test: held root, no children, `setClock(5000 * 1e6)`, `endNow()`, assert
   `root.end` called with `5000 * 1e6` (today it gets the floor, `0`).
 
-### A4. `childSpanTimeout` backstop on a held root is untested (minor, test only)
+### A4. `childSpanTimeout` backstop on a held root is untested (minor, test only) — ✅ DONE (`188dedf`)
 
 - Files: `packages/js/tests/idleRootController.test.ts`.
 - Problem: the `held` doc comment in `IdleRootController.ts` promises both backstops still fire, but
@@ -69,7 +74,7 @@ Severity legend: minor = real but low-impact defect or gap; nit = hygiene/docume
 - Change: add a test: held root, `h.emit('start', child)`, `h.advance(15000)`, assert ended.
 - Verify: test passes against current code (it should; this pins the behavior).
 
-### A5. Redaction wiring on the `hrefOverride` path is untestable as written (minor, test only)
+### A5. Redaction wiring on the `hrefOverride` path is untestable as written (minor, test only) — ✅ DONE (`6dcf167`)
 
 - Files: `packages/js/tests/collectBrowserSpanContext.test.ts`.
 - Problem: the test config's denylist is `/(?!)/` (matches nothing), so a regression where the
