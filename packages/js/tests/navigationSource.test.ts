@@ -253,6 +253,21 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
+    it('unregister releases a held navigation root instead of leaving it hung to finalTimeout', () => {
+        vi.useFakeTimers();
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/product/p01', url: 'https://app.test/product/p01', hold: true });
+        const navRoot = spans[1].span as unknown as { end: ReturnType<typeof vi.fn> };
+
+        // Nothing settled it; tearing down the source mid-hold must close the childless root now,
+        // not leave it idle-suppressed until the 30s finalTimeout.
+        src.unregister();
+        expect(navRoot.end).toHaveBeenCalled();
+    });
+
     it('omitting url and hold preserves the prior live-location, idle-closing behavior', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/a');

@@ -258,6 +258,17 @@ export function registerNavigationSource(): NavigationSource {
         },
         unregister() {
             if (!active()) return;
+            // Release any hold so a navigation root opened held (awaiting a settle that will now
+            // never come, e.g. route-provider unmount or HMR mid-navigation) does not stay
+            // idle-suppressed until the finalTimeout force-close. A childless root then closes now;
+            // one with an open child resumes the normal idle lifecycle.
+            if (controller && !controller.isEnded) {
+                try {
+                    controller.releaseHold();
+                } catch {
+                    // instrumentation must never throw into the host app
+                }
+            }
             navSource = null;
             lastPath = here();
         },
