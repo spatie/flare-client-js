@@ -1,6 +1,7 @@
 import { catchWindowErrors, Flare } from './browser';
 
 export { Flare } from './browser';
+export { createFlareResolver } from './createFlareResolver';
 
 export const flare = new Flare();
 
@@ -31,7 +32,14 @@ export type {
     StackFrame,
     User,
 } from '@flareapp/core';
-export { convertToError, DEFAULT_URL_DENYLIST, redactUrlQuery, resolveDenylist } from '@flareapp/core';
+export {
+    convertToError,
+    DEFAULT_URL_DENYLIST,
+    redactObjectValues,
+    redactUrlQuery,
+    resolveDenylist,
+    toCustomContext,
+} from '@flareapp/core';
 
 /** @deprecated use redactUrlQuery instead - same behavior, more honest name */
 export { redactUrlQuery as redactFullPath } from '@flareapp/core';

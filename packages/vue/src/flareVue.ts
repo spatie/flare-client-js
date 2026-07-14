@@ -1,4 +1,4 @@
-import { convertToError, type AttributeValue, type Attributes } from '@flareapp/core';
+import { convertToError, toCustomContext, type AttributeValue, type Attributes } from '@flareapp/core';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
@@ -28,7 +28,7 @@ export function vueContextToAttributes(context: FlareVueContext): Attributes {
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { vue } };
+    return toCustomContext('vue', vue);
 }
 
 export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
@@ -43,7 +43,7 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { vue } };
+    return toCustomContext('vue', vue);
 }
 
 // Tracks installed apps so app.use(flareVue) twice on the same app is a no-op. WeakSet so we don't

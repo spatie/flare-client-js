@@ -73,17 +73,29 @@ npm run playgrounds:vue    # Boot the Vue playground on http://localhost:5182
 npm run playgrounds:svelte # Boot the SvelteKit playground on http://localhost:5183
 ```
 
-## Key source files (packages/js)
+## Key source files
 
-- `src/Flare.ts` — Main Flare class. Config, context, glows, error reporting, solution providers
-- `src/api/Api.ts` — HTTP communication with Flare backend via fetch
-- `src/browser/catchWindowErrors.ts` — Global `window.onerror` / `window.onunhandledrejection` listeners
-- `src/stacktrace/createStackTrace.ts` — Stack trace parsing (uses `error-stack-parser`)
-- `src/stacktrace/fileReader.ts` — Source code snippet reading from stack frames
-- `src/context/collectContext.ts` — Collects browser context
-- `src/context/request.ts`, `cookie.ts`, `requestData.ts` — Individual context collectors
-- `src/solutions/getSolutions.ts` — Solution providers for error resolution suggestions
-- `src/types.ts` — Core TypeScript interfaces (Config, Report, Context, StackFrame, etc.)
+The `Flare` engine lives in `@flareapp/core`; `@flareapp/js` is the browser wiring layer that subclasses
+it and injects the browser-specific seams. Paths below are relative to each package's `src/`.
+
+### `packages/core` — the engine
+
+- `Flare.ts` — Main Flare class. Config, context, glows, the whole `report()` pipeline
+- `api/Api.ts` — HTTP communication with Flare backend via fetch
+- `stacktrace/createStackTrace.ts` — Stack trace parsing (uses `error-stack-parser`)
+- `stacktrace/fileReader.ts` — Source code snippet reading from stack frames (`FileReader` interface + cache)
+- `Scope.ts` — Active scope: glows, pending attributes, user, entry point
+- `util/rejection.ts` — Routes `unhandledrejection` reasons to the right report method
+- `types.ts` — Core TypeScript interfaces (Config, Report, StackFrame, Attributes, etc.)
+
+### `packages/js` — browser wiring
+
+- `browser.ts` — Browser `Flare` subclass; passes the browser seams to core's constructor
+- `index.ts` — Creates the `flare` singleton, sets `window.flare`, wires `catchWindowErrors`
+- `browser/catchWindowErrors.ts` — Global `window.onerror` / `window.onunhandledrejection` listeners
+- `browser/FetchFileReader.ts` — Fetches source files for snippets (http(s) only, HTTP 200 only, cached)
+- `browser/context/collectBrowser.ts` — Collects browser context (entry point, host, request, query, cookies)
+- `browser/context/request.ts`, `cookie.ts`, `requestData.ts` — Individual context collectors
 
 ## Tests
 
@@ -140,7 +152,7 @@ Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --pro
 ## Error reporting flow
 
 1. Error caught by global listeners (`catchWindowErrors`) or framework integration (React boundary / Vue handler)
-2. `Flare.report(error)` builds a Report: stack trace + browser context + glows (breadcrumbs) + solutions
+2. `Flare.report(error)` builds a Report: stack trace + browser context + glows (breadcrumbs)
 3. `beforeEvaluate` / `beforeSubmit` hooks can filter or modify the report
 4. `Api.report()` sends POST to Flare backend with API key in headers
 
@@ -148,6 +160,8 @@ Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --pro
 
 - Formatting: oxfmt, config in `.oxfmtrc.json`
 - Linting: oxlint, root config in `.oxlintrc.json`, per-package configs in `packages/<pkg>/.oxlintrc.json`
+- Doc comments on functions must be terse and follow JSDoc (`/** ... */` with `@param` / `@returns` where they add
+  information). Write them only when they clarify non-obvious behavior; do not restate the signature.
 
 ## Publishing
 

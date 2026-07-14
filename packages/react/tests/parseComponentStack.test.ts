@@ -76,6 +76,54 @@ describe('parseComponentStack', () => {
         });
     });
 
+    describe('React 16/17/18 legacy format (in Component (at File:line))', () => {
+        test('parses a multi-line React 18 componentStack with file and line', () => {
+            const stack = `
+                in ErrorComponent (at App.jsx:10)
+                in div (at App.jsx:9)
+                in App (at index.js:5)
+            `;
+
+            expect(parseComponentStack(stack)).toEqual([
+                { component: 'ErrorComponent', file: 'App.jsx', line: 10, column: null },
+                { component: 'div', file: 'App.jsx', line: 9, column: null },
+                { component: 'App', file: 'index.js', line: 5, column: null },
+            ]);
+        });
+
+        test('parses a frame with an optional column', () => {
+            const stack = 'in ErrorComponent (at App.jsx:10:5)';
+
+            expect(parseComponentStack(stack)).toEqual([
+                { component: 'ErrorComponent', file: 'App.jsx', line: 10, column: 5 },
+            ]);
+        });
+
+        test('parses a component-only frame without source', () => {
+            const stack = 'in Suspense';
+
+            expect(parseComponentStack(stack)).toEqual([
+                { component: 'Suspense', file: null, line: null, column: null },
+            ]);
+        });
+
+        test('parses dotted component names', () => {
+            const stack = 'in Context.Provider (at App.jsx:8)';
+
+            expect(parseComponentStack(stack)).toEqual([
+                { component: 'Context.Provider', file: 'App.jsx', line: 8, column: null },
+            ]);
+        });
+
+        test('binds line/column to the tail when the file path contains colons', () => {
+            const stack = 'in App (at http://localhost:5173/src/App.tsx:12:9)';
+
+            expect(parseComponentStack(stack)).toEqual([
+                { component: 'App', file: 'http://localhost:5173/src/App.tsx', line: 12, column: 9 },
+            ]);
+        });
+    });
+
     describe('dotted component names', () => {
         test('parses Chrome frames with dotted names (Context.Provider, React.Fragment)', () => {
             const stack = `

@@ -1,8 +1,9 @@
-import { DEFAULT_URL_DENYLIST, Flare, redactUrlQuery, resolveDenylist } from '@flareapp/core';
+import { DEFAULT_URL_DENYLIST, Flare, redactObjectValues, redactUrlQuery, resolveDenylist } from '@flareapp/core';
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { Attributes, Config } from '../src/types';
+import { safeDecode } from '../src/util';
 import { FakeApi } from './helpers/FakeApi';
 
 describe('redactUrlQuery', () => {
@@ -39,6 +40,60 @@ describe('redactUrlQuery', () => {
 
     test('redacts keys without values', () => {
         expect(redactUrlQuery('/page?token', DEFAULT_URL_DENYLIST)).toBe('/page?token');
+    });
+
+    test('strips userinfo (user:pass@) from an absolute URL', () => {
+        expect(redactUrlQuery('https://user:pass@host.test/path', DEFAULT_URL_DENYLIST)).toBe('https://host.test/path');
+    });
+
+    test('strips userinfo and still redacts denylisted query keys', () => {
+        expect(redactUrlQuery('https://user:pass@host.test/path?token=abc&q=visible', DEFAULT_URL_DENYLIST)).toBe(
+            'https://host.test/path?token=[redacted]&q=visible',
+        );
+    });
+
+    test('strips userinfo when only a username is present', () => {
+        expect(redactUrlQuery('https://user@host.test/', DEFAULT_URL_DENYLIST)).toBe('https://host.test/');
+    });
+
+    test('leaves an @ in the path or query untouched', () => {
+        expect(redactUrlQuery('https://host.test/users/@handle?ref=a@b', DEFAULT_URL_DENYLIST)).toBe(
+            'https://host.test/users/@handle?ref=a@b',
+        );
+    });
+});
+
+describe('redactObjectValues', () => {
+    test('redacts values whose key matches the denylist', () => {
+        const result = redactObjectValues({ token: 'abc', email: 'a@b.test' }, DEFAULT_URL_DENYLIST);
+        expect(result).toEqual({ token: '[redacted]', email: 'a@b.test' });
+    });
+
+    test('passes non-denylisted values through unchanged, including non-strings', () => {
+        const nested = { a: 1 };
+        const result = redactObjectValues({ id: 42, config: nested }, DEFAULT_URL_DENYLIST);
+        expect(result.id).toBe(42);
+        expect(result.config).toBe(nested);
+    });
+
+    test('honours a custom denylist', () => {
+        const result = redactObjectValues({ secretKey: 'x', token: 'kept' }, /^secretKey$/);
+        expect(result).toEqual({ secretKey: '[redacted]', token: 'kept' });
+    });
+
+    test('stores a __proto__ key as an own property instead of dropping it', () => {
+        const input: Record<string, unknown> = Object.create(null);
+        input['__proto__'] = 'danger';
+
+        const result = redactObjectValues(input, DEFAULT_URL_DENYLIST);
+
+        expect(Object.prototype.hasOwnProperty.call(result, '__proto__')).toBe(true);
+        expect(result['__proto__']).toBe('danger');
+        expect(Object.getPrototypeOf(result)).toBeNull();
+    });
+
+    test('defaults to the built-in denylist', () => {
+        expect(redactObjectValues({ password: 'x', page: '1' })).toEqual({ password: '[redacted]', page: '1' });
     });
 });
 
@@ -139,6 +194,58 @@ describe('Flare URL scrubbing', () => {
         expect(attributes['url.full']).toContain('token=stillVisible');
     });
 
+    test('preserves a custom urlDenylist across an unrelated reconfigure (regression B-core-1)', async () => {
+        window.history.replaceState({}, '', '/page?secretKey=xyz&q=visible');
+        flare.configure({ urlDenylist: /^secretKey$/ });
+
+        // A later configure() that omits denylist config must NOT revert the custom denylist to the default,
+        // which would silently stop redacting values the user asked to hide.
+        flare.configure({ sampleRate: 1 });
+
+        await flare.report(new Error('boom'));
+
+        const attributes = api.lastReport!.attributes;
+        expect(attributes['url.full']).toContain('secretKey=[redacted]');
+        expect(attributes['url.full']).toContain('q=visible');
+    });
+
+    test('an unrelated configure() leaves the resolved urlDenylist reference untouched', () => {
+        flare.configure({ urlDenylist: /^secretKey$/ });
+        const before = flare.config.urlDenylist;
+
+        flare.configure({ sampleRate: 0.5 });
+
+        expect(flare.config.urlDenylist).toBe(before);
+        expect(flare.config.urlDenylist.test('secretKey')).toBe(true);
+        // The merged-in default entries survive too.
+        expect(flare.config.urlDenylist.test('password')).toBe(true);
+    });
+
+    test('a later configure({ urlDenylist }) still updates the denylist after an unrelated reconfigure', async () => {
+        window.history.replaceState({}, '', '/page?secretKey=xyz&token=abc&q=visible');
+        flare.configure({ sampleRate: 1 });
+        flare.configure({ urlDenylist: /^secretKey$/ });
+
+        await flare.report(new Error('boom'));
+
+        const attributes = api.lastReport!.attributes;
+        expect(attributes['url.full']).toContain('secretKey=[redacted]');
+        expect(attributes['url.full']).toContain('token=[redacted]');
+        expect(attributes['url.full']).toContain('q=visible');
+    });
+
+    test('replaceDefaultUrlDenylist is still honored after an unrelated reconfigure', async () => {
+        window.history.replaceState({}, '', '/page?secretKey=xyz&token=stillVisible');
+        flare.configure({ sampleRate: 1 });
+        flare.configure({ urlDenylist: /^secretKey$/, replaceDefaultUrlDenylist: true });
+
+        await flare.report(new Error('boom'));
+
+        const attributes = api.lastReport!.attributes;
+        expect(attributes['url.full']).toContain('secretKey=[redacted]');
+        expect(attributes['url.full']).toContain('token=stillVisible');
+    });
+
     test('omits url.query when no query string', async () => {
         window.history.replaceState({}, '', '/page');
 
@@ -147,5 +254,15 @@ describe('Flare URL scrubbing', () => {
         const attributes = api.lastReport!.attributes;
         expect(attributes['url.full']).toBeDefined();
         expect(attributes['url.query']).toBeUndefined();
+    });
+});
+
+describe('safeDecode', () => {
+    test('decodes valid percent-escapes', () => {
+        expect(safeDecode('a%20b')).toBe('a b');
+    });
+
+    test('falls back to the raw value on malformed escapes', () => {
+        expect(safeDecode('%E0%A4%A')).toBe('%E0%A4%A');
     });
 });

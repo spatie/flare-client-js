@@ -128,13 +128,13 @@ describe('withFlareSourcemaps', () => {
             expect(result.plugins).toHaveLength(1);
         });
 
-        test('passes removeSourcemaps: false by default', () => {
+        test('passes removeSourcemaps: true by default', () => {
             const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
 
             const webpackConfig = { plugins: [] as unknown[] };
             config.webpack!(webpackConfig as any, { isServer: false } as any);
 
-            expect(FlareWebpackPlugin).toHaveBeenCalledWith(expect.objectContaining({ removeSourcemaps: false }));
+            expect(FlareWebpackPlugin).toHaveBeenCalledWith(expect.objectContaining({ removeSourcemaps: true }));
         });
 
         test('respects explicit removeSourcemaps: false', () => {
