@@ -137,9 +137,10 @@ SDK uniformly across frameworks.
 Playwright config at `playwright.config.ts`, specs at `e2e/specs/*.spec.ts`. One project per framework, single
 worker (the fake server has shared in-memory state), `webServer` boots each playground's `vite dev` automatically.
 
-- `e2e/fake-flare-server/`: standalone node http server (no deps). `POST /api/reports` and `POST /api/sourcemaps`
-  record the body. `GET /__inspect/reports` and `POST /__inspect/reset` are the inspection API used by the test
-  fixture. CORS open. Boots on `FAKE_FLARE_PORT` (default 7765 — avoid 4318, OrbStack squats on it).
+- `e2e/fake-flare-server/`: standalone node http server (no deps). Ingest paths mirror the real Flare ingress:
+  `POST /v1/errors`, `POST /v1/traces`, `POST /v1/logs` (plus `POST /api/sourcemaps`) record the body. `GET
+/__inspect/reports` and `POST /__inspect/reset` are the inspection API used by the test fixture. CORS open. Boots
+  on `FAKE_FLARE_PORT` (default 7765 — avoid 4318, OrbStack squats on it).
 - `e2e/global-setup.ts` / `global-teardown.ts`: boots/stops the fake server around the test run.
 - `e2e/fixtures/fake-flare.ts`: Playwright fixture exposing `reset()`, `reports()`, `waitForReport({ predicate })`,
   `assertNoReports()`. Each test auto-resets the server before running.
