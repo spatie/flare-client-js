@@ -2,7 +2,7 @@ import { flare } from '@flareapp/js';
 
 export const initFlare = (): void => {
     const url = import.meta.env.VITE_FLARE_URL;
-    const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-react';
+    const key = import.meta.env.VITE_FLARE_KEY ?? 'test-key-react-router';
 
     if (url) {
         flare.configure({
