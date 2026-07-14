@@ -22,7 +22,7 @@ integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads
 
 ## Monorepo structure
 
-npm workspaces monorepo with 9 published packages, 1 internal package, 4 framework playground apps, a shared fixture
+npm workspaces monorepo with 9 published packages, 1 internal package, 5 framework playground apps, a shared fixture
 package, and a Playwright-based e2e suite:
 
 | Package                            | npm name                             | Purpose                                                                                        |
@@ -67,7 +67,7 @@ npm run test               # Run vitest across workspaces (after build)
 npm run typescript         # Type-check all packages
 npm run format             # Run oxfmt on all files
 npm run lint               # Run oxlint across all packages
-npm run test:e2e           # Run Playwright suite across all 4 framework playgrounds
+npm run test:e2e           # Run Playwright suite across all 5 framework playgrounds
 npm run playgrounds:js     # Boot the vanilla JS playground on http://localhost:5180
 npm run playgrounds:react  # Boot the React playground on http://localhost:5181
 npm run playgrounds:vue    # Boot the Vue playground on http://localhost:5182
