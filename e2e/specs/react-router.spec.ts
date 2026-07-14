@@ -1,25 +1,8 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
+import { attr, hasSpanType, spansOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
-
-type OtlpSpan = {
-    name: string;
-    spanId: string;
-    parentSpanId: string | null;
-    traceId: string;
-    attributes: Array<{ key: string; value: Record<string, unknown> }>;
-};
-
-const spansOf = (bodyJson: unknown): OtlpSpan[] =>
-    ((bodyJson as { resourceSpans?: Array<{ scopeSpans?: Array<{ spans?: OtlpSpan[] }> }> }).resourceSpans ?? [])
-        .flatMap((r) => r.scopeSpans ?? [])
-        .flatMap((s) => s.spans ?? []);
-
-const attr = (span: OtlpSpan, key: string): unknown => span.attributes.find((a) => a.key === key)?.value;
-
-const hasSpanType = (span: OtlpSpan, type: string): boolean =>
-    JSON.stringify(attr(span, 'flare.span_type') ?? '').includes(type);
 
 test.describe('react-router playground', () => {
     test('renders product grid', async ({ page }) => {
