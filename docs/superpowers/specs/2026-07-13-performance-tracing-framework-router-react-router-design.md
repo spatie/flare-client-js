@@ -7,7 +7,9 @@ method + an `IdleRootController` hold flag); (2) REPLACE navigations now open a 
 short-circuits loader-less navigations straight to `completeNavigation` with **no loading state** (verified
 in `react-router` `router.ts`), so navigation detection cannot key on the `navigation.state` transition
 alone — it must also detect a committed `state.location` change (see the two-shape logic in Component 2).
-Branch: `react-router-v7-integration`.
+**Implemented 2026-07-14** on branch `react-router-v7-integration` — all four deltas above (the hold, REPLACE,
+the dropped `historyAction`, and the loader-less-detection correction) are implemented and validated: full
+monorepo typecheck, build (including the new `react-router` entry), test suite, and lint all pass.
 Validated against Sentry's real React Router v7 data-router source (`getsentry/sentry-javascript`,
 `packages/react/src/reactrouter-compat-utils/{instrumentation.tsx,utils.ts}`) before approval; where we
 match it and where we deliberately diverge is recorded below.
@@ -176,32 +178,32 @@ Behavior:
   **location key** (`pathname + search + hash`, per Sentry's `computeLocationKey`), an `inFlight` latch, and
   `lastLocationKey` (the last committed location). React Router commits a navigation in one of **two shapes**,
   and both must be detected — keying only on the `navigation.state` transition would miss the common one:
-    - **Loader navigation** — RR runs loaders/middleware, so it publishes a non-idle `state.navigation`
-      (`loading` / `submitting`) with the destination in `state.navigation.location` **before** the URL and
-      `state.matches` commit, then a final `idle` fire that commits them. Detected on the **`idle → non-idle`**
-      transition (only once the pageload has settled — see the initial-load guard): `dest =
+- **Loader navigation** — RR runs loaders/middleware, so it publishes a non-idle `state.navigation`
+  (`loading` / `submitting`) with the destination in `state.navigation.location` **before** the URL and
+  `state.matches` commit, then a final `idle` fire that commits them. Detected on the **`idle → non-idle`**
+  transition (only once the pageload has settled — see the initial-load guard): `dest =
 state.navigation.location`; `nav.startNavigation({ path: dest.pathname, url: hrefOf(dest), hold: true })`.
-      The root opens URL-named and **held** (`startRoot` sets `name = path`, `source: 'url'`; the hold
-      suppresses idle-close until settle) — `state.matches` still holds the _previous_ route here, so no name
-      is available yet. The parameterized name is set once, at resolve.
-    - **Loader-less navigation** — when there is nothing to load, RR **short-circuits straight to
-      `completeNavigation` and never sets a loading state** (verified in `react-router`'s `router.ts`
-      `handleLoaders`, which returns before `updateState({ navigation: loadingNavigation })` when no matched
-      route `shouldLoad`; likewise hash-only changes and 404s short-circuit in `startNavigation`). Location +
-      `state.matches` commit in a **single `idle` fire**, so a `navigation.state` transition is never observed.
-      Detected instead by the committed `state.location` key differing from `lastLocationKey` while idle and
-      not in-flight: `nav.startNavigation({ path: state.location.pathname, url: hrefOf(state.location) })`
-      (**no hold** — the name is available immediately) followed at once by `nav.settleNavigation({ name,
-source })`. The root then lives on the normal idle lifecycle, capturing any fetches the newly-mounted
-      route's effects fire (a hold here would close it before those start).
-    - **Redirect / superseding hop** (loader navigation, non-idle while `inFlight`): do **not** open a second
-      root; the hold keeps the single in-flight root alive across the hops. One root per in-flight sequence,
-      matching the TanStack redirect-chain behavior; the final name is applied once at resolve.
-    - **Resolve** (`non-idle → idle` while `inFlight`): set `lastLocationKey`, resolve the parameterized name
-      from the now-committed `state.matches`, and call `nav.settleNavigation({ name, source: 'route' })`
-      (falling back to `{ name: state.location.pathname, source: 'url' }` when no route-derived name is
-      available). `settleNavigation` sets the name and releases the hold, closing the root at the settle time
-      (childless) or handing it back to the idle controller (trailing fetches still open).
+  The root opens URL-named and **held** (`startRoot` sets `name = path`, `source: 'url'`; the hold suppresses
+  idle-close until settle) — `state.matches` still holds the _previous_ route here, so no name is available
+  yet. The parameterized name is set once, at resolve.
+- **Loader-less navigation** — when there is nothing to load, RR **short-circuits straight to
+  `completeNavigation` and never sets a loading state** (verified in `react-router`'s `router.ts`
+  `handleLoaders`, which returns before `updateState({ navigation: loadingNavigation })` when no matched
+  route `shouldLoad`; likewise hash-only changes and 404s short-circuit in `startNavigation`). Location +
+  `state.matches` commit in a **single `idle` fire**, so a `navigation.state` transition is never observed.
+  Detected instead by the committed `state.location` key differing from `lastLocationKey` while idle and not
+  in-flight: `nav.startNavigation({ path: state.location.pathname, url: hrefOf(state.location) })` (**no
+  hold** — the name is available immediately) followed at once by `nav.settleNavigation({ name, source })`.
+  The root then lives on the normal idle lifecycle, capturing any fetches the newly-mounted route's effects
+  fire (a hold here would close it before those start).
+- **Redirect / superseding hop** (loader navigation, non-idle while `inFlight`): do **not** open a second
+  root; the hold keeps the single in-flight root alive across the hops. One root per in-flight sequence,
+  matching the TanStack redirect-chain behavior; the final name is applied once at resolve.
+- **Resolve** (`non-idle → idle` while `inFlight`): set `lastLocationKey`, resolve the parameterized name from
+  the now-committed `state.matches`, and call `nav.settleNavigation({ name, source: 'route' })` (falling back
+  to `{ name: state.location.pathname, source: 'url' }` when no route-derived name is available).
+  `settleNavigation` sets the name and releases the hold, closing the root at the settle time (childless) or
+  handing it back to the idle controller (trailing fetches still open).
 - **Initial-load guard** (the role Sentry's `isInitialPageloadComplete` plays): do not open a navigation root
   until the pageload has settled — gated on the `pageloadNamed` latch above (equivalently, `state.initialized
 === true` plus the first observed `idle`). RR's initial load and any hydration-time subscribe are thereby
