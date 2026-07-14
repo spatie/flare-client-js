@@ -62,6 +62,16 @@
                 "default": "./dist/tanstack-router.cjs"
             }
         },
+        "./react-router": {
+            "import": {
+                "types": "./dist/react-router.d.mts",
+                "default": "./dist/react-router.mjs"
+            },
+            "require": {
+                "types": "./dist/react-router.d.cts",
+                "default": "./dist/react-router.cjs"
+            }
+        },
         "./profiler": {
             "import": {
                 "types": "./dist/profiler.d.mts",
@@ -75,7 +85,7 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts src/inject.ts src/tanstack-router.ts src/profiler.ts --format cjs,esm --dts --env.PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --clean",
+        "build": "tsdown src/index.ts src/inject.ts src/tanstack-router.ts src/react-router.ts src/profiler.ts --format cjs,esm --dts --env.PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --clean",
         "test": "vitest run",
         "typescript": "tsc --noEmit",
         "verify:inject": "node scripts/verify-inject-no-root.mjs",
@@ -101,10 +111,14 @@
     "peerDependencies": {
         "@flareapp/js": "^2.6.0",
         "react": "^16.0.0||^17.0.0||^18.0.0||^19.0.0",
-        "@tanstack/react-router": ">=1.64.0 <2"
+        "@tanstack/react-router": ">=1.64.0 <2",
+        "react-router": ">=7.0.0 <8"
     },
     "peerDependenciesMeta": {
         "@tanstack/react-router": {
+            "optional": true
+        },
+        "react-router": {
             "optional": true
         }
     },
