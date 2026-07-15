@@ -178,6 +178,7 @@ describe('traceVueRouter against a real vue-router', () => {
         await router.push('/product/p01').catch(() => {});
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route' });
     });
 
     it('names the pageload immediately when installed after the router is ready', async () => {

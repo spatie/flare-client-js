@@ -127,7 +127,7 @@ export function traceVueRouter(router: unknown): () => void {
         safeInvoke(offAfter);
         safeInvoke(offError);
         safeInvoke(() => nav.unregister());
-        instrumented.delete(r);
+        if (instrumented.get(r) === cleanup) instrumented.delete(r);
     };
     instrumented.set(r, cleanup);
     return cleanup;
