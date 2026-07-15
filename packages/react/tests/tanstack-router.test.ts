@@ -6,7 +6,25 @@ const nav = vi.hoisted(() => ({
     setActiveRouteName: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', () => ({ registerNavigationSource: vi.fn(() => nav) }));
+vi.mock('@flareapp/js/browser', () => ({
+    registerNavigationSource: vi.fn(() => nav),
+    insulate:
+        (fn: (...a: unknown[]) => void) =>
+        (...a: unknown[]) => {
+            try {
+                fn(...a);
+            } catch {
+                /* swallow */
+            }
+        },
+    safeInvoke: (fn?: (() => void) | null) => {
+        try {
+            fn?.();
+        } catch {
+            /* swallow */
+        }
+    },
+}));
 
 import { traceTanStackRouter } from '../src/tanstack-router';
 import type { TsrMatch } from '../src/vendor/tanstackRouterTypes';
