@@ -43,8 +43,13 @@ Flare's seam and conventions.
    to `to.path` → `{ source: 'url' }`. Matches the React/TanStack slices exactly and the backend's
    cross-framework parameterized-route aggregation. No `routeLabel: 'name' | 'path'` toggle and no
    named-route (`custom`) source for v1 — route names are optional and would fragment aggregation.
-4. **Zero `@flareapp/js` change.** The nav seam already has `hold` + `url` + `settleNavigation`. This
-   slice touches only `@flareapp/vue`, the Vue playground, and the e2e suite.
+4. **One additive `@flareapp/js` change: shared instrumentation guards.** No nav-seam behavior
+   changes (`hold` + `url` + `settleNavigation` already exist). The slice does add two pure helpers
+   (`insulate`, `safeInvoke`) to the side-effect-free `@flareapp/js/browser` barrel and converts the
+   existing React integrations onto them, collapsing three near-duplicate try/catch wrappers into one
+   definition (see Component 0). Land that as a small standalone step first; the vue slice then
+   consumes it. Beyond that, this slice touches only `@flareapp/vue`, the Vue playground, and the e2e
+   suite.
 
 ## vue-router lifecycle facts (verified against source)
 
@@ -71,6 +76,48 @@ Verified against `vuejs/router` `packages/router/src/router.ts` + `errors.ts` an
 - `beforeEach` / `afterEach` / `onError` each return an unregister function.
 
 ## Components
+
+### 0. `packages/js/src/tracing/instrumentationGuard.ts` (new — prerequisite refactor)
+
+Two pure, environment-agnostic helpers, exported from the side-effect-free `@flareapp/js/browser`
+barrel (so the Electron-safety / entry-test guarantees are unaffected). They replace three
+near-duplicate copies of the same "instrumentation must never throw into the host" idea: the generic
+`guard` HOF this slice would otherwise define locally, the monomorphic `guard` in
+`@flareapp/react/tanstack-router`, and the inline `try/catch` in `@flareapp/react/react-router`.
+
+```ts
+/** Wrap a host-invoked callback (router guard / store subscriber) so a tracing throw can never escape
+ *  into the host's dispatch. A thrown callback resolves to `undefined`. */
+export function insulate<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
+    return (...a: A): void => {
+        try {
+            fn(...a);
+        } catch {
+            // instrumentation never breaks the host
+        }
+    };
+}
+
+/** Invoke a teardown fn now (if present), swallowing any throw. For cleanup chains. */
+export function safeInvoke(fn: (() => void) | null | undefined): void {
+    try {
+        fn?.();
+    } catch {
+        // ignore
+    }
+}
+```
+
+Land this as a small standalone step (js barrel + the two React call sites) **before** the vue slice,
+so the vue integration consumes it rather than introducing a fourth copy. Conversion notes:
+
+- `react-router` converges cleanly: `router.subscribe(insulate(onState))` — `onState` is already a
+  named, typed function, so no annotation is needed.
+- `tanstack-router` costs two explicit `(e: TsrNavEvent)` param annotations: the generic helper can't
+  infer the event type from `router.subscribe`'s context, where the discarded monomorphic local `guard`
+  typed it for free.
+- All cleanup blocks collapse to `safeInvoke(off)` calls; `safeInvoke(() => nav.unregister())` wraps the
+  seam call in an arrow so the method keeps its binding (no detached-`this` reliance).
 
 ### 1. `packages/vue/src/vendor/vueRouterTypes.ts` (new)
 
@@ -101,26 +148,34 @@ export type VueRouterLike = {
 
 ### 2. `packages/vue/src/traceVueRouter.ts` (new, internal)
 
-The whole integration. Imports **only** `registerNavigationSource` + `RouteName` from
-`@flareapp/js/browser` (side-effect-free → Electron-safe; `flareVue.ts` already imports from that barrel
-via `resolveFlare`). **Not exported** from `index.ts` / `inject.ts` — the only public surface is the
-plugin option. Accepts `unknown` and narrows defensively (checks `beforeEach`/`afterEach` are functions),
+The whole integration. Imports `registerNavigationSource` + `RouteName` and the shared `insulate` /
+`safeInvoke` guards (Component 0) from `@flareapp/js/browser` (side-effect-free → Electron-safe;
+`flareVue.ts` already imports from that barrel via `resolveFlare`). **Not exported** from `index.ts` /
+`inject.ts` — the only public surface is the plugin option. Accepts `unknown` and narrows defensively (checks `beforeEach`/`afterEach` are functions),
 returning a no-op cleanup if the shape is wrong, so a shimmed/absent router never throws.
 
 Numeric failure-type constants are defined locally (`NAVIGATION_CANCELLED = 8`) rather than imported, to
 avoid a runtime `vue-router` dependency.
 
 ```ts
-import { registerNavigationSource, type RouteName } from '@flareapp/js/browser';
+import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from './vendor/vueRouterTypes';
 
 const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED — a newer nav superseded this one
+
+// Dedup re-instrumentation of the same router. Vite HMR re-runs plugin install against a persistent
+// router; without this each cycle appends another guard triple that is never removed (inert, since the
+// superseded nav source no-ops, but an unbounded accumulation on a long-lived router). Keyed on the
+// router object, so a genuinely new router is unaffected.
+const instrumented = new WeakMap<object, () => void>();
 
 export function traceVueRouter(router: unknown): () => void {
     const r = router as Partial<VueRouterLike> | null;
     if (!r || typeof r.beforeEach !== 'function' || typeof r.afterEach !== 'function') {
         return () => {}; // wrong shape → inert
     }
+
+    instrumented.get(r)?.(); // HMR: tear down any prior instrumentation of this same router first
 
     const nav = registerNavigationSource();
 
@@ -158,26 +213,20 @@ export function traceVueRouter(router: unknown): () => void {
         // never break the host on wiring
     }
 
-    const guard =
-        <A extends unknown[]>(fn: (...a: A) => void) =>
-        (...a: A): void => {
-            try {
-                fn(...a);
-            } catch {
-                // instrumentation never breaks the host's navigation dispatch
-            }
-        };
-
     const offBefore = r.beforeEach(
-        guard((to: VueRouteLocationLike, from: VueRouteLocationLike) => {
+        insulate((to: VueRouteLocationLike, from: VueRouteLocationLike) => {
             // Initial navigation first: START_LOCATION.fullPath is '/', so an app whose initial route is
-            // '/' would otherwise be swallowed by the no-op skip below.
+            // '/' would otherwise be swallowed by the same-location skip below.
             if (!sawInitial && isInitial(from)) {
                 nav.setActiveRouteName(routeNameFor(to)); // name the pageload root; open no nav root
                 return;
             }
 
-            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) return; // no-op / duplicated nav
+            // Only a `force: true` re-navigation reaches beforeEach with to.fullPath === from.fullPath: a
+            // plain duplicated nav is short-circuited before guards run and surfaces solely as an afterEach
+            // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
+            // no navigation root.
+            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) return;
 
             if (!inFlight) {
                 inFlight = true;
@@ -188,7 +237,7 @@ export function traceVueRouter(router: unknown): () => void {
     );
 
     const offAfter = r.afterEach(
-        guard((to: VueRouteLocationLike, from: VueRouteLocationLike, failure?: NavigationFailureLike) => {
+        insulate((to: VueRouteLocationLike, from: VueRouteLocationLike, failure?: NavigationFailureLike) => {
             if (!sawInitial && isInitial(from)) {
                 if (!failure) {
                     sawInitial = true;
@@ -218,7 +267,7 @@ export function traceVueRouter(router: unknown): () => void {
     const offError =
         typeof r.onError === 'function'
             ? r.onError(
-                  guard(() => {
+                  insulate(() => {
                       if (!inFlight) return;
                       inFlight = false;
                       const current = r.currentRoute?.value;
@@ -227,28 +276,15 @@ export function traceVueRouter(router: unknown): () => void {
               )
             : undefined;
 
-    return () => {
-        try {
-            offBefore?.();
-        } catch {
-            // ignore
-        }
-        try {
-            offAfter?.();
-        } catch {
-            // ignore
-        }
-        try {
-            offError?.();
-        } catch {
-            // ignore
-        }
-        try {
-            nav.unregister();
-        } catch {
-            // ignore
-        }
+    const cleanup = (): void => {
+        safeInvoke(offBefore);
+        safeInvoke(offAfter);
+        safeInvoke(offError);
+        safeInvoke(() => nav.unregister());
+        instrumented.delete(r);
     };
+    instrumented.set(r, cleanup);
+    return cleanup;
 }
 ```
 
@@ -269,8 +305,12 @@ export function traceVueRouter(router: unknown): () => void {
     ```
 
     Install is already idempotent per app (`installedApps` WeakSet), so router tracing is wired at most
-    once per app. The returned cleanup is not stored — Vue has no plugin-uninstall hook, and the nav source
-    is last-wins (an HMR re-init or a second app supersedes the prior registration cleanly).
+    once per app. `flareVue` still discards the returned cleanup (Vue has no plugin-uninstall hook), but
+    `traceVueRouter` self-dedups per router instance (module-level `WeakMap`, Component 2): an HMR re-init
+    against a persistent router tears down the prior guard triple before re-registering, so guards can't
+    accumulate. The nav source stays last-wins as a second line of defense. (The dedup is effective when
+    the cached `@flareapp/vue` module survives the HMR update, as Vite's pre-bundled deps normally do; a
+    full module re-eval resets the map, which is harmless.)
 
 ## Trace model for this slice
 
@@ -281,6 +321,13 @@ export function traceVueRouter(router: unknown): () => void {
   `url.full` from the destination `to.fullPath`), settled in `afterEach`. Nested `browser_fetch` /
   `browser_xhr` spans from guard-based or component-mount data loading attach to the held root; the idle
   lifecycle closes it after the last child settles.
+- **Blocked / aborted navigations still emit a short navigation span.** `beforeEach` is vue-router's
+  earliest hook and cannot know a later guard will abort, so the held root — and the `endNow()` of the
+  prior root — is committed before any abort is known. An aborted navigation therefore ends the prior
+  root and emits a brief `browser_navigation` span named after `from` (where the user stayed). This is
+  inherent to a `beforeEach`-timed integration and matches `@sentry/vue`; accepted rather than worked
+  around, since opening the root only in `afterEach` would lose navigation-start timing and drop in-guard
+  fetches. Aborting guards are uncommon (mostly "unsaved changes" prompts), so the noise is bounded.
 
 ## Route name & attributes
 
@@ -292,8 +339,9 @@ given the codebase's redaction posture).
 
 ## Error handling
 
-- Every guard body is wrapped so a tracing error is swallowed and never escapes into vue-router's
-  navigation dispatch (a thrown guard would otherwise abort the user's navigation).
+- Every guard body is wrapped with the shared `insulate` helper (Component 0) so a tracing error is
+  swallowed and never escapes into vue-router's navigation dispatch (a thrown guard would otherwise
+  abort the user's navigation).
 - `router.onError` releases the hold so a guard exception mid-navigation cannot strand a held root.
 - A wrong-shaped / absent router makes `traceVueRouter` inert (no-op cleanup), never a throw.
 - `traceVueRouter` is invoked inside a try/catch in `flareVue` install, so wiring can never break the
@@ -312,11 +360,19 @@ Mirror the React `*.integration.test.ts` / `*.entry.test.ts` split.
     - client nav → one `startNavigation({ hold: true })` with `url` = origin + `to.fullPath`; `settleNavigation`
       with `{ name: '/product/:id', source: 'route' }`.
     - unmatched route (`matched: []`) → `{ source: 'url' }`, name = `to.path`.
-    - no-op nav (`to.fullPath === from.fullPath`) → no `startNavigation`.
-    - redirect hops (two `beforeEach`, one with a redirect, single successful `afterEach`) → one
+    - force same-location re-nav (`beforeEach` fires with `to.fullPath === from.fullPath`) → skipped: no
+      `startNavigation`, no span.
+    - plain duplicated nav (no `beforeEach`; `afterEach` with `failure.type === 16`) → dropped by the
+      `!inFlight` guard: no span. (Distinct from the force case above — a non-force duplicate never runs
+      guards.)
+    - guard-returned redirect (two `beforeEach`: original + target, one successful `afterEach`) → one
       `startNavigation`, one `settleNavigation` named the final target.
+    - route-config redirect (one `beforeEach`: target only, since vue-router short-circuits before guards
+      for the original; one successful `afterEach`) → one `startNavigation`, one `settleNavigation` named
+      the final target.
     - `cancelled` (type 8) afterEach → held root kept; the superseding nav's success settles it.
-    - `aborted` (type 4) afterEach → `settleNavigation(from)` (release).
+    - `aborted` (type 4) afterEach → `settleNavigation(from)` (release); the prior root was already ended
+      by the `beforeEach` `startNavigation`, and a short `from`-named nav span is emitted (see Trace model).
     - `onError` mid-nav → `settleNavigation` (release).
     - install after `router.isReady()` (resolved `currentRoute`) → pageload named immediately, first
       `beforeEach` treated as a client nav.
@@ -324,6 +380,9 @@ Mirror the React `*.integration.test.ts` / `*.entry.test.ts` split.
 - `packages/vue/tests/vue-router.entry.test.ts` — assert `traceVueRouter` (and `flareVue` with a
   `router` option) does not import the `@flareapp/js` root (Electron-safety), matching the React entry
   test discipline and the existing `verify:inject` guard.
+- `packages/js/tests/instrumentationGuard.test.ts` — unit-test the extracted helpers (Component 0):
+  `insulate` swallows a throw and yields `undefined`; `safeInvoke` tolerates a nullish fn and swallows a
+  throw. Lands with the prerequisite refactor, not the vue slice.
 
 ## Playground
 
@@ -340,10 +399,25 @@ Mirror the React `*.integration.test.ts` / `*.entry.test.ts` split.
 - `FlareVueOptions['router']` typed as `unknown` accepts a real `vue-router` `Router` at
   `app.use(flareVue, { router })` with no cast. If a slightly tighter type gives good DX without
   friction, prefer it; otherwise `unknown` + defensive narrowing (as `getRouteContext` does) is fine.
-- vue-router 5 (the playground devDep) exposes the same `beforeEach`/`afterEach`/`onError` + `matched[].path`
-  shapes as vue-router 4 (the peer floor). Confirm before publish.
-- `to.matched[last].path` is the absolute template on the pinned peer floor (vue-router 4.0); confirm the
-  matcher normalization holds at that version.
+- Navigation start time is stamped when our `beforeEach` runs — in registration order among all
+  `beforeEach` guards. A slow async app guard registered earlier defers our `startNavigation` and
+  undercounts the navigation. `beforeEach` is vue-router's earliest hook (no pre-guard seam exists), so
+  this is inherent and matches `@sentry/vue`; installing `flareVue` right after the router (before
+  feature guards) minimizes it. Confirm the playground wires it in that order.
+- vue-router 4.0.0 (the peer floor) and 5.1.0 (the playground devDep) expose identical shapes for this
+  integration — verified against the 4.0.0 `.d.ts`: `afterEach(to, from, failure?)` is 3-arg with the
+  `failure` param present from 4.0.0 (`NavigationHookAfter`), `ErrorTypes` is `NAVIGATION_ABORTED=4 /
+NAVIGATION_CANCELLED=8 / NAVIGATION_DUPLICATED=16` (so the hardcoded `NAVIGATION_CANCELLED = 8` is
+  correct at the floor), and `beforeEach` / `afterEach` / `onError` each return a `() => void` unregister.
+  The unit tests drive a structural fake router, so they exercise both majors by construction; a manual v4
+  playground smoke before publish is optional belt-and-suspenders, not a correctness gate.
+- `to.matched[last].path` as the absolute template is the one shape not pinned from the `.d.ts` (it is a
+  matcher-normalization runtime behavior, not a type). Sentry reads it directly and it holds on 5.1.0;
+  confirm on a 4.0.x install that a nested child route resolves its last matched record's `path` to the
+  full absolute template before publish.
+- After converting `@flareapp/react/tanstack-router` + `react-router` onto the shared `insulate` /
+  `safeInvoke` (Component 0), both packages' existing router + entry tests still pass — Electron-safety
+  is unchanged since the helpers are pure and come from the side-effect-free browser barrel.
 
 ## Out of scope / follow-ups
 
