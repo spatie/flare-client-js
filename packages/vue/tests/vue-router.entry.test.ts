@@ -62,6 +62,7 @@ describe('@flareapp/vue vue-router tracing entry', () => {
             reportMessage: vi.fn(),
             setSdkInfo: vi.fn(),
             setFramework: vi.fn(),
+            config: { enableTracing: true },
         } as unknown as import('../src/types').FlareVueOptions['flare'];
 
         const router = {
@@ -77,6 +78,63 @@ describe('@flareapp/vue vue-router tracing entry', () => {
         expect(registerNavigationSource).toHaveBeenCalledTimes(1);
         expect(router.beforeEach).toHaveBeenCalledTimes(1);
         expect(router.afterEach).toHaveBeenCalledTimes(1);
+    });
+
+    test('installing flareVue with a router but tracing disabled does not touch the nav seam', async () => {
+        const registerNavigationSource = vi.fn(() => ({
+            startNavigation: vi.fn(),
+            setActiveRouteName: vi.fn(),
+            settleNavigation: vi.fn(),
+            unregister: vi.fn(),
+        }));
+        vi.doMock('@flareapp/js/browser', async () => {
+            const actual = await vi.importActual<Record<string, unknown>>('@flareapp/js/browser');
+            return {
+                ...actual,
+                registerNavigationSource,
+                insulate:
+                    (fn: (...a: unknown[]) => void) =>
+                    (...a: unknown[]) => {
+                        try {
+                            fn(...a);
+                        } catch {
+                            /* swallow */
+                        }
+                    },
+                safeInvoke: (fn?: (() => void) | null) => {
+                    try {
+                        fn?.();
+                    } catch {
+                        /* swallow */
+                    }
+                },
+            };
+        });
+
+        const { flareVue } = await import('../src/inject');
+        const { createApp } = await import('vue');
+
+        const flareStub = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+            config: { enableTracing: false },
+        } as unknown as import('../src/types').FlareVueOptions['flare'];
+
+        const router = {
+            currentRoute: { value: { path: '/', fullPath: '/', matched: [] } },
+            beforeEach: vi.fn(() => () => {}),
+            afterEach: vi.fn(() => () => {}),
+            onError: vi.fn(() => () => {}),
+        };
+
+        const app = createApp({ render: () => null });
+        app.use(flareVue, { flare: flareStub, router });
+
+        expect(registerNavigationSource).not.toHaveBeenCalled();
+        expect(router.beforeEach).not.toHaveBeenCalled();
+        expect(router.afterEach).not.toHaveBeenCalled();
     });
 
     test('installing flareVue without a router option does not touch the nav seam', async () => {

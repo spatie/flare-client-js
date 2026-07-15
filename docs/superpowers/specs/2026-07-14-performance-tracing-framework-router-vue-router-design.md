@@ -292,10 +292,11 @@ export function traceVueRouter(router: unknown): () => void {
 
 - `FlareVueOptions` gains `router?: unknown` (documented: a vue-router Router instance; enables
   navigation/pageload performance tracing).
-- In `flareVue` install, after identity tagging and near the end of install, wire tracing:
+- In `flareVue` install, after identity tagging and near the end of install, wire tracing — but only
+  when tracing is actually enabled:
 
     ```ts
-    if (options?.router) {
+    if (options?.router && flare.config?.enableTracing) {
         try {
             traceVueRouter(options.router);
         } catch {
@@ -304,11 +305,16 @@ export function traceVueRouter(router: unknown): () => void {
     }
     ```
 
-    Install is already idempotent per app (`installedApps` WeakSet), so router tracing is wired at most
-    once per app. `flareVue` still discards the returned cleanup (Vue has no plugin-uninstall hook), but
-    `traceVueRouter` self-dedups per router instance (module-level `WeakMap`, Component 2): an HMR re-init
-    against a persistent router tears down the prior guard triple before re-registering, so guards can't
-    accumulate. The nav source stays last-wins as a second line of defense. (The dedup is effective when
+    The `enableTracing` gate matters because it is the same flag that gates `startBrowserTracing` at
+    init: with tracing off, `startBrowserTracing` never ran, so `traceVueRouter` would attach a guard
+    triple and register a navigation source that can only no-op (`activeFlare` is null) — dead
+    instrumentation on the host's router. Gating here skips that. Optional chaining keeps a malformed
+    injected (Electron) flare fail-closed rather than throwing. Install is already idempotent per app
+    (`installedApps` WeakSet), so router tracing is wired at most once per app. `flareVue` still discards
+    the returned cleanup (Vue has no plugin-uninstall hook), but `traceVueRouter` self-dedups per router
+    instance (module-level `WeakMap`, Component 2): an HMR re-init against a persistent router tears down
+    the prior guard triple before re-registering, so guards can't accumulate. The nav source stays
+    last-wins as a second line of defense. (The dedup is effective when
     the cached `@flareapp/vue` module survives the HMR update, as Vite's pre-bundled deps normally do; a
     full module re-eval resets the map, which is harmless.)
 
@@ -346,6 +352,9 @@ given the codebase's redaction posture).
 - A wrong-shaped / absent router makes `traceVueRouter` inert (no-op cleanup), never a throw.
 - `traceVueRouter` is invoked inside a try/catch in `flareVue` install, so wiring can never break the
   plugin.
+- The `flare.config?.enableTracing` gate (Component 3) skips wiring entirely when tracing is off, so a
+  `{ router }` option with tracing disabled leaves the router's guards and the nav seam untouched
+  rather than attaching no-op instrumentation.
 
 ## Testing
 
@@ -379,7 +388,10 @@ Mirror the React `*.integration.test.ts` / `*.entry.test.ts` split.
     - cleanup → guards removed + `nav.unregister()` called.
 - `packages/vue/tests/vue-router.entry.test.ts` — assert `traceVueRouter` (and `flareVue` with a
   `router` option) does not import the `@flareapp/js` root (Electron-safety), matching the React entry
-  test discipline and the existing `verify:inject` guard.
+  test discipline and the existing `verify:inject` guard. Also assert the Component 3 wiring gate: with
+  `{ router }` and `enableTracing: true` the nav seam is registered exactly once; with `{ router }` but
+  `enableTracing: false`, or with no `router` at all, `registerNavigationSource` (and the router guards)
+  are never touched.
 - `packages/js/tests/instrumentationGuard.test.ts` — unit-test the extracted helpers (Component 0):
   `insulate` swallows a throw and yields `undefined`; `safeInvoke` tolerates a nullish fn and swallows a
   throw. Lands with the prerequisite refactor, not the vue slice.
