@@ -2,32 +2,7 @@ import { FakeApi } from '@flareapp/test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ElectronFlare } from '../src/main/ElectronFlare';
-
-function fakeApp() {
-    return {
-        getName: () => 'TestApp',
-        getVersion: () => '1.0.0',
-        getLocale: () => 'en-US',
-        isReady: () => true,
-        isPackaged: false,
-        on: vi.fn(),
-        // off is needed: the constructor attaches crash listeners and dispose() detaches them.
-        off: vi.fn(),
-    };
-}
-
-function fakeIpcMain() {
-    const handlers: Record<string, Function> = {};
-    return {
-        handlers,
-        handle: vi.fn((c: string, fn: Function) => {
-            handlers[c] = fn;
-        }),
-        removeHandler: vi.fn((c: string) => {
-            delete handlers[c];
-        }),
-    };
-}
+import { fakeApp, fakeIpcMain } from './helpers';
 
 function makeFlare() {
     const api = new FakeApi();

@@ -1,19 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ElectronFlushScheduler } from '../src/main/ElectronFlushScheduler';
-
-function fakeApp() {
-    const handlers: Record<string, (() => void)[]> = {};
-    return {
-        handlers,
-        on(event: string, cb: () => void) {
-            (handlers[event] ??= []).push(cb);
-        },
-        off(event: string, cb: () => void) {
-            handlers[event] = (handlers[event] ?? []).filter((h) => h !== cb);
-        },
-    };
-}
+import { fakeApp } from './helpers';
 
 describe('ElectronFlushScheduler', () => {
     it('flushes when the app emits before-quit', () => {
