@@ -10,6 +10,6 @@ initFlare();
 
 const app = createApp(Layout);
 app.use(router);
-app.use(flareVue, {});
+app.use(flareVue, { router });
 app.component('FlareErrorBoundary', FlareErrorBoundary);
 app.mount('#app');

@@ -1,7 +1,7 @@
 // Electron-safe entry: NO @flareapp/js root import. The navigation-source seam
 // comes from @flareapp/js/browser (side-effect-free). NO runtime dependency on
 // @tanstack/react-router — the router is consumed structurally (see ./vendor).
-import { registerNavigationSource, type RouteName } from '@flareapp/js/browser';
+import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
 import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
 
@@ -27,17 +27,6 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
         return { name: loc.pathname, source: 'url' };
     };
 
-    // A tracing error must never escape into the router's event dispatch.
-    const guard =
-        (fn: (event: TsrNavEvent) => void) =>
-        (event: TsrNavEvent): void => {
-            try {
-                fn(event);
-            } catch {
-                // swallow: instrumentation never breaks the host
-            }
-        };
-
     // Enrich the pageload root immediately from the current (already-resolved) location.
     try {
         nav.setActiveRouteName(routeNameFor(router.state.location));
@@ -49,7 +38,7 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
 
     const offBeforeLoad = router.subscribe(
         'onBeforeLoad',
-        guard((e) => {
+        insulate((e: TsrNavEvent) => {
             if (e.fromLocation === undefined) return; // initial pageload (handled via onResolved)
             if (e.toLocation.state === e.fromLocation.state) return; // no-op reload (e.g. router.invalidate())
             if (!inFlight) {
@@ -62,7 +51,7 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
 
     const offResolved = router.subscribe(
         'onResolved',
-        guard((e) => {
+        insulate((e: TsrNavEvent) => {
             if (e.fromLocation === undefined) {
                 nav.setActiveRouteName(routeNameFor(e.toLocation)); // one-shot pageload correction
                 return;
@@ -75,20 +64,8 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
     );
 
     return () => {
-        try {
-            offBeforeLoad();
-        } catch {
-            // ignore
-        }
-        try {
-            offResolved();
-        } catch {
-            // ignore
-        }
-        try {
-            nav.unregister();
-        } catch {
-            // ignore
-        }
+        safeInvoke(offBeforeLoad);
+        safeInvoke(offResolved);
+        safeInvoke(() => nav.unregister());
     };
 }

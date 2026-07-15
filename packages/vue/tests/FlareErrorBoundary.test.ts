@@ -2,6 +2,7 @@ import type { Attributes } from '@flareapp/js';
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
+import type { ComponentCustomProperties } from 'vue';
 
 import { FlareErrorBoundary } from '../src/FlareErrorBoundary';
 import { ComponentHierarchyFrame, FlareVueContext } from '../src/types';
@@ -971,9 +972,12 @@ describe('FlareErrorBoundary', () => {
             mount(FlareErrorBoundary, {
                 global: {
                     config: {
+                        // vue-router's `declare module 'vue'` augmentation (pulled into this package's
+                        // tsc program by the router-tracing tests) types globalProperties as the full
+                        // ComponentCustomProperties; the boundary only reads $router.currentRoute.value.
                         globalProperties: {
                             $router: mockRouter(mockRoute),
-                        },
+                        } as unknown as ComponentCustomProperties,
                     },
                 },
                 slots: {
@@ -1016,9 +1020,12 @@ describe('FlareErrorBoundary', () => {
             mount(FlareErrorBoundary, {
                 global: {
                     config: {
+                        // vue-router's `declare module 'vue'` augmentation (pulled into this package's
+                        // tsc program by the router-tracing tests) types globalProperties as the full
+                        // ComponentCustomProperties; the boundary only reads $router.currentRoute.value.
                         globalProperties: {
                             $router: mockRouter(mockRoute),
-                        },
+                        } as unknown as ComponentCustomProperties,
                     },
                 },
                 props: { beforeSubmit },
