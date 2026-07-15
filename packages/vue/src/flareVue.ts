@@ -10,6 +10,7 @@ import { getRouteContext } from './getRouteContext';
 import { registerVueSdkInfo, tagVueFramework } from './identify';
 import { resolveFlare } from './resolveFlare';
 import { serializeProps } from './serializeProps';
+import { traceVueRouter } from './traceVueRouter';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export function vueContextToAttributes(context: FlareVueContext): Attributes {
@@ -152,5 +153,13 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
                 initialWarnHandler(msg, instance, trace);
             }
         };
+    }
+
+    if (options?.router) {
+        try {
+            traceVueRouter(options.router);
+        } catch {
+            // never break plugin install
+        }
     }
 };
