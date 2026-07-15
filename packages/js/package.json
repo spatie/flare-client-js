@@ -62,6 +62,7 @@
         "@flareapp/core": "2.6.0"
     },
     "devDependencies": {
+        "@flareapp/test-helpers": "*",
         "error-stack-parser": "^2.0.2",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
