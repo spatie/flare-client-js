@@ -1,21 +1,13 @@
+import { makeReport } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Api } from '../src/api';
-import type { LogsEnvelope, Report, TracesEnvelope } from '../src/types';
+import type { LogsEnvelope, TracesEnvelope } from '../src/types';
 
 // ~40 KB serialized: two of these on the wire at once exceed the ~60 KB budget.
 const bigTraces = (): TracesEnvelope =>
     ({ resourceSpans: [{ filler: 'x'.repeat(40_000) }] }) as unknown as TracesEnvelope;
 const bigLogs = (): LogsEnvelope => ({ resourceLogs: [{ filler: 'x'.repeat(40_000) }] }) as unknown as LogsEnvelope;
-
-const minimalReport = {
-    exceptionClass: 'Error',
-    message: 'm',
-    seenAtUnixNano: 0,
-    stacktrace: [],
-    events: [],
-    attributes: {},
-} as unknown as Report;
 
 const URL_T = 'https://x/v1/traces';
 const URL_L = 'https://x/v1/logs';
@@ -66,7 +58,7 @@ describe('Api keepalive byte-budget gate', () => {
         const fetchMock = vi.fn().mockResolvedValue({ status: 201 });
         vi.stubGlobal('fetch', fetchMock);
 
-        await new Api().report(minimalReport, 'https://x/ingest', 'k', false);
+        await new Api().report(makeReport({ message: 'm' }), 'https://x/ingest', 'k', false);
 
         expect(fetchMock.mock.calls[0][1].keepalive).toBe(false);
     });
