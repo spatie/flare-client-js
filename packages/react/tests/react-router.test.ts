@@ -7,7 +7,25 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', () => ({ registerNavigationSource: vi.fn(() => nav) }));
+vi.mock('@flareapp/js/browser', () => ({
+    registerNavigationSource: vi.fn(() => nav),
+    insulate:
+        (fn: (...a: unknown[]) => void) =>
+        (...a: unknown[]) => {
+            try {
+                fn(...a);
+            } catch {
+                /* swallow */
+            }
+        },
+    safeInvoke: (fn?: (() => void) | null) => {
+        try {
+            fn?.();
+        } catch {
+            /* swallow */
+        }
+    },
+}));
 
 import { routeNameFromMatches, traceReactRouter } from '../src/react-router';
 import type { RRMatch, RRRouterState } from '../src/vendor/reactRouterTypes';
