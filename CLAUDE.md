@@ -165,6 +165,8 @@ Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --pro
 - Linting: oxlint, root config in `.oxlintrc.json`, per-package configs in `packages/<pkg>/.oxlintrc.json`
 - Doc comments on functions must be terse and follow JSDoc (`/** ... */` with `@param` / `@returns` where they add
   information). Write them only when they clarify non-obvious behavior; do not restate the signature.
+- When there is an opportunity to create a shared utility for the code or the tests, YOU MUST DO SO.
+- Code duplication must be kept at A MINIMUM and should only be done when it makes sense in the context of the feature.
 
 ## Publishing
 
