@@ -22,6 +22,7 @@
     "scripts": {
         "build": "npm run build --workspaces --if-present",
         "test": "npm run build && npm run test --workspaces --if-present",
+        "test:ci": "npm run test --workspaces --if-present",
         "typescript": "npm run typescript --workspaces --if-present",
         "playgrounds:js": "npm run build --workspaces --if-present && npm run dev --workspace=@flareapp/playgrounds-js",
         "playgrounds:react": "npm run build --workspaces --if-present && npm run dev --workspace=@flareapp/playgrounds-react",
