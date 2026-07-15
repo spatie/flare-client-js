@@ -10,6 +10,7 @@ import { getRouteContext } from './getRouteContext';
 import { registerVueSdkInfo, tagVueFramework } from './identify';
 import { resolveFlare } from './resolveFlare';
 import { serializeProps } from './serializeProps';
+import { traceVueRouter } from './traceVueRouter';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export function vueContextToAttributes(context: FlareVueContext): Attributes {
@@ -152,5 +153,16 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
                 initialWarnHandler(msg, instance, trace);
             }
         };
+    }
+
+    // Only wire router tracing when tracing is actually enabled. `enableTracing` is what gates
+    // `startBrowserTracing` at init, so without it `traceVueRouter` would attach guards and register a
+    // navigation source that can only no-op. Gate here to avoid that dead instrumentation on the router.
+    if (options?.router && flare.config?.enableTracing) {
+        try {
+            traceVueRouter(options.router);
+        } catch {
+            // never break plugin install
+        }
     }
 };

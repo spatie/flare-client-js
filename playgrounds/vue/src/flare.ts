@@ -8,6 +8,11 @@ export const initFlare = (): void => {
         flare.configure({
             ingestUrl: url,
             logsIngestUrl: url.replace('/v1/errors', '/v1/logs'),
+            tracesIngestUrl: url.replace('/v1/errors', '/v1/traces'),
+            // e2e-only timing: keep the nav/pageload root active long enough for a prompt Playwright
+            // click to land and nest under it, then flush an ended root fast.
+            idleTimeout: 2000,
+            spanFlushIntervalMs: 500,
         });
     }
 
@@ -17,6 +22,8 @@ export const initFlare = (): void => {
         // and fail like the error reports do). The fake-server logsIngestUrl
         // override above only applies under e2e (VITE_FLARE_URL set).
         enableLogs: true,
+        enableTracing: true,
+        tracesSampleRate: 1,
         beforeEvaluate: (error) => {
             if (error.message === 'hook-drop-report') return null;
             return error;

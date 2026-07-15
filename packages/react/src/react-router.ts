@@ -1,7 +1,7 @@
 // Electron-safe entry: NO @flareapp/js root import. The navigation-source seam comes from
 // @flareapp/js/browser (side-effect-free). NO runtime dependency on react-router — the router is
 // consumed structurally (see ./vendor/reactRouterTypes).
-import { registerNavigationSource, type RouteName } from '@flareapp/js/browser';
+import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
 import type { RRDataRouter, RRLocation, RRMatch, RRRouterState } from './vendor/reactRouterTypes';
 
@@ -123,24 +123,10 @@ export function traceReactRouter(router: RRDataRouter): () => void {
         // else (inFlight && non-idle): a redirect / superseding hop -> keep the single held root.
     };
 
-    const unsubscribe = router.subscribe((state) => {
-        try {
-            onState(state);
-        } catch {
-            // a tracing error must never escape into the router's state dispatch
-        }
-    });
+    const unsubscribe = router.subscribe(insulate(onState));
 
     return () => {
-        try {
-            unsubscribe();
-        } catch {
-            // ignore
-        }
-        try {
-            nav.unregister();
-        } catch {
-            // ignore
-        }
+        safeInvoke(unsubscribe);
+        safeInvoke(() => nav.unregister());
     };
 }
