@@ -1,18 +1,14 @@
-import { Flare, Api } from '@flareapp/core';
+import { Flare } from '@flareapp/core';
+import { FakeApi } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildFatalCallbacks } from '../src/process/fatal';
 
-function fakeFlare(): { flare: Flare; sent: any[] } {
-    const sent: any[] = [];
-    const api = new Api();
-    api.report = (report: any) => {
-        sent.push(report);
-        return Promise.resolve();
-    };
+function fakeFlare(): { flare: Flare; api: FakeApi } {
+    const api = new FakeApi();
     const flare = new Flare(api);
     flare.light('k');
-    return { flare, sent };
+    return { flare, api };
 }
 
 afterEach(() => {
@@ -22,7 +18,7 @@ afterEach(() => {
 
 describe('fatal callbacks', () => {
     it('uncaught: awaits full report pipeline before resolving', async () => {
-        const { flare, sent } = fakeFlare();
+        const { flare, api } = fakeFlare();
         const exit = vi.fn();
         const { onUncaught } = buildFatalCallbacks(
             flare,
@@ -34,13 +30,13 @@ describe('fatal callbacks', () => {
             exit,
         );
         await onUncaught(new Error('boom'), 'uncaughtException');
-        expect(sent.length).toBe(1);
-        expect(sent[0].attributes['process.uncaught_exception.origin']).toBe('uncaughtException');
+        expect(api.reports.length).toBe(1);
+        expect(api.reports[0].attributes['process.uncaught_exception.origin']).toBe('uncaughtException');
         expect(exit).toHaveBeenCalledWith(1);
     });
 
     it('uncaught: does NOT exit when mode is report', async () => {
-        const { flare, sent } = fakeFlare();
+        const { flare, api } = fakeFlare();
         const exit = vi.fn();
         const { onUncaught } = buildFatalCallbacks(
             flare,
@@ -52,12 +48,12 @@ describe('fatal callbacks', () => {
             exit,
         );
         await onUncaught(new Error('boom'), 'uncaughtException');
-        expect(sent.length).toBe(1);
+        expect(api.reports.length).toBe(1);
         expect(exit).not.toHaveBeenCalled();
     });
 
     it('unhandled rejection: coerces non-Error reason', async () => {
-        const { flare, sent } = fakeFlare();
+        const { flare, api } = fakeFlare();
         const exit = vi.fn();
         const { onRejection } = buildFatalCallbacks(
             flare,
@@ -69,15 +65,15 @@ describe('fatal callbacks', () => {
             exit,
         );
         await onRejection('a string reason');
-        expect(sent.length).toBe(1);
-        expect(sent[0].message).toBe('a string reason');
+        expect(api.reports.length).toBe(1);
+        expect(api.reports[0].message).toBe('a string reason');
         expect(exit).not.toHaveBeenCalled();
     });
 
     it('uncaught: sets process.exitCode=1 synchronously before awaiting report', async () => {
         const { flare } = fakeFlare();
         let exitCodeDuringReport: number | string | undefined;
-        const api = new Api();
+        const api = new FakeApi();
         api.report = () => {
             exitCodeDuringReport = process.exitCode;
             return Promise.resolve();
@@ -101,7 +97,7 @@ describe('fatal callbacks', () => {
     it('rejection: sets process.exitCode=1 synchronously before awaiting report', async () => {
         const { flare } = fakeFlare();
         let exitCodeDuringReport: number | string | undefined;
-        const api = new Api();
+        const api = new FakeApi();
         api.report = () => {
             exitCodeDuringReport = process.exitCode;
             return Promise.resolve();

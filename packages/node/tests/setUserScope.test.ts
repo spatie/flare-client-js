@@ -1,33 +1,28 @@
-import { Api } from '@flareapp/core';
+import { FakeApi } from '@flareapp/test-helpers';
 import { describe, expect, it } from 'vitest';
 
 import { NodeFlare } from '../src/Flare';
 
 function makeInstance() {
-    const sent: any[] = [];
-    const api = new Api();
-    api.report = (report: any) => {
-        sent.push(report);
-        return Promise.resolve();
-    };
+    const api = new FakeApi();
     const instance = new NodeFlare();
     instance.api = api;
     instance.light('test-key');
     instance.removeProcessListeners();
-    return { instance, sent };
+    return { instance, api };
 }
 
 describe('setUser on NodeFlare', () => {
     it('writes user.* and client.address (not enduser.*) on the report', async () => {
-        const { instance, sent } = makeInstance();
+        const { instance, api } = makeInstance();
 
         await instance.runWithContext({ method: 'GET', path: '/test' }, async () => {
             instance.setUser({ id: 7, email: 'u@x.io', fullName: 'U X', ipAddress: '1.2.3.4' });
             await instance.report(new Error('boom'));
         });
 
-        expect(sent.length).toBe(1);
-        const attrs = sent[0].attributes as Record<string, unknown>;
+        expect(api.reports.length).toBe(1);
+        const attrs = api.reports[0].attributes as Record<string, unknown>;
         expect(attrs['user.id']).toBe('7');
         expect(attrs['user.email']).toBe('u@x.io');
         expect(attrs['user.full_name']).toBe('U X');
@@ -36,7 +31,7 @@ describe('setUser on NodeFlare', () => {
     });
 
     it('isolates user identity per request scope', async () => {
-        const { instance, sent } = makeInstance();
+        const { instance, api } = makeInstance();
 
         await Promise.all([
             instance.runWithContext({ path: '/a' }, async () => {
@@ -50,7 +45,7 @@ describe('setUser on NodeFlare', () => {
             }),
         ]);
 
-        const ids = sent.map((r) => (r.attributes as Record<string, unknown>)['user.id']).sort();
+        const ids = api.reports.map((r) => (r.attributes as Record<string, unknown>)['user.id']).toSorted();
         expect(ids).toEqual(['user-a', 'user-b']);
     });
 });
