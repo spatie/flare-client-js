@@ -44,6 +44,7 @@
         "error-stack-parser": "^2.0.2"
     },
     "devDependencies": {
+        "@flareapp/test-helpers": "*",
         "jsdom": "^26.1.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",

@@ -1,25 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeElectronContextCollector, collectElectronAppAttributes } from '../src/main/collectElectron';
+import { fakeApp } from './helpers';
 
-function fakeApp(isReady: boolean) {
-    return {
-        getName: () => 'TestApp',
-        getVersion: () => '9.9.9',
-        getLocale: () => {
-            if (!isReady) throw new Error('getLocale called before ready');
-            return 'en-US';
-        },
-        isReady: () => isReady,
-        isPackaged: true,
-    };
+function readyApp(isReady: boolean) {
+    return fakeApp({ getVersion: () => '9.9.9', isPackaged: true, isReady: () => isReady });
 }
 
 const cfg = {} as any;
 
 describe('electron context collector', () => {
     it('projects app + runtime attributes', () => {
-        const attrs = collectElectronAppAttributes(fakeApp(true) as any);
+        const attrs = collectElectronAppAttributes(readyApp(true) as any);
         expect(attrs['service.name']).toBe('TestApp');
         expect(attrs['app.version']).toBe('9.9.9');
         expect(attrs['app.locale']).toBe('en-US');
@@ -32,13 +24,13 @@ describe('electron context collector', () => {
     });
 
     it('omits locale (no throw) before app is ready', () => {
-        const attrs = collectElectronAppAttributes(fakeApp(false) as any);
+        const attrs = collectElectronAppAttributes(readyApp(false) as any);
         expect(attrs['app.locale']).toBeUndefined();
         expect(attrs['service.name']).toBe('TestApp');
     });
 
     it('collector adds per-process fields for main-origin reports', () => {
-        const collector = makeElectronContextCollector(fakeApp(true) as any);
+        const collector = makeElectronContextCollector(readyApp(true) as any);
         const attrs = collector(cfg);
         expect(attrs['flare.entry_point.type']).toBe('server');
         expect(typeof attrs['process.type']).toBe('string');

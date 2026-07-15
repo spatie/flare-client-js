@@ -97,6 +97,7 @@
     "devDependencies": {
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
+        "@flareapp/test-helpers": "*",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.0.0",
         "@types/react": "^19.0.0",

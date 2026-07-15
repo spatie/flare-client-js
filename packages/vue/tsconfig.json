@@ -1,4 +1,9 @@
 {
     "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "paths": {
+            "@flareapp/test-helpers": ["../test-helpers/src/index.ts"]
+        }
+    },
     "include": ["src", "tests"]
 }

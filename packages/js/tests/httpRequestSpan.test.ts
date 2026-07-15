@@ -1,4 +1,4 @@
-import type { Config, Span } from '@flareapp/core';
+import type { Config } from '@flareapp/core';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -9,6 +9,7 @@ import {
     safeAbsolute,
     traceparentFor,
 } from '../src/tracing/httpRequestSpan';
+import { fakeSpan } from './helpers';
 
 const ORIGIN = 'https://app.example';
 const config = {
@@ -17,33 +18,6 @@ const config = {
     logsIngestUrl: 'https://ingress.flareapp.io/v1/logs',
     tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
 } as unknown as Config;
-
-/** Mirrors the fake-span style used by instrumentFetch.test.ts / instrumentXHR.test.ts. */
-function fakeSpan() {
-    const calls = { attrs: {} as Record<string, unknown>, status: undefined as unknown, ended: false };
-    const span: Span = {
-        traceId: 'a'.repeat(32),
-        spanId: 'b'.repeat(16),
-        parentSpanId: null,
-        name: '',
-        isRecording: true,
-        setAttribute(k, v) {
-            calls.attrs[k] = v;
-            return this;
-        },
-        setStatus(s) {
-            calls.status = s;
-            return this;
-        },
-        addEvent() {
-            return this;
-        },
-        end() {
-            calls.ended = true;
-        },
-    };
-    return { span, calls };
-}
 
 describe('httpRequestSpan helpers', () => {
     it('safeAbsolute resolves relative URLs and returns null on garbage', () => {

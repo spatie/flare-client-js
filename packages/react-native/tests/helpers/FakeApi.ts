@@ -1,1 +1,1 @@
-export { FakeApi } from '../../../core/tests/helpers/FakeApi';
+export { FakeApi } from '@flareapp/test-helpers';

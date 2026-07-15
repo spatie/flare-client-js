@@ -1,15 +1,7 @@
+import { makeReport } from '@flareapp/test-helpers';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { Api } from '../src/api';
-
-const minimalReport = {
-    exceptionClass: 'Error',
-    message: 'test',
-    seenAtUnixNano: 0,
-    stacktrace: [],
-    events: [],
-    attributes: {},
-};
 
 describe('Api.report', () => {
     const api = new Api();
@@ -25,7 +17,7 @@ describe('Api.report', () => {
     test('sends POST with correct headers', async () => {
         vi.mocked(fetch).mockResolvedValue(new Response('', { status: 201 }));
 
-        await api.report(minimalReport, 'https://example.com/ingest', 'test-key', false);
+        await api.report(makeReport(), 'https://example.com/ingest', 'test-key', false);
 
         expect(fetch).toHaveBeenCalledWith(
             'https://example.com/ingest',
@@ -44,7 +36,7 @@ describe('Api.report', () => {
         vi.mocked(fetch).mockResolvedValue(new Response('', { status: 201 }));
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        await api.report(minimalReport, 'https://example.com/ingest', 'test-key', false, true);
+        await api.report(makeReport(), 'https://example.com/ingest', 'test-key', false, true);
 
         expect(errorSpy).not.toHaveBeenCalled();
     });
@@ -53,10 +45,10 @@ describe('Api.report', () => {
         vi.mocked(fetch).mockResolvedValue(new Response('', { status: 429 }));
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        await api.report(minimalReport, 'https://example.com/ingest', 'test-key', false, false);
+        await api.report(makeReport(), 'https://example.com/ingest', 'test-key', false, false);
         expect(errorSpy).not.toHaveBeenCalled();
 
-        await api.report(minimalReport, 'https://example.com/ingest', 'test-key', false, true);
+        await api.report(makeReport(), 'https://example.com/ingest', 'test-key', false, true);
         expect(errorSpy).toHaveBeenCalledOnce();
     });
 
@@ -64,7 +56,7 @@ describe('Api.report', () => {
         vi.mocked(fetch).mockRejectedValue(new TypeError('network error'));
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        await api.report(minimalReport, 'https://example.com/ingest', 'test-key', false, true);
+        await api.report(makeReport(), 'https://example.com/ingest', 'test-key', false, true);
 
         expect(errorSpy).toHaveBeenCalledOnce();
     });
@@ -73,7 +65,7 @@ describe('Api.report', () => {
         vi.mocked(fetch).mockRejectedValue(new TypeError('network error'));
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        await api.report(minimalReport, 'https://example.com/ingest', 'test-key', false, false);
+        await api.report(makeReport(), 'https://example.com/ingest', 'test-key', false, false);
 
         expect(errorSpy).not.toHaveBeenCalled();
     });
@@ -81,7 +73,7 @@ describe('Api.report', () => {
     test('uses empty string for null key', async () => {
         vi.mocked(fetch).mockResolvedValue(new Response('', { status: 201 }));
 
-        await api.report(minimalReport, 'https://example.com/ingest', null, false);
+        await api.report(makeReport(), 'https://example.com/ingest', null, false);
 
         expect(fetch).toHaveBeenCalledWith(
             expect.any(String),

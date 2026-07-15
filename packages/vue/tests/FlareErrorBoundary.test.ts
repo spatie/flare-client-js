@@ -1,4 +1,3 @@
-import type { Attributes } from '@flareapp/js';
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
@@ -6,6 +5,7 @@ import type { ComponentCustomProperties } from 'vue';
 
 import { FlareErrorBoundary } from '../src/FlareErrorBoundary';
 import { ComponentHierarchyFrame, FlareVueContext } from '../src/types';
+import { createMockRouter, getReportedVue } from './helpers';
 
 const mockReport = vi.fn();
 
@@ -28,14 +28,6 @@ import { flare as mockedRoot } from '@flareapp/js';
 import * as resolveModule from '../src/resolveFlare';
 import { registerDefaultFlare } from '../src/resolveFlare';
 registerDefaultFlare(() => mockedRoot as any);
-
-function getReportedVue(callIndex = 0): FlareVueContext['vue'] {
-    const custom = ((mockReport.mock.calls[callIndex] ?? [])[1] as Attributes)['context.custom'] as Record<
-        string,
-        unknown
-    >;
-    return custom?.vue as FlareVueContext['vue'];
-}
 
 let testError: Error;
 
@@ -111,7 +103,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        const context = { vue: getReportedVue(0) };
+        const context = { vue: getReportedVue(mockReport, 0) };
         expect(context.vue.info).toEqual(expect.any(String));
         expect(context.vue.errorOrigin).toEqual(expect.any(String));
         expect(context.vue.componentName).toBe('ThrowingComponent');
@@ -135,7 +127,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        const context = { vue: getReportedVue(0) };
+        const context = { vue: getReportedVue(mockReport, 0) };
         expect(context.vue.componentProps).toEqual({ userId: 42, name: 'Alice' });
     });
 
@@ -529,7 +521,7 @@ describe('FlareErrorBoundary', () => {
 
         await nextTick();
 
-        const reportedContext = { vue: getReportedVue(0) };
+        const reportedContext = { vue: getReportedVue(mockReport, 0) };
         expect(reportedContext.vue.componentHierarchy).toBe(customHierarchy);
     });
 
@@ -602,7 +594,7 @@ describe('FlareErrorBoundary', () => {
         await nextTick();
 
         expect(beforeSubmit).toHaveBeenCalledOnce();
-        const reportedContext = { vue: getReportedVue(0) };
+        const reportedContext = { vue: getReportedVue(mockReport, 0) };
         expect(reportedContext.vue.componentName).toBe('ThrowingComponent');
         expect(reportedContext.vue.componentHierarchy).toBeInstanceOf(Array);
     });
@@ -964,10 +956,6 @@ describe('FlareErrorBoundary', () => {
             matched: [{ name: 'AppLayout' }, { name: 'UserProfile' }],
         };
 
-        function mockRouter(route: Record<string, unknown>) {
-            return { currentRoute: { value: route } };
-        }
-
         test('includes route context when Vue Router is present', async () => {
             mount(FlareErrorBoundary, {
                 global: {
@@ -976,7 +964,7 @@ describe('FlareErrorBoundary', () => {
                         // tsc program by the router-tracing tests) types globalProperties as the full
                         // ComponentCustomProperties; the boundary only reads $router.currentRoute.value.
                         globalProperties: {
-                            $router: mockRouter(mockRoute),
+                            $router: createMockRouter(mockRoute),
                         } as unknown as ComponentCustomProperties,
                     },
                 },
@@ -988,7 +976,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.route).toEqual({
                 name: 'user-profile',
                 path: '/users/42',
@@ -1010,7 +998,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.route).toBeUndefined();
         });
 
@@ -1024,7 +1012,7 @@ describe('FlareErrorBoundary', () => {
                         // tsc program by the router-tracing tests) types globalProperties as the full
                         // ComponentCustomProperties; the boundary only reads $router.currentRoute.value.
                         globalProperties: {
-                            $router: mockRouter(mockRoute),
+                            $router: createMockRouter(mockRoute),
                         } as unknown as ComponentCustomProperties,
                     },
                 },
@@ -1060,7 +1048,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect('componentProps' in context.vue).toBe(false);
         });
 
@@ -1083,7 +1071,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.componentProps).toEqual({ userId: 7 });
         });
 
@@ -1106,7 +1094,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.componentProps).toEqual({ data: { nested: '[Object]' } });
         });
 
@@ -1165,7 +1153,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.componentProps).toEqual({
                 id: 1,
                 password: '[redacted]',
@@ -1197,7 +1185,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.componentProps).toEqual({ ssn: '[redacted]', password: '[redacted]' });
         });
 
@@ -1225,7 +1213,7 @@ describe('FlareErrorBoundary', () => {
 
             await nextTick();
 
-            const context = { vue: getReportedVue(0) };
+            const context = { vue: getReportedVue(mockReport, 0) };
             expect(context.vue.componentProps).toEqual({ ssn: '[redacted]', password: 'now-leaked' });
         });
 

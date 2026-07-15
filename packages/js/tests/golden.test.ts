@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { frozenClock } from '@flareapp/test-helpers';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
@@ -17,8 +18,7 @@ function setLocation(url: string) {
 }
 
 beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-28T12:00:00.000Z'));
+    frozenClock();
 
     vi.stubGlobal('navigator', { userAgent: 'GoldenAgent/1.0' });
     Object.defineProperty(window.document, 'referrer', {
