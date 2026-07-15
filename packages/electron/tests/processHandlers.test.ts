@@ -1,11 +1,10 @@
-import { makeReporter } from '@flareapp/test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildFatalCallbacks } from '../src/main/processHandlers';
 
 describe('buildFatalCallbacks', () => {
     it('report-and-exit: reports, flushes, then calls injected exit(1)', async () => {
-        const { reporter } = makeReporter();
+        const reporter = { report: vi.fn().mockResolvedValue(undefined), flush: vi.fn() };
         const exit = vi.fn();
         const cbs = buildFatalCallbacks(
             reporter as any,
@@ -25,7 +24,7 @@ describe('buildFatalCallbacks', () => {
     });
 
     it('report mode: reports but does NOT exit or flush', async () => {
-        const { reporter } = makeReporter();
+        const reporter = { report: vi.fn().mockResolvedValue(undefined), flush: vi.fn() };
         const exit = vi.fn();
         const cbs = buildFatalCallbacks(
             reporter as any,
