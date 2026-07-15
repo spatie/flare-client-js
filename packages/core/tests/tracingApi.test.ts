@@ -1,3 +1,4 @@
+import { stubFetch } from '@flareapp/test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Api } from '../src/api';
@@ -7,8 +8,7 @@ const envelope: TracesEnvelope = { resourceSpans: [] };
 
 describe('Api.traces', () => {
     it('POSTs OTLP/JSON with the x-api-token header and the URL unchanged (no ?key=)', async () => {
-        const fetchMock = vi.fn().mockResolvedValue({ status: 201 });
-        vi.stubGlobal('fetch', fetchMock);
+        const fetchMock = stubFetch();
 
         await new Api().traces(envelope, 'https://ingress.flareapp.io/v1/traces', 'pub-key', false, true);
 

@@ -3,19 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ReactNativeFlare } from '../src/Flare';
 import { FakeApi } from './helpers/FakeApi';
-
-type Handler = (error: unknown, isFatal?: boolean) => void;
-
-function stubErrorUtils() {
-    let current: Handler | undefined;
-    (globalThis as Record<string, unknown>).ErrorUtils = {
-        getGlobalHandler: () => current,
-        setGlobalHandler: (cb: Handler) => {
-            current = cb;
-        },
-    };
-    return { emit: (e: unknown, f?: boolean) => current?.(e, f) };
-}
+import { stubErrorUtils } from './helpers/stubErrorUtils';
 
 /** Swap core's Api for a FakeApi so reports are captured, not sent. */
 function withFakeApi(flare: ReactNativeFlare): FakeApi {

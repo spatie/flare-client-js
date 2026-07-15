@@ -1,47 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { NoopFlushScheduler } from '../src/logging';
-import { Tracer } from '../src/tracing/Tracer';
-import type { Config, SdkInfo } from '../src/types';
+import { config, makeTracer } from './helpers/makeTracer';
 
 const TID = 'a'.repeat(32);
 const SID = 'b'.repeat(16);
 
-const config = (over: Partial<Config> = {}): Config =>
-    ({
-        key: 'k',
-        debug: false,
-        enableTracing: true,
-        tracesIngestUrl: 'https://x/v1/traces',
-        tracesSampleRate: 1,
-        maxSpanBufferSize: 1000,
-        spanFlushIntervalMs: 5000,
-        spanFlushMaxBytes: 800_000,
-        keepaliveMaxBytes: 60_000,
-        maxSpansPerTrace: 1024,
-        maxAttributesPerSpan: 128,
-        maxEventsPerSpan: 128,
-        maxAttributesPerSpanEvent: 128,
-        ...over,
-    }) as Config;
-
-const makeTracer = (cfg = config()) =>
-    new Tracer({
-        api: {} as never,
-        getConfig: () => cfg,
-        getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
-        getFramework: () => null,
-        getScopeAttributes: () => ({}),
-        getResourceAttributes: () => ({}),
-        track: (p) => p,
-        scheduler: new NoopFlushScheduler(),
-        now: () => 100,
-        rng: () => 0,
-    });
-
 describe('Tracer.continueFromTraceparent', () => {
     it('the next root adopts the continued trace and parent', () => {
-        const tracer = makeTracer();
+        const tracer = makeTracer(config());
         tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
         const span = tracer.startSpan('root');
         expect(span.traceId).toBe(TID);
@@ -55,7 +21,7 @@ describe('Tracer.continueFromTraceparent', () => {
     });
 
     it('is one-shot: a second root does not inherit the stale continuation', () => {
-        const tracer = makeTracer();
+        const tracer = makeTracer(config());
         tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
         const first = tracer.startSpan('first');
         first.end();
@@ -65,13 +31,13 @@ describe('Tracer.continueFromTraceparent', () => {
     });
 
     it('ignores a malformed continuation header', () => {
-        const tracer = makeTracer();
+        const tracer = makeTracer(config());
         tracer.continueFromTraceparent('garbage');
         expect(tracer.startSpan('root').parentSpanId).toBeNull();
     });
 
     it('is dropped when the next startSpan has a parent (strict one-shot)', () => {
-        const tracer = makeTracer();
+        const tracer = makeTracer(config());
         const root = tracer.startSpan('root');
         tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
         const child = tracer.startSpan('child', { parent: root });
@@ -93,7 +59,7 @@ describe('Tracer.continueFromTraceparent', () => {
     });
 
     it('a fresh continuation overwrites an unconsumed pending one', () => {
-        const tracer = makeTracer();
+        const tracer = makeTracer(config());
         const otherTid = 'c'.repeat(32);
         const otherSid = 'd'.repeat(16);
         tracer.continueFromTraceparent(`00-${otherTid}-${otherSid}-01`);
@@ -104,7 +70,7 @@ describe('Tracer.continueFromTraceparent', () => {
     });
 
     it('is discarded by clear()', () => {
-        const tracer = makeTracer();
+        const tracer = makeTracer(config());
         tracer.continueFromTraceparent(`00-${TID}-${SID}-01`);
         tracer.clear();
         const root = tracer.startSpan('root');

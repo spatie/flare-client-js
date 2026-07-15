@@ -3,13 +3,7 @@ import type { ComponentPublicInstance } from 'vue';
 
 import { buildComponentHierarchy } from '../src/buildComponentHierarchy';
 import { MAX_HIERARCHY_DEPTH } from '../src/constants';
-
-function createMockInstance(name: string, parent: ComponentPublicInstance | null = null): ComponentPublicInstance {
-    return {
-        $options: { __name: name },
-        $parent: parent,
-    } as unknown as ComponentPublicInstance;
-}
+import { createMockInstance } from './helpers';
 
 describe('buildComponentHierarchy', () => {
     test('returns an empty array for null instance', () => {
@@ -24,8 +18,8 @@ describe('buildComponentHierarchy', () => {
 
     test('builds hierarchy through $parent chain', () => {
         const grandparent = createMockInstance('App');
-        const parent = createMockInstance('Layout', grandparent);
-        const child = createMockInstance('Button', parent);
+        const parent = createMockInstance('Layout', { parent: grandparent });
+        const child = createMockInstance('Button', { parent });
 
         expect(buildComponentHierarchy(child)).toEqual(['Button', 'Layout', 'App']);
     });
@@ -44,7 +38,7 @@ describe('buildComponentHierarchy', () => {
         let current: ComponentPublicInstance | null = null;
 
         for (let i = 0; i < MAX_HIERARCHY_DEPTH + 50; i++) {
-            current = createMockInstance(`Component${i}`, current);
+            current = createMockInstance(`Component${i}`, { parent: current });
         }
 
         const hierarchy = buildComponentHierarchy(current);

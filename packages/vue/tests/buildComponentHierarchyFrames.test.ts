@@ -3,28 +3,7 @@ import type { ComponentPublicInstance } from 'vue';
 
 import { buildComponentHierarchyFrames } from '../src/buildComponentHierarchyFrames';
 import { MAX_HIERARCHY_DEPTH } from '../src/constants';
-
-function createMockInstance(
-    name: string,
-    {
-        parent = null,
-        file = undefined,
-        props = undefined,
-    }: {
-        parent?: ComponentPublicInstance | null;
-        file?: string;
-        props?: Record<string, unknown>;
-    } = {},
-): ComponentPublicInstance {
-    return {
-        $options: {
-            __name: name,
-            ...(file !== undefined ? { __file: file } : {}),
-        },
-        $parent: parent,
-        $props: props ?? {},
-    } as unknown as ComponentPublicInstance;
-}
+import { createMockInstance } from './helpers';
 
 describe('buildComponentHierarchyFrames', () => {
     test('returns an empty array for null instance', () => {
