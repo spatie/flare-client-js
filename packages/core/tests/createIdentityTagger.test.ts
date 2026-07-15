@@ -1,15 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { fakeIdentity } from '@flareapp/test-helpers';
+import { describe, expect, it } from 'vitest';
 
 import { createIdentityTagger } from '../src/util/createIdentityTagger';
-
-function fakeFlare() {
-    return { setSdkInfo: vi.fn(), setFramework: vi.fn() };
-}
 
 describe('createIdentityTagger', () => {
     it('sets sdk info once and tags framework once with a version', () => {
         const t = createIdentityTagger({ sdkName: '@flareapp/react', sdkVersion: '1.2.3', frameworkName: 'React' });
-        const flare = fakeFlare();
+        const flare = fakeIdentity();
         t.registerSdkIdentity(flare);
         t.registerSdkIdentity(flare);
         t.tagFramework(flare, '19.0.0');
@@ -22,7 +19,7 @@ describe('createIdentityTagger', () => {
 
     it('omits the version key when frameworkVersion is undefined', () => {
         const t = createIdentityTagger({ sdkName: '@flareapp/svelte', sdkVersion: '1.0.0', frameworkName: 'Svelte' });
-        const flare = fakeFlare();
+        const flare = fakeIdentity();
         t.tagFramework(flare, undefined);
         expect(flare.setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
     });
@@ -30,7 +27,7 @@ describe('createIdentityTagger', () => {
     it('keeps per-instance state (two taggers do not share WeakSets)', () => {
         const t1 = createIdentityTagger({ sdkName: '@flareapp/react', sdkVersion: '1', frameworkName: 'React' });
         const t2 = createIdentityTagger({ sdkName: '@flareapp/vue', sdkVersion: '1', frameworkName: 'Vue' });
-        const flare = fakeFlare();
+        const flare = fakeIdentity();
         t1.registerSdkIdentity(flare);
         t2.registerSdkIdentity(flare);
         expect(flare.setSdkInfo).toHaveBeenCalledTimes(2);

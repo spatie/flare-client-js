@@ -1,4 +1,4 @@
-import { makeReport } from '@flareapp/test-helpers';
+import { makeReport, stubFetch } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Api } from '../src/api';
@@ -16,8 +16,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('Api keepalive byte-budget gate', () => {
     it('keeps keepalive for a single in-budget request', async () => {
-        const fetchMock = vi.fn().mockResolvedValue({ status: 201 });
-        vi.stubGlobal('fetch', fetchMock);
+        const fetchMock = stubFetch();
 
         await new Api().traces({ resourceSpans: [] }, URL_T, 'k', false, true);
 
@@ -55,8 +54,7 @@ describe('Api keepalive byte-budget gate', () => {
     });
 
     it('does not set keepalive when it was not requested (report path)', async () => {
-        const fetchMock = vi.fn().mockResolvedValue({ status: 201 });
-        vi.stubGlobal('fetch', fetchMock);
+        const fetchMock = stubFetch();
 
         await new Api().report(makeReport({ message: 'm' }), 'https://x/ingest', 'k', false);
 
