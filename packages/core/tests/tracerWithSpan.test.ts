@@ -2,26 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { NoopFlushScheduler } from '../src/logging';
 import { Tracer } from '../src/tracing/Tracer';
-import type { Config, SdkInfo, Span } from '../src/types';
+import type { SdkInfo, Span } from '../src/types';
 import { FakeApi } from './helpers/FakeApi';
+import { config } from './helpers/makeTracer';
 
-const config = (): Config =>
-    ({
-        key: 'k',
-        debug: false,
-        enableTracing: true,
-        tracesIngestUrl: 'https://x/v1/traces',
-        tracesSampleRate: 1,
-        maxSpanBufferSize: 1000,
-        spanFlushIntervalMs: 5000,
-        spanFlushMaxBytes: 800_000,
-        keepaliveMaxBytes: 60_000,
-        maxSpansPerTrace: 1024,
-        maxAttributesPerSpan: 128,
-        maxEventsPerSpan: 128,
-        maxAttributesPerSpanEvent: 128,
-    }) as Config;
-
+// Parameterized by `api` (not `cfg`/`rng`) so span-flush assertions can read a real FakeApi's
+// traceEnvelopes; the shared `makeTracer` in ./helpers/makeTracer always wires `api: {} as never`,
+// so it can't serve this file's needs and this local variant stays.
 const makeTracer = (api: FakeApi = new FakeApi()) =>
     new Tracer({
         api,

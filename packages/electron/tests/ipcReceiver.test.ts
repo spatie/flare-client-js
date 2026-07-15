@@ -1,22 +1,9 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import { FLARE_IPC_CHANNEL } from '../src/constants';
 import { defaultTrustPolicy, registerIpcReceiver, disposeIpcReceiver } from '../src/main/ipcReceiver';
 import { DEFAULT_ELECTRON_OPTIONS } from '../src/types';
-
-function fakeIpcMain() {
-    const handlers: Record<string, Function> = {};
-    return {
-        handlers,
-        handle: vi.fn((channel: string, fn: Function) => {
-            if (handlers[channel]) throw new Error('Attempted to register a second handler');
-            handlers[channel] = fn;
-        }),
-        removeHandler: vi.fn((channel: string) => {
-            delete handlers[channel];
-        }),
-    };
-}
+import { fakeIpcMain } from './helpers';
 
 function validReportJson() {
     return JSON.stringify({ seenAtUnixNano: 1, stacktrace: [], events: [], attributes: {} });

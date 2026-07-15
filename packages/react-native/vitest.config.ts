@@ -13,6 +13,7 @@ export default defineConfig({
         alias: {
             '@flareapp/core': resolve(__dirname, '../core/src/index.ts'),
             '@flareapp/react-native': resolve(__dirname, 'src/index.ts'),
+            '@flareapp/test-helpers': resolve(__dirname, '../test-helpers/src/index.ts'),
             'react-native': resolve(__dirname, 'tests/stubs/react-native.ts'),
         },
     },

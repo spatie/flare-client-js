@@ -12,6 +12,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@flareapp/core': resolve(__dirname, '../core/src/index.ts'),
+            '@flareapp/test-helpers': resolve(__dirname, '../test-helpers/src/index.ts'),
         },
     },
 });

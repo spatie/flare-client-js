@@ -1,3 +1,4 @@
+import { stubFetch } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Api } from '../src/api';
@@ -11,8 +12,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('Api.logs', () => {
     it('POSTs the envelope with the x-api-token header and keepalive flag', async () => {
-        const fetchMock = vi.fn().mockResolvedValue({ status: 201 });
-        vi.stubGlobal('fetch', fetchMock);
+        const fetchMock = stubFetch();
 
         await new Api().logs(envelope, 'https://example.test/v1/logs', 'KEY', false, true);
 

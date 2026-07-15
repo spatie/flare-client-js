@@ -2,10 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { resolveDenylist } from '../src/constants';
 import { getRouteContext } from '../src/getRouteContext';
-
-function createMockRouter(route: Record<string, unknown>) {
-    return { currentRoute: { value: route } };
-}
+import { createMockRouter } from './helpers';
 
 describe('getRouteContext', () => {
     test('returns null when router is null', () => {
