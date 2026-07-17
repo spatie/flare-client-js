@@ -3,9 +3,13 @@ import type { AddressInfo } from 'node:net';
 
 import type { FakeFlareEndpoint, FakeFlareRecord, FakeFlareServer, WaitForOptions } from './types';
 
-const REPORTS_PATH = '/api/reports';
+// Ingress paths mirror the real Flare ingress (routes/ingress.php): errors, traces, and logs are
+// served under /v1. Sourcemap upload keeps the real /api/sourcemaps endpoint. The internal endpoint
+// buckets (reports/logs/traces) are unchanged.
+const REPORTS_PATH = '/v1/errors';
 const SOURCEMAPS_PATH = '/api/sourcemaps';
-const LOGS_PATH = '/api/logs';
+const LOGS_PATH = '/v1/logs';
+const TRACES_PATH = '/v1/traces';
 const INSPECT_REPORTS = '/__inspect/reports';
 const INSPECT_RESET = '/__inspect/reset';
 
@@ -109,6 +113,12 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
                 return;
             }
 
+            if (req.method === 'POST' && url.startsWith(TRACES_PATH)) {
+                await record(req, 'traces');
+                writeJson(res, 201, {});
+                return;
+            }
+
             if (req.method === 'GET' && url === INSPECT_REPORTS) {
                 writeJson(res, 200, records);
                 return;
@@ -162,6 +172,29 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
         });
     };
 
+    const waitForTrace = (opts: WaitForOptions = {}): Promise<FakeFlareRecord> => {
+        const { timeout = 5000, predicate } = opts;
+
+        const existing = records.find((r) => r.endpoint === 'traces' && (!predicate || predicate(r)));
+        if (existing) return Promise.resolve(existing);
+
+        return new Promise<FakeFlareRecord>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                listeners.delete(listener);
+                reject(new Error(`waitForTrace timed out after ${timeout}ms (${records.length} records captured)`));
+            }, timeout);
+
+            const listener: Listener = (entry) => {
+                if (entry.endpoint !== 'traces') return;
+                if (predicate && !predicate(entry)) return;
+                clearTimeout(timer);
+                listeners.delete(listener);
+                resolve(entry);
+            };
+            listeners.add(listener);
+        });
+    };
+
     const stop = (): Promise<void> =>
         new Promise((resolve, reject) => {
             server.close((err) => (err ? reject(err) : resolve()));
@@ -174,8 +207,10 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
         reports: () => records.filter((r) => r.endpoint === 'reports'),
         sourcemaps: () => records.filter((r) => r.endpoint === 'sourcemaps'),
         logs: () => records.filter((r) => r.endpoint === 'logs'),
+        traces: () => records.filter((r) => r.endpoint === 'traces'),
         reset,
         waitForReport,
+        waitForTrace,
         stop,
     };
 };

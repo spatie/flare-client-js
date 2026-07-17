@@ -14,29 +14,31 @@ The v1 source lives on the [`1.x`](https://github.com/spatie/flare-client-js/tre
 
 This is an npm workspaces monorepo containing the following packages:
 
-| Package                                                          | npm                                                                              | Description                                                                         |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [`packages/core`](packages/core)                                 | [`@flareapp/core`](https://www.npmjs.com/package/@flareapp/core)                 | Environment-agnostic Flare core shared between the browser and Node clients         |
-| [`packages/js`](packages/js)                                     | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)                     | Browser client: global error listeners, browser context collection, source fetching |
-| [`packages/react`](packages/react)                               | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)               | React error boundary component and React 19 error handler                           |
-| [`packages/vue`](packages/vue)                                   | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)                   | Vue error handler plugin                                                            |
-| [`packages/svelte`](packages/svelte)                             | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)             | Svelte 5 error boundary component and boundary handler factory                      |
-| [`packages/sveltekit`](packages/sveltekit)                       | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit)       | SvelteKit client/server error hooks and route context                               |
-| [`packages/node`](packages/node)                                 | [`@flareapp/node`](https://www.npmjs.com/package/@flareapp/node)                 | Node.js SDK with process handlers and AsyncLocalStorage scope                       |
-| [`packages/electron`](packages/electron)                         | [`@flareapp/electron`](https://www.npmjs.com/package/@flareapp/electron)         | Electron SDK (main + preload + renderer)                                            |
-| [`packages/react-native`](packages/react-native)                 | [`@flareapp/react-native`](https://www.npmjs.com/package/@flareapp/react-native) | React Native SDK (pure-JS, Expo + bare; requires RN 0.79+)                          |
-| [`packages/vite`](packages/vite)                                 | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)                 | Vite build plugin for sourcemap uploads                                             |
-| [`packages/webpack`](packages/webpack)                           | [`@flareapp/webpack`](https://www.npmjs.com/package/@flareapp/webpack)           | Webpack 5 plugin for sourcemap uploads                                              |
-| [`packages/nextjs`](packages/nextjs)                             | [`@flareapp/nextjs`](https://www.npmjs.com/package/@flareapp/nextjs)             | Next.js wrapper for sourcemap uploads via webpack                                   |
-| [`packages/flare-api`](packages/flare-api)                       | (private)                                                                        | Shared API client for sourcemap uploads (internal)                                  |
-| [`playgrounds/shared`](playgrounds/shared)                       | (private)                                                                        | Shared fixtures: product data, error scenarios, test IDs, Tailwind tokens           |
-| [`playgrounds/js`](playgrounds/js)                               | (private)                                                                        | Vanilla TS + Vite playground (port 5180)                                            |
-| [`playgrounds/react`](playgrounds/react)                         | (private)                                                                        | React 19 + TanStack Router playground (port 5181)                                   |
-| [`playgrounds/vue`](playgrounds/vue)                             | (private)                                                                        | Vue 3 + vue-router playground (port 5182)                                           |
-| [`playgrounds/svelte`](playgrounds/svelte)                       | (private)                                                                        | SvelteKit (adapter-node) playground (port 5183)                                     |
-| [`playgrounds/nextjs`](playgrounds/nextjs)                       | (private)                                                                        | Next.js 15 App Router playground (port 5184)                                        |
-| [`playgrounds/react-native-bare`](playgrounds/react-native-bare) | (private)                                                                        | Bare RN manual smoke-test app for `@flareapp/react-native`                          |
-| [`playgrounds/react-native-expo`](playgrounds/react-native-expo) | (private)                                                                        | Expo manual smoke-test app (incl. Expo device/app context)                          |
+| Package                                                                | npm                                                                                                    | Description                                                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [`packages/core`](packages/core)                                       | [`@flareapp/core`](https://www.npmjs.com/package/@flareapp/core)                                       | Environment-agnostic Flare core shared between the browser and Node clients         |
+| [`packages/js`](packages/js)                                           | [`@flareapp/js`](https://www.npmjs.com/package/@flareapp/js)                                           | Browser client: global error listeners, browser context collection, source fetching |
+| [`packages/react`](packages/react)                                     | [`@flareapp/react`](https://www.npmjs.com/package/@flareapp/react)                                     | React error boundary component and React 19 error handler                           |
+| [`packages/vue`](packages/vue)                                         | [`@flareapp/vue`](https://www.npmjs.com/package/@flareapp/vue)                                         | Vue error handler plugin                                                            |
+| [`packages/svelte`](packages/svelte)                                   | [`@flareapp/svelte`](https://www.npmjs.com/package/@flareapp/svelte)                                   | Svelte 5 error boundary component and boundary handler factory                      |
+| [`packages/sveltekit`](packages/sveltekit)                             | [`@flareapp/sveltekit`](https://www.npmjs.com/package/@flareapp/sveltekit)                             | SvelteKit client/server error hooks and route context                               |
+| [`packages/node`](packages/node)                                       | [`@flareapp/node`](https://www.npmjs.com/package/@flareapp/node)                                       | Node.js SDK with process handlers and AsyncLocalStorage scope                       |
+| [`packages/electron`](packages/electron)                               | [`@flareapp/electron`](https://www.npmjs.com/package/@flareapp/electron)                               | Electron SDK (main + preload + renderer)                                            |
+| [`packages/react-native`](packages/react-native)                       | [`@flareapp/react-native`](https://www.npmjs.com/package/@flareapp/react-native)                       | React Native SDK (pure-JS, Expo + bare; requires RN 0.79+)                          |
+| [`packages/react-native-sourcemaps`](packages/react-native-sourcemaps) | [`@flareapp/react-native-sourcemaps`](https://www.npmjs.com/package/@flareapp/react-native-sourcemaps) | React Native / Metro sourcemap upload (Babel version inlining + upload CLI)         |
+| [`packages/vite`](packages/vite)                                       | [`@flareapp/vite`](https://www.npmjs.com/package/@flareapp/vite)                                       | Vite build plugin for sourcemap uploads                                             |
+| [`packages/webpack`](packages/webpack)                                 | [`@flareapp/webpack`](https://www.npmjs.com/package/@flareapp/webpack)                                 | Webpack 5 plugin for sourcemap uploads                                              |
+| [`packages/nextjs`](packages/nextjs)                                   | [`@flareapp/nextjs`](https://www.npmjs.com/package/@flareapp/nextjs)                                   | Next.js wrapper for sourcemap uploads via webpack                                   |
+| [`packages/flare-api`](packages/flare-api)                             | (private)                                                                                              | Shared API client for sourcemap uploads (internal)                                  |
+| [`playgrounds/shared`](playgrounds/shared)                             | (private)                                                                                              | Shared fixtures: product data, error scenarios, test IDs, Tailwind tokens           |
+| [`playgrounds/js`](playgrounds/js)                                     | (private)                                                                                              | Vanilla TS + Vite playground (port 5180)                                            |
+| [`playgrounds/react`](playgrounds/react)                               | (private)                                                                                              | React 19 + TanStack Router playground (port 5181)                                   |
+| [`playgrounds/vue`](playgrounds/vue)                                   | (private)                                                                                              | Vue 3 + vue-router playground (port 5182)                                           |
+| [`playgrounds/svelte`](playgrounds/svelte)                             | (private)                                                                                              | SvelteKit (adapter-node) playground (port 5183)                                     |
+| [`playgrounds/nextjs`](playgrounds/nextjs)                             | (private)                                                                                              | Next.js 15 App Router playground (port 5184)                                        |
+| [`playgrounds/react-router`](playgrounds/react-router)                 | (private)                                                                                              | React 19 + React Router v7 (data mode) playground (port 5185)                       |
+| [`playgrounds/react-native-bare`](playgrounds/react-native-bare)       | (private)                                                                                              | Bare RN manual smoke-test app for `@flareapp/react-native`                          |
+| [`playgrounds/react-native-expo`](playgrounds/react-native-expo)       | (private)                                                                                              | Expo manual smoke-test app (incl. Expo device/app context)                          |
 
 ## Local development
 
@@ -63,35 +65,37 @@ npm run build
 
 All commands are run from the repository root:
 
-| Command                      | Description                                                                                    |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| `npm run build`              | Build all packages to their respective `dist` folders                                          |
-| `npm run test`               | Run tests for all packages that have them                                                      |
-| `npm run typescript`         | Type-check all packages                                                                        |
-| `npm run format`             | Run oxfmt across all files                                                                     |
-| `npm run lint`               | Run oxlint across all packages                                                                 |
-| `npm run test:e2e`           | Run the Playwright suite across all four framework playgrounds                                 |
-| `npm run playgrounds:js`     | Build packages, then start the vanilla JS playground (port 5180)                               |
-| `npm run playgrounds:react`  | Build packages, then start the React playground (port 5181)                                    |
-| `npm run playgrounds:vue`    | Build packages, then start the Vue playground (port 5182)                                      |
-| `npm run playgrounds:svelte` | Build packages, then start the SvelteKit playground (port 5183)                                |
-| `npm run playgrounds:nextjs` | Build packages, then start the Next.js playground (port 5184)                                  |
-| `npm run release:all`        | Lockstep-release the 8 public packages; optionally includes core, node, electron, react-native |
+| Command                            | Description                                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run build`                    | Build all packages to their respective `dist` folders                                          |
+| `npm run test`                     | Run tests for all packages that have them                                                      |
+| `npm run typescript`               | Type-check all packages                                                                        |
+| `npm run format`                   | Run oxfmt across all files                                                                     |
+| `npm run lint`                     | Run oxlint across all packages                                                                 |
+| `npm run test:e2e`                 | Run the Playwright suite across all five framework playgrounds                                 |
+| `npm run playgrounds:js`           | Build packages, then start the vanilla JS playground (port 5180)                               |
+| `npm run playgrounds:react`        | Build packages, then start the React playground (port 5181)                                    |
+| `npm run playgrounds:vue`          | Build packages, then start the Vue playground (port 5182)                                      |
+| `npm run playgrounds:svelte`       | Build packages, then start the SvelteKit playground (port 5183)                                |
+| `npm run playgrounds:nextjs`       | Build packages, then start the Next.js playground (port 5184)                                  |
+| `npm run playgrounds:react-router` | Build packages, then start the React Router v7 playground (port 5185)                          |
+| `npm run release:all`              | Lockstep-release the 8 public packages; optionally includes core, node, electron, react-native |
 
 ### Playgrounds
 
-There are five parallel playgrounds under `playgrounds/`, one per framework. Each implements the same webshop sample
+There are six parallel playgrounds under `playgrounds/`, one per framework (two are React: TanStack Router and React Router v7). Each implements the same webshop sample
 app (product grid, product detail, cart, checkout, confirmation) plus a `/broken` page that triggers a deterministic
 list of error scenarios. They share fixtures from `@flareapp/playgrounds-shared` so the surface stays identical across
 frameworks.
 
 ```bash
 # Pick the framework you want to explore
-npm run playgrounds:js       # http://localhost:5180
-npm run playgrounds:react    # http://localhost:5181
-npm run playgrounds:vue      # http://localhost:5182
-npm run playgrounds:svelte   # http://localhost:5183
-npm run playgrounds:nextjs   # http://localhost:5184
+npm run playgrounds:js           # http://localhost:5180
+npm run playgrounds:react        # http://localhost:5181
+npm run playgrounds:vue          # http://localhost:5182
+npm run playgrounds:svelte       # http://localhost:5183
+npm run playgrounds:nextjs       # http://localhost:5184
+npm run playgrounds:react-router # http://localhost:5185
 ```
 
 To send reports to a real Flare project (instead of letting them fail), set `VITE_FLARE_URL` and `VITE_FLARE_KEY` for
@@ -100,7 +104,7 @@ nowhere to land.
 
 ### E2E suite
 
-End-to-end tests live in `e2e/` and run all four playgrounds against a local fake Flare server (`e2e/fake-flare-server/`)
+End-to-end tests live in `e2e/` and run all five playgrounds against a local fake Flare server (`e2e/fake-flare-server/`)
 that records report POSTs and exposes inspection endpoints for the tests. Playwright spawns each playground's Vite dev
 server automatically.
 
@@ -108,7 +112,7 @@ server automatically.
 # One-time browser install
 npx playwright install chromium --with-deps
 
-# Run the suite (~25s, 44 tests across js/react/vue/svelte)
+# Run the suite (~90s, 93 tests across js/react/vue/svelte/react-router)
 npm run test:e2e
 
 # One project, one scenario
@@ -136,7 +140,7 @@ GitHub Actions runs on every push:
 
 - **Test**: installs dependencies, builds all packages, runs all tests (Vitest)
 - **TypeScript**: installs dependencies, builds all packages, type-checks all packages
-- **E2E**: installs dependencies, caches Playwright browsers by `@playwright/test` version, builds all packages, and runs the Playwright suite across all four framework playgrounds (Chromium). HTML reports are uploaded as artifacts on every run; traces and screenshots are uploaded only on failure.
+- **E2E**: installs dependencies, caches Playwright browsers by `@playwright/test` version, builds all packages, and runs the Playwright suite across all five framework playgrounds (Chromium). HTML reports are uploaded as artifacts on every run; traces and screenshots are uploaded only on failure.
 
 ## Versioning and releasing
 
@@ -234,6 +238,7 @@ flare-client-js/
 │   ├── shared/      # Shared fixtures (products, scenarios, test IDs, Tailwind tokens)
 │   ├── js/          # Vanilla TS + Vite playground
 │   ├── react/       # React + TanStack Router playground
+│   ├── react-router/ # React + React Router v7 playground
 │   ├── vue/         # Vue + vue-router playground
 │   ├── svelte/      # SvelteKit playground
 │   └── nextjs/      # Next.js playground

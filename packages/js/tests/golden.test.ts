@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { frozenClock } from '@flareapp/test-helpers';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
@@ -17,8 +18,7 @@ function setLocation(url: string) {
 }
 
 beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-28T12:00:00.000Z'));
+    frozenClock();
 
     vi.stubGlobal('navigator', { userAgent: 'GoldenAgent/1.0' });
     Object.defineProperty(window.document, 'referrer', {
@@ -67,9 +67,8 @@ test('emits the canonical golden report shape', async () => {
 
     const actual = fakeApi.lastReport!;
 
-    // Stacktrace codeSnippet depends on whether the test environment can
-    // fetch the source file -- strip it before snapshotting to keep the
-    // fixture machine-independent.
+    // codeSnippet depends on whether the test environment can fetch the source file; strip it
+    // before snapshotting to keep the fixture machine-independent.
     for (const frame of actual.stacktrace) {
         delete frame.codeSnippet;
     }

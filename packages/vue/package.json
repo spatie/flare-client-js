@@ -67,6 +67,7 @@
     "devDependencies": {
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
+        "@flareapp/test-helpers": "*",
         "@vue/test-utils": "^2.4.0",
         "jsdom": "^26.1.0",
         "tsdown": "^0.20.3",

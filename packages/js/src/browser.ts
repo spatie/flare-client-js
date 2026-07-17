@@ -2,6 +2,7 @@ import {
     Api,
     Flare as CoreFlare,
     GlobalScopeProvider,
+    type Config,
     type ContextCollector,
     type FileReader,
     type ScopeProvider,
@@ -11,6 +12,16 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
+import {
+    instrumentFetch,
+    instrumentXHR,
+    startBrowserTracing,
+    stopBrowserTracing,
+    unpatchFetch,
+    unpatchXHR,
+} from './tracing';
+
+export { createFlareResolver } from './createFlareResolver';
 
 export class Flare extends CoreFlare {
     constructor(
@@ -22,9 +33,38 @@ export class Flare extends CoreFlare {
         super(api, contextCollector, fileReader, scopeProvider, new BrowserFlushScheduler());
         this.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
     }
+
+    override configure(config: Partial<Config>): this {
+        const wasTracing = this.config.enableTracing;
+        super.configure(config);
+        const nowTracing = this.config.enableTracing;
+
+        if (!wasTracing && nowTracing) {
+            instrumentFetch(this);
+            instrumentXHR(this);
+            startBrowserTracing(this);
+        } else if (wasTracing && !nowTracing) {
+            stopBrowserTracing();
+            unpatchFetch();
+            unpatchXHR();
+        }
+
+        return this;
+    }
 }
 
 export { catchWindowErrors } from './browser/catchWindowErrors';
 export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
+export { registerNavigationSource, type NavigationSource, type RouteName } from './tracing/browserTracing';
+export { insulate, safeInvoke } from './tracing/instrumentationGuard';
+export { absoluteHref } from './tracing/absoluteHref';
+export {
+    activeComponentRoot,
+    reserveSpanId,
+    recordComponentSpan,
+    nowNano,
+    type ComponentTraceContext,
+} from './tracing/componentProfiler';
+export { BrowserSpanType } from './tracing/spanTypes';

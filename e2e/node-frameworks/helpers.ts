@@ -62,7 +62,7 @@ export const close = (server: Server): Promise<void> =>
  * handlers so a framework-caught error never exits the test process.
  */
 export const setupFlare = (): void => {
-    flare.configure({ ingestUrl: `${fakeBaseUrl()}/api/reports` });
+    flare.configure({ ingestUrl: `${fakeBaseUrl()}/v1/errors` });
     flare.configureNode({ uncaughtExceptionMode: 'off', unhandledRejectionMode: 'off' });
     // Synthetic key on purpose: reports go to the fake server, not real Flare. Do not wire an env key here.
     flare.light('node-frameworks-test');

@@ -18,19 +18,11 @@ export type ExpoModules = {
 };
 
 /**
- * Lazy, synchronous Expo load. The `require(...)` calls are DIRECT string
- * literals on purpose: Metro statically collects only literal `require('pkg')`
- * calls and treats those inside a try/catch as OPTIONAL dependencies
- * (`allowOptionalDependencies` is on by default for the React Native CLI and
- * Expo), so a missing package degrades to a caught runtime throw instead of a
- * build error. Aliasing `require` to a local (`const req = require; req('pkg')`)
- * would defeat that static collection — Metro never adds the module to this
- * file's dependency map, so the require would fail to resolve even when the
- * package IS installed. So do NOT reintroduce an alias here.
- *
- * The `typeof require` guard keeps non-Metro/ESM environments (e.g. some test
- * runners, where `require` is undefined) safe; under Metro `require` always
- * exists in the `react-native`/CJS build this package ships.
+ * Lazy, synchronous Expo load. The `require(...)` calls MUST be direct string literals: Metro statically
+ * collects only literal `require('pkg')` calls, treating those inside a try/catch as optional deps
+ * (`allowOptionalDependencies` is on by default), so a missing package degrades to a caught throw not a
+ * build error. Do NOT alias `require` to a local; that defeats the static collection and the module never
+ * resolves even when installed. The `typeof require` guard keeps non-Metro/ESM envs (some test runners) safe.
  */
 export function loadExpoModules(): ExpoModules {
     const mods: ExpoModules = {};
@@ -38,23 +30,22 @@ export function loadExpoModules(): ExpoModules {
     try {
         mods.device = require('expo-device') as ExpoDeviceModule;
     } catch {
-        // expo-device not installed (bare RN) — skip.
+        // expo-device not installed (bare RN); skip.
     }
     try {
         mods.application = require('expo-application') as ExpoApplicationModule;
     } catch {
-        // expo-application not installed (bare RN) — skip.
+        // expo-application not installed (bare RN); skip.
     }
     return mods;
 }
 
-// Maps Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4) to a label.
+/** Maps Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4) to a label. */
 const DEVICE_TYPE_LABELS: Record<number, string> = { 1: 'phone', 2: 'tablet', 3: 'desktop', 4: 'tv' };
 
 /**
- * Project the synchronous Expo constants into report attributes. Only the
- * fields that are present (non-null, non-undefined) are emitted. Async Expo
- * getters are intentionally not used (the context collector is synchronous).
+ * Project the synchronous Expo constants into report attributes. Only present (non-null) fields are emitted.
+ * Async Expo getters are not used, since the context collector is synchronous.
  */
 export function projectExpoContext(expo: ExpoModules): Attributes {
     const attrs: Attributes = {};

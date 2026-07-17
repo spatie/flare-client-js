@@ -53,6 +53,8 @@ export type FlareErrorBoundaryHookParams = {
 
 export type FlareVueOptions = {
     flare?: Flare;
+    /** A vue-router Router instance. When set, enables navigation/pageload performance tracing. */
+    router?: unknown;
     captureWarnings?: boolean;
     attachProps?: boolean;
     propsMaxDepth?: number;

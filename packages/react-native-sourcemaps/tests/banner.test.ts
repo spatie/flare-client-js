@@ -11,10 +11,9 @@ describe('formatFailureBanner', () => {
     });
 
     test('puts the reason on its own `  Reason: <reason>` line (parsed by flare-xcode.sh)', () => {
-        // flare-xcode.sh lifts this exact line into the Xcode-visible warning via
-        // `sed -n 's/^[[:space:]]*Reason:[[:space:]]*//p'`, so the format is a contract:
-        // two-space indent, `Reason: `, then the reason. Don't change it without
-        // updating that script.
+        // flare-xcode.sh lifts this exact line into the Xcode warning via
+        // `sed -n 's/^[[:space:]]*Reason:[[:space:]]*//p'`. The format is a contract (two-space
+        // indent, `Reason: `, then the reason); don't change it without updating that script.
         const lines = formatFailureBanner({ reason: 'FLARE_SOURCEMAP_VERSION is not set' }).split('\n');
         expect(lines).toContain('  Reason: FLARE_SOURCEMAP_VERSION is not set');
     });

@@ -5,6 +5,7 @@ import { handleErrorWithFlare } from '../../src/server/handleError';
 const mockReport = vi.fn();
 
 vi.mock('@flareapp/js', () => ({
+    toCustomContext: (framework: string, payload: unknown) => ({ 'context.custom': { [framework]: payload } }),
     convertToError: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
     DEFAULT_URL_DENYLIST:
         /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i,
@@ -74,6 +75,21 @@ describe('handleErrorWithFlare (server)', () => {
         expect(svelteKit.params.id).toBe('42');
         expect(svelteKit.query.tab).toBe('settings');
         expect(svelteKit.query.token).toBe('[redacted]');
+    });
+
+    test('redacts sensitive route params by key', async () => {
+        const handler = handleErrorWithFlare();
+        const event = {
+            url: new URL('http://localhost/reset-password/tok'),
+            params: { token: 'tok', id: '42' },
+            route: { id: '/reset-password/[token]' },
+        };
+
+        await handler({ error: new Error('test'), event, status: 500, message: 'Internal Error' });
+
+        const svelteKit = mockReport.mock.calls[0][1]['context.custom'].svelte.svelteKit;
+        expect(svelteKit.params.token).toBe('[redacted]');
+        expect(svelteKit.params.id).toBe('42');
     });
 
     test('passes through to user handler', async () => {

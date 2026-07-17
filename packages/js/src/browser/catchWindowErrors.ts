@@ -1,9 +1,9 @@
-// Wires up global `error` and `unhandledrejection` listeners. Reports are routed through
-// `window.flare`, which the host app must assign (see Flare.light()/configure()). If the global
-// is not present (e.g. flare not initialised yet), events are silently dropped rather than queued.
-
 import { routeRejection, type RejectionReporter } from '@flareapp/core';
 
+/**
+ * Wire up global `error` and `unhandledrejection` listeners, routing reports through `window.flare`
+ * (assigned by Flare.light()/configure()). Events are dropped, not queued, when the global is absent.
+ */
 export function catchWindowErrors() {
     if (typeof window === 'undefined') {
         return;
@@ -22,8 +22,8 @@ export function catchWindowErrors() {
         const flare = (window as unknown as { flare?: RejectionReporter }).flare;
         if (!flare) return;
 
-        // Shared routing (Error/stack-bearing -> reportSilently, stackless ->
-        // reportUnhandledRejection); same path the RN engine tracker uses.
+        // Shared routing: Error/stack-bearing -> reportSilently, stackless ->
+        // reportUnhandledRejection. Same path the RN engine tracker uses.
         routeRejection(flare, event.reason);
     });
 }

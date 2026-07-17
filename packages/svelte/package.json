@@ -67,6 +67,7 @@
     "devDependencies": {
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
+        "@flareapp/test-helpers": "*",
         "@sveltejs/package": "^2.5.7",
         "@sveltejs/vite-plugin-svelte": "^5.0.0",
         "@testing-library/svelte": "^5.0.0",
@@ -84,6 +85,7 @@
     },
     "dependencies": {
         "@flareapp/core": "2.6.0",
-        "error-stack-parser": "^2.1.4"
+        "error-stack-parser": "^2.1.4",
+        "magic-string": "^0.30.21"
     }
 }

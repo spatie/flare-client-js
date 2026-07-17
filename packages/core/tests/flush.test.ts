@@ -1,6 +1,6 @@
+import { FakeApi } from '@flareapp/test-helpers';
 import { describe, expect, it } from 'vitest';
 
-import { Api } from '../src/api';
 import { Flare } from '../src/Flare';
 
 describe('Flare.flush', () => {
@@ -9,7 +9,7 @@ describe('Flare.flush', () => {
         const apiPromise = new Promise<void>((res) => {
             resolveApi = res;
         });
-        const api = new Api();
+        const api = new FakeApi();
         api.report = () => apiPromise;
         const flare = new Flare(api);
         flare.light('k');
@@ -31,7 +31,7 @@ describe('Flare.flush', () => {
     });
 
     it('returns after timeout even if a report is stuck', async () => {
-        const api = new Api();
+        const api = new FakeApi();
         api.report = () => new Promise(() => {}); // never resolves
         const flare = new Flare(api);
         flare.light('k');

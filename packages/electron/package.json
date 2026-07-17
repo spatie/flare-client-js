@@ -70,6 +70,7 @@
     },
     "devDependencies": {
         "@flareapp/react": "file:../react",
+        "@flareapp/test-helpers": "*",
         "@flareapp/vue": "file:../vue",
         "electron": "^35.0.0",
         "react": "^19.0.0",

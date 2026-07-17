@@ -28,4 +28,30 @@ describe('flatJsonStringify', () => {
 
         expect(() => flatJsonStringify(obj)).not.toThrow();
     });
+
+    test('serializes a bigint as its string form instead of throwing', () => {
+        const obj = { big: 10n, huge: 12345678901234567890n, nested: { deep: 42n } };
+
+        expect(() => flatJsonStringify(obj)).not.toThrow();
+
+        const parsed = JSON.parse(flatJsonStringify(obj));
+
+        expect(parsed).toEqual({ big: '10', huge: '12345678901234567890', nested: { deep: '42' } });
+    });
+
+    test('replaces a throwing enumerable getter with a sentinel instead of throwing', () => {
+        const obj = {
+            safe: 1,
+            get boom(): unknown {
+                throw new Error('getter blew up');
+            },
+        };
+
+        expect(() => flatJsonStringify(obj)).not.toThrow();
+
+        const parsed = JSON.parse(flatJsonStringify(obj));
+
+        expect(parsed.safe).toBe(1);
+        expect(parsed.boom).toBe('[Getter threw]');
+    });
 });

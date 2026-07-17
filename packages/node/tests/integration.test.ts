@@ -20,7 +20,7 @@ describe('Node SDK integration', () => {
         const { flare } = await import('../src');
         flare.removeProcessListeners();
         flare.configureNode({ uncaughtExceptionMode: 'off', unhandledRejectionMode: 'off' });
-        flare.configure({ ingestUrl: `${fakeFlareServer.url}/api/reports` });
+        flare.configure({ ingestUrl: `${fakeFlareServer.url}/v1/errors` });
         flare.light('test-key');
 
         fakeFlareServer.reset();

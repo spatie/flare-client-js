@@ -1,4 +1,4 @@
-import { redactUrlQuery as redactFullPath } from '@flareapp/core';
+import { redactObjectValues, redactUrlQuery as redactFullPath } from '@flareapp/core';
 
 import { DEFAULT_PROPS_DENYLIST } from './constants';
 import { serializeProps } from './serializeProps';
@@ -10,10 +10,12 @@ type GetRouteContextOptions = {
 
 const ROUTE_PARAMS_DEPTH = 2;
 
-// `router` is typed `unknown` because vue-router is an optional peer: we don't want to import it
-// (would force every consumer to install it) and the runtime shape may differ between v4.x patch
-// versions. The chained type-guards here read defensively so a missing or shimmed router yields
-// `null` rather than throwing inside an error handler.
+/**
+ * `router` is typed `unknown` because vue-router is an optional peer (importing it would force every
+ * consumer to install it, and the runtime shape may differ across v4.x patches). The chained
+ * type-guards read defensively so a missing or shimmed router yields `null` rather than throwing
+ * inside an error handler.
+ */
 export function getRouteContext(router: unknown, options: GetRouteContextOptions = {}): RouteContext | null {
     if (!router || typeof router !== 'object' || !('currentRoute' in router)) {
         return null;
@@ -38,12 +40,17 @@ export function getRouteContext(router: unknown, options: GetRouteContextOptions
     const params = r.params && typeof r.params === 'object' ? (r.params as Record<string, unknown>) : {};
     const query = r.query && typeof r.query === 'object' ? (r.query as Record<string, unknown>) : {};
 
+    // Redact denylisted top-level keys via the shared core helper; serializeProps still size-bounds
+    // and walks nested values.
+    const redactedParams = redactObjectValues(params, denylist);
+    const redactedQuery = redactObjectValues(query, denylist);
+
     return {
         name: typeof name === 'string' ? name : typeof name === 'symbol' ? name.toString() : null,
         path: typeof r.path === 'string' ? r.path : '',
         fullPath: typeof r.fullPath === 'string' ? redactFullPath(r.fullPath, denylist) : '',
-        params: serializeProps(params, ROUTE_PARAMS_DEPTH, denylist) as Record<string, RouteParamValue>,
-        query: serializeProps(query, ROUTE_PARAMS_DEPTH, denylist) as Record<
+        params: serializeProps(redactedParams, ROUTE_PARAMS_DEPTH, denylist) as Record<string, RouteParamValue>,
+        query: serializeProps(redactedQuery, ROUTE_PARAMS_DEPTH, denylist) as Record<
             string,
             RouteQueryValue | RouteQueryValue[]
         >,

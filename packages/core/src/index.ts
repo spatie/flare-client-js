@@ -3,6 +3,7 @@ export type {
     AttributeValue,
     Attributes,
     BufferedLog,
+    BufferedSpan,
     Config,
     EntryPointHandler,
     Framework,
@@ -11,11 +12,19 @@ export type {
     LogsEnvelope,
     MessageLevel,
     OtelLogRecord,
+    OtelSpan,
     OverriddenGrouping,
     Report,
+    SamplingContext,
     SdkInfo,
+    Span,
     SpanEvent,
+    SpanOptions,
+    SpanStatus,
+    SpanStatusCode,
     StackFrame,
+    TracesEnvelope,
+    TracesSampler,
     User,
 } from './types';
 
@@ -23,17 +32,22 @@ export {
     assert,
     assertKey,
     convertToError,
+    createIdentityTagger,
     DEFAULT_URL_DENYLIST,
     describeRejectionReason,
     extractCode,
     flatJsonStringify,
     glowsToEvents,
     now,
+    redactObjectValues,
     redactUrlQuery,
     resolveDenylist,
     routeRejection,
+    safeClone,
+    safeDecode,
+    toCustomContext,
 } from './util';
-export type { RejectionReporter } from './util';
+export type { RejectionReporter, SafeCloneOptions, SdkTaggable } from './util';
 
 export { Api } from './api';
 
@@ -45,6 +59,17 @@ export type { ScopeProvider } from './Scope';
 
 export { Logger, NoopFlushScheduler } from './logging';
 export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';
+
+export {
+    Tracer,
+    defaultNowNano,
+    InMemoryActiveSpanHolder,
+    buildTracesEnvelope,
+    buildTraceparent,
+    parseTraceparent,
+    spanId,
+} from './tracing';
+export type { TracerDeps, ActiveSpanHolder } from './tracing';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
 export type { FileReader } from './stacktrace/fileReader';

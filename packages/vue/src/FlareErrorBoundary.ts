@@ -148,8 +148,8 @@ export const FlareErrorBoundary = defineComponent({
 
             props.afterSubmit?.({ error: errorToReport, instance, info, context: finalContext });
 
-            // Prevent the error from propagating to app.config.errorHandler (set by flareVue()),
-            // so the error is only reported to Flare once when both are used together.
+            // Stop propagation to app.config.errorHandler (set by flareVue()) so the error is
+            // reported to Flare only once when both are used together.
             return false;
         });
 
