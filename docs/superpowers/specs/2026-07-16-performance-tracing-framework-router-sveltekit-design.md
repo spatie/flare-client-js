@@ -450,11 +450,37 @@ playground work is in scope rather than optional. Mirrors the react-router specs
    a `browser_navigation` root named `/product/[id]` with `source: 'route'` and a correct `url.full`
    (this is what proves the `url` override works for Kit's pre-URL-commit emission).
 3. **A hash-only change produces no navigation root.**
-4. **Regression**: the existing svelte error-scenario specs still pass with tracing enabled.
+4. **An effect created at client init observes the non-null `navigating` state** — the batching gate.
+   See below; this is the only one of the four that can fail for the reason this section exists.
+5. **Regression**: the existing svelte error-scenario specs still pass with tracing enabled.
 
-If test 2 shows the fallback shape (an un-held, zero-duration root) instead of a held root spanning
-the load, effect batching is real — we learn it loudly, and the seam decision gets revisited rather
-than silently dropping spans in production.
+#### The span assertions cannot settle the batching question. A probe can.
+
+An earlier draft of this spec claimed test 2 would expose batching, on the theory that a coalesced
+navigation yields "an un-held, zero-duration root" distinguishable from "a held root spanning the
+load". **That is wrong, and the reason is worth recording so nobody re-derives it.**
+
+- **No playground route has a load function.** The whole tree is bare `+page.svelte` (`/`, `/broken`,
+  `/cart`, `/checkout`, `/confirmation`, `/product/[id]`); the only load in the playground is
+  `server-error/+page.server.ts`. So there is no load for a held root to span.
+- **Both shapes therefore emit the same span.** Branch 3→5 and branch 7 produce one root, same name,
+  same `url.full`. Both end via the same idle lifecycle, so their durations differ only by the
+  navigation's load time — which is ~0 here.
+- **`hold` is internal state.** It never reaches the wire, so no assertion can read it.
+
+Note the absence of loads is not a defect to fix: a sub-millisecond non-null window is the _hardest_
+case for batching, so it is the strongest test available. The problem is purely that spans cannot
+report the outcome. So observe the transitions directly, in the playground, never in the SDK:
+a `navProbe.svelte.ts` module with its own `$effect.root` that pushes each `navigating` transition
+onto `window.__navStates`, mirroring the SDK's effect shape (an effect root created from a
+`.svelte.ts` module invoked by `hooks.client.ts`). Test 4 clicks through to a product and asserts
+`__navStates` contains `to:/product/p01` and settles back to `null`.
+
+The probe's effect is not the SDK's effect, so this is evidence rather than proof — but it is the
+only direct read available on the assumption the whole seam choice rests on, and it beats a green
+suite that proves nothing. If the `to:` entry is absent, effect batching is real: branch 7 is
+load-bearing rather than dead code, the span assertions stay green while doing so, and the seam
+decision (`$app/state` vs `$app/stores`) must be revisited rather than silently shipping.
 
 ## Playground
 
@@ -492,14 +518,21 @@ tracesSampleRate: 1, // redundant (Flare.ts:58 already defaults to 1) but explic
 so a manual `npm run playgrounds:svelte` run still exercises the tracer (spans just fail to send,
 exactly as the error reports already do).
 
-2. `playgrounds/svelte/src/hooks.client.ts` — call `traceSvelteKitRouter()`:
+2. `playgrounds/svelte/src/lib/navProbe.svelte.ts` (new) — the batching probe described in the E2E
+   section. An `$effect.root` over `navigating` that pushes each observed transition onto
+   `window.__navStates`. The `.svelte.ts` extension is required for runes, and it must be its own
+   module: `hooks.client.ts` is plain `.ts` and Svelte will not compile runes there.
+
+3. `playgrounds/svelte/src/hooks.client.ts` — call `traceSvelteKitRouter()` and the probe:
 
 ```ts
 import { initFlareClient } from '$lib/flare.client';
+import { startNavProbe } from '$lib/navProbe.svelte';
 import { handleErrorWithFlare, traceSvelteKitRouter } from '@flareapp/sveltekit/client';
 
 initFlareClient();
 traceSvelteKitRouter();
+startNavProbe();
 
 export const handleError = handleErrorWithFlare();
 ```
@@ -507,9 +540,9 @@ export const handleError = handleErrorWithFlare();
 Ordering here is conventional, not required — there is no call-time gate, so an earlier call would
 still work. Keep it after `initFlareClient()` for readability.
 
-3. **Decide whether to expose `globalThis.__flare`.** `playgrounds/react-router/src/flare.ts` ends
+4. **Decide whether to expose `globalThis.__flare`.** `playgrounds/react-router/src/flare.ts` ends
    with `(globalThis as { __flare?: typeof flare }).__flare = flare;` so the suite can drive the
-   tracer directly. The four e2e tests below do not need it; add it only if one turns out to.
+   tracer directly. The e2e tests above do not need it; add it only if one turns out to.
 
 The existing `/product/[id]` route already provides the parameterized case; no new routes are needed.
 
