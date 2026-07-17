@@ -7,7 +7,9 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', async () => (await import('@flareapp/test-helpers')).browserSeamMock(nav));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { routeNameFromMatches, traceReactRouter } from '../src/react-router';
 import type { RRMatch, RRRouterState } from '../src/vendor/reactRouterTypes';

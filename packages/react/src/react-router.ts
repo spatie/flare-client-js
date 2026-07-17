@@ -1,7 +1,7 @@
 // Electron-safe entry: NO @flareapp/js root import. The navigation-source seam comes from
 // @flareapp/js/browser (side-effect-free). NO runtime dependency on react-router — the router is
 // consumed structurally (see ./vendor/reactRouterTypes).
-import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
 import type { RRDataRouter, RRLocation, RRMatch, RRRouterState } from './vendor/reactRouterTypes';
 
@@ -34,8 +34,9 @@ export function routeNameFromMatches(matches: RRMatch[] | undefined): string | u
 export function traceReactRouter(router: RRDataRouter): () => void {
     const nav = registerNavigationSource();
 
-    // `url` rides along on every name so a redirect hop re-stamps the root's url.full in lockstep:
-    // the root was opened from the FIRST destination and would otherwise report a URL never landed on.
+    // Every name carries the destination url so the root's url.full is updated together with it.
+    // The root opens with the first destination, so after a redirect it would otherwise report a
+    // page the user never landed on.
     const routeNameFor = (state: RRRouterState): RouteName => {
         const url = hrefOf(state.location);
         try {
@@ -47,11 +48,18 @@ export function traceReactRouter(router: RRDataRouter): () => void {
         return { name: state.location.pathname, source: 'url', url };
     };
 
-    // Same-origin SPA: reconstruct the destination href for the nav root's url.full. NOTE: for
-    // createHashRouter this does not reconstruct the fragment-encoded URL (known limitation).
-    const hrefOf = (loc: RRLocation): string => {
-        const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        return origin + (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
+    // `createHref` is what puts the router's `basename` back on, and what turns a hash router's
+    // location into the `#`-prefixed URL the address bar actually shows. `location.pathname` has
+    // both stripped. Fall back to the bare parts only if the router has no `createHref`.
+    const hrefOf = (loc: RRLocation): string | undefined => {
+        const bare = (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
+        let href = bare;
+        try {
+            href = router.createHref?.(loc) ?? bare;
+        } catch {
+            // a router that throws on createHref still gets a url, just without the basename
+        }
+        return absoluteHref(href);
     };
 
     const keyOf = (loc: RRLocation): string => (loc.pathname || '') + (loc.search || '') + (loc.hash || '');

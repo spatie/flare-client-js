@@ -8,27 +8,18 @@ export type FakeNavigationSource = {
 };
 
 /**
- * The `@flareapp/js/browser` mock factory used by every nav-seam suite: the seam plus the two
- * instrumentation guards, which swallow throws exactly as the real ones do.
+ * The `@flareapp/js/browser` mock used by every nav-seam suite. Only the seam itself is faked; pass
+ * the real module as `original` and everything else stays real, so a suite cannot pass against a
+ * hand-written stand-in that has drifted from the code it stands in for.
+ *
+ * Call it with vitest's `importOriginal`:
+ *
+ *     vi.mock('@flareapp/js/browser', async (importOriginal) =>
+ *         (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()));
  */
-export function browserSeamMock(nav: FakeNavigationSource) {
+export function browserSeamMock(nav: FakeNavigationSource, original: Record<string, unknown>) {
     return {
+        ...original,
         registerNavigationSource: vi.fn(() => nav),
-        insulate:
-            (fn: (...a: unknown[]) => void) =>
-            (...a: unknown[]) => {
-                try {
-                    fn(...a);
-                } catch {
-                    /* swallow */
-                }
-            },
-        safeInvoke: (fn?: (() => void) | null) => {
-            try {
-                fn?.();
-            } catch {
-                /* swallow */
-            }
-        },
     };
 }

@@ -7,7 +7,9 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', async () => (await import('@flareapp/test-helpers')).browserSeamMock(nav));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { traceTanStackRouter } from '../src/tanstack-router';
 import type { TsrMatch } from '../src/vendor/tanstackRouterTypes';
@@ -149,8 +151,8 @@ describe('traceTanStackRouter', () => {
         expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/layout', source: 'route', url: u('/layout') });
     });
 
-    // TanStack's real ParsedLocation.href is pathname + search + hash WITHOUT the origin, so the
-    // integration must prepend it. Taking `pathname` instead would silently drop the query string.
+    // TanStack's real ParsedLocation.href is pathname + search + hash without the origin. Taking
+    // `pathname` instead would silently drop the query string.
     it("builds the url from TanStack's origin-relative href, not the bare pathname", () => {
         const { router, emit } = fakeRouter();
         traceTanStackRouter(router);
@@ -194,5 +196,54 @@ describe('traceTanStackRouter', () => {
             }),
         ).not.toThrow();
         expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/kaboom', source: 'url', url: u('/kaboom') });
+    });
+});
+
+// A `basepath` is applied as a rewrite, so it is stripped from `href` and kept only on `publicHref`.
+// Reading `href` for an app served from `/app/` reports `/product/p01` for the real
+// `/app/product/p01`: an address the server does not have, and one that overwrites the correct
+// url.full the pageload root already had.
+describe('traceTanStackRouter url.full keeps the basepath', () => {
+    it('prefers publicHref over the rewritten href', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/app/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/app/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
+    });
+
+    // No basepath means no rewrite, and then TanStack sets publicHref and href to the same value.
+    it('is unchanged when the two agree', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from 'vue';
-import { createMemoryHistory, createRouter, type Router } from 'vue-router';
+import { createMemoryHistory, createRouter, createWebHashHistory, createWebHistory, type Router } from 'vue-router';
 
 const nav = vi.hoisted(() => ({
     startNavigation: vi.fn(),
@@ -9,7 +9,9 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', async () => (await import('@flareapp/test-helpers')).browserSeamMock(nav));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { traceVueRouter } from '../src/traceVueRouter';
 
@@ -39,8 +41,9 @@ beforeEach(() => {
     nav.unregister.mockClear();
 });
 
-// Every RouteName now carries the destination url so the root's url.full follows a redirect hop to
-// its final target instead of keeping the URL the navigation opened with. Same-origin SPA: origin + fullPath.
+// Every RouteName carries the destination url so the root's url.full follows a redirect to its
+// final target instead of keeping the URL the navigation opened with. These routers have no base
+// path, so the url is just origin + path. The two suites below cover the routers that do.
 const u = (path: string): string => `${window.location.origin}${path}`;
 
 describe('traceVueRouter against a real vue-router', () => {
@@ -200,5 +203,73 @@ describe('traceVueRouter against a real vue-router', () => {
         nav.startNavigation.mockClear();
         await router.push('/cart');
         expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+});
+
+// vue-router reports `fullPath` with the app's base path and `#` prefix taken off, so building the
+// url as origin + fullPath gives an address the server does not have. The url must match the
+// address bar, because it is what a user pastes into a browser to reach the page the span reports.
+describe('traceVueRouter url.full follows the router history', () => {
+    it('keeps the base path an app is served from', async () => {
+        window.history.replaceState({}, '', '/app/');
+        const router = createRouter({
+            history: createWebHistory('/app/'),
+            routes: [
+                { path: '/', component: stub },
+                { path: '/product/:id', component: stub },
+            ],
+        });
+        traceVueRouter(router);
+        mountWith(router);
+        await router.isReady();
+        await router.push('/product/p01');
+
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
+        expect(nav.startNavigation.mock.calls.at(-1)![0].url).toBe(u('/app/product/p01'));
+    });
+
+    it('keeps the # of a hash-history app', async () => {
+        window.history.replaceState({}, '', '/#/');
+        const router = createRouter({
+            history: createWebHashHistory(),
+            routes: [
+                { path: '/', component: stub },
+                { path: '/product/:id', component: stub },
+            ],
+        });
+        traceVueRouter(router);
+        mountWith(router);
+        await router.isReady();
+        await router.push('/product/p01');
+
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/#/product/p01'),
+        });
+    });
+
+    // The pageload root opens with no url of its own, so url.full starts out as the live
+    // window.location.href, which is already correct. Naming it must not replace that with a
+    // reconstruction that has the base path missing.
+    it('does not damage the pageload root of a base-path app', async () => {
+        window.history.replaceState({}, '', '/app/product/p01');
+        const router = createRouter({
+            history: createWebHistory('/app/'),
+            routes: [{ path: '/product/:id', component: stub }],
+        });
+        traceVueRouter(router);
+        mountWith(router);
+        await router.isReady();
+
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
     });
 });

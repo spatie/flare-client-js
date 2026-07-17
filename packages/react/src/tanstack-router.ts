@@ -1,7 +1,7 @@
 // Electron-safe entry: NO @flareapp/js root import. The navigation-source seam
 // comes from @flareapp/js/browser (side-effect-free). NO runtime dependency on
 // @tanstack/react-router — the router is consumed structurally (see ./vendor).
-import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
 import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
 
@@ -14,15 +14,14 @@ import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRoute
 export function traceTanStackRouter(router: TsrRouter): () => void {
     const nav = registerNavigationSource();
 
-    // Same-origin SPA: TanStack's `href` is origin-relative, so prepend the origin to get a full one.
-    const hrefOf = (loc: TsrLocation): string | undefined => {
-        if (typeof window === 'undefined') return undefined;
-        return window.location.origin + (loc.href ?? loc.pathname ?? '');
-    };
+    // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so
+    // an app served from `/app/` has it stripped from `href` but kept on `publicHref`. Falling back
+    // to `href` costs the basepath, which is what we reported before, so it never makes things worse.
+    const hrefOf = (loc: TsrLocation): string | undefined => absoluteHref(loc.publicHref ?? loc.href ?? loc.pathname);
 
-    // `url` rides along on every name so it re-stamps the root's url.full in lockstep. This slice
-    // opens roots without a url override (TanStack reports the destination only as a parsed
-    // location), so without the re-stamp a nav root keeps the url of the page it left.
+    // Every name carries the destination url so the root's url.full is updated together with it.
+    // Roots here open without a url of their own (TanStack reports the destination only as a parsed
+    // location), so without this a nav root would keep the url of the page it left.
     const routeNameFor = (loc: TsrLocation): RouteName => {
         const url = hrefOf(loc);
         try {

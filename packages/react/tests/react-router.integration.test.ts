@@ -1,4 +1,4 @@
-import { createMemoryRouter } from 'react-router';
+import { createBrowserRouter, createHashRouter, createMemoryRouter } from 'react-router';
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,7 +8,9 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', async () => (await import('@flareapp/test-helpers')).browserSeamMock(nav));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { traceReactRouter } from '../src/react-router';
 import type { RRDataRouter } from '../src/vendor/reactRouterTypes';
@@ -178,5 +180,58 @@ describe('traceReactRouter against a real react-router data router', () => {
         await router.navigate('/slow');
         expect(nav.startNavigation.mock.calls.at(-1)![0]).toMatchObject({ hold: true });
         expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/slow', source: 'route', url: u('/slow') });
+    });
+});
+
+// A hash router's `location` says nothing about the `#` the address bar shows, so building the url
+// from its parts gives an address the server does not have. It has to come from `createHref`.
+// Basename routers are fine either way, because `router.state.location.pathname` keeps the basename
+// (unlike `useLocation()` in a component, which strips it) — pinned below so the fix cannot regress it.
+describe('traceReactRouter url.full follows the router', () => {
+    const baseRoutes = [{ path: '/', children: [{ index: true }, { path: 'product/:id' }] }];
+
+    it('keeps the basename an app is served from', async () => {
+        window.history.replaceState({}, '', '/app/');
+        const router = createBrowserRouter(baseRoutes, { basename: '/app' });
+        traceReactRouter(router as unknown as RRDataRouter);
+        await router.navigate('/product/p01');
+
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
+        expect(nav.startNavigation.mock.calls.at(-1)![0].url).toBe(u('/app/product/p01'));
+        router.dispose();
+    });
+
+    it('keeps the # of a hash-router app', async () => {
+        window.history.replaceState({}, '', '/#/');
+        const router = createHashRouter(baseRoutes);
+        traceReactRouter(router as unknown as RRDataRouter);
+        await router.navigate('/product/p01');
+
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/#/product/p01'),
+        });
+        router.dispose();
+    });
+
+    // The pageload root opens with no url of its own, so url.full starts out as the live
+    // window.location.href, which is already right. Naming it must not replace that with a
+    // reconstruction that has the # missing.
+    it('does not damage the pageload root of a hash-router app', () => {
+        window.history.replaceState({}, '', '/#/product/p01');
+        const router = createHashRouter(baseRoutes);
+        traceReactRouter(router as unknown as RRDataRouter);
+
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/#/product/p01'),
+        });
+        router.dispose();
     });
 });
