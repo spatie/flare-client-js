@@ -18,17 +18,13 @@ export type NavSnapshot = {
 
 let tracing = false;
 let nav: NavigationSource | null = null;
-// oxlint-disable-next-line no-unused-vars
 let inFlight = false;
-// oxlint-disable-next-line no-unused-vars
 let lastKey = '';
 
 // Hash excluded on purpose: Kit's hash navigation reassigns `page.url` without running a real
 // navigation, and a hash-keyed comparison would fabricate a root for it.
-// oxlint-disable-next-line no-unused-vars
 const keyOf = (url: URL): string => url.pathname + url.search;
 
-// oxlint-disable-next-line no-unused-vars
 const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =>
     routeId ? { name: routeId, source: 'route' } : { name: url.pathname, source: 'url' };
 
@@ -37,7 +33,45 @@ export function syncNavigation(snapshot: NavSnapshot): void {
     if (!nav) return;
     if (!flare.config?.enableTracing) return; // branch 0
     if (snapshot.url.origin !== location.origin) return; // branch 1: Kit's `a:` placeholder
-    // branches 2-7 arrive in Task 3
+
+    const to = snapshot.to;
+    if (to) {
+        const toRouteId = to.route?.id;
+        // branch 2: `willUnload` is `!intent` and `to.route.id` is `intent?.route?.id ?? null`, so
+        // these are one condition. The document is about to unload; its pageload will cover it.
+        if (snapshot.willUnload || toRouteId == null) return;
+
+        if (!inFlight) {
+            // branch 3: Kit emits this BEFORE the URL commits, so pass the destination explicitly.
+            inFlight = true;
+            nav.startNavigation({ path: to.url.pathname, url: to.url.href, hold: true });
+        }
+        // branch 3 + 4: re-set across redirect hops, which re-emit without an intervening null.
+        nav.setActiveRouteName(routeNameFor(toRouteId, to.url));
+        return;
+    }
+
+    if (inFlight) {
+        // branch 5: `page` is fully committed by now (Kit calls update() at client.js:1941, well
+        // before it nulls `navigating` at :2023), so name from the committed route.
+        inFlight = false;
+        lastKey = keyOf(snapshot.url);
+        nav.settleNavigation(routeNameFor(snapshot.routeId, snapshot.url));
+        return;
+    }
+
+    const key = keyOf(snapshot.url);
+    if (key === lastKey) {
+        // branch 6: pageload naming, and late-resolving route ids.
+        nav.setActiveRouteName(routeNameFor(snapshot.routeId, snapshot.url));
+        return;
+    }
+
+    // branch 7: the committed location moved with no observed `navigating` emission. Expected to be
+    // dead code; it exists so a coalesced effect degrades to an instant root instead of no root.
+    lastKey = key;
+    nav.startNavigation({ path: snapshot.url.pathname, url: snapshot.url.href });
+    nav.settleNavigation(routeNameFor(snapshot.routeId, snapshot.url));
 }
 
 export function traceSvelteKitRouter(): () => void {
