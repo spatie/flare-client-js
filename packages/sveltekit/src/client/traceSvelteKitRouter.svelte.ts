@@ -74,6 +74,18 @@ export function syncNavigation(snapshot: NavSnapshot): void {
     nav.settleNavigation(routeNameFor(snapshot.routeId, snapshot.url));
 }
 
+/**
+ * Trace SvelteKit's client router: name the `browser_pageload` root from the initial route, and open
+ * a parameterized, held `browser_navigation` root per client navigation. Names come from
+ * `page.route.id` verbatim (e.g. `/product/[id]`). Call once from `hooks.client.ts`. Safe to call
+ * before or after tracing is enabled; no-ops when off. Returns a cleanup that disposes the effect and
+ * unregisters.
+ *
+ * No navigation root is opened for: shallow routing (`pushState`/`replaceState` from
+ * `$app/navigation`), hash-only navigation, navigations cancelled by a `beforeNavigate` guard, or
+ * navigations to routes SvelteKit does not own (those unload the document; the next pageload covers
+ * them).
+ */
 export function traceSvelteKitRouter(): () => void {
     if (tracing || typeof window === 'undefined') return () => {};
     tracing = true;
