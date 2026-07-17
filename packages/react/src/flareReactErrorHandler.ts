@@ -4,6 +4,7 @@ import type { Flare } from '@flareapp/js/browser';
 import { buildReactContext } from './buildReactContext';
 import { contextToAttributes } from './contextToAttributes';
 import { tagReactFramework } from './identify';
+import { parseMinifiedReactError } from './parseMinifiedReactError';
 import { resolveFlare } from './resolveFlare';
 import { FlareReactContext } from './types';
 
@@ -37,7 +38,7 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
 
         const rawStack = errorInfo.componentStack ?? '';
 
-        const context = buildReactContext(rawStack, errorObject);
+        const context = buildReactContext(rawStack);
 
         const finalContext =
             options?.beforeSubmit?.({
@@ -46,8 +47,9 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        // See FlareErrorBoundary: rejection is swallowed so the reporter can't crash the host.
-        flare.reportSilently(errorObject, contextToAttributes(finalContext));
+        // See FlareErrorBoundary: parse the decode field from the original error after beforeSubmit so
+        // a fresh-literal hook can't drop it; rejection is swallowed so the reporter can't crash the host.
+        flare.reportSilently(errorObject, contextToAttributes(finalContext, parseMinifiedReactError(errorObject)));
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });
     };

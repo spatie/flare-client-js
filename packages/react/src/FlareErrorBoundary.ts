@@ -4,6 +4,7 @@ import { Component, ErrorInfo, type PropsWithChildren, type ReactNode } from 're
 import { buildReactContext } from './buildReactContext';
 import { contextToAttributes } from './contextToAttributes';
 import { tagReactFramework } from './identify';
+import { parseMinifiedReactError } from './parseMinifiedReactError';
 import { resolveFlare } from './resolveFlare';
 import { FlareReactContext } from './types';
 
@@ -58,7 +59,7 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         const rawStack = errorInfo.componentStack ?? '';
 
-        const context = buildReactContext(rawStack, error);
+        const context = buildReactContext(rawStack);
 
         const finalContext =
             this.props.beforeSubmit?.({
@@ -69,9 +70,12 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         this.setState({ componentStack: finalContext.react.componentStack });
 
+        // Parse the minified-error field from the ORIGINAL error, after beforeSubmit, so a hook that
+        // returns a fresh context literal cannot drop it. It is a Flare-internal decode field, not
+        // display context, so beforeSubmit has no say over it.
         // Swallow rejection from the report call. A network/transport failure in the error reporter
         // must not bubble up and cause a second render error inside the boundary itself.
-        this.flare.reportSilently(error, contextToAttributes(finalContext));
+        this.flare.reportSilently(error, contextToAttributes(finalContext, parseMinifiedReactError(error)));
 
         this.props.afterSubmit?.({
             error,
