@@ -98,6 +98,11 @@ const snap = (over: Partial<NavSnapshot> = {}): NavSnapshot => ({
 async function started() {
     const mod = await load();
     const stop = mod.traceSvelteKitRouter();
+    // The mount effect's first run (pageload naming off the seeded `$app/state`) is scheduled on a
+    // microtask, not run synchronously by `$effect.root`. Without this tick it fires later, after
+    // `vi.clearAllMocks()`, and leaks a `setActiveRouteName` call into whichever test happens to await
+    // this helper. Let it settle before clearing so every test starts from a clean mock history.
+    await Promise.resolve();
     vi.clearAllMocks();
     return { ...mod, stop };
 }
@@ -171,8 +176,9 @@ test('a redirect keeps ONE held root and renames it to the final destination', a
 
 test('skips a navigation that will unload the document', async () => {
     const { syncNavigation, stop } = await started();
-    syncNavigation(snap({ to: { url: PRODUCT, route: { id: null } }, willUnload: true }));
+    syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } }, willUnload: true }));
     expect(nav.startNavigation).not.toHaveBeenCalled();
+    expect(nav.setActiveRouteName).not.toHaveBeenCalled();
     stop();
 });
 
@@ -180,6 +186,7 @@ test('skips a navigation to a route SvelteKit does not own', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: null } } }));
     expect(nav.startNavigation).not.toHaveBeenCalled();
+    expect(nav.setActiveRouteName).not.toHaveBeenCalled();
     stop();
 });
 
