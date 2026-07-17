@@ -13,6 +13,11 @@ export type NavigationFailureLike = { type?: number } | undefined;
 
 export type VueRouterLike = {
     currentRoute?: { value?: VueRouteLocationLike };
+    /**
+     * `href` here already has the app's base path (or `#` prefix) applied, which `fullPath` does
+     * not. Optional because a caller can pass any router-shaped object; we fall back to `fullPath`.
+     */
+    resolve?(to: string): { href?: string };
     beforeEach(guard: (to: VueRouteLocationLike, from: VueRouteLocationLike) => unknown): () => void;
     afterEach(
         guard: (to: VueRouteLocationLike, from: VueRouteLocationLike, failure?: NavigationFailureLike) => unknown,

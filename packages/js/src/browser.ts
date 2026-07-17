@@ -59,6 +59,7 @@ export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 export { registerNavigationSource, type NavigationSource, type RouteName } from './tracing/browserTracing';
 export { insulate, safeInvoke } from './tracing/instrumentationGuard';
+export { absoluteHref } from './tracing/absoluteHref';
 export {
     activeComponentRoot,
     reserveSpanId,

@@ -63,9 +63,11 @@
     "devDependencies": {
         "@flareapp/js": "file:../js",
         "@flareapp/svelte": "file:../svelte",
+        "@flareapp/test-helpers": "*",
         "@sveltejs/kit": "^2.0.0",
         "@sveltejs/package": "^2.5.7",
         "@sveltejs/vite-plugin-svelte": "^5.0.0",
+        "jsdom": "^26.1.0",
         "svelte": "^5.0.0",
         "typescript": "^5.7.0",
         "vitest": "^4.0.0"
