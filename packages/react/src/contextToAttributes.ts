@@ -12,10 +12,8 @@ export function contextToAttributes(context: FlareReactContext, minifiedError?: 
                 ...(context.react.version ? { version: context.react.version as AttributeValue } : {}),
             },
         },
-        // Flare-internal decode field, not display context. `react_version` is read from React's own
-        // `version` export, NOT context.react.version: reading it off the context would re-couple this
-        // field to a value a beforeSubmit hook can strip, which is the failure this design prevents.
-        // Do not "simplify" it back onto the context.
+        // We do not add to the custom context, but to the flare exception meta data because this is internal data and not something a user needs to see.
+        // The flare backend will parse this into a usable error message.
         ...(minifiedError
             ? {
                   'flare.exception.react_minified_error': {

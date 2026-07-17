@@ -47,8 +47,8 @@ export function flareReactErrorHandler(options?: FlareReactErrorHandlerOptions):
                 context,
             }) ?? context;
 
-        // See FlareErrorBoundary: parse the decode field from the original error after beforeSubmit so
-        // a fresh-literal hook can't drop it; rejection is swallowed so the reporter can't crash the host.
+        // We build parse the minified react error after the beforeSubmit hook, because users are not allowed to mess with that data.
+        // It's an internal field of the protocol, and the backend needs it to parse the error message out of the minified error.
         flare.reportSilently(errorObject, contextToAttributes(finalContext, parseMinifiedReactError(errorObject)));
 
         options?.afterSubmit?.({ error: errorObject, errorInfo, context: finalContext });

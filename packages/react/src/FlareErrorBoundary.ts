@@ -70,11 +70,8 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         this.setState({ componentStack: finalContext.react.componentStack });
 
-        // Parse the minified-error field from the ORIGINAL error, after beforeSubmit, so a hook that
-        // returns a fresh context literal cannot drop it. It is a Flare-internal decode field, not
-        // display context, so beforeSubmit has no say over it.
-        // Swallow rejection from the report call. A network/transport failure in the error reporter
-        // must not bubble up and cause a second render error inside the boundary itself.
+        // We build parse the minified react error after the beforeSubmit hook, because users are not allowed to mess with that data.
+        // It's an internal field of the protocol, and the backend needs it to parse the error message out of the minified error.
         this.flare.reportSilently(error, contextToAttributes(finalContext, parseMinifiedReactError(error)));
 
         this.props.afterSubmit?.({
