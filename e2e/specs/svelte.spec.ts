@@ -85,7 +85,7 @@ test.describe('svelte tracing', () => {
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
         // The nav root's url.full must be the DESTINATION even though Kit emits `navigating`
         // before the URL commits. This is what proves the seam's url override is wired.
-        expect(JSON.stringify(attr(nav!, 'url.full') ?? '')).toContain('/product/p01');
+        expect(JSON.stringify((nav && attr(nav, 'url.full')) ?? '')).toContain('/product/p01');
 
         // registerNavigationSource suppresses the History-based root, so one click => one root.
         const navSpans = (await fakeFlare.traces())
@@ -126,11 +126,18 @@ test.describe('svelte tracing', () => {
         await page.evaluate(() => {
             window.location.hash = 'section-2';
         });
-        await page.waitForTimeout(2500); // outlive idleTimeout (2000) so any root would have flushed
+        // Worst case is idleTimeout (2000) + flush timer (500) = 2500ms before the root even POSTs;
+        // add 500ms margin for that POST to reach the fake server.
+        await page.waitForTimeout(3000);
 
-        const navSpans = (await fakeFlare.traces())
-            .flatMap((t) => spansOf(t.bodyJson))
-            .filter((s) => hasSpanType(s, 'browser_navigation'));
-        expect(navSpans).toHaveLength(0);
+        const all = (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson));
+        const pageload = all.find((s) => hasSpanType(s, 'browser_pageload'));
+        // Positive control: browser_pageload roots are opened by the framework-agnostic browser
+        // tracer regardless of traceSvelteKitRouter, so merely finding one proves nothing. Its
+        // route.source only flips from the default 'url' to 'route' once traceSvelteKitRouter's
+        // effect names it, so this is what actually proves the SvelteKit integration is wired and
+        // the zero-navigation assertion below is meaningful rather than vacuous.
+        expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
+        expect(all.filter((s) => hasSpanType(s, 'browser_navigation'))).toHaveLength(0);
     });
 });
