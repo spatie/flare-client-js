@@ -34,14 +34,17 @@ export function routeNameFromMatches(matches: RRMatch[] | undefined): string | u
 export function traceReactRouter(router: RRDataRouter): () => void {
     const nav = registerNavigationSource();
 
+    // `url` rides along on every name so a redirect hop re-stamps the root's url.full in lockstep:
+    // the root was opened from the FIRST destination and would otherwise report a URL never landed on.
     const routeNameFor = (state: RRRouterState): RouteName => {
+        const url = hrefOf(state.location);
         try {
             const name = routeNameFromMatches(state.matches);
-            if (name) return { name, source: 'route' };
+            if (name) return { name, source: 'route', url };
         } catch {
             // fall through to the URL name
         }
-        return { name: state.location.pathname, source: 'url' };
+        return { name: state.location.pathname, source: 'url', url };
     };
 
     // Same-origin SPA: reconstruct the destination href for the nav root's url.full. NOTE: for

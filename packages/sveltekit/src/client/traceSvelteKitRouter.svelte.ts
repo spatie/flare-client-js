@@ -25,19 +25,28 @@ let lastKey = '';
 // navigation, and a hash-keyed comparison would fabricate a root for it.
 const keyOf = (url: URL): string => url.pathname + url.search;
 
+// `url` rides along on every name so a redirect hop re-stamps the root's url.full in lockstep: the
+// root was opened from the FIRST destination and would otherwise report a URL never landed on.
 const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =>
-    routeId ? { name: routeId, source: 'route' } : { name: url.pathname, source: 'url' };
+    routeId ? { name: routeId, source: 'route', url: url.href } : { name: url.pathname, source: 'url', url: url.href };
 
 /** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
 export function syncNavigation(snapshot: NavSnapshot): void {
     if (!nav) return;
+    // branch 1: Kit's `a:` placeholder. Checked BEFORE the tracing gate because it is not a real
+    // location: its pathname is empty, so letting it reach the lastKey stamp below would poison the
+    // key and make the next real snapshot look like a move.
+    if (snapshot.url.origin !== location.origin) return;
     if (!flare.config?.enableTracing) {
         // A settle can never arrive while tracing is off, so the latch must not persist across the
         // toggle: otherwise a held root is stranded and the next navigation opens no root at all.
         inFlight = false;
+        // Keep tracking the committed location too. Without this the key goes stale for every
+        // navigation made while tracing was off, and the first idle snapshot after it flips back on
+        // reads as a move and fabricates a branch-7 root for a page that never navigated.
+        lastKey = keyOf(snapshot.url);
         return; // branch 0
     }
-    if (snapshot.url.origin !== location.origin) return; // branch 1: Kit's `a:` placeholder
 
     const to = snapshot.to;
     if (to) {
@@ -95,11 +104,27 @@ export function traceSvelteKitRouter(): () => void {
     if (tracing || typeof window === 'undefined') return () => {};
     tracing = true;
 
-    nav = registerNavigationSource();
-    inFlight = false;
-    lastKey = location.pathname + location.search;
+    let dispose: (() => void) | undefined;
+    // Wiring runs inside the guard because hooks.client.ts calls this at module scope: a throw here
+    // would take down client boot, not just tracing. The effect body has its own `insulate`.
+    safeInvoke(() => {
+        nav = registerNavigationSource();
+        inFlight = false;
+        lastKey = location.pathname + location.search;
+        dispose = startEffect();
+    });
 
-    const dispose = $effect.root(() => {
+    return () => {
+        safeInvoke(dispose);
+        safeInvoke(() => nav?.unregister());
+        nav = null;
+        tracing = false;
+    };
+}
+
+/** The reactive half: one `$effect.root` feeding observed snapshots to the pure state machine. */
+function startEffect(): () => void {
+    return $effect.root(() => {
         $effect(
             insulate(() =>
                 // The reads ARE the body. No control flow here: Svelte tracks dependencies as they
@@ -113,11 +138,4 @@ export function traceSvelteKitRouter(): () => void {
             ),
         );
     });
-
-    return () => {
-        safeInvoke(dispose);
-        safeInvoke(() => nav?.unregister());
-        nav = null;
-        tracing = false;
-    };
 }

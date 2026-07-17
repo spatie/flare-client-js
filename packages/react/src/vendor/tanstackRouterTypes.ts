@@ -3,7 +3,9 @@
 // the router and non-TanStack consumers of @flareapp/react type-check cleanly.
 // Verify against the pinned router version if these shapes drift.
 
-export type TsrLocation = { pathname: string; search: unknown; state?: unknown };
+// `href` is ParsedLocation.href: pathname + search + hash, WITHOUT the origin (verified against
+// @tanstack/react-router 1.170.10). Optional so a caller passing a hand-built location still types.
+export type TsrLocation = { pathname: string; search: unknown; href?: string; state?: unknown };
 export type TsrNavEvent = { fromLocation?: TsrLocation; toLocation: TsrLocation };
 export type TsrMatch = { routeId?: string; fullPath?: string };
 

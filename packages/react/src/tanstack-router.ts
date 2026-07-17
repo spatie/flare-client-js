@@ -14,17 +14,27 @@ import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRoute
 export function traceTanStackRouter(router: TsrRouter): () => void {
     const nav = registerNavigationSource();
 
+    // Same-origin SPA: TanStack's `href` is origin-relative, so prepend the origin to get a full one.
+    const hrefOf = (loc: TsrLocation): string | undefined => {
+        if (typeof window === 'undefined') return undefined;
+        return window.location.origin + (loc.href ?? loc.pathname ?? '');
+    };
+
+    // `url` rides along on every name so it re-stamps the root's url.full in lockstep. This slice
+    // opens roots without a url override (TanStack reports the destination only as a parsed
+    // location), so without the re-stamp a nav root keeps the url of the page it left.
     const routeNameFor = (loc: TsrLocation): RouteName => {
+        const url = hrefOf(loc);
         try {
             const matches = router.matchRoutes(loc.pathname, loc.search, { preload: false, throwOnError: false });
             const last = matches[matches.length - 1];
             const matched = matches.some((m) => m.routeId !== '__root__');
             const name = matched ? last?.fullPath || last?.routeId : undefined;
-            if (name) return { name, source: 'route' };
+            if (name) return { name, source: 'route', url };
         } catch {
             // fall through to the URL name
         }
-        return { name: loc.pathname, source: 'url' };
+        return { name: loc.pathname, source: 'url', url };
     };
 
     // Enrich the pageload root immediately from the current (already-resolved) location.

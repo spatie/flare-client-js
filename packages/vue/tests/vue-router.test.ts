@@ -63,6 +63,10 @@ beforeEach(() => {
     registerNavigationSource.mockClear();
 });
 
+// Every RouteName now carries the destination url so the root's url.full follows a redirect hop to
+// its final target instead of keeping the URL the navigation opened with. Same-origin SPA: origin + fullPath.
+const u = (path: string): string => `${window.location.origin}${path}`;
+
 describe('traceVueRouter edge cases', () => {
     it('is inert for a non-router value (no registration, no-op cleanup)', () => {
         const stop = traceVueRouter({});
@@ -79,7 +83,7 @@ describe('traceVueRouter edge cases', () => {
         router.fireAfter(cart, home, undefined); // success → settle cart
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/cart', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/cart', source: 'route', url: u('/cart') });
     });
 
     it('tears down prior instrumentation when the same router is re-instrumented (HMR)', () => {
@@ -96,6 +100,8 @@ describe('traceVueRouter edge cases', () => {
         traceVueRouter(router); // must not throw on install-time enrichment either
         router.fireBefore(product, home); // client nav (home has matched → not initial): opens held root
         router.fireError();
+        // No current route => no destination href, so `url` is omitted and the root keeps the URL it
+        // opened with. Re-stamping url.full to something wrong is worse than leaving it alone.
         expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '', source: 'url' });
     });
 
@@ -107,6 +113,10 @@ describe('traceVueRouter edge cases', () => {
         router.fireBefore(product, START); // from is still START: aborted nav never committed
         router.fireAfter(product, START, undefined); // success → finalizes the pageload name
         expect(nav.startNavigation).not.toHaveBeenCalled();
-        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 });

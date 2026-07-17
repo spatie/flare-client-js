@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { flushSync } from 'svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import type { NavSnapshot } from '../../src/client/traceSvelteKitRouter.svelte';
@@ -37,7 +36,11 @@ async function load() {
     page.route = { id: '/' };
     navigating.to = null;
     navigating.willUnload = false;
-    return import('../../src/client/traceSvelteKitRouter.svelte');
+    // `flushSync` MUST come from the post-reset `svelte` instance: resetModules gives the module
+    // under test a brand-new svelte runtime with its own effect queue, and the copy imported at the
+    // top of this file flushes the OLD queue, which is a silent no-op.
+    const { flushSync } = await import('svelte');
+    return { ...(await import('../../src/client/traceSvelteKitRouter.svelte')), page, navigating, flushSync };
 }
 
 beforeEach(() => {
@@ -79,7 +82,7 @@ test('ignores the pre-hydration placeholder page', async () => {
 });
 
 test('cleanup disposes the effect and unregisters', async () => {
-    const { traceSvelteKitRouter } = await load();
+    const { traceSvelteKitRouter, flushSync } = await load();
     const stop = traceSvelteKitRouter();
     flushSync();
     stop();
@@ -113,10 +116,54 @@ async function started() {
 // root; the url only decides the key and the fallback name. Getting this wrong makes a branch-6 test
 // silently assert branch-7 behaviour.
 
+// EVERY OTHER CASE BELOW CALLS `syncNavigation` DIRECTLY, so none of them touch the effect body.
+// That body is the fragile half: it must read `navigating.to` (not `.from`), `page.route.id` and
+// `page.url`, and it must re-run when any of them change. Swap a field for the wrong one and every
+// other unit test here still passes. So drive one full navigation through the reactive state.
+test('the effect reads $app/state and re-runs, feeding the state machine', async () => {
+    const { traceSvelteKitRouter, page, navigating, flushSync } = await load();
+    const stop = traceSvelteKitRouter();
+    flushSync();
+    vi.clearAllMocks();
+
+    navigating.to = { url: PRODUCT, route: { id: '/product/[id]' } };
+    flushSync();
+    expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href, hold: true });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+        name: '/product/[id]',
+        source: 'route',
+        url: PRODUCT.href,
+    });
+
+    // Kit commits `page` before it nulls `navigating`, so the settle names from the committed route.
+    navigating.to = null;
+    page.url = PRODUCT;
+    page.route = { id: '/product/[id]' };
+    flushSync();
+    expect(nav.settleNavigation).toHaveBeenCalledWith({
+        name: '/product/[id]',
+        source: 'route',
+        url: PRODUCT.href,
+    });
+    stop();
+});
+
+test('the disposed effect stops observing $app/state', async () => {
+    const { traceSvelteKitRouter, navigating, flushSync } = await load();
+    const stop = traceSvelteKitRouter();
+    flushSync();
+    stop();
+    vi.clearAllMocks();
+
+    navigating.to = { url: PRODUCT, route: { id: '/product/[id]' } };
+    flushSync();
+    expect(nav.startNavigation).not.toHaveBeenCalled();
+});
+
 test('names the pageload root from the committed route id', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ routeId: '/product/[id]', url: HERE })); // url: HERE => branch 6
-    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: HERE.href });
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
@@ -124,7 +171,7 @@ test('names the pageload root from the committed route id', async () => {
 test('falls back to the pathname when there is no route id', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ routeId: null }));
-    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'url' });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'url', url: HERE.href });
     stop();
 });
 
@@ -136,10 +183,10 @@ test('a late-resolving route id renames the pageload root and opens no nav root'
     // branch 6 and neither may open a navigation root. The re-name is a `source` flip, not a
     // name change: that IS the observable here.
     syncNavigation(snap({ routeId: null }));
-    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'url' });
+    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'url', url: HERE.href });
 
     syncNavigation(snap({ routeId: '/' }));
-    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'route', url: HERE.href });
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
@@ -152,7 +199,7 @@ test('opens a held navigation root named from the destination', async () => {
         url: PRODUCT.href,
         hold: true,
     });
-    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: PRODUCT.href });
     stop();
 });
 
@@ -160,7 +207,7 @@ test('settles the navigation from the committed page', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
-    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: PRODUCT.href });
     stop();
 });
 
@@ -170,7 +217,11 @@ test('a redirect keeps ONE held root and renames it to the final destination', a
     syncNavigation(snap({ to: { url: OLD, route: { id: '/old' } } }));
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } })); // redirect hop
     expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({
+        name: '/product/[id]',
+        source: 'route',
+        url: PRODUCT.href,
+    });
     stop();
 });
 
@@ -204,7 +255,7 @@ test('fallback: a committed key change while idle opens an un-held root and sett
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
     expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href });
     expect(nav.startNavigation.mock.calls[0][0]).not.toHaveProperty('hold');
-    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: PRODUCT.href });
     stop();
 });
 
@@ -238,6 +289,45 @@ test('branch 0 does not consume the transition when tracing is off', async () =>
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
     expect(nav.startNavigation).toHaveBeenCalledTimes(1);
     expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href, hold: true });
+    stop();
+});
+
+// Branch 0 must keep tracking the committed location, not just eat the snapshot. Without the
+// lastKey stamp the key goes stale for every navigation made while tracing was off, and the first
+// idle snapshot after it flips back on reads as a move and fabricates a branch-7 root for a page
+// that never navigated.
+test('a navigation made while tracing was off does not fabricate a root when it comes back on', async () => {
+    const { syncNavigation, stop } = await started();
+    flareConfig.enableTracing = false;
+    syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
+    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT })); // committed at /product/p01
+    flareConfig.enableTracing = true;
+
+    vi.clearAllMocks();
+    // An idle snapshot at the SAME committed location (e.g. Kit reassigning page.url on a hash
+    // change). It is not a move, so it must take branch 6 and name, never branch 7 and open a root.
+    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
+
+    expect(nav.startNavigation).not.toHaveBeenCalled();
+    expect(nav.settleNavigation).not.toHaveBeenCalled();
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+        name: '/product/[id]',
+        source: 'route',
+        url: PRODUCT.href,
+    });
+    stop();
+});
+
+// The `a:` placeholder is checked before the tracing gate precisely so it cannot reach that stamp:
+// its pathname is empty, and stamping '' would make the next real snapshot look like a move.
+test('the pre-hydration placeholder does not poison lastKey while tracing is off', async () => {
+    const { syncNavigation, stop } = await started();
+    flareConfig.enableTracing = false;
+    syncNavigation({ to: null, willUnload: false, routeId: null, url: new URL('a:') });
+    flareConfig.enableTracing = true;
+
+    syncNavigation(snap({ routeId: '/', url: HERE })); // still the initial location => branch 6
+    expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
 

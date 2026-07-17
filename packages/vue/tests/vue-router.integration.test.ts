@@ -39,13 +39,17 @@ beforeEach(() => {
     nav.unregister.mockClear();
 });
 
+// Every RouteName now carries the destination url so the root's url.full follows a redirect hop to
+// its final target instead of keeping the URL the navigation opened with. Same-origin SPA: origin + fullPath.
+const u = (path: string): string => `${window.location.origin}${path}`;
+
 describe('traceVueRouter against a real vue-router', () => {
     it('names the pageload root from the initial route and opens no nav root', async () => {
         const router = makeRouter();
         traceVueRouter(router);
         mountWith(router);
         await router.isReady();
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'route', url: u('/') });
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
 
@@ -59,7 +63,11 @@ describe('traceVueRouter against a real vue-router', () => {
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.startNavigation.mock.calls[0]![0]).toMatchObject({ path: '/product/p01', hold: true });
         expect(nav.startNavigation.mock.calls[0]![0].url).toBe(`${window.location.origin}/product/p01`);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('names a nested child route with the absolute parameterized template', async () => {
@@ -71,7 +79,11 @@ describe('traceVueRouter against a real vue-router', () => {
         await router.push('/user/u01/profile');
         // Confirms vue-router normalizes the child's relative `path` to the full absolute template —
         // the one runtime behavior the spec flagged as unpinned (matched[last].path, not chain-joined).
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/user/:id/profile', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/user/:id/profile',
+            source: 'route',
+            url: u('/user/u01/profile'),
+        });
     });
 
     it('names a truly unmatched route from its path with url source', async () => {
@@ -81,7 +93,11 @@ describe('traceVueRouter against a real vue-router', () => {
         await router.isReady();
         nav.settleNavigation.mockClear();
         await router.push('/does/not/exist').catch(() => {});
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/does/not/exist', source: 'url' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/does/not/exist',
+            source: 'url',
+            url: u('/does/not/exist'),
+        });
     });
 
     it('follows a route-config redirect and settles the final target (one nav root)', async () => {
@@ -92,7 +108,7 @@ describe('traceVueRouter against a real vue-router', () => {
         nav.startNavigation.mockClear();
         await router.push('/old');
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/cart', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/cart', source: 'route', url: u('/cart') });
     });
 
     it('follows a guard-returned redirect (one nav root, final name)', async () => {
@@ -104,7 +120,7 @@ describe('traceVueRouter against a real vue-router', () => {
         nav.startNavigation.mockClear();
         await router.push('/product/p01');
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/cart', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/cart', source: 'route', url: u('/cart') });
     });
 
     it('settles an aborted navigation to the current location', async () => {
@@ -117,7 +133,7 @@ describe('traceVueRouter against a real vue-router', () => {
         nav.settleNavigation.mockClear();
         await router.push('/blocked');
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route', url: u('/') });
     });
 
     it('emits no nav span for a plain duplicated navigation', async () => {
@@ -160,7 +176,7 @@ describe('traceVueRouter against a real vue-router', () => {
         await router.push('/product/p01').catch(() => {});
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route', url: u('/') });
     });
 
     it('names the pageload immediately when installed after the router is ready', async () => {
@@ -168,7 +184,7 @@ describe('traceVueRouter against a real vue-router', () => {
         mountWith(router);
         await router.isReady();
         traceVueRouter(router);
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'route', url: u('/') });
         nav.startNavigation.mockClear();
         await router.push('/cart');
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
