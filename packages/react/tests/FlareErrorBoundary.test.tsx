@@ -548,7 +548,7 @@ describe('FlareErrorBoundary', () => {
     });
 
     describe('minified React errors', () => {
-        test('forwards minifiedError and version in the reported attributes', () => {
+        test('emits flare.exception.react_minified_error with react_version', () => {
             testError = new Error(
                 'Minified React error #418; visit https://react.dev/errors/418?args[]=Foo for the full message',
             );
@@ -560,17 +560,18 @@ describe('FlareErrorBoundary', () => {
             );
 
             const attributes = mockReport.mock.calls[0][1];
-            const react = (attributes['context.custom'] as any).react;
+            const field = (attributes as any)['flare.exception.react_minified_error'];
 
-            expect(react.minifiedError).toEqual({
-                number: 418,
-                args: ['Foo'],
-                url: 'https://react.dev/errors/418?args[]=Foo',
-            });
-            expect(typeof react.version).toBe('string');
+            expect(field.number).toBe(418);
+            expect(field.args).toEqual(['Foo']);
+            expect(field.url).toBe('https://react.dev/errors/418?args[]=Foo');
+            expect(typeof field.react_version).toBe('string');
+            expect(field.react_version.length).toBeGreaterThan(0);
+            // The decode field is not display context.
+            expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
         });
 
-        test('omits minifiedError for a plain error', () => {
+        test('omits the field for a plain error', () => {
             render(
                 <FlareErrorBoundary fallback={<div>Error</div>}>
                     <ThrowingComponent />
@@ -578,7 +579,37 @@ describe('FlareErrorBoundary', () => {
             );
 
             const attributes = mockReport.mock.calls[0][1];
+            expect(attributes).not.toHaveProperty('flare.exception.react_minified_error');
             expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
+        });
+
+        // The unstrippability property: a hook that returns a brand-new context object (a normal way
+        // to scrub a component stack) must NOT be able to drop the internal decode field, because it
+        // is parsed from the original error at report time, not carried inside the context.
+        test('still emits the field when beforeSubmit returns a fresh context literal that omits it', () => {
+            testError = new Error(
+                'Minified React error #418; visit https://react.dev/errors/418?args[]=Foo for the full message',
+            );
+
+            const beforeSubmit = vi.fn(({ context }: { context: FlareReactContext }) => ({
+                react: {
+                    componentStack: [],
+                    componentStackFrames: [],
+                    version: context.react.version,
+                },
+            }));
+
+            render(
+                <FlareErrorBoundary fallback={<div>Error</div>} beforeSubmit={beforeSubmit}>
+                    <ThrowingComponent />
+                </FlareErrorBoundary>,
+            );
+
+            const attributes = mockReport.mock.calls[0][1];
+            const field = (attributes as any)['flare.exception.react_minified_error'];
+
+            expect(field.number).toBe(418);
+            expect(typeof field.react_version).toBe('string');
         });
     });
 });

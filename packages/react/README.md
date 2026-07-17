@@ -44,22 +44,24 @@ flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 ## Minified production errors
 
 In production, React throws minified errors like `Minified React error #418; visit https://react.dev/errors/418?args[]=Foo`.
-The client parses these into structured fields and attaches them, along with the running React version, to the report
-context:
+The client parses these into a single self-contained field, `flare.exception.react_minified_error`, carrying the running
+React version alongside the parsed pieces:
 
 ```ts
-react: {
-    version: '19.0.0',
-    minifiedError: {
-        number: 418,
-        args: ['Foo', 'Bar'],
-        url: 'https://react.dev/errors/418?args[]=Foo&args[]=Bar',
-    },
+'flare.exception.react_minified_error': {
+    number: 418,
+    args: ['Foo', 'Bar'],
+    url: 'https://react.dev/errors/418?args[]=Foo&args[]=Bar',
+    react_version: '19.0.0',
 }
 ```
 
-Flare uses `react.minifiedError` and `react.version` on the backend to look up React's error-code map and surface the
-full, human-readable message. No error-code map is bundled into the client. Non-minified errors are reported unchanged.
+Flare reads this field on the backend to look up React's error-code map (keyed on `react_version`) and surface the full,
+human-readable message. It is a Flare-internal field, not part of the display context, so it is emitted only when an
+error actually parses as a minified React error and cannot be stripped by a `beforeSubmit` hook. No error-code map is
+bundled into the client. Non-minified errors are reported unchanged.
+
+`context.custom.react` continues to carry `componentStack`, `componentStackFrames` and `version` for display.
 
 ## Identifying users
 
