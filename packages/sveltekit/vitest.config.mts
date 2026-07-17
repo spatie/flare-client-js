@@ -10,7 +10,7 @@ export default defineConfig({
         // no-op: runes modules still compile, effects just silently never run.
         conditions: ['browser'],
         alias: {
-            '$app/state': path.resolve('./tests/__mocks__/app-state.ts'),
+            '$app/state': path.resolve('./tests/__mocks__/app-state.svelte.ts'),
         },
     },
     test: {
