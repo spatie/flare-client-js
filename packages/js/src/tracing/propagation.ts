@@ -87,7 +87,17 @@ export function mergeTraceparentHeader(
         headers = { traceparent };
     }
 
-    const result: RequestInit = { ...init, headers };
+    // Copy every own descriptor rather than spreading: a spread takes only ENUMERABLE own
+    // properties, and callers brand `init` with non-enumerable markers. SvelteKit tags the init it
+    // hands a `load` function with a non-enumerable `__sveltekit_fetch__`, and its dev-mode
+    // `window.fetch` wrapper tells the developer to "use the `fetch` passed to your load function"
+    // when the tag is missing, so dropping it makes Flare scold them for code that is already right.
+    const result: RequestInit = { headers };
+    if (init) {
+        const descriptors = Object.getOwnPropertyDescriptors(init);
+        delete descriptors.headers; // the merged headers above win
+        Object.defineProperties(result, descriptors);
+    }
     // A Request with a ReadableStream body requires `duplex` when re-issued with an init;
     // without it fetch throws and breaks a host request that worked pre-tracing.
     if (
