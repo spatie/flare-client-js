@@ -8,24 +8,9 @@ const nav = vi.hoisted(() => ({
     unregister: vi.fn(),
 }));
 const registerNavigationSource = vi.hoisted(() => vi.fn(() => nav));
-vi.mock('@flareapp/js/browser', () => ({
+vi.mock('@flareapp/js/browser', async () => ({
+    ...(await import('@flareapp/test-helpers')).browserSeamMock(nav),
     registerNavigationSource,
-    insulate:
-        (fn: (...a: unknown[]) => void) =>
-        (...a: unknown[]) => {
-            try {
-                fn(...a);
-            } catch {
-                /* swallow */
-            }
-        },
-    safeInvoke: (fn?: (() => void) | null) => {
-        try {
-            fn?.();
-        } catch {
-            /* swallow */
-        }
-    },
 }));
 
 import { traceVueRouter } from '../src/traceVueRouter';
