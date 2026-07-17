@@ -17,6 +17,7 @@
                 <a href="/" class="text-sm font-medium hover:text-brand">Shop</a>
                 <a href="/cart" class="text-sm font-medium hover:text-brand">Cart</a>
                 <a href="/broken" class="text-sm font-medium hover:text-brand">Broken</a>
+                <a href="/http" class="text-sm font-medium hover:text-brand">HTTP</a>
                 <a
                     href="/cart"
                     class="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white"
