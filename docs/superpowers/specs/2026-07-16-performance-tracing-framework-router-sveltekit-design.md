@@ -599,6 +599,41 @@ enabled, no-ops when off, returns a cleanup. Then the limitations:
 
 ## Out of scope / follow-ups
 
+- **An HTTP-calls page in the svelte playground, to verify `browser_fetch` / `browser_xhr` on
+  SvelteKit.** Sequence this immediately after this slice; it depends on the `enableTracing` +
+  `tracesIngestUrl` wiring the Playground section adds. No svelte playground route makes any HTTP call
+  today, so fetch/XHR instrumentation is entirely unexercised on SvelteKit even though this slice
+  claims those spans "nest under whichever root is active, unchanged".
+    - **Shape**: a `/http` route mirroring `/broken` (one button per scenario, `testIds.*` selectors).
+      Scenarios: plain global `fetch`; a 404/500 fetch; an XHR GET; a fetch fired mid-navigation (proves
+      it nests under the `browser_navigation` root, not the pageload root); and a `+page.ts` using
+      `load({ fetch })`.
+    - **The `load({ fetch })` case is the valuable one.** It pins the finding below, which is currently
+      reasoned-from-source but unproven at runtime.
+    - **Assert on `parentSpanId`**, not duration: the fetch span's parent must be the active root's
+      `spanId`. That is a structural signal rather than a timing one.
+    - **Do not target Flare's own ingest URLs.** `isFlareIngestUrl()` deliberately drops those spans, so
+      the test would fail looking like broken instrumentation. Add a `+server.ts` endpoint instead.
+    - **Expect no span** for a hydration `initial_fetch` (it short-circuits to an inlined
+      `<script type="application/json">` payload and returns a synthetic `Response` with no network
+      call) or for a `subsequent_fetch` cache hit. Both are correct: a span would be a lie.
+
+### SvelteKit's fetches ARE traced (recorded because the source invites the opposite conclusion)
+
+`runtime/client/fetcher.js:9` captures `const native_fetch = window.fetch` at module scope, which
+reads like Kit pinning the unpatched original before `hooks.client.ts` can install anything. It is
+not. That reference is used **only inside Kit's own `window.fetch` wrapper** (`:66`, `:77`), which the
+same module installs at eval time, so the wrapper cannot recurse into itself. Every path Kit exposes
+reads `window.fetch` at **call** time: `initial_fetch` (`:117`), `subsequent_fetch` (`:137`),
+`dev_fetch` (`:151`), and `load_data` (`client.js:3091`, carrying the comment "use window.fetch
+directly to allow using a 3rd party-patched fetch implementation" — Kit designs for this).
+
+Since `fetcher.js` evaluates before `hooks.client.ts` (`bundle.js` imports `./entry.js` before
+`__sveltekit/manifest`), the resulting stack is `flarePatch -> kitWrapper -> native`, and a
+`load({ fetch })` call does produce a `browser_fetch` span. **Do not add a "load fetches are untraced"
+limitation to the JSDoc; it is false.** The follow-up above is what turns this from source-reading
+into evidence.
+
 - **Server-side tracing and server→client correlation.** Blocked on `@flareapp/node` having any
   tracing at all. When it lands, the SvelteKit side is a `handle` hook injecting traceparent meta tags
   (Sentry's `addSentryCodeToPage` + `transformPageChunk` shape) plus a client-side pickup in the
