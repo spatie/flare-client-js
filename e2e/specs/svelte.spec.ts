@@ -1,6 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
+import { attr, hasSpanType, parentOf, spansOf, urlOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('svelte playground', () => {
@@ -40,4 +41,269 @@ test.describe('svelte logging', () => {
             await runLogScenario(page, fakeFlare, scenario);
         });
     }
+});
+
+test.describe('svelte tracing', () => {
+    test('pageload root carries the parameterized route and route source', async ({ page, fakeFlare }) => {
+        await page.goto('/product/p01'); // deep-link the initial load
+        await page.waitForLoadState('networkidle');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => {
+                const pl = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
+                return !!pl && JSON.stringify(attr(pl, 'flare.route.source') ?? '').includes('route');
+            },
+        });
+        const pageload = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
+        expect(pageload && attr(pageload, 'flare.entry_point.handler.identifier')).toEqual({
+            stringValue: '/product/[id]',
+        });
+        expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
+    });
+
+    test('navigation opens exactly one parameterized browser_navigation root', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('a[href="/product/p01"]').first().click();
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => {
+                const nav = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
+                return (
+                    !!nav &&
+                    JSON.stringify(attr(nav, 'flare.entry_point.handler.identifier') ?? '').includes('/product/[id]')
+                );
+            },
+        });
+        const nav = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
+        expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({
+            stringValue: '/product/[id]',
+        });
+        expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
+        // The nav root's url.full has to be where the navigation went, even though Kit tells us
+        // before the URL changes. This is what proves the url override is wired up.
+        expect(JSON.stringify((nav && attr(nav, 'url.full')) ?? '')).toContain('/product/p01');
+
+        // registerNavigationSource suppresses the History-based root, so one click => one root.
+        const navSpans = (await fakeFlare.traces())
+            .flatMap((t) => spansOf(t.bodyJson))
+            .filter((s) => hasSpanType(s, 'browser_navigation'));
+        expect(navSpans).toHaveLength(1);
+    });
+
+    // The span assertions above cannot tell a correctly held root apart from the fallback that runs
+    // when no navigation was seen: with no load function on any playground route both are near-zero
+    // and named the same, and `hold` never reaches the wire. So assert on what the effect actually
+    // saw instead. A missing 'to:' entry means Svelte ran the two updates together.
+    test('an effect created at client init observes the non-null navigating state', async ({ page }) => {
+        // `window.__navStates` is declared by the playground, not by the e2e tsconfig, so read it
+        // through a cast rather than adding a global declaration to the suite.
+        const readStates = () =>
+            page.evaluate(() => (window as unknown as { __navStates?: string[] }).__navStates ?? []);
+
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+        await page.evaluate(() => {
+            (window as unknown as { __navStates: string[] }).__navStates = [];
+        });
+
+        await page.locator('a[href="/product/p01"]').first().click();
+        await expect(page).toHaveURL(/\/product\/p01$/);
+
+        // Kit clears `navigating` a tick after the URL changes, not at the same time, so poll for
+        // it rather than reading once.
+        await expect.poll(async () => (await readStates()).at(-1)).toBe('null');
+
+        expect(await readStates()).toContain('to:/product/p01'); // survived batching
+    });
+
+    test('a hash-only change opens no navigation root', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+        await page.evaluate(() => {
+            window.location.hash = 'section-2';
+        });
+        // Worst case is idleTimeout (2000) + flush timer (500) = 2500ms before the root even POSTs;
+        // add 500ms margin for that POST to reach the fake server.
+        await page.waitForTimeout(3000);
+
+        const all = (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson));
+        const pageload = all.find((s) => hasSpanType(s, 'browser_pageload'));
+        // Positive control: browser_pageload roots are opened by the framework-agnostic browser
+        // tracer regardless of traceSvelteKitRouter, so merely finding one proves nothing. Its
+        // route.source only flips from the default 'url' to 'route' once traceSvelteKitRouter's
+        // effect names it, so this is what actually proves the SvelteKit integration is wired and
+        // the zero-navigation assertion below is meaningful rather than vacuous.
+        expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
+        expect(all.filter((s) => hasSpanType(s, 'browser_navigation'))).toHaveLength(0);
+    });
+});
+
+test.describe('svelte http tracing', () => {
+    test('a fetch fires a browser_fetch span nested under the active root', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('fetch-ok')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('fetch-ok:200');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch')),
+        });
+        const spans = spansOf(trace.bodyJson);
+        const fetchSpan = spans.find((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-ok'));
+        expect(fetchSpan).toBeTruthy();
+        expect(attr(fetchSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
+
+        // The real assertion: it nests under a root, not orphaned at the top level.
+        expect(fetchSpan!.parentSpanId).toBeTruthy();
+        const root = await parentOf(fakeFlare, fetchSpan!);
+        expect(root).toBeTruthy();
+        expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
+    });
+
+    test('a failing fetch still produces a span with its status recorded, not a span error', async ({
+        page,
+        fakeFlare,
+    }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('fetch-404')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('fetch-404:404');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-404')),
+        });
+        const span = spansOf(trace.bodyJson).find(
+            (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-404'),
+        );
+        expect(span).toBeTruthy();
+        // httpRequestSpan.ts's endHttpRequestSpan records the response status on every completion
+        // via http.response.status_code, and only calls setStatus (span error, OTel code 2) for
+        // status >= 500. A 404 is a completed request, so the status attribute must be 404 and the
+        // span's own OTel status must stay Unset (0), not Error.
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 404 });
+        expect(span!.status?.code ?? 0).toBe(0);
+    });
+
+    test('a 5xx fetch produces a span error, unlike a 4xx', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('fetch-500')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('fetch-500:500');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500')),
+        });
+        const span = spansOf(trace.bodyJson).find(
+            (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500'),
+        );
+        expect(span).toBeTruthy();
+        // The 404 test above covers the non-error side. This covers the other half: a status of 500
+        // or more records the status and also marks the span an OTel error (code 2).
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 500 });
+        expect(span!.status?.code ?? 0).toBe(2);
+    });
+
+    test('an XHR fires a browser_xhr span nested under the active root', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('xhr-ok')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('xhr-ok:200');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr')),
+        });
+        const spans = spansOf(trace.bodyJson);
+        const xhrSpan = spans.find((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-ok'));
+        expect(xhrSpan).toBeTruthy();
+        expect(attr(xhrSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
+
+        expect(xhrSpan!.parentSpanId).toBeTruthy();
+        const root = await parentOf(fakeFlare, xhrSpan!);
+        expect(root).toBeTruthy();
+        expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
+    });
+
+    // The fetch 404/500 pair above pins both sides of endHttpRequestSpan's status branch. XHR runs
+    // through the same span helper but a different patch, so pin that its 404 is recorded rather
+    // than assumed to behave like fetch's.
+    test('a failing XHR records its status without marking the span an error', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('xhr-404')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('xhr-404:404');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-404')),
+        });
+        const span = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-404'));
+        expect(span).toBeTruthy();
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 404 });
+        expect(span!.status?.code ?? 0).toBe(0);
+    });
+
+    // Kit marks the init it gives a load fetch with a hidden `__sveltekit_fetch__` flag, and its
+    // dev-mode wrapper warns when the flag is missing. We patch window.fetch after Kit does, so
+    // rebuilding the init to add traceparent used to drop the flag and warn the developer about
+    // using window.fetch in a load function while they were already using the right one. The unit
+    // tests cover mergeTraceparentHeader on its own; only this one catches the warning as reported.
+    // Kit only wraps fetch in dev mode, which is what the e2e webServer runs.
+    test('Kit does not warn about window.fetch for a traced load fetch', async ({ page }) => {
+        const warnings: string[] = [];
+        page.on('console', (msg) => {
+            if (msg.type() === 'warning') warnings.push(msg.text());
+        });
+
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+        await page.getByRole('link', { name: 'HTTP' }).click(); // client nav => load fetch runs in the browser
+        await expect(page).toHaveURL(/\/http$/);
+        await expect(page.getByTestId(testIds.httpResult)).toBeVisible();
+
+        expect(warnings.filter((w) => /using `window.fetch`/.test(w))).toEqual([]);
+    });
+
+    // Kit grabs a reference to window.fetch when its module loads, which looks like it would pin the
+    // unpatched original. It does not: that reference is only used inside Kit's own wrapper, and the
+    // fetch it hands a load function reads window.fetch when it is called, so our patch sees it. If
+    // this test fails, that is no longer true and the JSDoc needs to say so. Deep-linking would run
+    // the load on the server, where there is no patch and no span, so this has to be a client
+    // navigation.
+    test("SvelteKit's load-provided fetch produces a browser_fetch span", async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('link', { name: 'HTTP' }).click(); // client nav => load runs in the browser
+        await expect(page).toHaveURL(/\/http$/);
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('kit-load-fetch')),
+        });
+        const spans = spansOf(trace.bodyJson);
+        const loadFetch = spans.find((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('kit-load-fetch'));
+        expect(loadFetch).toBeTruthy();
+
+        // It fired during the navigation, so it must nest under the navigation root, not the pageload.
+        expect(loadFetch!.parentSpanId).toBeTruthy();
+        const root = await parentOf(fakeFlare, loadFetch!);
+        expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
+    });
 });

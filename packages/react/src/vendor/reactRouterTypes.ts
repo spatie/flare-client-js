@@ -18,4 +18,9 @@ export type RRRouterState = {
 export type RRDataRouter = {
     subscribe(cb: (state: RRRouterState) => void): () => void;
     state: RRRouterState;
+    /**
+     * Applies the router's `basename` (and, for a hash router, the `#` prefix) to a location.
+     * `state.location.pathname` has both stripped. Optional so a hand-built router still types.
+     */
+    createHref?(location: RRLocation): string;
 };
