@@ -218,6 +218,15 @@ test('lastKey re-stamp: a repeat snapshot after a settle opens no second root', 
     stop();
 });
 
+test('branch 7 re-stamp: a repeat snapshot after the fallback opens no second root', async () => {
+    const { syncNavigation, stop } = await started();
+    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT })); // branch 7 fallback
+    vi.clearAllMocks();
+    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT })); // same snapshot again
+    expect(nav.startNavigation).not.toHaveBeenCalled();
+    stop();
+});
+
 test('branch 0 does not consume the transition when tracing is off', async () => {
     const { syncNavigation, stop } = await started();
     flareConfig.enableTracing = false;
@@ -228,6 +237,22 @@ test('branch 0 does not consume the transition when tracing is off', async () =>
     // inFlight must still be false, so a real navigation afterwards still opens a root.
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
     expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+    expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href, hold: true });
+    stop();
+});
+
+test('a to-null settle stranded by tracing going off does not desync the next navigation', async () => {
+    const { syncNavigation, stop } = await started();
+    // Navigation starts while tracing is on: held root opens, inFlight = true.
+    syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
+    flareConfig.enableTracing = false;
+    // The to-null settle snapshot arrives while tracing is off; branch 0 must eat it AND clear
+    // inFlight, or the next navigation below finds inFlight already true and opens no root.
+    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
+    flareConfig.enableTracing = true;
+
+    vi.clearAllMocks();
+    syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
     expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href, hold: true });
     stop();
 });

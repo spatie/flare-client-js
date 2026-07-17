@@ -8,19 +8,6 @@ export type FakeNavigationSource = {
 };
 
 /**
- * A recording stand-in for `registerNavigationSource()`'s handle. Must be created inside
- * `vi.hoisted` so a `vi.mock` factory can close over it.
- */
-export function fakeNavigationSource(): FakeNavigationSource {
-    return {
-        startNavigation: vi.fn(),
-        setActiveRouteName: vi.fn(),
-        settleNavigation: vi.fn(),
-        unregister: vi.fn(),
-    };
-}
-
-/**
  * The `@flareapp/js/browser` mock factory used by every nav-seam suite: the seam plus the two
  * instrumentation guards, which swallow throws exactly as the real ones do.
  */

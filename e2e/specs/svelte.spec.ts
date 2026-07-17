@@ -207,6 +207,28 @@ test.describe('svelte http tracing', () => {
         expect(span!.status?.code ?? 0).toBe(0);
     });
 
+    test('a 5xx fetch produces a span error, unlike a 4xx', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('fetch-500')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('fetch-500:500');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500')),
+        });
+        const span = spansOf(trace.bodyJson).find(
+            (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500'),
+        );
+        expect(span).toBeTruthy();
+        // The 404 test above pins the non-error side; this pins the other half of endHttpRequestSpan's
+        // branch: status >= 500 both records the status AND marks the span an OTel error (code 2).
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 500 });
+        expect(span!.status?.code ?? 0).toBe(2);
+    });
+
     test('an XHR fires a browser_xhr span nested under the active root', async ({ page, fakeFlare }) => {
         await page.goto('/http');
         await page.waitForLoadState('networkidle');

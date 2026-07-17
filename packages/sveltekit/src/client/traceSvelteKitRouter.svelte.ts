@@ -31,7 +31,12 @@ const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =
 /** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
 export function syncNavigation(snapshot: NavSnapshot): void {
     if (!nav) return;
-    if (!flare.config?.enableTracing) return; // branch 0
+    if (!flare.config?.enableTracing) {
+        // A settle can never arrive while tracing is off, so the latch must not persist across the
+        // toggle: otherwise a held root is stranded and the next navigation opens no root at all.
+        inFlight = false;
+        return; // branch 0
+    }
     if (snapshot.url.origin !== location.origin) return; // branch 1: Kit's `a:` placeholder
 
     const to = snapshot.to;
