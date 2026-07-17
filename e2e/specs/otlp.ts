@@ -1,4 +1,4 @@
-// Shared OTLP trace-span parsing helpers for the tracing e2e specs (react, react-router).
+// Shared OTLP trace-span parsing helpers for the tracing e2e specs (react, react-router, svelte).
 
 export type OtlpSpan = {
     name: string;
