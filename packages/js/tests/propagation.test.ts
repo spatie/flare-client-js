@@ -229,4 +229,49 @@ describe('mergeTraceparentHeader', () => {
         const init = mergeTraceparentHeader(req, undefined, TP);
         expect((init as RequestInit & { duplex?: string })!.duplex).toBeUndefined();
     });
+
+    // A spread copies only ENUMERABLE own properties. Callers brand `init` with non-enumerable
+    // markers: SvelteKit's `dev_fetch` tags the init it hands a `load` function with a
+    // non-enumerable `__sveltekit_fetch__`, and its dev-mode `window.fetch` wrapper warns the
+    // developer to "use the `fetch` passed to your load function" when the tag is missing. Rebuilding
+    // the init to inject `traceparent` must not strip it, or Flare makes SvelteKit scold developers
+    // for something they are already doing correctly.
+    it('preserves a NON-ENUMERABLE own property on the caller init (regression)', () => {
+        const callerInit: RequestInit = { method: 'GET' };
+        Object.defineProperty(callerInit, '__sveltekit_fetch__', {
+            value: true,
+            writable: true,
+            configurable: true,
+        });
+
+        const init = mergeTraceparentHeader('https://app.example/x', callerInit, TP);
+
+        expect((init as Record<string, unknown>).__sveltekit_fetch__).toBe(true);
+        expect((init!.headers as Record<string, string>).traceparent).toBe(TP);
+        expect(init!.method).toBe('GET');
+    });
+
+    it('keeps a preserved non-enumerable property non-enumerable (regression)', () => {
+        const callerInit: RequestInit = {};
+        Object.defineProperty(callerInit, '__sveltekit_fetch__', {
+            value: true,
+            writable: true,
+            configurable: true,
+        });
+
+        const init = mergeTraceparentHeader('https://app.example/x', callerInit, TP);
+
+        // Re-enumerating it would leak the marker into anything that spreads or serializes the init.
+        expect(Object.keys(init!)).not.toContain('__sveltekit_fetch__');
+        expect(Object.getOwnPropertyDescriptor(init!, '__sveltekit_fetch__')?.enumerable).toBe(false);
+    });
+
+    it('does not mutate the caller init when preserving its own properties', () => {
+        const callerInit: RequestInit = { method: 'POST', headers: { a: '1' } };
+
+        const init = mergeTraceparentHeader('https://app.example/x', callerInit, TP);
+
+        expect(init).not.toBe(callerInit);
+        expect(callerInit.headers).toEqual({ a: '1' }); // no traceparent leaked back
+    });
 });
