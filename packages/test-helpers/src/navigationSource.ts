@@ -24,7 +24,7 @@ export function fakeNavigationSource(): FakeNavigationSource {
  * The `@flareapp/js/browser` mock factory used by every nav-seam suite: the seam plus the two
  * instrumentation guards, which swallow throws exactly as the real ones do.
  */
-export function browserSeamMock(nav: Partial<FakeNavigationSource>) {
+export function browserSeamMock(nav: FakeNavigationSource) {
     return {
         registerNavigationSource: vi.fn(() => nav),
         insulate:

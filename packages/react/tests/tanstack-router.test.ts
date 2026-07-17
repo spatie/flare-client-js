@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const nav = vi.hoisted(() => ({
     startNavigation: vi.fn(),
     setActiveRouteName: vi.fn(),
+    settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
 vi.mock('@flareapp/js/browser', async () => (await import('@flareapp/test-helpers')).browserSeamMock(nav));
