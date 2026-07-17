@@ -52,6 +52,10 @@ spec diverges from Sentry, the divergence is called out and justified — see
    no-ops when off"). Rationale in "Why no enableTracing gate" below.
 6. **Deliverables:** implementation + unit tests + playground wiring and e2e. **No README section**
    (explicitly not selected). Limitations are documented in terse JSDoc on the export instead.
+7. **In scope: fetch/XHR span coverage on SvelteKit.** No svelte playground route makes a single HTTP
+   call today, so the trace model's claim that `browser_fetch` / `browser_xhr` "nest under whichever
+   root is active, unchanged" is untested on SvelteKit. This slice adds an HTTP scenarios page and the
+   e2e assertions for it. See "Fetch and XHR coverage" below.
 
 ## Seam selection (decided; recorded because the reasoning is load-bearing)
 
@@ -597,26 +601,29 @@ enabled, no-ops when off, returns a cleanup. Then the limitations:
 - **Backend still gated.** `flare.route.source` and parameterized-name semantics need backend
   agreement (B5/B9/P4). `enableTracing` stays opt-in.
 
-## Out of scope / follow-ups
+## Fetch and XHR coverage (in scope)
 
-- **An HTTP-calls page in the svelte playground, to verify `browser_fetch` / `browser_xhr` on
-  SvelteKit.** Sequence this immediately after this slice; it depends on the `enableTracing` +
-  `tracesIngestUrl` wiring the Playground section adds. No svelte playground route makes any HTTP call
-  today, so fetch/XHR instrumentation is entirely unexercised on SvelteKit even though this slice
-  claims those spans "nest under whichever root is active, unchanged".
-    - **Shape**: a `/http` route mirroring `/broken` (one button per scenario, `testIds.*` selectors).
-      Scenarios: plain global `fetch`; a 404/500 fetch; an XHR GET; a fetch fired mid-navigation (proves
-      it nests under the `browser_navigation` root, not the pageload root); and a `+page.ts` using
-      `load({ fetch })`.
-    - **The `load({ fetch })` case is the valuable one.** It pins the finding below, which is currently
-      reasoned-from-source but unproven at runtime.
-    - **Assert on `parentSpanId`**, not duration: the fetch span's parent must be the active root's
-      `spanId`. That is a structural signal rather than a timing one.
-    - **Do not target Flare's own ingest URLs.** `isFlareIngestUrl()` deliberately drops those spans, so
-      the test would fail looking like broken instrumentation. Add a `+server.ts` endpoint instead.
-    - **Expect no span** for a hydration `initial_fetch` (it short-circuits to an inlined
-      `<script type="application/json">` payload and returns a synthetic `Response` with no network
-      call) or for a `subsequent_fetch` cache hit. Both are correct: a span would be a lie.
+The trace model above claims `browser_fetch` / `browser_xhr` spans "nest under whichever root is
+active, unchanged". On SvelteKit that is currently an assumption: **no svelte playground route makes
+a single HTTP call**, so neither instrumentation is exercised at all. This slice closes that.
+
+- **Surface**: a `/http` route mirroring `/broken` — one button per scenario, `testIds.httpTrigger(id)`
+  selectors, plus a `testIds.httpResult` line so the e2e can await completion instead of sleeping.
+- **Scenarios**: global `fetch` 200; `fetch` 404; `fetch` 500; XHR 200; XHR 404; and a `+page.ts`
+  using `load({ fetch })`.
+- **Request target**: a playground-owned `/api/echo` `+server.ts` taking `status` and `delay`.
+  **Never aim a scenario at a Flare ingest URL** — `isFlareIngestUrl()`
+  (`packages/js/src/tracing/httpRequestSpan.ts:28`) drops spans whose URL starts with `ingestUrl` /
+  `logsIngestUrl` / `tracesIngestUrl`, so such a call is silently untraced and reads as broken
+  instrumentation.
+- **The assertion that matters is `parentSpanId`**, not duration: a request span's parent must be the
+  root that was active when it fired. Structural, not timing-dependent.
+- **The `load({ fetch })` case is the valuable one.** It must be reached by a **client navigation**;
+  deep-linking runs the load on the server, where there is no patch and correctly no span. It pins the
+  finding below, which is otherwise reasoned-from-source and unproven at runtime.
+- **Expect no span** for a hydration `initial_fetch` (it short-circuits to an inlined
+  `<script type="application/json">` payload and returns a synthetic `Response` with no network call)
+  or for a `subsequent_fetch` cache hit. Both are correct: a span would be a lie.
 
 ### SvelteKit's fetches ARE traced (recorded because the source invites the opposite conclusion)
 
@@ -631,8 +638,10 @@ directly to allow using a 3rd party-patched fetch implementation" — Kit design
 Since `fetcher.js` evaluates before `hooks.client.ts` (`bundle.js` imports `./entry.js` before
 `__sveltekit/manifest`), the resulting stack is `flarePatch -> kitWrapper -> native`, and a
 `load({ fetch })` call does produce a `browser_fetch` span. **Do not add a "load fetches are untraced"
-limitation to the JSDoc; it is false.** The follow-up above is what turns this from source-reading
-into evidence.
+limitation to the JSDoc; it is false.** The `load({ fetch })` scenario above is what turns this from
+source-reading into evidence.
+
+## Out of scope / follow-ups
 
 - **Server-side tracing and server→client correlation.** Blocked on `@flareapp/node` having any
   tracing at all. When it lands, the SvelteKit side is a `handle` hook injecting traceparent meta tags
