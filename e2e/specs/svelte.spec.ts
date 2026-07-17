@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
-import { expect, type FakeFlare, test } from '../fixtures/fake-flare';
+import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, type OtlpSpan, spansOf } from './otlp';
+import { attr, hasSpanType, parentOf, spansOf, urlOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('svelte playground', () => {
@@ -143,19 +143,6 @@ test.describe('svelte tracing', () => {
 });
 
 test.describe('svelte http tracing', () => {
-    const urlOf = (span: OtlpSpan) => JSON.stringify(attr(span, 'url.full') ?? '');
-
-    /**
-     * A request span's parent root can flush in an earlier envelope than the request itself (roots
-     * hold open for their idle window; requests flush eagerly), so poll across every captured trace
-     * rather than the single envelope the request span was found in.
-     */
-    const waitForParentEnvelope = (fakeFlare: FakeFlare, child: OtlpSpan) =>
-        fakeFlare.waitForTrace({
-            timeout: 9000,
-            predicate: (r) => spansOf(r.bodyJson).some((s) => s.spanId === child.parentSpanId),
-        });
-
     test('a fetch fires a browser_fetch span nested under the active root', async ({ page, fakeFlare }) => {
         await page.goto('/http');
         await page.waitForLoadState('networkidle');
@@ -174,8 +161,7 @@ test.describe('svelte http tracing', () => {
 
         // The real assertion: it nests under a root, not orphaned at the top level.
         expect(fetchSpan!.parentSpanId).toBeTruthy();
-        const rootTrace = await waitForParentEnvelope(fakeFlare, fetchSpan!);
-        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === fetchSpan!.parentSpanId);
+        const root = await parentOf(fakeFlare, fetchSpan!);
         expect(root).toBeTruthy();
         expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
     });
@@ -246,10 +232,52 @@ test.describe('svelte http tracing', () => {
         expect(attr(xhrSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
 
         expect(xhrSpan!.parentSpanId).toBeTruthy();
-        const rootTrace = await waitForParentEnvelope(fakeFlare, xhrSpan!);
-        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === xhrSpan!.parentSpanId);
+        const root = await parentOf(fakeFlare, xhrSpan!);
         expect(root).toBeTruthy();
         expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
+    });
+
+    // The fetch 404/500 pair above pins both sides of endHttpRequestSpan's status branch. XHR runs
+    // through the same span helper but a different patch, so pin that its 404 is recorded rather
+    // than assumed to behave like fetch's.
+    test('a failing XHR records its status without marking the span an error', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('xhr-404')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('xhr-404:404');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-404')),
+        });
+        const span = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-404'));
+        expect(span).toBeTruthy();
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 404 });
+        expect(span!.status?.code ?? 0).toBe(0);
+    });
+
+    // REGRESSION TEST FOR THE TRACEPARENT INIT REBUILD. Kit's dev_fetch brands the init it hands a
+    // `load` fetch with a NON-ENUMERABLE `__sveltekit_fetch__`, and its dev-mode window.fetch wrapper
+    // warns when the brand is missing. Flare patches window.fetch after Kit's, so rebuilding the init
+    // to inject traceparent used to spread the brand away and make Kit scold the developer for using
+    // `window.fetch` in a load function while they were already using the right one. Unit tests pin
+    // mergeTraceparentHeader in isolation; only this catches the symptom as reported. Needs dev mode
+    // (Kit gates the wrapper on DEV && BROWSER), which is what the default e2e webServer runs.
+    test('Kit does not warn about window.fetch for a traced load fetch', async ({ page }) => {
+        const warnings: string[] = [];
+        page.on('console', (msg) => {
+            if (msg.type() === 'warning') warnings.push(msg.text());
+        });
+
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+        await page.getByRole('link', { name: 'HTTP' }).click(); // client nav => load fetch runs in the browser
+        await expect(page).toHaveURL(/\/http$/);
+        await expect(page.getByTestId(testIds.httpResult)).toBeVisible();
+
+        expect(warnings.filter((w) => /using `window.fetch`/.test(w))).toEqual([]);
     });
 
     // PINS VERIFIED FACT 11. Kit's fetcher.js:9 captures `native_fetch = window.fetch` at module
@@ -276,8 +304,7 @@ test.describe('svelte http tracing', () => {
 
         // It fired during the navigation, so it must nest under the navigation root, not the pageload.
         expect(loadFetch!.parentSpanId).toBeTruthy();
-        const rootTrace = await waitForParentEnvelope(fakeFlare, loadFetch!);
-        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === loadFetch!.parentSpanId);
+        const root = await parentOf(fakeFlare, loadFetch!);
         expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
     });
 });
