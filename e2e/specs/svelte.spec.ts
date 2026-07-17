@@ -83,8 +83,8 @@ test.describe('svelte tracing', () => {
             stringValue: '/product/[id]',
         });
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
-        // The nav root's url.full must be the DESTINATION even though Kit emits `navigating`
-        // before the URL commits. This is what proves the seam's url override is wired.
+        // The nav root's url.full has to be where the navigation went, even though Kit tells us
+        // before the URL changes. This is what proves the url override is wired up.
         expect(JSON.stringify((nav && attr(nav, 'url.full')) ?? '')).toContain('/product/p01');
 
         // registerNavigationSource suppresses the History-based root, so one click => one root.
@@ -94,10 +94,10 @@ test.describe('svelte tracing', () => {
         expect(navSpans).toHaveLength(1);
     });
 
-    // THE BATCHING GATE. The span assertions above cannot distinguish a correctly held root from a
-    // coalesced branch-7 fallback: with no load function on any playground route, both are near-zero
-    // and identically named, and `hold` never reaches the wire. So assert on what the effect actually
-    // observed. A missing 'to:' entry means Svelte batched the non-null state away.
+    // The span assertions above cannot tell a correctly held root apart from the fallback that runs
+    // when no navigation was seen: with no load function on any playground route both are near-zero
+    // and named the same, and `hold` never reaches the wire. So assert on what the effect actually
+    // saw instead. A missing 'to:' entry means Svelte ran the two updates together.
     test('an effect created at client init observes the non-null navigating state', async ({ page }) => {
         // `window.__navStates` is declared by the playground, not by the e2e tsconfig, so read it
         // through a cast rather than adding a global declaration to the suite.
@@ -113,8 +113,8 @@ test.describe('svelte tracing', () => {
         await page.locator('a[href="/product/p01"]').first().click();
         await expect(page).toHaveURL(/\/product\/p01$/);
 
-        // `navigating` returns to null a tick AFTER the URL commits (client.js:1856 then :2023), so
-        // poll rather than reading once.
+        // Kit clears `navigating` a tick after the URL changes, not at the same time, so poll for
+        // it rather than reading once.
         await expect.poll(async () => (await readStates()).at(-1)).toBe('null');
 
         expect(await readStates()).toContain('to:/product/p01'); // survived batching
@@ -209,8 +209,8 @@ test.describe('svelte http tracing', () => {
             (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500'),
         );
         expect(span).toBeTruthy();
-        // The 404 test above pins the non-error side; this pins the other half of endHttpRequestSpan's
-        // branch: status >= 500 both records the status AND marks the span an OTel error (code 2).
+        // The 404 test above covers the non-error side. This covers the other half: a status of 500
+        // or more records the status and also marks the span an OTel error (code 2).
         expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 500 });
         expect(span!.status?.code ?? 0).toBe(2);
     });
@@ -258,13 +258,12 @@ test.describe('svelte http tracing', () => {
         expect(span!.status?.code ?? 0).toBe(0);
     });
 
-    // REGRESSION TEST FOR THE TRACEPARENT INIT REBUILD. Kit's dev_fetch brands the init it hands a
-    // `load` fetch with a NON-ENUMERABLE `__sveltekit_fetch__`, and its dev-mode window.fetch wrapper
-    // warns when the brand is missing. Flare patches window.fetch after Kit's, so rebuilding the init
-    // to inject traceparent used to spread the brand away and make Kit scold the developer for using
-    // `window.fetch` in a load function while they were already using the right one. Unit tests pin
-    // mergeTraceparentHeader in isolation; only this catches the symptom as reported. Needs dev mode
-    // (Kit gates the wrapper on DEV && BROWSER), which is what the default e2e webServer runs.
+    // Kit marks the init it gives a load fetch with a hidden `__sveltekit_fetch__` flag, and its
+    // dev-mode wrapper warns when the flag is missing. We patch window.fetch after Kit does, so
+    // rebuilding the init to add traceparent used to drop the flag and warn the developer about
+    // using window.fetch in a load function while they were already using the right one. The unit
+    // tests cover mergeTraceparentHeader on its own; only this one catches the warning as reported.
+    // Kit only wraps fetch in dev mode, which is what the e2e webServer runs.
     test('Kit does not warn about window.fetch for a traced load fetch', async ({ page }) => {
         const warnings: string[] = [];
         page.on('console', (msg) => {
@@ -280,12 +279,12 @@ test.describe('svelte http tracing', () => {
         expect(warnings.filter((w) => /using `window.fetch`/.test(w))).toEqual([]);
     });
 
-    // PINS VERIFIED FACT 11. Kit's fetcher.js:9 captures `native_fetch = window.fetch` at module
-    // scope, which reads like it pins the unpatched original; it does not (that reference is only
-    // used inside Kit's own wrapper). subsequent_fetch reads window.fetch at CALL time, so Flare's
-    // patch sees a load fetch. If this test fails, the fact is wrong and the JSDoc needs the
-    // limitation after all. Deep-linking would run the load on the SERVER (no patch, no span), so
-    // this MUST be a client navigation.
+    // Kit grabs a reference to window.fetch when its module loads, which looks like it would pin the
+    // unpatched original. It does not: that reference is only used inside Kit's own wrapper, and the
+    // fetch it hands a load function reads window.fetch when it is called, so our patch sees it. If
+    // this test fails, that is no longer true and the JSDoc needs to say so. Deep-linking would run
+    // the load on the server, where there is no patch and no span, so this has to be a client
+    // navigation.
     test("SvelteKit's load-provided fetch produces a browser_fetch span", async ({ page, fakeFlare }) => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');

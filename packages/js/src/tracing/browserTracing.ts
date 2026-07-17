@@ -17,9 +17,10 @@ export type RouteName = {
     name: string;
     source: 'route' | 'url';
     /**
-     * Destination href. When set, re-stamps the root's `url.full` + `flare.entry_point.value` in
-     * lockstep with the name, so a redirected or superseded navigation reports where it actually
-     * landed rather than the destination it opened with. Omit to leave the opening URL alone.
+     * Where the navigation is going. When set, the root's `url.full` and `flare.entry_point.value`
+     * are updated together with the name, so a navigation that was redirected, or replaced by a
+     * newer one, reports the page it ended on rather than the one it opened with. Leave it out to
+     * keep the url the root started with.
      */
     url?: string;
 };
@@ -208,7 +209,7 @@ export function stopBrowserTracing(): void {
     lastPath = '';
 }
 
-/** Rename the current root and keep its identifier + source attribute in lockstep. No-op if it closed. */
+/** Rename the current root and update the attributes that go with the name. No-op once it closed. */
 function applyRouteName(route: RouteName): void {
     if (currentRoot && controller && !controller.isEnded) {
         try {

@@ -26,8 +26,8 @@ export const urlOf = (span: OtlpSpan): string => JSON.stringify(attr(span, 'url.
 
 /**
  * Wait for the envelope carrying a child's parent root. A root holds open for its idle window while
- * request spans flush eagerly, so the parent routinely arrives in a LATER envelope than the child:
- * poll across every captured trace rather than searching the one the child was found in.
+ * request spans flush eagerly, so the parent usually arrives in a later envelope than the child.
+ * Poll across every captured trace rather than searching the one the child was found in.
  */
 export const waitForParentEnvelope = (fakeFlare: FakeFlare, child: OtlpSpan) =>
     fakeFlare.waitForTrace({

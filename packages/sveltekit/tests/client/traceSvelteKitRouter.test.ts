@@ -27,8 +27,8 @@ vi.mock('@flareapp/js', () => ({
 const HERE = new URL(location.origin + '/');
 
 // The module holds state (tracing/inFlight/lastKey), so every test needs a fresh copy. `$app/state`
-// must be re-seeded AFTER resetModules: the reset gives the module under test a brand-new mock
-// instance, so anything written to a pre-reset instance is silently discarded.
+// has to be seeded again after resetModules: the reset gives the module under test a brand-new mock
+// instance, so anything written to the old one is quietly thrown away.
 async function load() {
     vi.resetModules();
     const { page, navigating } = await import('$app/state');
@@ -36,9 +36,9 @@ async function load() {
     page.route = { id: '/' };
     navigating.to = null;
     navigating.willUnload = false;
-    // `flushSync` MUST come from the post-reset `svelte` instance: resetModules gives the module
-    // under test a brand-new svelte runtime with its own effect queue, and the copy imported at the
-    // top of this file flushes the OLD queue, which is a silent no-op.
+    // `flushSync` has to come from the svelte instance created after the reset. resetModules gives
+    // the module under test its own svelte runtime with its own effect queue, and a copy imported at
+    // the top of this file would flush the old queue, which does nothing at all.
     const { flushSync } = await import('svelte');
     return { ...(await import('../../src/client/traceSvelteKitRouter.svelte')), page, navigating, flushSync };
 }
@@ -56,7 +56,7 @@ test('registers a navigation source even when tracing is off at call time', asyn
 
     // The whole point of having no call-time gate: registration happens regardless, so a later
     // flare.configure({ enableTracing: true }) still produces named roots. That tracing-flips-on-later
-    // behaviour needs branch 6, so it is asserted in Task 3 (case 16), not here.
+    // behaviour needs a naming snapshot, which the pageload tests below cover instead.
     expect(registerNavigationSource).toHaveBeenCalledTimes(1);
     stop();
 });
@@ -110,13 +110,13 @@ async function started() {
     return { ...mod, stop };
 }
 
-// NOTE ON `url` IN THESE SNAPSHOTS: `started()` initialises `lastKey` from jsdom's `location`, i.e.
-// `/`. A snapshot whose url is anything else has `key !== lastKey` and therefore hits branch 7 (the
-// fallback), NOT branch 6. So pageload-naming cases MUST use `url: HERE`. `routeId` is what names the
-// root; the url only decides the key and the fallback name. Getting this wrong makes a branch-6 test
-// silently assert branch-7 behaviour.
+// About `url` in these snapshots: `started()` takes the starting key from jsdom's location, which is
+// `/`. A snapshot with any other url looks like the page moved, and then it opens a root instead of
+// naming one. So a test about naming the pageload has to pass `url: HERE`. The name comes from
+// `routeId`; the url only decides whether we read it as a move. Get this wrong and a naming test
+// quietly asserts the behaviour of the fallback instead.
 
-// EVERY OTHER CASE BELOW CALLS `syncNavigation` DIRECTLY, so none of them touch the effect body.
+// Every other case below calls `syncNavigation` directly, so none of them touch the effect body.
 // That body is the fragile half: it must read `navigating.to` (not `.from`), `page.route.id` and
 // `page.url`, and it must re-run when any of them change. Swap a field for the wrong one and every
 // other unit test here still passes. So drive one full navigation through the reactive state.
@@ -162,7 +162,7 @@ test('the disposed effect stops observing $app/state', async () => {
 
 test('names the pageload root from the committed route id', async () => {
     const { syncNavigation, stop } = await started();
-    syncNavigation(snap({ routeId: '/product/[id]', url: HERE })); // url: HERE => branch 6
+    syncNavigation(snap({ routeId: '/product/[id]', url: HERE })); // url: HERE, so this only names
     expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: HERE.href });
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
@@ -178,10 +178,9 @@ test('falls back to the pathname when there is no route id', async () => {
 test('a late-resolving route id renames the pageload root and opens no nav root', async () => {
     const { syncNavigation, stop } = await started();
 
-    // Kit's `page.route.id` is null until hydration resolves it, so the first snapshot at the
-    // initial key can only name from the url. Both snapshots sit at `lastKey`, so both take
-    // branch 6 and neither may open a navigation root. The re-name is a `source` flip, not a
-    // name change: that IS the observable here.
+    // Kit's `page.route.id` is null until hydration resolves it, so the first snapshot can only
+    // name from the url. Neither snapshot moves the page, so neither may open a navigation root.
+    // The second one changes `source`, not the name, and that is what this asserts.
     syncNavigation(snap({ routeId: null }));
     expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'url', url: HERE.href });
 
@@ -250,8 +249,8 @@ test('a hash-only change opens no navigation root', async () => {
 
 test('fallback: a committed key change while idle opens an un-held root and settles it at once', async () => {
     const { syncNavigation, stop } = await started();
-    // Same snapshot as the pageload test above EXCEPT `url: PRODUCT`, which moves the key off
-    // `lastKey` ('/') and is precisely what selects branch 7 over branch 6.
+    // The same snapshot as the pageload test above apart from `url: PRODUCT`, which moves the page
+    // off the starting location and is what makes this read as a navigation rather than a naming.
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
     expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href });
     expect(nav.startNavigation.mock.calls[0][0]).not.toHaveProperty('hold');
@@ -269,16 +268,16 @@ test('lastKey re-stamp: a repeat snapshot after a settle opens no second root', 
     stop();
 });
 
-test('branch 7 re-stamp: a repeat snapshot after the fallback opens no second root', async () => {
+test('a repeat snapshot after the fallback opens no second root', async () => {
     const { syncNavigation, stop } = await started();
-    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT })); // branch 7 fallback
+    syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT })); // the fallback
     vi.clearAllMocks();
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT })); // same snapshot again
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
 
-test('branch 0 does not consume the transition when tracing is off', async () => {
+test('a snapshot seen while tracing is off is not treated as a navigation', async () => {
     const { syncNavigation, stop } = await started();
     flareConfig.enableTracing = false;
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
@@ -292,11 +291,10 @@ test('branch 0 does not consume the transition when tracing is off', async () =>
     stop();
 });
 
-// Branch 0 must keep tracking the committed location, not just eat the snapshot. Without the
-// lastKey stamp the key goes stale for every navigation made while tracing was off, and the first
-// idle snapshot after it flips back on reads as a move and fabricates a branch-7 root for a page
-// that never navigated.
-test('a navigation made while tracing was off does not fabricate a root when it comes back on', async () => {
+// While tracing is off we still have to follow the current page, not just drop the snapshot.
+// Without that the key goes stale during every navigation made while tracing was off, and the first
+// snapshot after it comes back on reads as a move and opens a root for a page that never moved.
+test('a navigation made while tracing was off does not open a root when it comes back on', async () => {
     const { syncNavigation, stop } = await started();
     flareConfig.enableTracing = false;
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
@@ -304,8 +302,8 @@ test('a navigation made while tracing was off does not fabricate a root when it 
     flareConfig.enableTracing = true;
 
     vi.clearAllMocks();
-    // An idle snapshot at the SAME committed location (e.g. Kit reassigning page.url on a hash
-    // change). It is not a move, so it must take branch 6 and name, never branch 7 and open a root.
+    // A snapshot at the same location (for example Kit reassigning page.url on a hash
+    // change). The page did not move, so it must name the root and never open a new one.
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
 
     expect(nav.startNavigation).not.toHaveBeenCalled();
@@ -320,23 +318,23 @@ test('a navigation made while tracing was off does not fabricate a root when it 
 
 // The `a:` placeholder is checked before the tracing gate precisely so it cannot reach that stamp:
 // its pathname is empty, and stamping '' would make the next real snapshot look like a move.
-test('the pre-hydration placeholder does not poison lastKey while tracing is off', async () => {
+test('the pre-hydration placeholder is not mistaken for a page while tracing is off', async () => {
     const { syncNavigation, stop } = await started();
     flareConfig.enableTracing = false;
     syncNavigation({ to: null, willUnload: false, routeId: null, url: new URL('a:') });
     flareConfig.enableTracing = true;
 
-    syncNavigation(snap({ routeId: '/', url: HERE })); // still the initial location => branch 6
+    syncNavigation(snap({ routeId: '/', url: HERE })); // still the initial location, so just name it
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
 
-test('a to-null settle stranded by tracing going off does not desync the next navigation', async () => {
+test('a settle lost because tracing went off does not break the next navigation', async () => {
     const { syncNavigation, stop } = await started();
     // Navigation starts while tracing is on: held root opens, inFlight = true.
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
     flareConfig.enableTracing = false;
-    // The to-null settle snapshot arrives while tracing is off; branch 0 must eat it AND clear
+    // The settle snapshot arrives while tracing is off, so it must be dropped and also clear
     // inFlight, or the next navigation below finds inFlight already true and opens no root.
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
     flareConfig.enableTracing = true;

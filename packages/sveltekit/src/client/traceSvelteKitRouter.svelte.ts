@@ -21,53 +21,55 @@ let nav: NavigationSource | null = null;
 let inFlight = false;
 let lastKey = '';
 
-// Hash excluded on purpose: Kit's hash navigation reassigns `page.url` without running a real
-// navigation, and a hash-keyed comparison would fabricate a root for it.
+// The hash is left out on purpose. A hash change updates `page.url` without a real navigation, so
+// including it would open a root for a page that never moved.
 const keyOf = (url: URL): string => url.pathname + url.search;
 
-// `url` rides along on every name so a redirect hop re-stamps the root's url.full in lockstep: the
-// root was opened from the FIRST destination and would otherwise report a URL never landed on.
+// Every name carries the destination url so the root's url.full is updated together with it. The
+// root opens with the first destination, so after a redirect it would otherwise report a page the
+// user never landed on.
 const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =>
     routeId ? { name: routeId, source: 'route', url: url.href } : { name: url.pathname, source: 'url', url: url.href };
 
 /** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
 export function syncNavigation(snapshot: NavSnapshot): void {
     if (!nav) return;
-    // branch 1: Kit's `a:` placeholder. Checked BEFORE the tracing gate because it is not a real
-    // location: its pathname is empty, so letting it reach the lastKey stamp below would poison the
-    // key and make the next real snapshot look like a move.
+    // Kit's `a:` placeholder url, which it uses before hydration. Its origin is not ours, and it has
+    // no pathname. Checked before the tracing gate because it is not a real page: storing it as
+    // lastKey would make the next real snapshot look like a navigation.
     if (snapshot.url.origin !== location.origin) return;
     if (!flare.config?.enableTracing) {
-        // A settle can never arrive while tracing is off, so the latch must not persist across the
-        // toggle: otherwise a held root is stranded and the next navigation opens no root at all.
+        // No settle can arrive while tracing is off, so clear the flag. If it stayed set, the next
+        // navigation would think one was already running and open no root.
         inFlight = false;
-        // Keep tracking the committed location too. Without this the key goes stale for every
-        // navigation made while tracing was off, and the first idle snapshot after it flips back on
-        // reads as a move and fabricates a branch-7 root for a page that never navigated.
+        // Keep following the current page as well. Otherwise the key goes stale during every
+        // navigation made while tracing was off, and the first snapshot after it comes back on looks
+        // like a navigation and opens a root for a page that never moved.
         lastKey = keyOf(snapshot.url);
-        return; // branch 0
+        return;
     }
 
     const to = snapshot.to;
     if (to) {
         const toRouteId = to.route?.id;
-        // branch 2: `willUnload` is `!intent` and `to.route.id` is `intent?.route?.id ?? null`, so
-        // these are one condition. The document is about to unload; its pageload will cover it.
+        // The document is about to unload, so the next pageload will cover this. Kit derives both of
+        // these from the same missing intent, which is why one check covers both.
         if (snapshot.willUnload || toRouteId == null) return;
 
         if (!inFlight) {
-            // branch 3: Kit emits this BEFORE the URL commits, so pass the destination explicitly.
+            // Kit tells us where it is going before the URL changes, so pass the destination along.
             inFlight = true;
             nav.startNavigation({ path: to.url.pathname, url: to.url.href, hold: true });
         }
-        // branch 3 + 4: re-set across redirect hops, which re-emit without an intervening null.
+        // Set again on every hop of a redirect. Kit gives each hop a new destination without going
+        // back to null in between, so the same root just gets renamed.
         nav.setActiveRouteName(routeNameFor(toRouteId, to.url));
         return;
     }
 
     if (inFlight) {
-        // branch 5: `page` is fully committed by now (Kit calls update() at client.js:1941, well
-        // before it nulls `navigating` at :2023), so name from the committed route.
+        // `page` has caught up by now: Kit updates it before it clears `navigating`, so name the
+        // root from the route we landed on.
         inFlight = false;
         lastKey = keyOf(snapshot.url);
         nav.settleNavigation(routeNameFor(snapshot.routeId, snapshot.url));
@@ -76,13 +78,13 @@ export function syncNavigation(snapshot: NavSnapshot): void {
 
     const key = keyOf(snapshot.url);
     if (key === lastKey) {
-        // branch 6: pageload naming, and late-resolving route ids.
+        // Naming the pageload, and picking up a route id that resolved late.
         nav.setActiveRouteName(routeNameFor(snapshot.routeId, snapshot.url));
         return;
     }
 
-    // branch 7: the committed location moved with no observed `navigating` emission. Expected to be
-    // dead code; it exists so a coalesced effect degrades to an instant root instead of no root.
+    // The page moved without us seeing a navigation. This is here so that if Svelte ever runs the
+    // two updates together we still report a root, even though it will have no duration.
     lastKey = key;
     nav.startNavigation({ path: snapshot.url.pathname, url: snapshot.url.href });
     nav.settleNavigation(routeNameFor(snapshot.routeId, snapshot.url));
@@ -105,8 +107,8 @@ export function traceSvelteKitRouter(): () => void {
     tracing = true;
 
     let dispose: (() => void) | undefined;
-    // Wiring runs inside the guard because hooks.client.ts calls this at module scope: a throw here
-    // would take down client boot, not just tracing. The effect body has its own `insulate`.
+    // hooks.client.ts calls this while the module loads, so a throw here would take down the whole
+    // client, not just tracing. The effect body guards itself with `insulate`.
     safeInvoke(() => {
         nav = registerNavigationSource();
         inFlight = false;
@@ -122,13 +124,14 @@ export function traceSvelteKitRouter(): () => void {
     };
 }
 
-/** The reactive half: one `$effect.root` feeding observed snapshots to the pure state machine. */
+/** The reactive half: one `$effect.root` feeding what it sees to the state machine above. */
 function startEffect(): () => void {
     return $effect.root(() => {
         $effect(
             insulate(() =>
-                // The reads ARE the body. No control flow here: Svelte tracks dependencies as they
-                // are read, so an early return above any read would stop the effect re-running.
+                // The reads are the whole body on purpose. Svelte only re-runs an effect for the
+                // values it saw it read, so an early return above any of these would stop it
+                // running again.
                 syncNavigation({
                     to: navigating.to,
                     willUnload: navigating.willUnload,

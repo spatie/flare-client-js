@@ -25,14 +25,14 @@ export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride
 };
 
 /**
- * The URL-derived subset of a root's context, for re-stamping a root whose destination changed
- * after it opened: a redirect hop, or a navigation superseded by a newer one. Both re-name a root
- * that `startNavigation` already stamped from the FIRST destination, which would otherwise keep
- * reporting a URL the user never landed on.
+ * The url attributes of a root span, so a root can be updated when its destination changes after it
+ * opened. That happens on a redirect, or when a newer navigation replaces this one. `startNavigation`
+ * sets the url from the first destination, so without this the root reports a page the user never
+ * landed on.
  *
- * Deliberately excludes `flare.entry_point.handler.identifier`: on a named root the route template
- * owns it, and re-deriving it from the href would clobber `/product/[id]` back to `/product/p01`.
- * Returns `{}` for an unparseable href, so a bad destination leaves the existing values intact.
+ * Leaves `flare.entry_point.handler.identifier` alone. The route template owns that one, and taking
+ * it from the href would turn `/product/[id]` back into `/product/p01`.
+ * Returns `{}` when the href cannot be parsed, so a bad url leaves the current values as they are.
  */
 export const browserSpanUrlAttributes = (config: Readonly<Config>, href: string): Attributes => {
     if (typeof window === 'undefined') return {};
