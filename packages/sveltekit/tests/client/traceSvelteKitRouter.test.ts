@@ -116,7 +116,7 @@ async function started() {
 test('names the pageload root from the committed route id', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ routeId: '/product/[id]', url: HERE })); // url: HERE => branch 6
-    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: HERE.href });
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
@@ -124,7 +124,7 @@ test('names the pageload root from the committed route id', async () => {
 test('falls back to the pathname when there is no route id', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ routeId: null }));
-    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'url' });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'url', url: HERE.href });
     stop();
 });
 
@@ -136,10 +136,10 @@ test('a late-resolving route id renames the pageload root and opens no nav root'
     // branch 6 and neither may open a navigation root. The re-name is a `source` flip, not a
     // name change: that IS the observable here.
     syncNavigation(snap({ routeId: null }));
-    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'url' });
+    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'url', url: HERE.href });
 
     syncNavigation(snap({ routeId: '/' }));
-    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'route', url: HERE.href });
     expect(nav.startNavigation).not.toHaveBeenCalled();
     stop();
 });
@@ -152,7 +152,7 @@ test('opens a held navigation root named from the destination', async () => {
         url: PRODUCT.href,
         hold: true,
     });
-    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: PRODUCT.href });
     stop();
 });
 
@@ -160,7 +160,7 @@ test('settles the navigation from the committed page', async () => {
     const { syncNavigation, stop } = await started();
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } }));
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
-    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: PRODUCT.href });
     stop();
 });
 
@@ -170,7 +170,11 @@ test('a redirect keeps ONE held root and renames it to the final destination', a
     syncNavigation(snap({ to: { url: OLD, route: { id: '/old' } } }));
     syncNavigation(snap({ to: { url: PRODUCT, route: { id: '/product/[id]' } } })); // redirect hop
     expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({
+        name: '/product/[id]',
+        source: 'route',
+        url: PRODUCT.href,
+    });
     stop();
 });
 
@@ -204,7 +208,7 @@ test('fallback: a committed key change while idle opens an un-held root and sett
     syncNavigation(snap({ routeId: '/product/[id]', url: PRODUCT }));
     expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', url: PRODUCT.href });
     expect(nav.startNavigation.mock.calls[0][0]).not.toHaveProperty('hold');
-    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route' });
+    expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/[id]', source: 'route', url: PRODUCT.href });
     stop();
 });
 

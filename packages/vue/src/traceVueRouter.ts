@@ -25,15 +25,18 @@ export function traceVueRouter(router: unknown): () => void {
 
     const nav = registerNavigationSource();
 
+    // `url` rides along on every name so a redirect hop re-stamps the root's url.full in lockstep:
+    // the root was opened from the FIRST destination and would otherwise report a URL never landed on.
     const routeNameFor = (loc: VueRouteLocationLike): RouteName => {
+        const url = hrefOf(loc);
         try {
             const matched = loc.matched;
             const template = matched && matched.length > 0 ? matched[matched.length - 1]?.path : undefined;
-            if (template) return { name: template, source: 'route' };
+            if (template) return { name: template, source: 'route', url };
         } catch {
             // fall through to the URL name
         }
-        return { name: loc.path, source: 'url' };
+        return { name: loc.path, source: 'url', url };
     };
 
     const hrefOf = (loc: VueRouteLocationLike): string => {

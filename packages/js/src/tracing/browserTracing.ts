@@ -1,6 +1,6 @@
 import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer } from '@flareapp/core';
 
-import { collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
+import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
@@ -13,7 +13,16 @@ export type BrowserTracingFlare = {
     tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
 };
 
-export type RouteName = { name: string; source: 'route' | 'url' };
+export type RouteName = {
+    name: string;
+    source: 'route' | 'url';
+    /**
+     * Destination href. When set, re-stamps the root's `url.full` + `flare.entry_point.value` in
+     * lockstep with the name, so a redirected or superseded navigation reports where it actually
+     * landed rather than the destination it opened with. Omit to leave the opening URL alone.
+     */
+    url?: string;
+};
 export type NavigationSource = {
     startNavigation(opts?: { path?: string; url?: string; hold?: boolean }): void;
     setActiveRouteName(route: RouteName): void;
@@ -206,6 +215,10 @@ function applyRouteName(route: RouteName): void {
             currentRoot.name = route.name;
             currentRoot.setAttribute('flare.entry_point.handler.identifier', route.name);
             currentRoot.setAttribute('flare.route.source', route.source);
+            if (route.url !== undefined && activeFlare) {
+                const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
+                for (const key of Object.keys(urlAttrs)) currentRoot.setAttribute(key, urlAttrs[key]);
+            }
         } catch {
             // instrumentation must never throw into the host app
         }
