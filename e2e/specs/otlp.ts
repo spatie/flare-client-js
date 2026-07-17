@@ -5,6 +5,7 @@ export type OtlpSpan = {
     spanId: string;
     parentSpanId: string | null;
     traceId: string;
+    status?: { code: number; message?: string };
     attributes: Array<{ key: string; value: Record<string, unknown> }>;
 };
 

@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
-import { expect, test } from '../fixtures/fake-flare';
+import { expect, type FakeFlare, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, spansOf } from './otlp';
+import { attr, hasSpanType, type OtlpSpan, spansOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('svelte playground', () => {
@@ -139,5 +139,123 @@ test.describe('svelte tracing', () => {
         // the zero-navigation assertion below is meaningful rather than vacuous.
         expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
         expect(all.filter((s) => hasSpanType(s, 'browser_navigation'))).toHaveLength(0);
+    });
+});
+
+test.describe('svelte http tracing', () => {
+    const urlOf = (span: OtlpSpan) => JSON.stringify(attr(span, 'url.full') ?? '');
+
+    /**
+     * A request span's parent root can flush in an earlier envelope than the request itself (roots
+     * hold open for their idle window; requests flush eagerly), so poll across every captured trace
+     * rather than the single envelope the request span was found in.
+     */
+    const waitForParentEnvelope = (fakeFlare: FakeFlare, child: OtlpSpan) =>
+        fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => spansOf(r.bodyJson).some((s) => s.spanId === child.parentSpanId),
+        });
+
+    test('a fetch fires a browser_fetch span nested under the active root', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('fetch-ok')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('fetch-ok:200');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch')),
+        });
+        const spans = spansOf(trace.bodyJson);
+        const fetchSpan = spans.find((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-ok'));
+        expect(fetchSpan).toBeTruthy();
+        expect(attr(fetchSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
+
+        // The real assertion: it nests under a root, not orphaned at the top level.
+        expect(fetchSpan!.parentSpanId).toBeTruthy();
+        const rootTrace = await waitForParentEnvelope(fakeFlare, fetchSpan!);
+        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === fetchSpan!.parentSpanId);
+        expect(root).toBeTruthy();
+        expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
+    });
+
+    test('a failing fetch still produces a span with its status recorded, not a span error', async ({
+        page,
+        fakeFlare,
+    }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('fetch-404')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('fetch-404:404');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-404')),
+        });
+        const span = spansOf(trace.bodyJson).find(
+            (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-404'),
+        );
+        expect(span).toBeTruthy();
+        // httpRequestSpan.ts's endHttpRequestSpan records the response status on every completion
+        // via http.response.status_code, and only calls setStatus (span error, OTel code 2) for
+        // status >= 500. A 404 is a completed request, so the status attribute must be 404 and the
+        // span's own OTel status must stay Unset (0), not Error.
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 404 });
+        expect(span!.status?.code ?? 0).toBe(0);
+    });
+
+    test('an XHR fires a browser_xhr span nested under the active root', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('xhr-ok')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('xhr-ok:200');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr')),
+        });
+        const spans = spansOf(trace.bodyJson);
+        const xhrSpan = spans.find((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-ok'));
+        expect(xhrSpan).toBeTruthy();
+        expect(attr(xhrSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
+
+        expect(xhrSpan!.parentSpanId).toBeTruthy();
+        const rootTrace = await waitForParentEnvelope(fakeFlare, xhrSpan!);
+        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === xhrSpan!.parentSpanId);
+        expect(root).toBeTruthy();
+        expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
+    });
+
+    // PINS VERIFIED FACT 11. Kit's fetcher.js:9 captures `native_fetch = window.fetch` at module
+    // scope, which reads like it pins the unpatched original; it does not (that reference is only
+    // used inside Kit's own wrapper). subsequent_fetch reads window.fetch at CALL time, so Flare's
+    // patch sees a load fetch. If this test fails, the fact is wrong and the JSDoc needs the
+    // limitation after all. Deep-linking would run the load on the SERVER (no patch, no span), so
+    // this MUST be a client navigation.
+    test("SvelteKit's load-provided fetch produces a browser_fetch span", async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('link', { name: 'HTTP' }).click(); // client nav => load runs in the browser
+        await expect(page).toHaveURL(/\/http$/);
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('kit-load-fetch')),
+        });
+        const spans = spansOf(trace.bodyJson);
+        const loadFetch = spans.find((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('kit-load-fetch'));
+        expect(loadFetch).toBeTruthy();
+
+        // It fired during the navigation, so it must nest under the navigation root, not the pageload.
+        expect(loadFetch!.parentSpanId).toBeTruthy();
+        const rootTrace = await waitForParentEnvelope(fakeFlare, loadFetch!);
+        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === loadFetch!.parentSpanId);
+        expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
     });
 });
