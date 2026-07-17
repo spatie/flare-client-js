@@ -8,7 +8,7 @@ vi.mock('@flareapp/js', () => ({
 }));
 
 const mockPage = await vi.hoisted(async () => {
-    const mod = await import('../../tests/__mocks__/app-state');
+    const mod = await import('../../tests/__mocks__/app-state.svelte');
     return mod.page;
 });
 

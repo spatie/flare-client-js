@@ -1,4 +1,4 @@
-import { createMemoryRouter } from 'react-router';
+import { createBrowserRouter, createHashRouter, createMemoryRouter } from 'react-router';
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,25 +8,9 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', () => ({
-    registerNavigationSource: vi.fn(() => nav),
-    insulate:
-        (fn: (...a: unknown[]) => void) =>
-        (...a: unknown[]) => {
-            try {
-                fn(...a);
-            } catch {
-                /* swallow */
-            }
-        },
-    safeInvoke: (fn?: (() => void) | null) => {
-        try {
-            fn?.();
-        } catch {
-            /* swallow */
-        }
-    },
-}));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { traceReactRouter } from '../src/react-router';
 import type { RRDataRouter } from '../src/vendor/reactRouterTypes';
@@ -63,10 +47,14 @@ beforeEach(() => {
     nav.unregister.mockClear();
 });
 
+// Every RouteName now carries the destination url, so the root's url.full tracks a redirect hop
+// instead of keeping the URL the navigation opened with. Same-origin SPA: origin + path.
+const u = (path: string): string => `${window.location.origin}${path}`;
+
 describe('traceReactRouter against a real react-router data router', () => {
     it('names the pageload index route at registration', async () => {
         await boot(['/']);
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/', source: 'route', url: u('/') });
     });
 
     it('opens a nav root on a loader-less push and settles it with the parameterized name', async () => {
@@ -76,7 +64,11 @@ describe('traceReactRouter against a real react-router data router', () => {
         expect(nav.startNavigation.mock.calls[0]![0].path).toBe('/product/p01');
         expect(nav.startNavigation.mock.calls[0]![0].hold).toBeFalsy(); // no loader window -> no hold
         expect(nav.startNavigation.mock.calls[0]![0].url).toContain('/product/p01');
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('stamps the exact destination url (origin + path + search) on a query-string navigation', async () => {
@@ -84,7 +76,11 @@ describe('traceReactRouter against a real react-router data router', () => {
         await router.navigate('/product/p01?tab=specs');
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.startNavigation.mock.calls[0]![0].url).toBe(`${window.location.origin}/product/p01?tab=specs`);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01?tab=specs'),
+        });
     });
 
     it('detects a same-pathname search-only change as a navigation', async () => {
@@ -115,19 +111,28 @@ describe('traceReactRouter against a real react-router data router', () => {
         expect(nav.settleNavigation).toHaveBeenLastCalledWith({
             name: '/stores/:storeId/products/:productId',
             source: 'route',
+            url: u('/stores/s1/products/p9'),
         });
     });
 
     it('keeps splats', async () => {
         const { router } = await boot();
         await router.navigate('/files/a/b');
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/files/*', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/files/*',
+            source: 'route',
+            url: u('/files/a/b'),
+        });
     });
 
     it('resolves an absolute-path child route', async () => {
         const { router } = await boot();
         await router.navigate('/dashboard/settings');
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/dashboard/settings', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/dashboard/settings',
+            source: 'route',
+            url: u('/dashboard/settings'),
+        });
     });
 
     it('handles a REPLACE navigation (not dropped)', async () => {
@@ -135,7 +140,11 @@ describe('traceReactRouter against a real react-router data router', () => {
         nav.startNavigation.mockClear();
         await router.navigate('/product/p02', { replace: true });
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p02'),
+        });
     });
 
     it('handles a POP back-navigation', async () => {
@@ -144,7 +153,7 @@ describe('traceReactRouter against a real react-router data router', () => {
         nav.startNavigation.mockClear();
         await router.navigate(-1); // back to the index route
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/', source: 'route', url: u('/') });
     });
 
     it('handles a form-action submission (submitting state) as one held root named for its destination', async () => {
@@ -152,7 +161,7 @@ describe('traceReactRouter against a real react-router data router', () => {
         await router.navigate('/submit', { formMethod: 'post', formData: new FormData() });
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.startNavigation.mock.calls[0]![0].hold).toBe(true); // submitting is a non-idle, loader-shape nav
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/submit', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/submit', source: 'route', url: u('/submit') });
     });
 
     it('names a navigation with an async loader (hold is requested)', async () => {
@@ -170,6 +179,59 @@ describe('traceReactRouter against a real react-router data router', () => {
         router.initialize(); // loader-less index settles synchronously
         await router.navigate('/slow');
         expect(nav.startNavigation.mock.calls.at(-1)![0]).toMatchObject({ hold: true });
-        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/slow', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({ name: '/slow', source: 'route', url: u('/slow') });
+    });
+});
+
+// A hash router's `location` says nothing about the `#` the address bar shows, so building the url
+// from its parts gives an address the server does not have. It has to come from `createHref`.
+// Basename routers are fine either way, because `router.state.location.pathname` keeps the basename
+// (unlike `useLocation()` in a component, which strips it) — pinned below so the fix cannot regress it.
+describe('traceReactRouter url.full follows the router', () => {
+    const baseRoutes = [{ path: '/', children: [{ index: true }, { path: 'product/:id' }] }];
+
+    it('keeps the basename an app is served from', async () => {
+        window.history.replaceState({}, '', '/app/');
+        const router = createBrowserRouter(baseRoutes, { basename: '/app' });
+        traceReactRouter(router as unknown as RRDataRouter);
+        await router.navigate('/product/p01');
+
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
+        expect(nav.startNavigation.mock.calls.at(-1)![0].url).toBe(u('/app/product/p01'));
+        router.dispose();
+    });
+
+    it('keeps the # of a hash-router app', async () => {
+        window.history.replaceState({}, '', '/#/');
+        const router = createHashRouter(baseRoutes);
+        traceReactRouter(router as unknown as RRDataRouter);
+        await router.navigate('/product/p01');
+
+        expect(nav.settleNavigation).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/#/product/p01'),
+        });
+        router.dispose();
+    });
+
+    // The pageload root opens with no url of its own, so url.full starts out as the live
+    // window.location.href, which is already right. Naming it must not replace that with a
+    // reconstruction that has the # missing.
+    it('does not damage the pageload root of a hash-router app', () => {
+        window.history.replaceState({}, '', '/#/product/p01');
+        const router = createHashRouter(baseRoutes);
+        traceReactRouter(router as unknown as RRDataRouter);
+
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/#/product/p01'),
+        });
+        router.dispose();
     });
 });

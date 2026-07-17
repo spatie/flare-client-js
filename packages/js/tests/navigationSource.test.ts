@@ -114,6 +114,73 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
+    // `startNavigation` sets url.full from the first destination, but a redirect, or a newer
+    // navigation replacing this one, renames the same held root. Without updating the url too, the
+    // root shows the name of the page it landed on next to the url of the one it never reached.
+    it('setActiveRouteName updates url.full and entry_point.value when a name carries a url', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/');
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/old', url: 'https://app.example/old', hold: true });
+        src.setActiveRouteName({ name: '/cart', source: 'route', url: 'https://app.example/cart' });
+
+        const nav = spans[1];
+        expect(nav.attrs['url.full']).toBe('https://app.example/cart');
+        expect(nav.attrs['flare.entry_point.value']).toBe('https://app.example/cart');
+        // The route template still owns the identifier. Taking it from the href would turn '/cart'
+        // back into a url-shaped name.
+        expect(nav.attrs['flare.entry_point.handler.identifier']).toBe('/cart');
+        src.unregister();
+    });
+
+    // `attrs` only records setAttribute calls, so a missing key here means we never tried to update
+    // it and the root keeps whatever startNavigation set when it was created.
+    it('omitting url leaves the url the root opened with untouched', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/old', url: 'https://app.example/old', hold: true });
+        src.settleNavigation({ name: '/old', source: 'route' }); // no url
+
+        expect(spans[1].attrs['url.full']).toBeUndefined(); // no re-stamp
+        expect(startSpan.mock.calls[1]![1]!.attributes?.['url.full']).toBe('https://app.example/old');
+        src.unregister();
+    });
+
+    it('a url that will not parse leaves the existing url.full alone', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/old', url: 'https://app.example/old', hold: true });
+        src.setActiveRouteName({ name: '/cart', source: 'route', url: 'http://[' });
+
+        expect(spans[1].attrs['url.full']).toBeUndefined(); // rejected, not written
+        expect(startSpan.mock.calls[1]![1]!.attributes?.['url.full']).toBe('https://app.example/old');
+        expect(spans[1].span.name).toBe('/cart'); // the rename still lands
+        src.unregister();
+    });
+
+    it('the updated url is redacted by urlDenylist like the opening one', () => {
+        vi.useFakeTimers();
+        const { flare, spans } = fakeFlare();
+        (flare.config as { urlDenylist: RegExp }).urlDenylist = /token/;
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+
+        src.startNavigation({ path: '/old', url: 'https://app.example/old', hold: true });
+        src.settleNavigation({ name: '/cart', source: 'route', url: 'https://app.example/cart?token=secret' });
+
+        expect(spans[1].attrs['url.full']).not.toContain('secret');
+        src.unregister();
+    });
+
     it('setActiveRouteName no-ops once the active root has ended', () => {
         vi.useFakeTimers();
         const { flare, spans } = fakeFlare();

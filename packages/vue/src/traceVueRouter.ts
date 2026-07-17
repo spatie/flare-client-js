@@ -1,4 +1,4 @@
-import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
 import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from './vendor/vueRouterTypes';
 
@@ -25,20 +25,34 @@ export function traceVueRouter(router: unknown): () => void {
 
     const nav = registerNavigationSource();
 
+    // Every name carries the destination url so the root's url.full is updated together with it.
+    // The root opens with the first destination, so after a redirect it would otherwise report a
+    // page the user never landed on.
     const routeNameFor = (loc: VueRouteLocationLike): RouteName => {
+        const url = hrefOf(loc);
         try {
             const matched = loc.matched;
             const template = matched && matched.length > 0 ? matched[matched.length - 1]?.path : undefined;
-            if (template) return { name: template, source: 'route' };
+            if (template) return { name: template, source: 'route', url };
         } catch {
             // fall through to the URL name
         }
-        return { name: loc.path, source: 'url' };
+        return { name: loc.path, source: 'url', url };
     };
 
-    const hrefOf = (loc: VueRouteLocationLike): string => {
-        const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        return origin + (loc.fullPath ?? loc.path ?? '');
+    // `resolve` is what puts the app's base path or `#` prefix back on: `fullPath` has them
+    // stripped, so an app served from `/app/` would report `/product/p01` for the real
+    // `/app/product/p01`. Fall back to the bare path only if the router has no `resolve`.
+    const hrefOf = (loc: VueRouteLocationLike): string | undefined => {
+        const path = loc.fullPath ?? loc.path;
+        if (!path) return undefined;
+        let href = path;
+        try {
+            href = r.resolve?.(path)?.href ?? path;
+        } catch {
+            // a router that throws on resolve still gets a url, just without the base path
+        }
+        return absoluteHref(href);
     };
 
     const isInitial = (from: VueRouteLocationLike | undefined): boolean =>

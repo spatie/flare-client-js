@@ -230,13 +230,11 @@ describe('mergeTraceparentHeader', () => {
         expect((init as RequestInit & { duplex?: string })!.duplex).toBeUndefined();
     });
 
-    // A spread copies only ENUMERABLE own properties. Callers brand `init` with non-enumerable
-    // markers: SvelteKit's `dev_fetch` tags the init it hands a `load` function with a
-    // non-enumerable `__sveltekit_fetch__`, and its dev-mode `window.fetch` wrapper warns the
-    // developer to "use the `fetch` passed to your load function" when the tag is missing. Rebuilding
-    // the init to inject `traceparent` must not strip it, or Flare makes SvelteKit scold developers
-    // for something they are already doing correctly.
-    it('preserves a NON-ENUMERABLE own property on the caller init (regression)', () => {
+    // A spread only copies enumerable properties. SvelteKit's `dev_fetch` marks the init it gives a
+    // `load` function with a hidden `__sveltekit_fetch__` flag, and its dev-mode fetch wrapper warns
+    // the developer to use the `fetch` from their load function when the flag is missing. Rebuilding
+    // the init to add `traceparent` must keep the flag, or we warn people about code that is fine.
+    it('keeps a hidden property the caller put on the init (regression)', () => {
         const callerInit: RequestInit = { method: 'GET' };
         Object.defineProperty(callerInit, '__sveltekit_fetch__', {
             value: true,
@@ -251,7 +249,7 @@ describe('mergeTraceparentHeader', () => {
         expect(init!.method).toBe('GET');
     });
 
-    it('keeps a preserved non-enumerable property non-enumerable (regression)', () => {
+    it('keeps that property hidden rather than making it enumerable (regression)', () => {
         const callerInit: RequestInit = {};
         Object.defineProperty(callerInit, '__sveltekit_fetch__', {
             value: true,
@@ -261,7 +259,7 @@ describe('mergeTraceparentHeader', () => {
 
         const init = mergeTraceparentHeader('https://app.example/x', callerInit, TP);
 
-        // Re-enumerating it would leak the marker into anything that spreads or serializes the init.
+        // Making it enumerable would leak the flag into anything that spreads or serializes the init.
         expect(Object.keys(init!)).not.toContain('__sveltekit_fetch__');
         expect(Object.getOwnPropertyDescriptor(init!, '__sveltekit_fetch__')?.enumerable).toBe(false);
     });

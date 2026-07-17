@@ -4,27 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const nav = vi.hoisted(() => ({
     startNavigation: vi.fn(),
     setActiveRouteName: vi.fn(),
+    settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', () => ({
-    registerNavigationSource: vi.fn(() => nav),
-    insulate:
-        (fn: (...a: unknown[]) => void) =>
-        (...a: unknown[]) => {
-            try {
-                fn(...a);
-            } catch {
-                /* swallow */
-            }
-        },
-    safeInvoke: (fn?: (() => void) | null) => {
-        try {
-            fn?.();
-        } catch {
-            /* swallow */
-        }
-    },
-}));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { traceTanStackRouter } from '../src/tanstack-router';
 import type { TsrMatch } from '../src/vendor/tanstackRouterTypes';
@@ -51,11 +36,20 @@ beforeEach(() => {
     nav.unregister.mockClear();
 });
 
+// Every RouteName now carries the destination url so the root's url.full tracks redirect hops. These
+// fakes omit TanStack's `href`, so hrefOf falls back to origin + pathname (the `href` shape is
+// pinned separately below).
+const u = (path: string): string => `${window.location.origin}${path}`;
+
 describe('traceTanStackRouter', () => {
     it('enriches the pageload root from the current location at registration', () => {
         const { router } = fakeRouter({ location: { pathname: '/product/p01', search: {} } });
         traceTanStackRouter(router);
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/$id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('corrects the pageload name on the initial onResolved (loader redirect), no nav root', () => {
@@ -67,7 +61,7 @@ describe('traceTanStackRouter', () => {
             { routeId: '/login', fullPath: '/login' },
         ]);
         emit('onResolved', { fromLocation: undefined, toLocation: { pathname: '/login', search: {} } });
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/login', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/login', source: 'route', url: u('/login') });
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
 
@@ -79,9 +73,17 @@ describe('traceTanStackRouter', () => {
         const to = { pathname: '/product/p01', search: {}, state: {} };
         emit('onBeforeLoad', { fromLocation: from, toLocation: to });
         expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01' });
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/$id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
         emit('onResolved', { fromLocation: from, toLocation: to });
-        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/product/$id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('skips the initial pageload onBeforeLoad', () => {
@@ -119,7 +121,7 @@ describe('traceTanStackRouter', () => {
         emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         emit('onResolved', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
-        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/b', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/b', source: 'route', url: u('/b') });
     });
 
     it('falls back to the URL name when only __root__ matches', () => {
@@ -131,7 +133,7 @@ describe('traceTanStackRouter', () => {
             fromLocation: { pathname: '/', search: {}, state: {} },
             toLocation: { pathname: '/nope', search: {}, state: {} },
         });
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/nope', source: 'url' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/nope', source: 'url', url: u('/nope') });
     });
 
     it('falls back to routeId when fullPath is empty', () => {
@@ -146,7 +148,29 @@ describe('traceTanStackRouter', () => {
             fromLocation: { pathname: '/', search: {}, state: {} },
             toLocation: { pathname: '/layout', search: {}, state: {} },
         });
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/layout', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/layout', source: 'route', url: u('/layout') });
+    });
+
+    // TanStack's real ParsedLocation.href is pathname + search + hash without the origin. Taking
+    // `pathname` instead would silently drop the query string.
+    it("builds the url from TanStack's origin-relative href, not the bare pathname", () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: { tab: 'specs' },
+                href: '/product/p01?tab=specs',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01?tab=specs'),
+        });
     });
 
     it('cleanup unsubscribes and unregisters', () => {
@@ -171,6 +195,55 @@ describe('traceTanStackRouter', () => {
                 toLocation: { pathname: '/kaboom', search: {}, state: {} },
             }),
         ).not.toThrow();
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/kaboom', source: 'url' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/kaboom', source: 'url', url: u('/kaboom') });
+    });
+});
+
+// A `basepath` is applied as a rewrite, so it is stripped from `href` and kept only on `publicHref`.
+// Reading `href` for an app served from `/app/` reports `/product/p01` for the real
+// `/app/product/p01`: an address the server does not have, and one that overwrites the correct
+// url.full the pageload root already had.
+describe('traceTanStackRouter url.full keeps the basepath', () => {
+    it('prefers publicHref over the rewritten href', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/app/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/app/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
+    });
+
+    // No basepath means no rewrite, and then TanStack sets publicHref and href to the same value.
+    it('is unchanged when the two agree', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 });

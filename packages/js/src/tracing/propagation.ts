@@ -87,11 +87,10 @@ export function mergeTraceparentHeader(
         headers = { traceparent };
     }
 
-    // Copy every own descriptor rather than spreading: a spread takes only ENUMERABLE own
-    // properties, and callers brand `init` with non-enumerable markers. SvelteKit tags the init it
-    // hands a `load` function with a non-enumerable `__sveltekit_fetch__`, and its dev-mode
-    // `window.fetch` wrapper tells the developer to "use the `fetch` passed to your load function"
-    // when the tag is missing, so dropping it makes Flare scold them for code that is already right.
+    // Copy the property descriptors instead of spreading. A spread only copies enumerable
+    // properties, and SvelteKit marks the init it gives a `load` function with a hidden
+    // `__sveltekit_fetch__` flag. If we drop that flag, SvelteKit's dev-mode fetch wrapper warns the
+    // developer to use the `fetch` from their load function, which is what they were already doing.
     const result: RequestInit = { headers };
     if (init) {
         const descriptors = Object.getOwnPropertyDescriptors(init);

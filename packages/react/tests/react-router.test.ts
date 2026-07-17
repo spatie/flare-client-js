@@ -7,25 +7,9 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-vi.mock('@flareapp/js/browser', () => ({
-    registerNavigationSource: vi.fn(() => nav),
-    insulate:
-        (fn: (...a: unknown[]) => void) =>
-        (...a: unknown[]) => {
-            try {
-                fn(...a);
-            } catch {
-                /* swallow */
-            }
-        },
-    safeInvoke: (fn?: (() => void) | null) => {
-        try {
-            fn?.();
-        } catch {
-            /* swallow */
-        }
-    },
-}));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
 
 import { routeNameFromMatches, traceReactRouter } from '../src/react-router';
 import type { RRMatch, RRRouterState } from '../src/vendor/reactRouterTypes';
@@ -105,11 +89,19 @@ describe('routeNameFromMatches', () => {
     });
 });
 
+// Every RouteName now carries the destination url so a redirect hop re-stamps the root's url.full.
+// These fake locations carry only a pathname, so hrefOf reconstructs origin + pathname.
+const u = (path: string): string => `${window.location.origin}${path}`;
+
 describe('traceReactRouter', () => {
     it('names the pageload root from the current matches at registration', () => {
         const { router } = fakeRouter({ matches: PRODUCT_MATCHES, location: { pathname: '/product/p01' } });
         traceReactRouter(router);
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('defers pageload naming to the settle when matches are empty at registration, opening no nav root', () => {
@@ -117,7 +109,11 @@ describe('traceReactRouter', () => {
         traceReactRouter(router);
         expect(nav.setActiveRouteName).not.toHaveBeenCalled();
         emit({ initialized: true, matches: PRODUCT_MATCHES, location: { pathname: '/product/p01' } });
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
 
@@ -129,7 +125,11 @@ describe('traceReactRouter', () => {
         });
         traceReactRouter(router);
         // Named now from the synchronously-resolved matches, not deferred to a later fire.
-        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
         nav.setActiveRouteName.mockClear();
         // The initialize settle (same location) may re-name but must open no navigation root.
         emit({ initialized: true, matches: PRODUCT_MATCHES, location: { pathname: '/product/p01' } });
@@ -146,7 +146,11 @@ describe('traceReactRouter', () => {
             matches: PRODUCT_MATCHES,
             location: { pathname: '/product/p01' },
         });
-        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
 
@@ -167,7 +171,11 @@ describe('traceReactRouter', () => {
             matches: PRODUCT_MATCHES,
             location: { pathname: '/product/p01' },
         });
-        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('detects a loader-less navigation (single idle fire, no loading state) via the committed location', () => {
@@ -182,7 +190,11 @@ describe('traceReactRouter', () => {
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         expect(nav.startNavigation.mock.calls[0]![0].path).toBe('/product/p01');
         expect(nav.startNavigation.mock.calls[0]![0].hold).toBeFalsy(); // no loader window -> no hold
-        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/product/:id', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/product/:id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
     });
 
     it('does not double-open on a follow-up same-location fire (scroll restoration etc.)', () => {
@@ -211,7 +223,7 @@ describe('traceReactRouter', () => {
             location: { pathname: '/b' },
         });
         expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
-        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/b', source: 'route' });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/b', source: 'route', url: u('/b') });
     });
 
     it('falls back to the URL name when matches yield nothing', () => {
@@ -223,7 +235,7 @@ describe('traceReactRouter', () => {
             matches: [{ route: {}, pathname: '/nope' }],
             location: { pathname: '/nope' },
         });
-        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/nope', source: 'url' });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/nope', source: 'url', url: u('/nope') });
     });
 
     it('opens no nav root for revalidation (navigation.state stays idle)', () => {

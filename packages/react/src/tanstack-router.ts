@@ -1,7 +1,7 @@
 // Electron-safe entry: NO @flareapp/js root import. The navigation-source seam
 // comes from @flareapp/js/browser (side-effect-free). NO runtime dependency on
 // @tanstack/react-router — the router is consumed structurally (see ./vendor).
-import { insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
 import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
 
@@ -14,17 +14,26 @@ import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRoute
 export function traceTanStackRouter(router: TsrRouter): () => void {
     const nav = registerNavigationSource();
 
+    // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so
+    // an app served from `/app/` has it stripped from `href` but kept on `publicHref`. Falling back
+    // to `href` costs the basepath, which is what we reported before, so it never makes things worse.
+    const hrefOf = (loc: TsrLocation): string | undefined => absoluteHref(loc.publicHref ?? loc.href ?? loc.pathname);
+
+    // Every name carries the destination url so the root's url.full is updated together with it.
+    // Roots here open without a url of their own (TanStack reports the destination only as a parsed
+    // location), so without this a nav root would keep the url of the page it left.
     const routeNameFor = (loc: TsrLocation): RouteName => {
+        const url = hrefOf(loc);
         try {
             const matches = router.matchRoutes(loc.pathname, loc.search, { preload: false, throwOnError: false });
             const last = matches[matches.length - 1];
             const matched = matches.some((m) => m.routeId !== '__root__');
             const name = matched ? last?.fullPath || last?.routeId : undefined;
-            if (name) return { name, source: 'route' };
+            if (name) return { name, source: 'route', url };
         } catch {
             // fall through to the URL name
         }
-        return { name: loc.pathname, source: 'url' };
+        return { name: loc.pathname, source: 'url', url };
     };
 
     // Enrich the pageload root immediately from the current (already-resolved) location.
