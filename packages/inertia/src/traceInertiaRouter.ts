@@ -1,6 +1,6 @@
 import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
 
-import type { InertiaEventLike, InertiaPageLike, InertiaRouterLike } from './vendor/inertiaTypes';
+import type { InertiaEventLike, InertiaPageLike, InertiaRouterLike, InertiaVisitLike } from './vendor/inertiaTypes';
 
 // Dedup re-instrumentation of the same router. Vite HMR can re-run boot code against a router that
 // survives the reload; without this, each cycle appends another listener set that is never removed.
@@ -20,6 +20,21 @@ function locationOf(raw: URL | string | null | undefined): { href?: string; path
 }
 
 const here = (): string => (typeof location !== 'undefined' ? location.pathname : '');
+
+/** True when the visit is Inertia doing background work rather than moving the user to another page.
+ *  These fire the same `start` and `finish` a real visit does, and opening a root for one both invents
+ *  a navigation and ends the root that was live. */
+function isBackgroundVisit(visit: InertiaVisitLike | undefined): boolean {
+    if (!visit) return false;
+    if (visit.prefetch) return true;
+    // `router.reload()` is the shared entry point for polling, deferred props and infinite scroll. It
+    // always reloads the current url with `async: true`, so an async visit that does not take the user
+    // off the page they are on is a refresh. Infinite scroll only changes the query, which is why this
+    // compares the path rather than the whole url. A deliberate `router.visit(url, { async: true })`
+    // to a different page still opens a root.
+    const { path } = locationOf(visit.url);
+    return !!visit.async && path !== undefined && path === here();
+}
 
 /** Name a root from the page object. `component` ('Products/Show') is Inertia's low-cardinality route
  *  identifier, so it aggregates the way the other integrations' route templates do. */
@@ -55,8 +70,10 @@ export function traceInertiaRouter(router: unknown): () => void {
     const offStart = r.on(
         'start',
         insulate((event: InertiaEventLike) => {
+            const visit = event?.detail?.visit;
+            if (isBackgroundVisit(visit)) return;
             inFlight = true;
-            const { href, path } = locationOf(event?.detail?.visit?.url);
+            const { href, path } = locationOf(visit?.url);
             nav.startNavigation({ path, url: href, hold: true });
         }),
     );

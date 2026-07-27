@@ -111,3 +111,38 @@ describe('successful visits', () => {
         });
     });
 });
+
+describe('background visits', () => {
+    it('opens no root for a prefetch', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.prefetchVisit('/products/42');
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('opens no root for a background reload of the page we are on', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        // What polling, deferred props, infinite scroll and router.reload() all look like.
+        router.backgroundVisit({ url: '/', component: 'Products/Index' });
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('still opens a root for a deliberate async visit to another page', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/cart', window.location.href), async: true } });
+
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation).toHaveBeenCalledWith({
+            path: '/cart',
+            url: u('/cart'),
+            hold: true,
+        });
+    });
+});
