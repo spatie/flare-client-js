@@ -100,8 +100,10 @@ export function traceInertiaRouter(router: unknown): () => void {
             }
 
             // Back/forward fires navigate alone, with no start to open the root, so do both here.
+            // No hold: there is no pending wait to suppress, and settling in the same tick would
+            // force-close a held root at zero duration before any child span could attach.
             const { href, path } = locationOf(page?.url);
-            nav.startNavigation({ path, url: href, hold: true });
+            nav.startNavigation({ path, url: href });
             settle(page);
         }),
     );

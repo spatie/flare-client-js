@@ -176,7 +176,6 @@ describe('initial page load and history navigation', () => {
         expect(nav.startNavigation).toHaveBeenCalledWith({
             path: '/products/42',
             url: u('/products/42'),
-            hold: true,
         });
         expect(nav.settleNavigation).toHaveBeenCalledWith({
             name: 'Products/Show',
