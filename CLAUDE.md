@@ -290,6 +290,6 @@ npm run release
 
 ### Skill
 
-For an automated walkthrough use the `release` skill: `/release <package> <version>` (e.g.
-`/release js 1.2.0`). It runs the pre-flight checks, invokes `release-it`, and updates the CLAUDE.md version
-table.
+For an automated walkthrough of a single independently versioned package use the `release` skill:
+`/release <package> <version>` (e.g. `/release core 2.7.0`). It runs the pre-flight checks and invokes
+`release-it`. It refuses lockstep packages and sends you to `npm run release:all`.

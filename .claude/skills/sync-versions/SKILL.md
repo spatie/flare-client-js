@@ -17,19 +17,22 @@ Audit all `package.json` files in the monorepo for version consistency.
 
 3. **Shared devDependencies**: Check that `typescript` and `tsdown` versions are the same across all packages that use them.
 
-4. **Monorepo table in CLAUDE.md**: Check if the version numbers listed in the CLAUDE.md monorepo structure table match the actual versions in each `package.json`.
+4. **Lockstep set shares one version**: `js`, `react`, `vue`, `svelte`, `webpack`, `vite`, `sveltekit` and `nextjs` must all be on the same version, anchored on `@flareapp/js`. Flag any that drifted, which usually means someone released one of them on its own with per-package `release-it` instead of `npm run release:all`. `core`, `node`, `electron`, `react-native` and `react-native-sourcemaps` version independently and are exempt.
+
+5. **Exact `@flareapp/core` pins**: `js`, `node`, `electron`, `react`, `vue`, `svelte` and `react-native` pin `@flareapp/core` exactly (no caret). Verify each pin matches the current `packages/core` version.
 
 ## Output
 
 Show a concise report:
 
 ```
-@flareapp/js       1.1.0  OK
-@flareapp/react    1.0.1  OK
-@flareapp/vue      1.0.1  WARNING: tsdown version differs from root (...)
-@flareapp/vite     1.0.3  OK
+@flareapp/js       2.6.0  OK
+@flareapp/react    2.6.0  OK
+@flareapp/vue      2.6.0  WARNING: tsdown version differs from root (...)
+@flareapp/vite     2.5.1  WARNING: lockstep drift, expected 2.6.0
 
-CLAUDE.md versions: all match / X mismatches found
+Lockstep set: all on 2.6.0 / X packages drifted
+@flareapp/core pins: all match 2.6.0 / X stale
 ```
 
 If issues are found, suggest the fix but don't apply it — let the user decide.
