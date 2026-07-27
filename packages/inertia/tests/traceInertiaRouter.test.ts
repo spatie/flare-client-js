@@ -296,3 +296,45 @@ describe('visits that fire no navigate', () => {
         });
     });
 });
+
+describe('background traffic during a navigation', () => {
+    it('ignores a background reload that lands mid-navigation', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/checkout', window.location.href) } });
+        nav.startNavigation.mockClear();
+
+        // A poll of the page we have not left yet ticks while the navigation is still in flight.
+        router.backgroundVisit({ url: '/', component: 'Products/Index' });
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+        expect(nav.settleNavigation).not.toHaveBeenCalled();
+    });
+
+    it('ignores a prefetch that finishes mid-navigation', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/checkout', window.location.href) } });
+        router.prefetchVisit('/products/42');
+
+        expect(nav.settleNavigation).not.toHaveBeenCalled();
+    });
+
+    it('still settles the navigation when its own response arrives', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/checkout', window.location.href) } });
+        router.backgroundVisit({ url: '/', component: 'Products/Index' });
+        router.emit('navigate', { page: { url: '/checkout', component: 'Checkout/Index' } });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Checkout/Index',
+            source: 'route',
+            url: u('/checkout'),
+        });
+    });
+});

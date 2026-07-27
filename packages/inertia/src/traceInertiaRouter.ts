@@ -61,6 +61,7 @@ export function traceInertiaRouter(router: unknown): () => void {
     const nav = registerNavigationSource();
 
     let inFlight = false;
+    let inFlightPath: string | undefined;
     let sawInitial = false;
 
     // The component name of the page the browser is showing, as far as Inertia has told us. A visit
@@ -78,6 +79,7 @@ export function traceInertiaRouter(router: unknown): () => void {
 
     const settle = (page: InertiaPageLike | undefined): void => {
         inFlight = false;
+        inFlightPath = undefined;
         nav.settleNavigation(nameFor(page));
     };
 
@@ -89,6 +91,7 @@ export function traceInertiaRouter(router: unknown): () => void {
             sawInitial = true;
             inFlight = true;
             const { href, path } = locationOf(visit?.url);
+            inFlightPath = path;
             nav.startNavigation({ path, url: href, hold: true });
         }),
     );
@@ -129,17 +132,27 @@ export function traceInertiaRouter(router: unknown): () => void {
             // inFlight and this is a no-op: navigate fires from inside the promise Response.handle()
             // returns, and success fires after that resolves.
             if (!inFlight) return;
-            settle(event?.detail?.page);
+            const page = event?.detail?.page;
+            // A background reload's success fires on the async stream while a navigation is still
+            // running on the sync one. Only the response for the page this root was opened for may
+            // settle it.
+            if (locationOf(page?.url).path !== inFlightPath) return;
+            settle(page);
         }),
     );
     const offFinish = r.on(
         'finish',
-        insulate(() => {
+        insulate((event: InertiaEventLike) => {
             // An errored, cancelled or non-Inertia response fires neither navigate nor success. Without
             // this the held root stays idle-suppressed until the 30s finalTimeout. Settle to where the
             // browser actually is, since the visit never landed on its destination.
             if (!inFlight) return;
+            // Same stream-crossing problem. A visit shape we cannot read at all falls through to the
+            // backstop rather than stranding the held root.
+            const visit = event?.detail?.visit;
+            if (visit && locationOf(visit.url).path !== inFlightPath) return;
             inFlight = false;
+            inFlightPath = undefined;
             const { href, path } = locationOf(here());
             // Name it after that page when we know it, which is the usual case for a failed form post:
             // it re-renders the page it was sent from, and we were told that page's name on arrival.
