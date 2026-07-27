@@ -151,10 +151,18 @@ Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --pro
 
 ## Publishing
 
-Each published package (`@flareapp/js`, `@flareapp/react`, `@flareapp/vue`, `@flareapp/vite`, `@flareapp/webpack`, `@flareapp/nextjs`) is released
-independently with [`release-it`](https://github.com/release-it/release-it). `release-it` is installed once at the
-repo root as a devDependency and shared across workspaces. Per-package configuration lives in
-`packages/<pkg>/.release-it.json` and a `release` script in each `packages/<pkg>/package.json`.
+Publishing runs on [`release-it`](https://github.com/release-it/release-it), installed once at the repo root as a
+devDependency and shared across workspaces. Per-package configuration lives in `packages/<pkg>/.release-it.json`
+and a `release` script in each `packages/<pkg>/package.json`.
+
+There are two paths:
+
+- **`scripts/release-all.mjs`, the normal one.** Releases the lockstep set (`js`, `react`, `vue`, `svelte`,
+  `webpack`, `vite`, `sveltekit`, `nextjs`) on one shared version, and can release the independently versioned
+  packages (`core`, `node`, `electron`, `react-native`, `react-native-sourcemaps`) in the same run. It drives
+  `release-it` per package, rewrites cross-package references, and publishes in dependency tiers.
+- **Per-package `release-it`.** `cd packages/<pkg> && npm run release`. Bumps and publishes that one package,
+  and rewrites nothing. Use it for the independently versioned packages only.
 
 ## Commits and PRs
 
@@ -165,10 +173,14 @@ repo root as a devDependency and shared across workspaces. Per-package configura
 
 ### Release a single package
 
+For the independently versioned packages (`core`, `node`, `electron`, `react-native`,
+`react-native-sourcemaps`). Do not use this for a lockstep package: it does not rewrite cross-package
+references, so it ships a stale peer range.
+
 From the package directory you want to release:
 
 ```bash
-cd packages/<pkg>            # js, react, vue, or vite
+cd packages/<pkg>            # core, node, electron, react-native, react-native-sourcemaps
 npm run release              # interactive: prompts for the next version
 ```
 
@@ -185,9 +197,8 @@ npm run release -- --dry-run # preview without changing anything
    `requireCleanWorkingDir: true`).
 2. Prompt for the next version (or accept the increment passed on the CLI).
 3. Bump `version` in that package's `package.json`.
-4. Run the `before:release` hook: `npm test --if-present`. `@flareapp/js` and `@flareapp/react` have a
-   `test` script today and run their vitest suites. `@flareapp/vue` will once PR #31 lands (adds the
-   `test` script + a vitest suite). `@flareapp/vite` has no tests, so the hook is a no-op for it.
+4. Run the `before:release` hook: `npm test --if-present`. Every package has a `test` script (`vitest run`),
+   so this runs that package's suite. The hook is never a no-op.
 5. Commit the version bump as `chore: release @flareapp/<pkg>@<version>`.
 6. Create an annotated tag `@flareapp/<pkg>@<version>`.
 7. Push the commit and tag to `origin`.
@@ -209,12 +220,27 @@ If any of those fail, fix first; do not release.
 
 ### Versioning rules
 
-- Each package versions independently, no lockstep across the monorepo.
+- Two version tracks. The lockstep set (`js`, `react`, `vue`, `svelte`, `webpack`, `vite`, `sveltekit`,
+  `nextjs`) shares one version anchored on `@flareapp/js`. `core`, `node`, `electron`, `react-native` and
+  `react-native-sourcemaps` version independently.
 - Use semver: bug fix only -> `patch`, additive non-breaking -> `minor`, breaking change -> `major`.
-- If you bump `@flareapp/js` to a major version, audit the `peerDependencies` ranges in `@flareapp/react`,
-  `@flareapp/vue`, and `@flareapp/vite`. The peer-dep ranges are not auto-updated by `release-it`. The
-  `sync-versions` skill checks this.
-- After releasing, update the version column in the "Monorepo structure" table at the top of this file.
+- **Cross-package references are rewritten automatically by `scripts/release-all.mjs`, not by hand.**
+  On every run it sets the `@flareapp/js` peer range of `@flareapp/react`, `@flareapp/vue`,
+  `@flareapp/svelte` and `@flareapp/sveltekit` to `^<lockstepVersion>`, plus `@flareapp/sveltekit` ->
+  `@flareapp/svelte` and `@flareapp/nextjs` -> `@flareapp/webpack`. See `LOCKSTEP_REFS` and
+  `updateCrossReferences` in that script; the edits are staged into the release commit. Every lockstep
+  package is always in the release set, so there is no "remember to raise the peer floor" step.
+  Publish order backs this up: `@flareapp/js` publishes a tier before the framework packages, and the
+  script waits for npm visibility between tiers.
+  This matters because the four framework packages runtime-import `@flareapp/js` internals. Publishing
+  one against an older `@flareapp/js` breaks its entry point at module init, not just the new feature.
+- **The per-package `release-it` flow rewrites nothing.** It only bumps that one package's own version.
+  Use it for the independently versioned packages (see below). Releasing a lockstep package with it
+  ships a stale peer range. Nothing enforces this, so it is on you.
+- The `sync-versions` skill audits the ranges against current versions if you want to check the state
+  outside a release.
+- Each `package.json` is the source of truth for its own version. The "Monorepo structure" table above
+  deliberately carries no version column, so there is nothing to update there after a release.
 
 ### Authentication
 
@@ -225,8 +251,8 @@ If any of those fail, fix first; do not release.
 ### Out of scope
 
 - No CI/GitHub Actions publishing. GitHub releases are disabled (`github.release: false`).
-- No `CHANGELOG.md` generation, no conventional-commit-driven version inference.
-- No coordinated multi-package release. Release each package separately.
+- No `CHANGELOG.md` generation, no conventional-commit-driven version inference. Versions are chosen
+  interactively at release time.
 
 ### Independently versioned packages: `@flareapp/core` and `@flareapp/node`
 
@@ -264,6 +290,6 @@ npm run release
 
 ### Skill
 
-For an automated walkthrough use the `release` skill: `/release <package> <version>` (e.g.
-`/release js 1.2.0`). It runs the pre-flight checks, invokes `release-it`, and updates the CLAUDE.md version
-table.
+For an automated walkthrough of a single independently versioned package use the `release` skill:
+`/release <package> <version>` (e.g. `/release core 2.7.0`). It runs the pre-flight checks and invokes
+`release-it`. It refuses lockstep packages and sends you to `npm run release:all`.

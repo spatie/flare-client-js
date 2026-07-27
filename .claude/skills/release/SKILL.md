@@ -1,6 +1,6 @@
 ---
 name: release
-description: Release a single @flareapp/* package to npm using release-it. Runs cross-workspace pre-flight checks, invokes release-it from the package directory, and updates the CLAUDE.md version table.
+description: Release a single independently versioned @flareapp/* package to npm using release-it. Runs cross-workspace pre-flight checks and invokes release-it from the package directory. Not for the lockstep set, which goes through npm run release:all.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Edit
 argument-hint: <package-name> [version]
@@ -12,7 +12,13 @@ Release the `@flareapp/$0` package using `release-it`. Optional `$1` is a versio
 `major`, or an explicit `x.y.z`). If `$1` is omitted, ask the user which bump is appropriate based on recent
 commits before running, then pass it to `release-it`.
 
-Valid `$0` values: `js`, `react`, `vue`, `vite`.
+Valid `$0` values are the independently versioned packages: `core`, `node`, `electron`, `react-native`,
+`react-native-sourcemaps`.
+
+If `$0` is a lockstep package (`js`, `react`, `vue`, `svelte`, `webpack`, `vite`, `sveltekit`, `nextjs`), stop
+and tell the user to run `npm run release:all` instead. Per-package `release-it` rewrites no cross-package
+reference, so releasing a lockstep package this way ships a stale `@flareapp/js` peer range and breaks the
+published entry point.
 
 ## How publishing works in this repo
 
@@ -20,8 +26,8 @@ Valid `$0` values: `js`, `react`, `vue`, `vite`.
 - Each package has `"release": "release-it"` in its `package.json` scripts.
 - `release-it` enforces clean working tree + `main` branch, bumps version, commits, tags, pushes, then publishes.
 - `prepublishOnly` runs the build, so the published artifact is always fresh.
-- `before:release` hook runs `npm test --if-present`. `@flareapp/js` and `@flareapp/react` have test
-  scripts today; `@flareapp/vue` will once PR #31 lands; `@flareapp/vite` has no tests.
+- `before:release` hook runs `npm test --if-present`. Every package has a `test` script (`vitest run`), so the
+  hook always runs that package's suite.
 
 The `release-it` flow does not type-check, does not build other packages, and does not run cross-workspace tests.
 This skill performs those checks before invoking `release-it`.
@@ -53,11 +59,13 @@ This skill performs those checks before invoking `release-it`.
 5. If `$1` is empty, summarize the commits since the last `@flareapp/$0@*` tag (`git log @flareapp/$0@<last>..HEAD -- packages/$0`)
    and propose a bump (`patch` / `minor` / `major`). Ask the user to confirm before continuing.
 
-## Cross-package peer dependency check
+## Cross-package pin check
 
-6. If `$0` is `js` and the bump is a major bump, read `packages/react/package.json`, `packages/vue/package.json`,
-   and `packages/vite/package.json`. For each, check the `peerDependencies["@flareapp/js"]` range. If the new
-   version falls outside the range, warn the user. Do not edit those files automatically.
+6. If `$0` is `core`, the exact `@flareapp/core` pin in `packages/js`, `packages/node`, `packages/electron`,
+   `packages/react`, `packages/vue`, `packages/svelte` and `packages/react-native` will still point at the old
+   version once this release lands, because per-package `release-it` does not rewrite it. Warn the user, and
+   point them at `npm run release:all`, which rewrites those pins and publishes in dependency order. Do not
+   edit the files automatically.
 
 ## Confirm
 
@@ -88,13 +96,14 @@ This skill performs those checks before invoking `release-it`.
 
 ## Post-release
 
-9. Update the version column in the "Monorepo structure" table in `.claude/CLAUDE.md` to reflect the new version
-   of `@flareapp/$0`.
-
-10. Print a summary:
+9. Print a summary:
     - Package: `@flareapp/$0`
     - Old version -> new version
     - Tag: `@flareapp/$0@<new-version>`
     - npm: `https://www.npmjs.com/package/@flareapp/$0`
 
-11. Remind the user to run the `sync-versions` skill if `@flareapp/js` was bumped to a new major version.
+    Nothing else needs updating. `CLAUDE.md` records no per-package versions; each `package.json` is the
+    source of truth for its own version.
+
+10. If `$0` is `core`, remind the user to run the `sync-versions` skill to see which `@flareapp/core` pins are
+    now stale.
