@@ -411,3 +411,32 @@ describe('a navigation superseded by a newer one', () => {
         expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('re-instrumentation and isolation', () => {
+    it('tears down the previous instrumentation when called twice on the same router', () => {
+        const router = createFakeInertiaRouter();
+
+        traceInertiaRouter(router);
+        traceInertiaRouter(router);
+
+        expect(router.listenerCount()).toBe(4);
+
+        router.visit({ url: '/products/42', component: 'Products/Show' });
+
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+    });
+
+    it('never lets a throwing seam escape into the host dispatch', () => {
+        nav.startNavigation.mockImplementation(() => {
+            throw new Error('seam exploded');
+        });
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        // No cleanup here on purpose. Undoing it at the end of the body would be skipped the moment
+        // this expectation failed, and every later test would then run against a throwing seam. The
+        // mockReset in beforeEach handles it whether this passes or not.
+        expect(() => router.visit({ url: '/products/42', component: 'Products/Show' })).not.toThrow();
+    });
+});
