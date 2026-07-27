@@ -337,4 +337,27 @@ describe('background traffic during a navigation', () => {
             url: u('/checkout'),
         });
     });
+
+    it('settles a redirect-back through the finish backstop, since success cannot tell it apart from a background poll', () => {
+        // Posting to /checkout and the server does redirect()->back(): the page lands back on the url
+        // the user already had, which forces replace and never fires navigate. success carries no
+        // visit, only page, so this looks identical to a background poll of that same page and the
+        // guard skips it. finish compares the stable visit.url instead, so the root still settles
+        // there, using whatever the fallback naming resolves to. The fake router's visit()/replaceVisit()
+        // drivers cannot express this: both derive page url and visit url from one FakeVisit, so this
+        // uses emit directly.
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/checkout', window.location.href) } });
+        router.emit('success', { page: { url: '/', component: 'Products/Index' } });
+        router.emit('finish', { visit: { url: new URL('/checkout', window.location.href) } });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/',
+            source: 'url',
+            url: u('/'),
+        });
+    });
 });

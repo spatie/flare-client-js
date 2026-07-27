@@ -135,7 +135,18 @@ export function traceInertiaRouter(router: unknown): () => void {
             const page = event?.detail?.page;
             // A background reload's success fires on the async stream while a navigation is still
             // running on the sync one. Only the response for the page this root was opened for may
-            // settle it.
+            // settle it here.
+            //
+            // A visit that redirects to a different path than it requested also fails this check: the
+            // `success` detail carries only `page`, no visit, so a redirect back to the page the user
+            // was already on is indistinguishable from a background poll of that same page. It is not
+            // dropped, `finish` compares the stable `visit.url` instead and settles it through the
+            // backstop there.
+            //
+            // Both sides can be undefined for a url neither side could parse, which compares equal and
+            // falls through to settle rather than stall on it. Deliberate, unlike finish's explicit
+            // undefined-visit fallthrough below: there is no visit object here to tell a genuinely
+            // unreadable page apart from one that is simply missing.
             if (locationOf(page?.url).path !== inFlightPath) return;
             settle(page);
         }),
