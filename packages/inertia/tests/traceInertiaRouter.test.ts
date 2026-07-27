@@ -218,3 +218,81 @@ describe('initial page load and history navigation', () => {
         });
     });
 });
+
+describe('visits that fire no navigate', () => {
+    it('settles a replace visit on success', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.replaceVisit({ url: '/cart', component: 'Cart/Index' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Cart/Index',
+            source: 'route',
+            url: u('/cart'),
+        });
+    });
+
+    it('settles a form post that re-renders the page it was sent from', () => {
+        // The common same-url shape, and the one the `replace: true` reading of this rule misses:
+        // page.url is unchanged, so page.set() forces replace and no navigate fires.
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.replaceVisit({ url: '/', component: 'Products/Index' });
+
+        expect(nav.startNavigation).toHaveBeenCalledWith({
+            path: '/',
+            url: u('/'),
+            hold: true,
+        });
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Products/Index',
+            source: 'route',
+            url: u('/'),
+        });
+    });
+
+    it('does not settle twice when navigate already settled', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.visit({ url: '/products/42', component: 'Products/Show' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases the held root on finish when a visit failed', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.failedVisit({ url: '/checkout' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/',
+            source: 'url',
+            url: u('/'),
+        });
+    });
+
+    it('names a failed visit after the page the browser is on', () => {
+        // A validation error fires `error` and never `success`, so the backstop is the only settle.
+        // Inertia has already swapped the page in by then, so the browser is on a real page with a
+        // component name; reporting the raw url would give /products/42/comments.
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.navigateOnly({ url: '/', component: 'Products/Index' }); // initial load
+        router.failedVisit({ url: '/products/42/comments' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Products/Index',
+            source: 'route',
+            url: u('/'),
+        });
+    });
+});

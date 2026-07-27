@@ -63,9 +63,22 @@ export function traceInertiaRouter(router: unknown): () => void {
     let inFlight = false;
     let sawInitial = false;
 
+    // The component name of the page the browser is showing, as far as Inertia has told us. A visit
+    // that ends without a page of its own is then named after the page it left the user on, rather
+    // than after a raw url like /products/42/comments.
+    let lastComponent: { path?: string; name: string } | undefined;
+
+    const nameFor = (page: InertiaPageLike | undefined): RouteName => {
+        const route = routeNameFor(page);
+        // Only a route-sourced name is worth keeping. A url-sourced one is what we are trying to
+        // avoid falling back to in the first place.
+        if (route.source === 'route') lastComponent = { path: locationOf(page?.url).path, name: route.name };
+        return route;
+    };
+
     const settle = (page: InertiaPageLike | undefined): void => {
         inFlight = false;
-        nav.settleNavigation(routeNameFor(page));
+        nav.settleNavigation(nameFor(page));
     };
 
     const offStart = r.on(
@@ -95,7 +108,7 @@ export function traceInertiaRouter(router: unknown): () => void {
             // pageload root already covers that window, so name it rather than open a second root.
             if (!sawInitial) {
                 sawInitial = true;
-                nav.setActiveRouteName(routeNameFor(page));
+                nav.setActiveRouteName(nameFor(page));
                 return;
             }
 
@@ -109,11 +122,34 @@ export function traceInertiaRouter(router: unknown): () => void {
     );
     const offSuccess = r.on(
         'success',
-        insulate(() => {}),
+        insulate((event: InertiaEventLike) => {
+            // page.set() fires navigate only when replace is false, and it forces replace for a visit
+            // that lands on the url it started on. So a same-url visit, and one that asked for
+            // `replace: true`, both settle here instead. On a normal visit navigate already cleared
+            // inFlight and this is a no-op: navigate fires from inside the promise Response.handle()
+            // returns, and success fires after that resolves.
+            if (!inFlight) return;
+            settle(event?.detail?.page);
+        }),
     );
     const offFinish = r.on(
         'finish',
-        insulate(() => {}),
+        insulate(() => {
+            // An errored, cancelled or non-Inertia response fires neither navigate nor success. Without
+            // this the held root stays idle-suppressed until the 30s finalTimeout. Settle to where the
+            // browser actually is, since the visit never landed on its destination.
+            if (!inFlight) return;
+            inFlight = false;
+            const { href, path } = locationOf(here());
+            // Name it after that page when we know it, which is the usual case for a failed form post:
+            // it re-renders the page it was sent from, and we were told that page's name on arrival.
+            const known = lastComponent?.path === path ? lastComponent?.name : undefined;
+            nav.settleNavigation(
+                known
+                    ? { name: known, source: 'route', url: href }
+                    : { name: path ?? here(), source: 'url', url: href },
+            );
+        }),
     );
 
     const cleanup = (): void => {
