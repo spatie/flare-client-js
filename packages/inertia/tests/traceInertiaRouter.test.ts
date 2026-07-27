@@ -146,3 +146,76 @@ describe('background visits', () => {
         });
     });
 });
+
+describe('initial page load and history navigation', () => {
+    it('names the pageload root from the first bare navigate, opening no root', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.navigateOnly({ url: '/products', component: 'Products/Index' });
+
+        expect(nav.setActiveRouteName).toHaveBeenCalledTimes(1);
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: 'Products/Index',
+            source: 'route',
+            url: u('/products'),
+        });
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+        expect(nav.settleNavigation).not.toHaveBeenCalled();
+    });
+
+    it('opens and settles a root for a back/forward step after the initial load', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.navigateOnly({ url: '/products', component: 'Products/Index' }); // initial load
+        nav.setActiveRouteName.mockClear();
+
+        router.navigateOnly({ url: '/products/42', component: 'Products/Show' }); // back/forward
+
+        expect(nav.startNavigation).toHaveBeenCalledWith({
+            path: '/products/42',
+            url: u('/products/42'),
+            hold: true,
+        });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Products/Show',
+            source: 'route',
+            url: u('/products/42'),
+        });
+    });
+
+    it('treats a bare navigate after a real visit as history, not as the initial load', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.visit({ url: '/products/42', component: 'Products/Show' });
+        nav.startNavigation.mockClear();
+        nav.settleNavigation.mockClear();
+
+        router.navigateOnly({ url: '/products', component: 'Products/Index' });
+
+        expect(nav.setActiveRouteName).not.toHaveBeenCalled();
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+    });
+
+    it('still names the pageload root when a deferred-props reload fires start first', () => {
+        // On a page using Inertia::defer(), page.set() kicks off the deferred reload from inside its
+        // own promise chain, so that visit's `start` lands before InitialVisit fires `navigate`. The
+        // background filter is what keeps it from claiming to be the initial navigation.
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/', window.location.href), async: true } });
+        router.navigateOnly({ url: '/', component: 'Products/Index' });
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+        expect(nav.setActiveRouteName).toHaveBeenCalledTimes(1);
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: 'Products/Index',
+            source: 'route',
+            url: u('/'),
+        });
+    });
+});

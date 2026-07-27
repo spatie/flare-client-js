@@ -61,6 +61,7 @@ export function traceInertiaRouter(router: unknown): () => void {
     const nav = registerNavigationSource();
 
     let inFlight = false;
+    let sawInitial = false;
 
     const settle = (page: InertiaPageLike | undefined): void => {
         inFlight = false;
@@ -72,6 +73,7 @@ export function traceInertiaRouter(router: unknown): () => void {
         insulate((event: InertiaEventLike) => {
             const visit = event?.detail?.visit;
             if (isBackgroundVisit(visit)) return;
+            sawInitial = true;
             inFlight = true;
             const { href, path } = locationOf(visit?.url);
             nav.startNavigation({ path, url: href, hold: true });
@@ -81,8 +83,26 @@ export function traceInertiaRouter(router: unknown): () => void {
     const offNavigate = r.on(
         'navigate',
         insulate((event: InertiaEventLike) => {
-            if (!inFlight) return;
-            settle(event?.detail?.page);
+            const page = event?.detail?.page;
+
+            if (inFlight) {
+                settle(page);
+                return;
+            }
+
+            // The initial page load fires navigate with no preceding start: page.set() suppresses it
+            // (the initial load forces replace), but InitialVisit.handle() fires it directly. The
+            // pageload root already covers that window, so name it rather than open a second root.
+            if (!sawInitial) {
+                sawInitial = true;
+                nav.setActiveRouteName(routeNameFor(page));
+                return;
+            }
+
+            // Back/forward fires navigate alone, with no start to open the root, so do both here.
+            const { href, path } = locationOf(page?.url);
+            nav.startNavigation({ path, url: href, hold: true });
+            settle(page);
         }),
     );
     const offSuccess = r.on(
