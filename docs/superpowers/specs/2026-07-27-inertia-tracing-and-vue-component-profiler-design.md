@@ -103,24 +103,43 @@ returns a removal callback.
 
 ## Event mapping
 
-Inertia's documented visit sequence is `before → start → [progress] → success/error → finish → navigate`.
-History navigation (back/forward) bypasses `before`/`start`/`finish` and fires `navigate` alone.
+The runtime order for a successful visit is `start → navigate → success → finish`. Note this is **not**
+the order the events page's summary table implies (`success/error → finish → navigate`); the source is
+authoritative. `Response.handle()` returns the promise chain containing `currentPage.set()`, which fires
+`navigate` from inside it, and `finish` runs afterwards in the `Request` `.finally()`.
 
-| Inertia event                   | Action                                                                                          |
-| ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `start`                         | `startNavigation({ url: visit.url, hold: true })`, set `inFlight`                               |
-| `navigate` while `inFlight`     | `settleNavigation({ name: page.component, source: 'route', url: page.url })`, clear `inFlight`  |
-| `navigate` while not `inFlight` | back/forward or history restore: `startNavigation({ url, hold: true })` then settle immediately |
-| `finish` while still `inFlight` | terminal failure with no `navigate`: settle to the current location, clear `inFlight`           |
+History navigation (back/forward) bypasses `start`/`success`/`finish` and fires `navigate` alone.
+
+| Inertia event                                  | Action                                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `start`                                        | `startNavigation({ url: String(visit.url), hold: true })`, set `inFlight`, set `sawInitial`    |
+| `navigate` or `success` while `inFlight`       | `settleNavigation({ name: page.component, source: 'route', url: page.url })`, clear `inFlight` |
+| `navigate` while not `inFlight`, `!sawInitial` | initial page load: `setActiveRouteName(...)` to name the pageload root, set `sawInitial`       |
+| `navigate` while not `inFlight`, `sawInitial`  | back/forward: `startNavigation({ url, hold: true })` then settle immediately                   |
+| `finish` while still `inFlight`                | terminal failure with no `navigate`: settle to the current location, clear `inFlight`          |
 
 `hold: true` plus `settleNavigation` is the pattern the seam already grew for React Router v7, where the
 destination is not known when the navigation opens. Inertia is the same case: at `start` only the request URL
 is known, and the page component name arrives with the response.
 
-The `finish` row is the failure backstop. `finish` fires for successful and unsuccessful requests alike, so by
-the time it runs a successful visit has already settled via `navigate` and cleared `inFlight`. A visit that
-errored, was cancelled, or hit `httpException` never fires `navigate`, and without this row its held root
-would stay idle-suppressed until the 30s `finalTimeout`.
+**Why `success` settles too, not just `navigate`.** `page.set()` fires `navigate` only when `replace` is
+false. A `replace: true` visit therefore settles on `success` instead, which carries the same page object.
+Whichever arrives first wins; on a normal visit that is `navigate`, since it fires from inside the promise
+`Response.handle()` returns and `success` fires after that resolves.
+
+**Why `sawInitial` is required.** `navigate` fires on the initial page load: `page.set()` skips it (the
+initial load forces `replace: true`), but `InitialVisit.handle()` calls `fireNavigateEvent()` itself in all
+three of its branches (default, back/forward restore, location visit). Without the flag, every hard page load
+would open a navigation root on top of the pageload root that already covers that window. `traceVueRouter`
+carries the same flag under the same name for the same reason.
+
+This makes call ordering matter: `traceInertiaRouter(router)` must run before Inertia boots, or the initial
+`navigate` is missed and the first back/forward is mistaken for it. That is what the README example shows
+(module scope, before `createInertiaApp`), and it is documented on the function.
+
+The `finish` row is the failure backstop. A visit that errored, was cancelled, or hit `httpException` fires
+neither `navigate` nor `success`, and without this row its held root would stay idle-suppressed until the 30s
+`finalTimeout`. On a successful visit `finish` arrives after the settle and finds `inFlight` already false.
 
 A new `start` arriving while a previous visit is in flight needs no special handling: `startNavigation` ends
 the prior root itself (`controller.endNow()`).
@@ -159,17 +178,21 @@ A `WeakMap` keyed on the router object holds the cleanup, and a second `traceIne
 router tears down the first. Without it, Vite HMR against a persistent router appends another listener set
 every cycle. Copied from `traceVueRouter`, which solves the identical problem.
 
-## Unknowns to verify empirically before implementing
+## Answered from source
 
-Both get a playground probe, the way the SvelteKit slice measured its effect-batching risk rather than
-reasoning about it:
+Both open questions were resolved by reading `@inertiajs/core` rather than probing, which is why the event
+mapping above is already specific. Recorded here because the handler is wrong without them:
 
-1. **Does `navigate` fire on the initial page load?** If it does, the handler must not open a navigation root
-   for it, since the pageload root already covers that window. It should name the pageload root instead, via
-   `setActiveRouteName`. If it does not, the pageload root needs its name from the initial page object read
-   at call time.
-2. **Is `visit.url` a string or a `URL` in the installed Inertia version?** Determines whether the handler
-   needs `String(url)` normalization before `absoluteHref`.
+1. **`navigate` fires on the initial page load** (`initialVisit.ts` calls `fireNavigateEvent()` in all three
+   branches, independently of `page.set()` suppressing it). Hence `sawInitial`.
+2. **`visit.url` is a `URL` object, not a string** (`visit.url.origin + visit.url.pathname + visit.url.search`
+   in the prefetch path), so it needs `String(...)` before `absoluteHref`. `page.url` is a plain relative
+   string, per the protocol page object.
+3. **The events page's summary order is not the runtime order.** Real order is `start → navigate → success →
+finish`, verified through `Response.handle()` returning the promise chain that contains `currentPage.set()`.
+
+These are read against `inertiajs/inertia@master`. Worth re-checking against the version a consumer actually
+installs if the handler ever misbehaves, since none of it is public API contract.
 
 ## Testing
 
@@ -212,9 +235,12 @@ not speculatively now.
 
 ### Cases
 
-- `start` opens a held navigation root with the visit URL
+- `start` opens a held navigation root with the visit URL, stringified from the `URL` object
 - `navigate` settles with `page.component` as a `route`-sourced name and `page.url`
-- `navigate` without a preceding `start` (back/forward) opens and settles
+- the first `navigate` with no preceding `start` names the pageload root and opens no navigation root
+- `navigate` without a preceding `start`, after the initial one (back/forward), opens and settles
+- `success` settles a visit whose `navigate` was suppressed by `replace: true`
+- `success` after `navigate` already settled does not settle twice
 - `finish` after a failed visit settles to the current location, releasing the hold
 - `finish` after a successful visit is a no-op (already settled)
 - a second `start` while in flight supersedes the first
