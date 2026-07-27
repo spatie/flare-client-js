@@ -173,8 +173,44 @@ reasoning about it:
 
 ## Testing
 
-Unit tests driving a fake router object that implements `on()` and returns removal callbacks, against a mocked
-navigation seam. The fake covers the whole mapping, since the integration never touches real Inertia code.
+### The fake router is its own module
+
+`packages/inertia/tests/helpers/fakeInertiaRouter.ts`, re-exported from a `tests/helpers/index.ts` barrel.
+One file a developer can open to see exactly what the mock does, reusable across every test file in the
+package. This follows the split the repo already uses: cross-package mocks live in `@flareapp/test-helpers`
+(`browserSeamMock`, `FakeApi`), while host-side fakes for one package's integration live in that package's
+`tests/helpers/` — `packages/vue/tests/helpers/index.ts` holds `createMockRouter` and is imported by nine
+suites.
+
+It fakes the router, not the seam. The seam side already has a shared helper (`browserSeamMock` +
+`FakeNavigationSource` from `@flareapp/test-helpers`), which these tests use unchanged.
+
+The fake drives whole visits rather than exposing a bare `on()`, so a test reads as one line of intent
+instead of four hand-fired events in a hand-maintained order:
+
+```ts
+const router = createFakeInertiaRouter();
+const cleanup = traceInertiaRouter(router);
+
+router.visit({ url: '/products/42', component: 'Products/Show' }); // start -> navigate -> finish
+router.failedVisit({ url: '/checkout' }); // start -> finish, no navigate
+router.historyVisit({ url: '/products', component: 'Products/Index' }); // navigate alone
+router.emit('start', { visit: { url: '/raw' } }); // escape hatch for odd orderings
+
+router.listenerCount(); // 0 after cleanup(), so removal is assertable
+```
+
+Surface: `on(event, cb)` returning a working remover, `emit(event, detail)`, the three visit drivers, and
+`listenerCount(event?)`.
+
+The real reason to centralize it is correctness, not tidiness. The documented visit sequence
+(`before → start → success/error → finish → navigate`) is an assumption this whole integration rests on, and
+the empirical probe listed above may adjust it. Encoded in one module, that finding changes one file instead
+of every test that hand-fires events. If Inertia support later grows past navigation roots, the same fake
+serves those suites; if a second package ever needs it, it gets promoted to `@flareapp/test-helpers` then,
+not speculatively now.
+
+### Cases
 
 - `start` opens a held navigation root with the visit URL
 - `navigate` settles with `page.component` as a `route`-sourced name and `page.url`
@@ -204,6 +240,8 @@ packages/inertia/
   src/index.ts                    re-exports traceInertiaRouter
   src/traceInertiaRouter.ts
   src/vendor/inertiaTypes.ts      minimal duck-typed router/page/event shapes
+  tests/helpers/fakeInertiaRouter.ts   the fake router, visit drivers, listener bookkeeping
+  tests/helpers/index.ts               barrel
   tests/traceInertiaRouter.test.ts
 scripts/release-all.mjs           add 'inertia' to LOCKSTEP_PACKAGES + a LOCKSTEP_REFS entry
 CLAUDE.md                         monorepo table row
@@ -372,6 +410,29 @@ discipline.
 
 ## Testing
 
+### Shared seam mock first
+
+`packages/react/tests/profiler.test.tsx` currently hand-rolls the whole component-profiler seam inline in a
+`vi.hoisted` block: a counter-backed `reserveSpanId`, a fixed `activeComponentRoot`, and stubs for
+`recordComponentSpan` and `nowNano`. The Vue suite needs the identical fake, so this slice extracts it to
+`packages/test-helpers/src/componentProfiler.ts` as `componentProfilerMock(...)` and converts the React suite
+onto it.
+
+This one belongs in `@flareapp/test-helpers`, unlike the Inertia router fake, because two packages consume
+it. Same precedent as `browserSeamMock`, and the same shape as the vue-router slice, which extracted
+`insulate` and `safeInvoke` into `@flareapp/js/browser` and converted the React integrations onto them rather
+than copying.
+
+Built on `importOriginal` and spreading the real module, like `browserSeamMock`, for two reasons. A
+hand-written stand-in silently drifts from the code it stands in for. And the Vue suite needs the module's
+other real exports anyway, since `flareVue` imports `resolveFlare` and `insulate` from it — the React suite's
+current wholesale module replacement would not work here.
+
+The React suite is being edited in this slice regardless, for the renamed span type and attributes, so the
+conversion adds no extra file churn.
+
+### Cases
+
 `packages/vue/tests/profileComponents.test.ts`:
 
 - one allowlisted component records one span with the right name, `browser_component` type, `vue` framework,
@@ -398,8 +459,10 @@ Playground: wire `profileComponents: ['Layout', 'ProductsPage', 'ProductPage', '
 packages/js/src/tracing/spanTypes.ts            ReactComponent -> Component
 packages/js/src/tracing/componentProfiler.ts    framework field + two attributes
 packages/js/tests/componentProfiler.test.ts     updated
+packages/test-helpers/src/componentProfiler.ts  new: shared seam mock (react + vue)
+packages/test-helpers/src/index.ts              export it
 packages/react/src/profiler.ts                  pass framework: 'react'
-packages/react/tests/profiler.test.tsx          updated
+packages/react/tests/profiler.test.tsx          updated + converted onto the shared mock
 packages/react/README.md                        renamed attribute
 packages/vue/src/profileVueComponents.ts        new: the mixin factory
 packages/vue/src/flareVue.ts                    register the mixin
