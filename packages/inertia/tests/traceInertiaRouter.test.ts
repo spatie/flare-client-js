@@ -18,6 +18,9 @@ vi.mock('@flareapp/js/browser', async (importOriginal) => ({
 import { traceInertiaRouter } from '../src/traceInertiaRouter';
 import { createFakeInertiaRouter } from './helpers';
 
+// Same-origin SPA: every url the integration reports is the page origin plus a path.
+const u = (path: string): string => `${window.location.origin}${path}`;
+
 // mockReset, not mockClear: clearing keeps any implementation a test installed, so one test making a
 // seam throw would leave it throwing for every test after it. Reset also drops queued
 // `mockImplementationOnce` values, and it restores the implementation `vi.fn(impl)` was created with,
@@ -63,5 +66,48 @@ describe('traceInertiaRouter listener lifecycle', () => {
         // generic kind.
         expect(registerNavigationSource).not.toHaveBeenCalled();
         expect(nav.unregister).not.toHaveBeenCalled();
+    });
+});
+
+describe('successful visits', () => {
+    it('opens a held navigation root on start', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/products/42', window.location.href) } });
+
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation).toHaveBeenCalledWith({
+            path: '/products/42',
+            url: u('/products/42'),
+            hold: true,
+        });
+    });
+
+    it('settles the root with the page component name on navigate', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.visit({ url: '/products/42', component: 'Products/Show' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Products/Show',
+            source: 'route',
+            url: u('/products/42'),
+        });
+    });
+
+    it('falls back to a url-sourced name when the page carries no component', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.visit({ url: '/products/42' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/products/42',
+            source: 'url',
+            url: u('/products/42'),
+        });
     });
 });
