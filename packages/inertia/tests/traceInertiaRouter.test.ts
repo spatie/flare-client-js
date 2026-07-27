@@ -361,3 +361,53 @@ describe('background traffic during a navigation', () => {
         });
     });
 });
+
+describe('a navigation superseded by a newer one', () => {
+    it('opens one root and settles it on the newer destination', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.supersededVisit({ url: '/slow' }, { url: '/fast', component: 'Fast/Show' });
+
+        // Timed from the first click, named after the page that actually arrived.
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation).toHaveBeenCalledWith({
+            path: '/slow',
+            url: u('/slow'),
+            hold: true,
+        });
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Fast/Show',
+            source: 'route',
+            url: u('/fast'),
+        });
+    });
+
+    it('re-points the root at the newer destination while it is still in flight', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/slow', window.location.href) } });
+        router.emit('finish', {
+            visit: { url: new URL('/slow', window.location.href), interrupted: true },
+        });
+        router.emit('start', { visit: { url: new URL('/fast', window.location.href) } });
+
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/fast',
+            source: 'url',
+            url: u('/fast'),
+        });
+    });
+
+    it('still settles a visit that was cancelled outright', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        // router.cancelAll(): nothing follows it, so the held root has to be released here.
+        router.cancelledVisit({ url: '/slow' });
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+    });
+});

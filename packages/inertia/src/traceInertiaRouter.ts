@@ -88,9 +88,19 @@ export function traceInertiaRouter(router: unknown): () => void {
         insulate((event: InertiaEventLike) => {
             const visit = event?.detail?.visit;
             if (isBackgroundVisit(visit)) return;
+            const { href, path } = locationOf(visit?.url);
+
+            if (inFlight) {
+                // The successor of an interrupted visit. Re-point the root the first click opened
+                // rather than opening a second one. The name is url-sourced only until the page
+                // arrives and settles it under the component name.
+                inFlightPath = path;
+                nav.setActiveRouteName({ name: path ?? here(), source: 'url', url: href });
+                return;
+            }
+
             sawInitial = true;
             inFlight = true;
-            const { href, path } = locationOf(visit?.url);
             inFlightPath = path;
             nav.startNavigation({ path, url: href, hold: true });
         }),
@@ -162,6 +172,11 @@ export function traceInertiaRouter(router: unknown): () => void {
             // backstop rather than stranding the held root.
             const visit = event?.detail?.visit;
             if (visit && locationOf(visit.url).path !== inFlightPath) return;
+            // A newer visit displaced this one, and Inertia only interrupts from inside `visit()`,
+            // immediately before it sends the replacement. So a successor `start` is already on its
+            // way: keep the root this visit opened and let the successor settle it. `cancelled` is
+            // the opposite case, with nothing following, so it falls through and settles.
+            if (visit?.interrupted) return;
             inFlight = false;
             inFlightPath = undefined;
             const { href, path } = locationOf(here());
