@@ -23,3 +23,26 @@ export function browserSeamMock(nav: FakeNavigationSource, original: Record<stri
         registerNavigationSource: vi.fn(() => nav),
     };
 }
+
+/**
+ * A standalone `@flareapp/js/browser` stand-in, for tests about what a module does NOT import. Unlike
+ * `browserSeamMock` it does not spread the real module, so importing it pulls in nothing: that is the
+ * whole point, and it is also why every other suite should use `browserSeamMock` instead.
+ *
+ *     vi.doMock('@flareapp/js/browser', () => browserSeamStub());
+ */
+export function browserSeamStub(overrides: Record<string, unknown> = {}) {
+    return {
+        registerNavigationSource: () => ({
+            startNavigation() {},
+            setActiveRouteName() {},
+            settleNavigation() {},
+            unregister() {},
+        }),
+        insulate: (fn: (...a: unknown[]) => void) => fn,
+        safeInvoke: (fn?: () => void) => fn?.(),
+        absoluteHref: (href: string | null | undefined) =>
+            href == null ? undefined : new URL(href, window.location.href).href,
+        ...overrides,
+    };
+}
