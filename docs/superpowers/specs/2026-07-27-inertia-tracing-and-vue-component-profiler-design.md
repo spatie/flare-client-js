@@ -110,22 +110,37 @@ authoritative. `Response.handle()` returns the promise chain containing `current
 
 History navigation (back/forward) bypasses `start`/`success`/`finish` and fires `navigate` alone.
 
-| Inertia event                                  | Action                                                                                         |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `start`                                        | `startNavigation({ url: String(visit.url), hold: true })`, set `inFlight`, set `sawInitial`    |
-| `navigate` or `success` while `inFlight`       | `settleNavigation({ name: page.component, source: 'route', url: page.url })`, clear `inFlight` |
-| `navigate` while not `inFlight`, `!sawInitial` | initial page load: `setActiveRouteName(...)` to name the pageload root, set `sawInitial`       |
-| `navigate` while not `inFlight`, `sawInitial`  | back/forward: `startNavigation({ url, hold: true })` then settle immediately                   |
-| `finish` while still `inFlight`                | terminal failure with no `navigate`: settle to the current location, clear `inFlight`          |
+| Inertia event                                  | Action                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `start` for a prefetch or background reload    | ignored, no root: see "Visits that move the user nowhere"                                               |
+| `start`, nothing in flight                     | `startNavigation({ url: String(visit.url), hold: true })`, set `inFlight`, `inFlightPath`, `sawInitial` |
+| `start`, already in flight                     | the successor of an interrupted visit: re-point the existing root, open no second one                   |
+| `navigate` while `inFlight`                    | `settleNavigation({ name: page.component, source: 'route', url: page.url })`, clear `inFlight`          |
+| `success` while `inFlight`, page path matches  | the same, for the visits `navigate` skips. A mismatch means it belongs to another request               |
+| `navigate` while not `inFlight`, `!sawInitial` | initial page load: `setActiveRouteName(...)` to name the pageload root, set `sawInitial`                |
+| `navigate` while not `inFlight`, `sawInitial`  | back/forward: `startNavigation({ url, hold: true })` then settle immediately                            |
+| `finish` while `inFlight` with `interrupted`   | a newer visit displaced this one: keep the root and let the successor settle it                         |
+| `finish` while `inFlight`, visit path matches  | terminal failure with no `navigate`: settle to the current location, clear `inFlight`                   |
+
+The two path comparisons are not defensive padding. Inertia runs navigations on a sync request stream and
+everything else on a concurrent async one, so a poll or prefetch response landing in the middle of a
+navigation is ordinary traffic. Without them it would close a root it never opened.
 
 `hold: true` plus `settleNavigation` is the pattern the seam already grew for React Router v7, where the
 destination is not known when the navigation opens. Inertia is the same case: at `start` only the request URL
 is known, and the page component name arrives with the response.
 
 **Why `success` settles too, not just `navigate`.** `page.set()` fires `navigate` only when `replace` is
-false. A `replace: true` visit therefore settles on `success` instead, which carries the same page object.
-Whichever arrives first wins; on a normal visit that is `navigate`, since it fires from inside the promise
-`Response.handle()` returns and `success` fires after that resolves.
+false, and it computes `replace = replace || isSameUrlWithoutHash(page.url, location)`. So it is not only
+explicit `replace: true` visits that skip `navigate`: any visit landing on the url it started on skips it
+too, which covers a form post re-rendering the current page and a response redirecting back to where the
+user already was. Those settle on `success`, which carries the same page object. Whichever arrives first
+wins; on a normal visit that is `navigate`, since it fires from inside the promise `Response.handle()`
+returns and `success` fires after that resolves.
+
+A same-url visit still opens a root, where `traceVueRouter` skips its equivalent. The cases are not alike:
+vue-router's same-url re-navigation resolves locally, while Inertia's is always a server round trip that
+swaps the page component and its props, and that is worth timing.
 
 **Why `sawInitial` is required.** `navigate` fires on the initial page load: `page.set()` skips it (the
 initial load forces `replace: true`), but `InitialVisit.handle()` calls `fireNavigateEvent()` itself in all
@@ -141,10 +156,46 @@ The `finish` row is the failure backstop. A visit that errored, was cancelled, o
 neither `navigate` nor `success`, and without this row its held root would stay idle-suppressed until the 30s
 `finalTimeout`. On a successful visit `finish` arrives after the settle and finds `inFlight` already false.
 
-A new `start` arriving while a previous visit is in flight needs no special handling: `startNavigation` ends
-the prior root itself (`controller.endNow()`).
+## Visits that move the user nowhere
 
-`location` (a forced full page reload) needs no handling either. The document is about to be replaced, so the
+`Request.send()` fires `start` unconditionally, above its own prefetch branch, and `finish` from the
+`.finally()`. Prefetches, polling, deferred props, infinite scroll and every other `router.reload()`
+therefore fire exactly what a real visit fires. Opening a root for one of them would both invent a
+navigation and, because `startNavigation` ends the previous root first, destroy the live one. Hovering
+three prefetch links would close and reopen the root three times.
+
+Worse, it breaks the initial page load. `page.set()` starts the deferred-props reload from inside its own
+promise chain, and `RequestStream.send()` calls `Request.send()` synchronously, so on any page using
+`Inertia::defer()` that reload's `start` arrives _before_ the initial load's `navigate`. The pageload root
+would be truncated the moment the deferred fetch began, and the initial load reported as a navigation.
+
+So `start` is filtered: a `prefetch` visit is never a navigation, and an `async` visit that stays on the
+current path is a refresh rather than a move. `router.reload()` always reloads `window.location.href` with
+`async: true`, and infinite scroll only varies the query, which is why the comparison is on path rather
+than full url. A deliberate `router.visit(url, { async: true })` to another page still opens a root.
+
+Nothing is lost by ignoring them. Inertia sends these over XHR, which the client already instruments, so
+each still appears as a child span under whichever page it belongs to.
+
+## A newer visit superseding an older one
+
+Two `start` events never arrive back to back. `router.visit()` calls `syncRequestStream.interruptInFlight()`
+before sending, and `Request.cancel()` fires `finish` from there, so the wire order is
+`start → finish → start`.
+
+Treating that as two navigations produces a truncated first root which, having never reached its
+destination, is named after the page the user was leaving. That files a navigation span under a page nobody
+navigated to, so every impatient double click inflates that page's numbers with events that are not loads of
+it. Instead the root the first click opened is kept, re-pointed at the newer destination, and settled by the
+successor, so the span measures what the person actually waited for. `traceVueRouter` made the same call for
+`NAVIGATION_CANCELLED`, and matching matters because both feed one aggregation.
+
+The visit says which case it is. `markAsCancelled` sets `interrupted: true` when a newer sync visit displaced
+it and `cancelled: true` when something cancelled it outright; `markAsFinished` clears both. Only
+`interrupted` guarantees a successor, so only it holds the root. An explicit `router.cancelAll()` still
+settles, or the held root would hang until the 30s `finalTimeout`.
+
+`location` (a forced full page reload) needs no handling. The document is about to be replaced, so the
 root dies with the page.
 
 ## Root naming
@@ -156,6 +207,12 @@ other router slices produce from route templates, so `Products/Show` aggregates 
 
 `url` is carried on every `RouteName`, so a visit that redirects reports the page it landed on rather than
 the one it opened with. Same reasoning as `traceVueRouter`.
+
+The `finish` backstop names from memory. A validation failure fires `error` and returns before `success`, so
+no page ever reaches us, yet `setPage()` has already completed and the browser is showing a real page whose
+component name we were told earlier. Keeping the last route-sourced name, and reusing it while the browser
+is still on that path, is what stops a failed form post reporting `/products/42/comments`. The url fallback
+then only applies before any page has landed.
 
 ## Ordering and gating
 
@@ -191,6 +248,19 @@ mapping above is already specific. Recorded here because the handler is wrong wi
 3. **The events page's summary order is not the runtime order.** Real order is `start → navigate → success →
 finish`, verified through `Response.handle()` returning the promise chain that contains `currentPage.set()`.
 
+4. **`start` fires for background work too** (`Request.send()` fires it above its own prefetch branch), and
+   the only thing separating a prefetch or a `router.reload()` from a real visit is the `prefetch` and
+   `async` flags on the visit.
+5. **Deferred props load before the initial `navigate`** (`page.set()` fires `loadDeferredProps` inside its
+   own promise chain; `RequestStream.send()` sends synchronously). Hence the filter, without which the
+   pageload root is truncated on any page using `Inertia::defer()`.
+6. **Navigations and background work run on separate concurrent streams** (`syncRequestStream` with
+   `maxConcurrent: 1`, `asyncRequestStream` with `maxConcurrent: Infinity`), so their responses interleave.
+7. **A superseded visit is `start → finish → start`**, not two `start` events, and its `finish` carries
+   `interrupted: true` as against `cancelled: true` for an outright cancel.
+8. **Any same-url visit skips `navigate`**, not only `replace: true` ones
+   (`replace = replace || isSameUrlWithoutHash(page.url, location)`).
+
 These are read against `inertiajs/inertia@master`. Worth re-checking against the version a consumer actually
 installs if the handler ever misbehaves, since none of it is public API contract.
 
@@ -215,23 +285,28 @@ instead of four hand-fired events in a hand-maintained order:
 const router = createFakeInertiaRouter();
 const cleanup = traceInertiaRouter(router);
 
-router.visit({ url: '/products/42', component: 'Products/Show' }); // start -> navigate -> finish
-router.failedVisit({ url: '/checkout' }); // start -> finish, no navigate
-router.historyVisit({ url: '/products', component: 'Products/Index' }); // navigate alone
+router.visit({ url: '/products/42', component: 'Products/Show' }); // start -> navigate -> success -> finish
+router.replaceVisit({ url: '/cart', component: 'Cart/Index' }); // no navigate: same url, or replace: true
+router.failedVisit({ url: '/checkout' }); // start -> finish, neither navigate nor success
+router.supersededVisit({ url: '/slow' }, { url: '/fast', component: 'Fast/Show' }); // start -> finish -> start
+router.cancelledVisit({ url: '/slow' }); // cancelAll: no successor follows
+router.prefetchVisit('/products/42'); // start -> finish, flagged prefetch
+router.backgroundVisit({ url: '/', component: 'Products/Index' }); // poll / deferred props / reload
+router.navigateOnly({ url: '/products', component: 'Products/Index' }); // navigate alone
 router.emit('start', { visit: { url: '/raw' } }); // escape hatch for odd orderings
 
 router.listenerCount(); // 0 after cleanup(), so removal is assertable
 ```
 
-Surface: `on(event, cb)` returning a working remover, `emit(event, detail)`, the three visit drivers, and
+Surface: `on(event, cb)` returning a working remover, `emit(event, detail)`, the visit drivers above, and
 `listenerCount(event?)`.
 
-The real reason to centralize it is correctness, not tidiness. The documented visit sequence
-(`before → start → success/error → finish → navigate`) is an assumption this whole integration rests on, and
-the empirical probe listed above may adjust it. Encoded in one module, that finding changes one file instead
-of every test that hand-fires events. If Inertia support later grows past navigation roots, the same fake
-serves those suites; if a second package ever needs it, it gets promoted to `@flareapp/test-helpers` then,
-not speculatively now.
+The real reason to centralize it is correctness, not tidiness. Every one of those sequences was read out of
+`@inertiajs/core` rather than inferred from the events page, and several contradict what the documented
+summary order (`before → start → success/error → finish → navigate`) suggests. Encoded in one module, a
+correction changes one file instead of every test that would otherwise hand-fire events in a hand-maintained
+order. If Inertia support later grows past navigation roots the same fake serves those suites; if a second
+package ever needs it, it gets promoted to `@flareapp/test-helpers` then, not speculatively now.
 
 ### Cases
 
@@ -239,16 +314,24 @@ not speculatively now.
 - `navigate` settles with `page.component` as a `route`-sourced name and `page.url`
 - the first `navigate` with no preceding `start` names the pageload root and opens no navigation root
 - `navigate` without a preceding `start`, after the initial one (back/forward), opens and settles
-- `success` settles a visit whose `navigate` was suppressed by `replace: true`
+- `success` settles a visit whose `navigate` was suppressed, both for `replace: true` and for a form post
+  re-rendering the page it came from
 - `success` after `navigate` already settled does not settle twice
 - `finish` after a failed visit settles to the current location, releasing the hold
+- `finish` after a failed visit names the page the browser is on when one is known
 - `finish` after a successful visit is a no-op (already settled)
-- a second `start` while in flight supersedes the first
+- a prefetch opens no root; a background reload of the current page opens no root
+- an `async` visit to a different page still opens one
+- a deferred-props reload firing `start` before the initial `navigate` still leaves the pageload named
+- a background `success` or `finish` landing mid-navigation settles nothing
+- a superseded visit yields one root, timed from the first click and named after the page that arrived
+- a visit cancelled outright still settles
 - `page.component` missing falls back to a `url`-sourced name
 - a non-router value returns an inert cleanup and registers nothing
 - the returned cleanup removes every listener and unregisters
 - calling twice on the same router tears down the first instrumentation
 - a throwing listener never propagates into the host
+- importing the package entry evaluates no `@flareapp/js` singleton and registers no navigation source
 
 No playground. A real Inertia playground needs a server that responds with page objects, which is a
 disproportionate amount of machinery for one integration; a manual smoke test against a real Laravel app
@@ -269,9 +352,16 @@ packages/inertia/
   tests/helpers/fakeInertiaRouter.ts   the fake router, visit drivers, listener bookkeeping
   tests/helpers/index.ts               barrel
   tests/traceInertiaRouter.test.ts
-scripts/release-all.mjs           add 'inertia' to LOCKSTEP_PACKAGES + a LOCKSTEP_REFS entry
-CLAUDE.md                         monorepo table row
+  tests/entry.test.ts                  importing the package does nothing
+packages/test-helpers/src/navigationSource.ts   add browserSeamStub, shared with the React entry suites
+scripts/release-all.mjs           add 'inertia' to LOCKSTEP_PACKAGES, PUBLISH_ORDER and LOCKSTEP_REFS
+scripts/check-pack.mjs            add 'inertia' to PUBLISHED_PACKAGES
+CLAUDE.md                         monorepo table row, and correct the package counts above it
 ```
+
+`PUBLISH_ORDER` is easy to miss and fails silently: publishing walks it, while bumping and committing walk
+the release set, so a package in the set but in no tier gets its version bumped into the release commit and
+is then never tagged and never published.
 
 Skeleton modelled on `packages/sveltekit`. It joins the lockstep set because it consumes the `@flareapp/js`
 navigation seam, so its peer range must be rewritten on every release like the other four.
