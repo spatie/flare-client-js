@@ -119,20 +119,20 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             return send();
         }
 
-        const abs = safeAbsolute(state.url, origin);
-        if (isFlareIngestUrl(abs, config)) {
+        const absoluteUrl = safeAbsolute(state.url, origin);
+        if (isFlareIngestUrl(absoluteUrl, config)) {
             return send();
         }
 
-        const pathname = abs ? abs.pathname : state.url;
+        const pathname = absoluteUrl ? absoluteUrl.pathname : state.url;
         const span = tracer.startSpan(`${state.method} ${pathname}`, {
             spanType: BrowserSpanType.Xhr,
-            attributes: requestSpanAttributes(state.method, abs, state.url, config),
+            attributes: requestSpanAttributes(state.method, absoluteUrl, state.url, config),
         });
         state.span = span;
 
         if (!state.hasAppTraceparent) {
-            setTraceparentHeader(this, traceparentFor(span, abs, state.url, origin, config));
+            setTraceparentHeader(this, traceparentFor(span, absoluteUrl, state.url, origin, config));
         }
 
         const onDone = (): void => {
@@ -153,8 +153,9 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             try {
                 // status 0 at DONE means "no HTTP response" (network/CORS failure/abort) only for
                 // http(s). file:// and custom schemes (e.g. Electron registerFileProtocol) return 0
-                // on success, so don't map to error. A null `abs` (unparseable URL) also isn't error.
-                const zeroIsError = abs !== null && (abs.protocol === 'http:' || abs.protocol === 'https:');
+                // on success, so don't map to error. A null `absoluteUrl` (unparseable URL) also isn't error.
+                const zeroIsError =
+                    absoluteUrl !== null && (absoluteUrl.protocol === 'http:' || absoluteUrl.protocol === 'https:');
                 endHttpRequestSpan(span, status, { zeroIsError });
             } catch {
                 // Instrumentation must never throw into the host app.
