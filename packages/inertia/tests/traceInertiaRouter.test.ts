@@ -295,6 +295,27 @@ describe('visits that fire no navigate', () => {
             url: u('/'),
         });
     });
+
+    it('does not apply a stale lastComponent recorded for a different path', () => {
+        // jsdom's location never moves, so here() stays at '/' for the whole suite. Recording
+        // lastComponent for a visit to a different path ('/products/42') is therefore the only way to
+        // make its recorded path diverge from here(), which is the mismatch branch lastComponent
+        // exists for in the first place.
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.visit({ url: '/products/42', component: 'Products/Show' }); // records lastComponent
+        nav.settleNavigation.mockClear();
+
+        router.failedVisit({ url: '/checkout' }); // backstop runs while here() ('/') != '/products/42'
+
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/',
+            source: 'url',
+            url: u('/'),
+        });
+    });
 });
 
 describe('background traffic during a navigation', () => {
