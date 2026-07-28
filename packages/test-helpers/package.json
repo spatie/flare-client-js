@@ -2,6 +2,13 @@
     "name": "@flareapp/test-helpers",
     "private": true,
     "type": "module",
+    "author": {
+        "name": "Spatie",
+        "email": "info@spatie.be"
+    },
+    "contributors": [
+        "Dries Heyninck <dries@spatie.be>"
+    ],
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {

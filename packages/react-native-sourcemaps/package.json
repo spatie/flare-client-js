@@ -13,6 +13,9 @@
         "name": "Spatie",
         "email": "info@spatie.be"
     },
+    "contributors": [
+        "Dries Heyninck <dries@spatie.be>"
+    ],
     "files": [
         "dist",
         "flare.gradle",
