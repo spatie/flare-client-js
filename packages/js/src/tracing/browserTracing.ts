@@ -3,6 +3,7 @@ import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer }
 import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
+import { currentPath, type NavigationSource, type RouteName } from './navigation';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 import { BrowserSpanType } from './spanTypes';
 
@@ -11,24 +12,6 @@ export type BrowserTracingFlare = {
     readonly config: Config;
     startSpan(name: string, opts?: SpanOptions): Span;
     tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
-};
-
-export type RouteName = {
-    name: string;
-    source: 'route' | 'url';
-    /**
-     * Where the navigation is going. When set, the root's `url.full` and `flare.entry_point.value`
-     * are updated together with the name, so a navigation that was redirected, or replaced by a
-     * newer one, reports the page it ended on rather than the one it opened with. Leave it out to
-     * keep the url the root started with.
-     */
-    url?: string;
-};
-export type NavigationSource = {
-    startNavigation(opts?: { path?: string; url?: string; hold?: boolean }): void;
-    setActiveRouteName(route: RouteName): void;
-    settleNavigation(route: RouteName): void;
-    unregister(): void;
 };
 
 let controller: IdleRootController | null = null;
@@ -266,14 +249,13 @@ export function registerNavigationSource(): NavigationSource {
     }
     navSource = token;
     const active = (): boolean => navSource === token;
-    const here = (): string => (typeof location !== 'undefined' ? location.pathname : '');
 
     return {
         startNavigation(opts) {
             if (!active() || !activeFlare) {
                 return;
             }
-            const path = opts?.path ?? here();
+            const path = opts?.path ?? currentPath();
             lastPath = path;
             if (controller && !controller.isEnded) {
                 try {
@@ -319,7 +301,7 @@ export function registerNavigationSource(): NavigationSource {
                 }
             }
             navSource = null;
-            lastPath = here();
+            lastPath = currentPath();
         },
     };
 }

@@ -62,13 +62,15 @@ export { catchWindowErrors } from './browser/catchWindowErrors';
 export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
-export { registerNavigationSource, type NavigationSource, type RouteName } from './tracing/browserTracing';
-export { insulate, safeInvoke } from './tracing/instrumentationGuard';
+export { registerNavigationSource } from './tracing/browserTracing';
+export { currentPath, resolveHref, routeName, type NavigationSource, type RouteName } from './tracing/navigation';
+export { insulate, instrumentOnce, safeInvoke } from './tracing/instrumentationGuard';
 export { absoluteHref } from './tracing/absoluteHref';
 export {
     activeComponentRoot,
     reserveSpanId,
     recordComponentSpan,
+    resolveComponentParent,
     nowNano,
     type ComponentTraceContext,
 } from './tracing/componentProfiler';

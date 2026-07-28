@@ -3,6 +3,7 @@ import { flare } from '@flareapp/js';
 import {
     insulate,
     registerNavigationSource,
+    routeName,
     safeInvoke,
     type NavigationSource,
     type RouteName,
@@ -29,7 +30,7 @@ const keyOf = (url: URL): string => url.pathname + url.search;
 // root opens with the first destination, so after a redirect it would otherwise report a page the
 // user never landed on.
 const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =>
-    routeId ? { name: routeId, source: 'route', url: url.href } : { name: url.pathname, source: 'url', url: url.href };
+    routeName(() => routeId ?? undefined, url.pathname, url.href);
 
 /** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
 export function syncNavigation(snapshot: NavSnapshot): void {

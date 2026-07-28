@@ -1,10 +1,15 @@
-import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import {
+    absoluteHref,
+    currentPath,
+    insulate,
+    instrumentOnce,
+    registerNavigationSource,
+    routeName,
+    safeInvoke,
+    type RouteName,
+} from '@flareapp/js/browser';
 
 import type { InertiaEventLike, InertiaPageLike, InertiaRouterLike, InertiaVisitLike } from './vendor/inertiaTypes';
-
-// Dedup re-instrumentation of the same router. Vite HMR can re-run boot code against a router that
-// survives the reload; without this, each cycle appends another listener set that is never removed.
-const instrumented = new WeakMap<object, () => void>();
 
 /** Resolve a router-reported location (a `URL` on visits, a relative string on pages) to a full href
  *  plus its path. Both are undefined outside a browser or for an unparseable value. */
@@ -23,8 +28,6 @@ function locationOf(raw: URL | string | null | undefined): { href?: string; path
     }
 }
 
-const here = (): string => (typeof location !== 'undefined' ? location.pathname : '');
-
 /** True when the visit is Inertia doing background work rather than moving the user to another page.
  *  These fire the same `start` and `finish` a real visit does, and opening a root for one both invents
  *  a navigation and ends the root that was live. */
@@ -41,16 +44,14 @@ function isBackgroundVisit(visit: InertiaVisitLike | undefined): boolean {
     // compares the path rather than the whole url. A deliberate `router.visit(url, { async: true })`
     // to a different page still opens a root.
     const { path } = locationOf(visit.url);
-    return !!visit.async && path !== undefined && path === here();
+    return !!visit.async && path !== undefined && path === currentPath();
 }
 
 /** Name a root from the page object. `component` ('Products/Show') is Inertia's low-cardinality route
  *  identifier, so it aggregates the way the other integrations' route templates do. */
 function routeNameFor(page: InertiaPageLike | undefined): RouteName {
     const { href, path } = locationOf(page?.url);
-    return page?.component
-        ? { name: page.component, source: 'route', url: href }
-        : { name: path ?? here(), source: 'url', url: href };
+    return routeName(() => page?.component, path ?? currentPath(), href);
 }
 
 /**
@@ -59,13 +60,18 @@ function routeNameFor(page: InertiaPageLike | undefined): RouteName {
  * removes the listeners and unregisters. Inert for a non-router value; never throws into the host.
  */
 export function traceInertiaRouter(router: unknown): () => void {
-    const r = router as Partial<InertiaRouterLike> | null;
-    if (!r || typeof r.on !== 'function') {
+    if (!isInertiaRouter(router)) {
         return () => {}; // wrong shape -> inert
     }
 
-    instrumented.get(r)?.(); // HMR: tear down any prior instrumentation of this same router first
+    return instrumentOnce(router, () => install(router));
+}
 
+function isInertiaRouter(router: unknown): router is InertiaRouterLike {
+    return !!router && typeof (router as Partial<InertiaRouterLike>).on === 'function';
+}
+
+function install(r: InertiaRouterLike): () => void {
     const nav = registerNavigationSource();
 
     let inFlight = false;
@@ -107,7 +113,7 @@ export function traceInertiaRouter(router: unknown): () => void {
                 // rather than opening a second one. The name is url-sourced only until the page
                 // arrives and settles it under the component name.
                 inFlightPath = path;
-                nav.setActiveRouteName({ name: path ?? here(), source: 'url', url: href });
+                nav.setActiveRouteName({ name: path ?? currentPath(), source: 'url', url: href });
                 return;
             }
 
@@ -216,29 +222,19 @@ export function traceInertiaRouter(router: unknown): () => void {
             }
             inFlight = false;
             inFlightPath = undefined;
-            const { href, path } = locationOf(here());
+            const { href, path } = locationOf(currentPath());
             // Name it after that page when we know it, which is the usual case for a failed form post:
             // it re-renders the page it was sent from, and we were told that page's name on arrival.
             const known = lastComponent?.path === path ? lastComponent?.name : undefined;
-            nav.settleNavigation(
-                known
-                    ? { name: known, source: 'route', url: href }
-                    : { name: path ?? here(), source: 'url', url: href },
-            );
+            nav.settleNavigation(routeName(() => known, path ?? currentPath(), href));
         }),
     );
 
-    const cleanup = (): void => {
+    return () => {
         safeInvoke(offStart);
         safeInvoke(offNavigate);
         safeInvoke(offSuccess);
         safeInvoke(offFinish);
         safeInvoke(() => nav.unregister());
-        if (instrumented.get(r) === cleanup) {
-            instrumented.delete(r);
-        }
     };
-    instrumented.set(r, cleanup);
-
-    return cleanup;
 }

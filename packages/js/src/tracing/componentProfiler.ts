@@ -35,6 +35,22 @@ export function activeComponentRoot(): ComponentTraceContext | null {
 }
 
 /**
+ * Pick what a component span nests under. An ancestor's context is only usable while it still belongs
+ * to the live trace: a profiled component that survives a navigation (a layout around a swapped page
+ * body) froze its context under the pageload trace, and `recordComponentSpan` drops anything pointing
+ * at a closed root. Re-home those to the live root instead.
+ */
+export function resolveComponentParent(
+    inherited: ComponentTraceContext | null | undefined,
+    live: ComponentTraceContext | null,
+): ComponentTraceContext | null {
+    if (inherited && live && inherited.traceId === live.traceId) {
+        return inherited;
+    }
+    return live;
+}
+
+/**
  * Record a completed mount span. Records ONLY while the reserved root is still the
  * live, recording active root (its traceId still matches getActiveSpan()); otherwise
  * it DROPS the span. Dropping avoids seeding a fresh TraceState for a dead trace
