@@ -161,6 +161,25 @@ export function traceInertiaRouter(router: unknown): () => void {
             settle(page);
         }),
     );
+    /** Whether `visit` is the one that opened the currently held root, i.e. `finish` may settle it. */
+    const belongsToThisNavigation = (visit: InertiaVisitLike | undefined): boolean => {
+        // Background work (prefetch, poll, deferred props, infinite scroll) fires the same finish a
+        // real visit does, and can share the in-flight navigation's path: a poll of the page the user
+        // is mid-navigation away from ticks on the path they started from, not the one they are
+        // leaving. Without this a background visit that happens to match settles a root it never opened.
+        if (isBackgroundVisit(visit)) return false;
+        // Same stream-crossing problem as success. Must run before the interrupted check below: a
+        // visit shape we cannot read at all falls through to the backstop rather than stranding the
+        // held root.
+        if (visit && locationOf(visit.url).path !== inFlightPath) return false;
+        // A newer visit displaced this one, and Inertia only interrupts from inside `visit()`,
+        // immediately before it sends the replacement. So a successor `start` is already on its way:
+        // keep the root this visit opened and let the successor settle it. `cancelled` is the opposite
+        // case, with nothing following, so it falls through and settles.
+        if (visit?.interrupted) return false;
+        return true;
+    };
+
     const offFinish = r.on(
         'finish',
         insulate((event: InertiaEventLike) => {
@@ -168,15 +187,7 @@ export function traceInertiaRouter(router: unknown): () => void {
             // this the held root stays idle-suppressed until the 30s finalTimeout. Settle to where the
             // browser actually is, since the visit never landed on its destination.
             if (!inFlight) return;
-            // Same stream-crossing problem. A visit shape we cannot read at all falls through to the
-            // backstop rather than stranding the held root.
-            const visit = event?.detail?.visit;
-            if (visit && locationOf(visit.url).path !== inFlightPath) return;
-            // A newer visit displaced this one, and Inertia only interrupts from inside `visit()`,
-            // immediately before it sends the replacement. So a successor `start` is already on its
-            // way: keep the root this visit opened and let the successor settle it. `cancelled` is
-            // the opposite case, with nothing following, so it falls through and settles.
-            if (visit?.interrupted) return;
+            if (!belongsToThisNavigation(event?.detail?.visit)) return;
             inFlight = false;
             inFlightPath = undefined;
             const { href, path } = locationOf(here());

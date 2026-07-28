@@ -322,6 +322,23 @@ describe('background traffic during a navigation', () => {
         expect(nav.settleNavigation).not.toHaveBeenCalled();
     });
 
+    it('ignores a background visit whose path matches the in-flight navigation on finish', () => {
+        // Real, synchronous navigation whose target happens to be the path jsdom reports as current
+        // (jsdom's location never moves over the course of a test, so this is the only way to make a
+        // background visit's path collide with inFlightPath rather than with here()). Driven through
+        // emit directly, and finish alone: router.backgroundVisit() also fires success, which would
+        // settle first through its own path-comparison guard and hide what finish does on its own.
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/', window.location.href) } });
+
+        // A poll of that same page finishes mid-navigation.
+        router.emit('finish', { visit: { url: new URL('/', window.location.href), async: true } });
+
+        expect(nav.settleNavigation).not.toHaveBeenCalled();
+    });
+
     it('still settles the navigation when its own response arrives', () => {
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
