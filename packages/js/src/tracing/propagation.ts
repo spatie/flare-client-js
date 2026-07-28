@@ -13,7 +13,9 @@ export function shouldPropagate(
     targets?: (string | RegExp)[],
 ): boolean {
     if (targets) {
-        if (targets.length === 0) return false;
+        if (targets.length === 0) {
+            return false;
+        }
         return targets.some((t) => (typeof t === 'string' ? url.includes(t) : t.test(url)));
     }
     return abs !== null && abs.origin === currentOrigin;
@@ -28,9 +30,13 @@ function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
     try {
         const pairs: [string, string][] = [];
         for (const entry of source) {
-            if (entry === null || typeof entry !== 'object') return null;
+            if (entry === null || typeof entry !== 'object') {
+                return null;
+            }
             const pair = Array.from(entry as ArrayLike<unknown>);
-            if (pair.length !== 2) return null;
+            if (pair.length !== 2) {
+                return null;
+            }
             pairs.push([String(pair[0]), String(pair[1])]);
         }
         return pairs;
@@ -60,11 +66,17 @@ export function mergeTraceparentHeader(
     // twice; a one-shot iterator's first walk exhausts it, so the second drops every caller header.
     let headers: HeadersInit;
     if (source instanceof Headers) {
-        if (source.has('traceparent')) return init; // caller-wins
+        // caller-wins
+        if (source.has('traceparent')) {
+            return init;
+        }
         headers = new Headers(source);
         headers.set('traceparent', traceparent);
     } else if (Array.isArray(source)) {
-        if (source.some(([k]) => String(k).toLowerCase() === 'traceparent')) return init; // caller-wins
+        // caller-wins
+        if (source.some(([k]) => String(k).toLowerCase() === 'traceparent')) {
+            return init;
+        }
         headers = [...source, ['traceparent', traceparent]];
     } else if (source && typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
         // Fetch's WebIDL conversion accepts any iterable of string pairs as HeadersInit (Map,

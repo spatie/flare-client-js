@@ -79,7 +79,9 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     const hasRecorded = useRef(false);
     useMountEffect(() => {
         const own = ownRef.current;
-        if (!parent || !own || hasRecorded.current) return;
+        if (!parent || !own || hasRecorded.current) {
+            return;
+        }
         hasRecorded.current = true;
         try {
             recordComponentSpan({

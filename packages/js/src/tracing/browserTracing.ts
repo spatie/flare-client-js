@@ -98,15 +98,22 @@ function startRoot(
         } catch {
             // ignore
         }
-        if (flare.config.debug) console.error('Flare: failed to start browser tracing root', error);
+        if (flare.config.debug) {
+            console.error('Flare: failed to start browser tracing root', error);
+        }
     }
 }
 
 function onUrlChanged(flare: BrowserTracingFlare): void {
     const path = location.pathname;
-    if (path === lastPath) return;
+    if (path === lastPath) {
+        return;
+    }
     lastPath = path;
-    if (navSource) return; // a framework integration drives navigation; keep lastPath current, open no root
+    // a framework integration drives navigation; keep lastPath current, open no root
+    if (navSource) {
+        return;
+    }
     if (controller && !controller.isEnded) {
         try {
             controller.endNow();
@@ -123,8 +130,12 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
  * plus `popstate`). No-op outside a browser. Idempotent.
  */
 export function startBrowserTracing(flare: BrowserTracingFlare): void {
-    if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') return;
-    if (uninstall) return;
+    if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') {
+        return;
+    }
+    if (uninstall) {
+        return;
+    }
 
     activeFlare = flare;
     lastPath = location.pathname;
@@ -143,11 +154,15 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
         // A third party may wrap history.pushState/replaceState on top of ours, so unfill can't
         // restore on stop and this closure leaks. `uninstall` doubles as the installed flag, so the
         // leaked wrapper stays inert instead of starting roots and arming timers while tracing is off.
-        if (!uninstall) return;
+        if (!uninstall) {
+            return;
+        }
         try {
             onUrlChanged(flare);
         } catch (error) {
-            if (flare.config.debug) console.error('Flare: browser tracing navigation handler failed', error);
+            if (flare.config.debug) {
+                console.error('Flare: browser tracing navigation handler failed', error);
+            }
         }
     };
     const wrap = (original: unknown) =>
@@ -168,18 +183,24 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
             try {
                 controller.endNow();
             } catch (error) {
-                if (flare.config.debug) console.error('Flare: failed to end tracing root on page hide', error);
+                if (flare.config.debug) {
+                    console.error('Flare: failed to end tracing root on page hide', error);
+                }
             }
         }
         try {
             flare.tracer.flush({ keepalive: true });
         } catch (error) {
-            if (flare.config.debug) console.error('Flare: failed to flush spans on page hide', error);
+            if (flare.config.debug) {
+                console.error('Flare: failed to flush spans on page hide', error);
+            }
         }
     };
     const onPageHide = (): void => endRootAndFlush();
     const onVisibilityChange = (): void => {
-        if (document.visibilityState === 'hidden') endRootAndFlush();
+        if (document.visibilityState === 'hidden') {
+            endRootAndFlush();
+        }
     };
     window.addEventListener('pagehide', onPageHide);
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -198,7 +219,9 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
  * Page-global singleton: stops whatever session is active, not a per-Flare-instance one.
  */
 export function stopBrowserTracing(): void {
-    if (controller && !controller.isEnded) controller.endNow();
+    if (controller && !controller.isEnded) {
+        controller.endNow();
+    }
     controller = null;
     if (uninstall) {
         uninstall();
@@ -218,7 +241,9 @@ function applyRouteName(route: RouteName): void {
             currentRoot.setAttribute('flare.route.source', route.source);
             if (route.url !== undefined && activeFlare) {
                 const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
-                for (const key of Object.keys(urlAttrs)) currentRoot.setAttribute(key, urlAttrs[key]);
+                for (const key of Object.keys(urlAttrs)) {
+                    currentRoot.setAttribute(key, urlAttrs[key]);
+                }
             }
         } catch {
             // instrumentation must never throw into the host app
@@ -236,14 +261,18 @@ function applyRouteName(route: RouteName): void {
  */
 export function registerNavigationSource(): NavigationSource {
     const token = {};
-    if (navSource && activeFlare?.config.debug) console.debug('Flare: navigation source replaced');
+    if (navSource && activeFlare?.config.debug) {
+        console.debug('Flare: navigation source replaced');
+    }
     navSource = token;
     const active = (): boolean => navSource === token;
     const here = (): string => (typeof location !== 'undefined' ? location.pathname : '');
 
     return {
         startNavigation(opts) {
-            if (!active() || !activeFlare) return;
+            if (!active() || !activeFlare) {
+                return;
+            }
             const path = opts?.path ?? here();
             lastPath = path;
             if (controller && !controller.isEnded) {
@@ -256,11 +285,15 @@ export function registerNavigationSource(): NavigationSource {
             startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path, opts?.url, opts?.hold);
         },
         setActiveRouteName(route) {
-            if (!active()) return;
+            if (!active()) {
+                return;
+            }
             applyRouteName(route);
         },
         settleNavigation(route) {
-            if (!active()) return;
+            if (!active()) {
+                return;
+            }
             applyRouteName(route);
             if (controller && !controller.isEnded) {
                 try {
@@ -271,7 +304,9 @@ export function registerNavigationSource(): NavigationSource {
             }
         },
         unregister() {
-            if (!active()) return;
+            if (!active()) {
+                return;
+            }
             // Release any hold so a navigation root opened held (awaiting a settle that will now
             // never come, e.g. route-provider unmount or HMR mid-navigation) does not stay
             // idle-suppressed until the finalTimeout force-close. A childless root then closes now;

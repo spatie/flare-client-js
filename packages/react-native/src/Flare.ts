@@ -90,7 +90,9 @@ export class ReactNativeFlare extends CoreFlare {
     }
 
     private install(): void {
-        if (this.installed) return;
+        if (this.installed) {
+            return;
+        }
         this.installed = true;
         this.uninstallers.push(
             // `reportSilently` (not `report`) swallows its own transport rejection so a reporting failure

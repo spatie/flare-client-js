@@ -20,32 +20,54 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
     const seen = new WeakSet<object>();
 
     function walk(node: unknown, depth: number): unknown {
-        if (node === null) return null;
+        if (node === null) {
+            return null;
+        }
 
         const type = typeof node;
 
-        if (type === 'bigint') return (node as bigint).toString();
-        if (type === 'function') return options.mode === 'display' ? '[Function]' : node;
-        if (type === 'symbol') return options.mode === 'display' ? '[Symbol]' : node;
-        if (type === 'string') return options.mode === 'display' ? truncate(node as string, options.stringCap) : node;
-        if (type !== 'object') return node;
+        if (type === 'bigint') {
+            return (node as bigint).toString();
+        }
+        if (type === 'function') {
+            return options.mode === 'display' ? '[Function]' : node;
+        }
+        if (type === 'symbol') {
+            return options.mode === 'display' ? '[Symbol]' : node;
+        }
+        if (type === 'string') {
+            return options.mode === 'display' ? truncate(node as string, options.stringCap) : node;
+        }
+        if (type !== 'object') {
+            return node;
+        }
 
-        if (seen.has(node as object)) return '[Circular]';
+        if (seen.has(node as object)) {
+            return '[Circular]';
+        }
 
         if (Array.isArray(node)) {
-            if (options.mode === 'display' && depth > options.maxDepth) return '[Array]';
+            if (options.mode === 'display' && depth > options.maxDepth) {
+                return '[Array]';
+            }
             seen.add(node);
             const cap = options.mode === 'display' ? options.arrayCap : Infinity;
             const slice = node.length > cap ? node.slice(0, cap) : node;
             const result: unknown[] = slice.map((item) => walk(item, depth + 1));
-            if (node.length > cap) result.push(`[… ${node.length - cap} more items]`);
+            if (node.length > cap) {
+                result.push(`[… ${node.length - cap} more items]`);
+            }
             seen.delete(node);
             return result;
         }
 
-        if (!isPlainObject(node)) return options.mode === 'display' ? '[Object]' : node;
+        if (!isPlainObject(node)) {
+            return options.mode === 'display' ? '[Object]' : node;
+        }
 
-        if (options.mode === 'display' && depth > options.maxDepth) return '[Object]';
+        if (options.mode === 'display' && depth > options.maxDepth) {
+            return '[Object]';
+        }
 
         seen.add(node);
         const result: Record<string, unknown> = {};
@@ -63,7 +85,9 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
                 result[key] = '[Getter threw]';
             }
         }
-        if (keys.length > keyCap) result['…'] = `[${keys.length - keyCap} more keys]`;
+        if (keys.length > keyCap) {
+            result['…'] = `[${keys.length - keyCap} more keys]`;
+        }
         seen.delete(node);
         return result;
     }
@@ -72,7 +96,9 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
 }
 
 function truncate(value: string, max: number): string {
-    if (value.length <= max) return value;
+    if (value.length <= max) {
+        return value;
+    }
     return `${value.slice(0, max)}…[truncated ${value.length - max} chars]`;
 }
 
@@ -81,7 +107,9 @@ function truncate(value: string, max: number): string {
  * non-enumerable internals we should not traverse, so they are left to the caller's mode policy.
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-    if (value === null || typeof value !== 'object') return false;
+    if (value === null || typeof value !== 'object') {
+        return false;
+    }
     const proto = Object.getPrototypeOf(value);
     return proto === Object.prototype || proto === null;
 }

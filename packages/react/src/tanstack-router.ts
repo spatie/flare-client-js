@@ -29,7 +29,9 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
             const last = matches[matches.length - 1];
             const matched = matches.some((m) => m.routeId !== '__root__');
             const name = matched ? last?.fullPath || last?.routeId : undefined;
-            if (name) return { name, source: 'route', url };
+            if (name) {
+                return { name, source: 'route', url };
+            }
         } catch {
             // fall through to the URL name
         }
@@ -48,8 +50,14 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
     const offBeforeLoad = router.subscribe(
         'onBeforeLoad',
         insulate((e: TsrNavEvent) => {
-            if (e.fromLocation === undefined) return; // initial pageload (handled via onResolved)
-            if (e.toLocation.state === e.fromLocation.state) return; // no-op reload (e.g. router.invalidate())
+            // initial pageload (handled via onResolved)
+            if (e.fromLocation === undefined) {
+                return;
+            }
+            // no-op reload (e.g. router.invalidate())
+            if (e.toLocation.state === e.fromLocation.state) {
+                return;
+            }
             if (!inFlight) {
                 inFlight = true;
                 nav.startNavigation({ path: e.toLocation.pathname });

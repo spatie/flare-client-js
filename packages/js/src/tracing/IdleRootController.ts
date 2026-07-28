@@ -87,23 +87,35 @@ export class IdleRootController {
      * No-op when never held or already ended.
      */
     releaseHold(): void {
-        if (this.ended || !this.held) return;
+        if (this.ended || !this.held) {
+            return;
+        }
         this.held = false;
-        if (this.openChildren === 0) this.settleTime = this.deps.now();
+        if (this.openChildren === 0) {
+            this.settleTime = this.deps.now();
+        }
         this.armIdle();
     }
 
     private onSpanEvent(phase: 'start' | 'end', span: Span): void {
-        if (this.ended) return;
-        if (span === this.deps.root) return;
-        if (span.traceId !== this.deps.root.traceId) return;
+        if (this.ended) {
+            return;
+        }
+        if (span === this.deps.root) {
+            return;
+        }
+        if (span.traceId !== this.deps.root.traceId) {
+            return;
+        }
 
         if (phase === 'start') {
             this.openChildren++;
             this.clearIdle();
             // childSpanTimeout is anchored to the 0->1 transition, not each child; a continuously
             // busy root force-ends childSpanTimeout ms after the batch began.
-            if (this.openChildren === 1) this.armChildTimeout();
+            if (this.openChildren === 1) {
+                this.armChildTimeout();
+            }
         } else {
             this.openChildren = Math.max(0, this.openChildren - 1);
             // endTimeUnixNano is 0 (SpanImpl's unset sentinel) until end() runs, which sets it
@@ -119,9 +131,14 @@ export class IdleRootController {
 
     private armIdle(): void {
         this.clearIdle();
-        if (this.held) return; // hold suppresses idle-close until releaseHold()
+        // hold suppresses idle-close until releaseHold()
+        if (this.held) {
+            return;
+        }
         this.idleTimer = this.deps.setTimeout(() => {
-            if (this.openChildren > 0) return;
+            if (this.openChildren > 0) {
+                return;
+            }
             this.finish(this.trimmedEnd());
         }, this.timeouts.idleTimeout);
     }
@@ -155,7 +172,9 @@ export class IdleRootController {
     }
 
     private finish(atTimeNano: number): void {
-        if (this.ended) return;
+        if (this.ended) {
+            return;
+        }
         this.ended = true;
         this.clearIdle();
         this.clearChildTimeout();

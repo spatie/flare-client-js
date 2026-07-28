@@ -29,8 +29,12 @@ export function createPatcher() {
 
         /** Fill every patch's method on `target`. No-op (does not re-fill anything) if already installed. */
         install(target: Record<string, unknown>, patches: readonly MethodPatch[]): void {
-            if (installed) return;
-            for (const { name, wrap } of patches) fill(target, name, wrap);
+            if (installed) {
+                return;
+            }
+            for (const { name, wrap } of patches) {
+                fill(target, name, wrap);
+            }
             names = patches.map((p) => p.name);
             installed = true;
         },
@@ -44,13 +48,19 @@ export function createPatcher() {
          * next `install` (a no-op, since the wrappers are already in place) with no double-wrapping.
          */
         uninstall(target: Record<string, unknown>): void {
-            if (!installed) return;
+            if (!installed) {
+                return;
+            }
             const restorable = names.every((name) => {
                 const current = target[name];
                 return typeof current !== 'function' || Boolean((current as Wrapped<unknown>).__flare_original__);
             });
-            if (!restorable) return;
-            for (const name of names) unfill(target, name);
+            if (!restorable) {
+                return;
+            }
+            for (const name of names) {
+                unfill(target, name);
+            }
             installed = false;
         },
     };

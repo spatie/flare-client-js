@@ -67,7 +67,9 @@ function fallbackFrame(reason: string): StackFrame {
 // constructed but never thrown. Treat that as "no stack" so we fall back instead of parsing garbage.
 // Also accepts the legacy `stacktrace` and Opera `opera#sourceloc` properties.
 function hasStack(err: unknown): boolean {
-    if (!err || typeof err !== 'object') return false;
+    if (!err || typeof err !== 'object') {
+        return false;
+    }
     const e = err as Record<string, unknown>;
     const stack = e.stack ?? e.stacktrace ?? e['opera#sourceloc'];
     return (
@@ -77,9 +79,15 @@ function hasStack(err: unknown): boolean {
 }
 
 function isApplicationFrame(fileName: string | undefined): boolean {
-    if (!fileName) return true;
+    if (!fileName) {
+        return true;
+    }
     // node_modules and webpack-style vendor chunks should not count as application code
-    if (/[/\\]node_modules[/\\]/.test(fileName)) return false;
-    if (/(^|[/\\])(vendor|vendors)[.~-][^/\\]*\.js/i.test(fileName)) return false;
+    if (/[/\\]node_modules[/\\]/.test(fileName)) {
+        return false;
+    }
+    if (/(^|[/\\])(vendor|vendors)[.~-][^/\\]*\.js/i.test(fileName)) {
+        return false;
+    }
     return true;
 }

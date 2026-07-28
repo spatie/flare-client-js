@@ -35,11 +35,15 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
 
         const config = tracer.config;
-        if (!config.enableTracing) return call(init);
+        if (!config.enableTracing) {
+            return call(init);
+        }
 
         const { method, url } = resolveRequest(input, init);
         const abs = safeAbsolute(url, origin);
-        if (isFlareIngestUrl(abs, config)) return call(init);
+        if (isFlareIngestUrl(abs, config)) {
+            return call(init);
+        }
 
         const pathname = abs ? abs.pathname : url;
 
@@ -50,7 +54,9 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
 
         let finalInit = init;
         const traceparent = traceparentFor(span, abs, url, origin, config);
-        if (traceparent) finalInit = mergeTraceparentHeader(input, init, traceparent);
+        if (traceparent) {
+            finalInit = mergeTraceparentHeader(input, init, traceparent);
+        }
 
         const finishError = (error: unknown): Promise<never> => {
             finishHttpSpanError(span, error);
@@ -85,11 +91,17 @@ const patcher = createPatcher();
  * Reversible via `unpatchFetch`.
  */
 export function instrumentFetch(tracer: HttpTracer): void {
-    if (patcher.installed) return;
+    if (patcher.installed) {
+        return;
+    }
 
     const g = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
-    if (typeof g.fetch !== 'function') return;
-    if (!supportsNativeFetch()) return;
+    if (typeof g.fetch !== 'function') {
+        return;
+    }
+    if (!supportsNativeFetch()) {
+        return;
+    }
 
     const origin = g.location?.origin ?? '';
     patcher.install(g as unknown as Record<string, unknown>, [

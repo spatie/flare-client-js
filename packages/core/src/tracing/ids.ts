@@ -4,11 +4,18 @@ export function randomHex(bytes: number): string {
     if (c && typeof c.getRandomValues === 'function') {
         c.getRandomValues(buf);
     } else {
-        for (let i = 0; i < bytes; i++) buf[i] = Math.floor(Math.random() * 256);
+        for (let i = 0; i < bytes; i++) {
+            buf[i] = Math.floor(Math.random() * 256);
+        }
     }
-    if (buf.every((b) => b === 0)) buf[bytes - 1] = 1; // W3C: all-zeroes forbidden
+    // W3C: all-zeroes forbidden
+    if (buf.every((b) => b === 0)) {
+        buf[bytes - 1] = 1;
+    }
     let out = '';
-    for (let i = 0; i < bytes; i++) out += buf[i].toString(16).padStart(2, '0');
+    for (let i = 0; i < bytes; i++) {
+        out += buf[i].toString(16).padStart(2, '0');
+    }
     return out;
 }
 

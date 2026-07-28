@@ -26,7 +26,9 @@ export function userIdentityAttributes(scope: Scope): Attributes {
     const attrs: Attributes = {};
     for (const key of USER_IDENTITY_KEYS) {
         const value = scope.pendingAttributes[key];
-        if (value !== undefined) attrs[key] = value;
+        if (value !== undefined) {
+            attrs[key] = value;
+        }
     }
     return attrs;
 }

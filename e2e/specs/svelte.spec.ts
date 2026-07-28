@@ -267,7 +267,9 @@ test.describe('svelte http tracing', () => {
     test('Kit does not warn about window.fetch for a traced load fetch', async ({ page }) => {
         const warnings: string[] = [];
         page.on('console', (msg) => {
-            if (msg.type() === 'warning') warnings.push(msg.text());
+            if (msg.type() === 'warning') {
+                warnings.push(msg.text());
+            }
         });
 
         await page.goto('/');

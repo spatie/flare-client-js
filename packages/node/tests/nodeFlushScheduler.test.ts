@@ -8,7 +8,9 @@ describe('NodeFlushScheduler', () => {
     it('flushes on process beforeExit', () => {
         const handlers: Array<() => void> = [];
         const onSpy = vi.spyOn(process, 'on').mockImplementation(((event: string, cb: () => void) => {
-            if (event === 'beforeExit') handlers.push(cb);
+            if (event === 'beforeExit') {
+                handlers.push(cb);
+            }
             return process;
         }) as typeof process.on);
 

@@ -6,6 +6,7 @@
         "suspicious": "warn"
     },
     "rules": {
+        "curly": "error",
         "no-console": "off",
         "no-underscore-dangle": "off",
         "typescript/no-explicit-any": "warn",

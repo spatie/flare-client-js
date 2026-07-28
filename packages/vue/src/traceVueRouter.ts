@@ -33,7 +33,9 @@ export function traceVueRouter(router: unknown): () => void {
         try {
             const matched = loc.matched;
             const template = matched && matched.length > 0 ? matched[matched.length - 1]?.path : undefined;
-            if (template) return { name: template, source: 'route', url };
+            if (template) {
+                return { name: template, source: 'route', url };
+            }
         } catch {
             // fall through to the URL name
         }
@@ -45,7 +47,9 @@ export function traceVueRouter(router: unknown): () => void {
     // `/app/product/p01`. Fall back to the bare path only if the router has no `resolve`.
     const hrefOf = (loc: VueRouteLocationLike): string | undefined => {
         const path = loc.fullPath ?? loc.path;
-        if (!path) return undefined;
+        if (!path) {
+            return undefined;
+        }
         let href = path;
         try {
             href = r.resolve?.(path)?.href ?? path;
@@ -86,7 +90,9 @@ export function traceVueRouter(router: unknown): () => void {
             // plain duplicated nav is short-circuited before guards run and surfaces solely as an afterEach
             // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
             // no navigation root.
-            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) return;
+            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) {
+                return;
+            }
 
             if (!inFlight) {
                 inFlight = true;
@@ -106,7 +112,9 @@ export function traceVueRouter(router: unknown): () => void {
                 return;
             }
 
-            if (!inFlight) return;
+            if (!inFlight) {
+                return;
+            }
 
             if (!failure) {
                 inFlight = false;
@@ -118,7 +126,9 @@ export function traceVueRouter(router: unknown): () => void {
             // failure here is terminal. `cancelled` (a newer nav superseded this one) keeps the held root
             // for the successor's afterEach; `aborted` / `duplicated` / unknown release it to the current
             // location so a blocked navigation can't strand a held root until the finalTimeout backstop.
-            if (failure.type === NAVIGATION_CANCELLED) return;
+            if (failure.type === NAVIGATION_CANCELLED) {
+                return;
+            }
             inFlight = false;
             nav.settleNavigation(routeNameFor(from));
         }),
@@ -128,7 +138,9 @@ export function traceVueRouter(router: unknown): () => void {
         typeof r.onError === 'function'
             ? r.onError(
                   insulate(() => {
-                      if (!inFlight) return;
+                      if (!inFlight) {
+                          return;
+                      }
                       inFlight = false;
                       const current = r.currentRoute?.value;
                       nav.settleNavigation(current ? routeNameFor(current) : { name: '', source: 'url' });
@@ -141,7 +153,9 @@ export function traceVueRouter(router: unknown): () => void {
         safeInvoke(offAfter);
         safeInvoke(offError);
         safeInvoke(() => nav.unregister());
-        if (instrumented.get(r) === cleanup) instrumented.delete(r);
+        if (instrumented.get(r) === cleanup) {
+            instrumented.delete(r);
+        }
     };
     instrumented.set(r, cleanup);
     return cleanup;

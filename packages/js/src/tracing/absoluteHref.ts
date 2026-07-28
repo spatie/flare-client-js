@@ -10,7 +10,9 @@
  * span attribute it would have written alone.
  */
 export function absoluteHref(href: string | null | undefined): string | undefined {
-    if (href == null || typeof window === 'undefined') return undefined;
+    if (href == null || typeof window === 'undefined') {
+        return undefined;
+    }
     try {
         return new URL(href, window.location.href).href;
     } catch {

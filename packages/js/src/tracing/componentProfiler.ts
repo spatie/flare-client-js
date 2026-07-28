@@ -25,7 +25,9 @@ export function reserveSpanId(): string {
 export function activeComponentRoot(): ComponentTraceContext | null {
     try {
         const root = activeTracingFlare()?.tracer.getActiveSpan();
-        if (!root || !root.isRecording) return null;
+        if (!root || !root.isRecording) {
+            return null;
+        }
         return { traceId: root.traceId, parentSpanId: root.spanId };
     } catch {
         return null;
@@ -49,9 +51,13 @@ export function recordComponentSpan(span: {
 }): void {
     try {
         const flare = activeTracingFlare();
-        if (!flare) return;
+        if (!flare) {
+            return;
+        }
         const root = flare.tracer.getActiveSpan();
-        if (!root || root.traceId !== span.parent.traceId || !root.isRecording) return;
+        if (!root || root.traceId !== span.parent.traceId || !root.isRecording) {
+            return;
+        }
         flare
             .startSpan(span.name, {
                 spanId: span.spanId,

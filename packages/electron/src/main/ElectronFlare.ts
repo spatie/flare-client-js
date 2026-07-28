@@ -232,7 +232,9 @@ export class ElectronFlare extends CoreFlare {
         // User identity is main-authoritative (like the config fields below): a renderer must never
         // set identity main did not, and partial main identity must not mix with leftover renderer
         // keys. Clear every identity key first, then stamp main's.
-        for (const key of USER_IDENTITY_KEYS) delete report.attributes[key];
+        for (const key of USER_IDENTITY_KEYS) {
+            delete report.attributes[key];
+        }
         Object.assign(
             report.attributes,
             collectElectronAppAttributes(this.app),

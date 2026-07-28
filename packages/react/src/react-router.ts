@@ -12,16 +12,25 @@ import type { RRDataRouter, RRLocation, RRMatch, RRRouterState } from './vendor/
  * router's already-resolved `state.matches` instead of re-matching.
  */
 export function routeNameFromMatches(matches: RRMatch[] | undefined): string | undefined {
-    if (!matches || matches.length === 0) return undefined;
+    if (!matches || matches.length === 0) {
+        return undefined;
+    }
     let path = '';
     for (const m of matches) {
         const p = m.route?.path;
-        if (!p) continue; // pathless layout route, or an index route's empty contribution
+        // pathless layout route, or an index route's empty contribution
+        if (!p) {
+            continue;
+        }
         // An absolute child path resets the accumulator; a relative one appends.
         path = p[0] === '/' ? p : (path.endsWith('/') ? path : path + '/') + p;
     }
-    if (!path) return undefined;
-    if (path[0] !== '/') path = '/' + path;
+    if (!path) {
+        return undefined;
+    }
+    if (path[0] !== '/') {
+        path = '/' + path;
+    }
     return path.replace(/\/{2,}/g, '/'); // collapse the `//` a '/' root part introduces
 }
 
@@ -41,7 +50,9 @@ export function traceReactRouter(router: RRDataRouter): () => void {
         const url = hrefOf(state.location);
         try {
             const name = routeNameFromMatches(state.matches);
-            if (name) return { name, source: 'route', url };
+            if (name) {
+                return { name, source: 'route', url };
+            }
         } catch {
             // fall through to the URL name
         }
@@ -82,7 +93,9 @@ export function traceReactRouter(router: RRDataRouter): () => void {
     // navigation before initialization and always notifies on init completion, so the first
     // `initialized` fire is the settle (possibly after an initial-load redirect), never a navigation.
     try {
-        if (router.state.matches.length > 0) namePageload(router.state);
+        if (router.state.matches.length > 0) {
+            namePageload(router.state);
+        }
         sawInitialSettle = router.state.initialized === true;
     } catch {
         // never break the host on wiring
@@ -92,8 +105,12 @@ export function traceReactRouter(router: RRDataRouter): () => void {
         // Initial-load phase: until RR reports `initialized`, attribute every fire to the pageload
         // root (one-shot correcting its name once matches resolve) and never open a navigation root.
         if (!sawInitialSettle) {
-            if (state.matches.length > 0) namePageload(state);
-            if (state.initialized) sawInitialSettle = true;
+            if (state.matches.length > 0) {
+                namePageload(state);
+            }
+            if (state.initialized) {
+                sawInitialSettle = true;
+            }
             return;
         }
 

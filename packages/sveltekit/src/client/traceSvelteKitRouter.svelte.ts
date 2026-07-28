@@ -33,11 +33,15 @@ const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =
 
 /** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
 export function syncNavigation(snapshot: NavSnapshot): void {
-    if (!nav) return;
+    if (!nav) {
+        return;
+    }
     // Kit's `a:` placeholder url, which it uses before hydration. Its origin is not ours, and it has
     // no pathname. Checked before the tracing gate because it is not a real page: storing it as
     // lastKey would make the next real snapshot look like a navigation.
-    if (snapshot.url.origin !== location.origin) return;
+    if (snapshot.url.origin !== location.origin) {
+        return;
+    }
     if (!flare.config?.enableTracing) {
         // No settle can arrive while tracing is off, so clear the flag. If it stayed set, the next
         // navigation would think one was already running and open no root.
@@ -54,7 +58,9 @@ export function syncNavigation(snapshot: NavSnapshot): void {
         const toRouteId = to.route?.id;
         // The document is about to unload, so the next pageload will cover this. Kit derives both of
         // these from the same missing intent, which is why one check covers both.
-        if (snapshot.willUnload || toRouteId == null) return;
+        if (snapshot.willUnload || toRouteId == null) {
+            return;
+        }
 
         if (!inFlight) {
             // Kit tells us where it is going before the URL changes, so pass the destination along.
@@ -103,7 +109,9 @@ export function syncNavigation(snapshot: NavSnapshot): void {
  * them).
  */
 export function traceSvelteKitRouter(): () => void {
-    if (tracing || typeof window === 'undefined') return () => {};
+    if (tracing || typeof window === 'undefined') {
+        return () => {};
+    }
     tracing = true;
 
     let dispose: (() => void) | undefined;

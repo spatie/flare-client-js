@@ -25,12 +25,16 @@ export function createIdentityTagger(config: { sdkName: string; sdkVersion: stri
 
     return {
         registerSdkIdentity(flare) {
-            if (sdkTagged.has(flare)) return;
+            if (sdkTagged.has(flare)) {
+                return;
+            }
             sdkTagged.add(flare);
             flare.setSdkInfo({ name: config.sdkName, version: config.sdkVersion });
         },
         tagFramework(flare, frameworkVersion) {
-            if (frameworkTagged.has(flare)) return;
+            if (frameworkTagged.has(flare)) {
+                return;
+            }
             frameworkTagged.add(flare);
             flare.setFramework(
                 frameworkVersion === undefined

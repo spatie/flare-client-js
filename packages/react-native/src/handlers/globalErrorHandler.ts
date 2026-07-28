@@ -32,7 +32,9 @@ export function installGlobalErrorHandler(
     onFatal?: () => Promise<void>,
 ): () => void {
     const errorUtils = getErrorUtils();
-    if (!errorUtils) return () => {};
+    if (!errorUtils) {
+        return () => {};
+    }
 
     const previous = errorUtils.getGlobalHandler();
     let handlingFatal = false;

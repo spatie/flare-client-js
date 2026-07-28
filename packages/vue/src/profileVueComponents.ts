@@ -17,8 +17,12 @@ export type ProfileComponentsOption = boolean | (string | RegExp)[];
  * match. Strings match exactly, regexes by `test()`.
  */
 export function createComponentMatcher(option: ProfileComponentsOption): (name: string) => boolean {
-    if (option === true) return () => true;
-    if (!option || option.length === 0) return () => false;
+    if (option === true) {
+        return () => true;
+    }
+    if (!option || option.length === 0) {
+        return () => false;
+    }
 
     const names = new Set(option.filter((entry): entry is string => typeof entry === 'string'));
 
@@ -47,7 +51,9 @@ type ProfiledInstance = ComponentInternalInstance & { [PROFILE]?: ProfileState }
 function nearestMarker(instance: ComponentInternalInstance): ComponentTraceContext | null {
     for (let node = instance.parent; node; node = node.parent) {
         const state = (node as ProfiledInstance)[PROFILE];
-        if (state) return state.marker;
+        if (state) {
+            return state.marker;
+        }
     }
     return null;
 }
@@ -62,7 +68,10 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
         beforeMount(this: ComponentPublicInstance) {
             try {
                 const name = getComponentName(this);
-                if (!matches(name)) return; // unmatched components stay transparent: no state, no marker
+                // unmatched components stay transparent: no state, no marker
+                if (!matches(name)) {
+                    return;
+                }
 
                 const internal = this.$ as ProfiledInstance;
                 const live = activeComponentRoot();
@@ -72,7 +81,10 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                 // marker under the pageload trace, and the live-root gate would drop anything pointing
                 // at it. Re-home to the live root instead.
                 const parent = inherited && live && inherited.traceId === live.traceId ? inherited : live;
-                if (!parent) return; // tracing off, or no root open: record nothing
+                // tracing off, or no root open: record nothing
+                if (!parent) {
+                    return;
+                }
 
                 const spanId = reserveSpanId();
                 internal[PROFILE] = {
@@ -88,7 +100,9 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
             try {
                 const state = (this.$ as ProfiledInstance)[PROFILE];
                 const pending = state?.pending;
-                if (!state || !pending) return;
+                if (!state || !pending) {
+                    return;
+                }
 
                 state.pending = null; // the marker stays for descendants; the span records once
                 recordComponentSpan({

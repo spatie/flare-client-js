@@ -21,7 +21,9 @@ function fakeXHR(opts: { sendImpl?: () => void; headerThrows?: (name: string, va
         },
         setRequestHeader(name: string, value: string) {
             // Mirrors the native behavior: a forbidden value throws BEFORE the header is recorded.
-            if (opts.headerThrows?.(name, value)) throw new Error('forbidden header value');
+            if (opts.headerThrows?.(name, value)) {
+                throw new Error('forbidden header value');
+            }
             setHeaderSpy(name, value);
             headers[name.toLowerCase()] = value;
         },

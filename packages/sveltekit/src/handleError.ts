@@ -40,7 +40,9 @@ function shouldSkip(input: HandleErrorInput): boolean {
 }
 
 function unwrapSvelteKitError(error: unknown): unknown {
-    if (typeof error !== 'object' || error === null) return error;
+    if (typeof error !== 'object' || error === null) {
+        return error;
+    }
     const obj = error as Record<string, unknown>;
     if (obj.type === 'error' && typeof obj.error === 'object' && obj.error !== null) {
         return obj.error;

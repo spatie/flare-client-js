@@ -14,11 +14,15 @@ export type RejectionReporter = {
 
 /** Best-effort human-readable description of an arbitrary rejection reason. */
 export function describeRejectionReason(reason: unknown): string {
-    if (typeof reason === 'string') return reason;
+    if (typeof reason === 'string') {
+        return reason;
+    }
     if (reason && typeof reason === 'object') {
         const message = (reason as { message?: unknown }).message;
         // An empty `.message` carries no signal; fall through to JSON.stringify so the report shows the object's shape.
-        if (typeof message === 'string' && message) return message;
+        if (typeof message === 'string' && message) {
+            return message;
+        }
         try {
             return JSON.stringify(reason);
         } catch {

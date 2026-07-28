@@ -75,7 +75,9 @@ describe('Logger record/buffer', () => {
         // With a key, hitting the count cap would flush-and-clear so the buffer never reaches the cap. key: null makes
         // flush a no-op, so the hard trim is what bounds the buffer, which is what we assert.
         const logger = makeLogger(makeConfig({ key: null, maxLogBufferSize: 3, logFlushIntervalMs: 999_999 }));
-        for (let i = 0; i < 10; i++) logger.info(`m${i}`);
+        for (let i = 0; i < 10; i++) {
+            logger.info(`m${i}`);
+        }
         expect(logger.bufferLength()).toBe(3);
     });
 });
@@ -202,7 +204,10 @@ describe('Logger triggers', () => {
             logFlushIntervalMs: 999_999,
         });
         const logger = makeLogger(config, api);
-        for (let i = 0; i < 30; i++) logger.info('x'.repeat(200)); // each ~200B; 30 would blow 1500B
+        // each ~200B; 30 would blow 1500B
+        for (let i = 0; i < 30; i++) {
+            logger.info('x'.repeat(200));
+        }
         logger.flush({ keepalive: true });
         expect(api.logEnvelopes).toHaveLength(1);
         const serialized = new TextEncoder().encode(JSON.stringify(api.logEnvelopes[0])).length;

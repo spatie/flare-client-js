@@ -41,7 +41,9 @@ export function makeNodeContextCollector(
         const scope = provider.active();
         const { request } = scope;
 
-        if (request.method) attrs['http.request.method'] = request.method;
+        if (request.method) {
+            attrs['http.request.method'] = request.method;
+        }
 
         // `request.path` is a server-relative path with optional query (the shape of `req.url` from
         // `node:http`). Split into `url.path` (before `?`) and `url.query` (after `?`, denylisted keys
@@ -75,7 +77,9 @@ export function makeNodeContextCollector(
         if (opts.captureRequestBody) {
             const contentType = findHeader(request.headers, 'content-type');
             const body = captureBody(request.body, contentType, opts);
-            if (body !== null) attrs['http.request.body'] = body;
+            if (body !== null) {
+                attrs['http.request.body'] = body;
+            }
         }
 
         return attrs;

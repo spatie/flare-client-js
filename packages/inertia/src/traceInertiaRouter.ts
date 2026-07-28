@@ -9,9 +9,13 @@ const instrumented = new WeakMap<object, () => void>();
 /** Resolve a router-reported location (a `URL` on visits, a relative string on pages) to a full href
  *  plus its path. Both are undefined outside a browser or for an unparseable value. */
 function locationOf(raw: URL | string | null | undefined): { href?: string; path?: string } {
-    if (raw == null) return {};
+    if (raw == null) {
+        return {};
+    }
     const href = absoluteHref(String(raw));
-    if (!href) return {};
+    if (!href) {
+        return {};
+    }
     try {
         return { href, path: new URL(href).pathname };
     } catch {
@@ -25,8 +29,12 @@ const here = (): string => (typeof location !== 'undefined' ? location.pathname 
  *  These fire the same `start` and `finish` a real visit does, and opening a root for one both invents
  *  a navigation and ends the root that was live. */
 function isBackgroundVisit(visit: InertiaVisitLike | undefined): boolean {
-    if (!visit) return false;
-    if (visit.prefetch) return true;
+    if (!visit) {
+        return false;
+    }
+    if (visit.prefetch) {
+        return true;
+    }
     // `router.reload()` is the shared entry point for polling, deferred props and infinite scroll. It
     // always reloads the current url with `async: true`, so an async visit that does not take the user
     // off the page they are on is a refresh. Infinite scroll only changes the query, which is why this
@@ -73,7 +81,9 @@ export function traceInertiaRouter(router: unknown): () => void {
         const route = routeNameFor(page);
         // Only a route-sourced name is worth keeping. A url-sourced one is what we are trying to
         // avoid falling back to in the first place.
-        if (route.source === 'route') lastComponent = { path: locationOf(page?.url).path, name: route.name };
+        if (route.source === 'route') {
+            lastComponent = { path: locationOf(page?.url).path, name: route.name };
+        }
         return route;
     };
 
@@ -87,7 +97,9 @@ export function traceInertiaRouter(router: unknown): () => void {
         'start',
         insulate((event: InertiaEventLike) => {
             const visit = event?.detail?.visit;
-            if (isBackgroundVisit(visit)) return;
+            if (isBackgroundVisit(visit)) {
+                return;
+            }
             const { href, path } = locationOf(visit?.url);
 
             if (inFlight) {
@@ -141,7 +153,9 @@ export function traceInertiaRouter(router: unknown): () => void {
             // `replace: true`, both settle here instead. On a normal visit navigate already cleared
             // inFlight and this is a no-op: navigate fires from inside the promise Response.handle()
             // returns, and success fires after that resolves.
-            if (!inFlight) return;
+            if (!inFlight) {
+                return;
+            }
             const page = event?.detail?.page;
             // A background reload's success fires on the async stream while a navigation is still
             // running on the sync one. Only the response for the page this root was opened for may
@@ -157,7 +171,9 @@ export function traceInertiaRouter(router: unknown): () => void {
             // falls through to settle rather than stall on it. Deliberate, unlike finish's explicit
             // undefined-visit fallthrough below: there is no visit object here to tell a genuinely
             // unreadable page apart from one that is simply missing.
-            if (locationOf(page?.url).path !== inFlightPath) return;
+            if (locationOf(page?.url).path !== inFlightPath) {
+                return;
+            }
             settle(page);
         }),
     );
@@ -167,16 +183,22 @@ export function traceInertiaRouter(router: unknown): () => void {
         // real visit does, and can share the in-flight navigation's path: a poll of the page the user
         // is mid-navigation away from ticks on the path they started from, not the one they are
         // leaving. Without this a background visit that happens to match settles a root it never opened.
-        if (isBackgroundVisit(visit)) return false;
+        if (isBackgroundVisit(visit)) {
+            return false;
+        }
         // Same stream-crossing problem as success. Must run before the interrupted check below: a
         // visit shape we cannot read at all falls through to the backstop rather than stranding the
         // held root.
-        if (visit && locationOf(visit.url).path !== inFlightPath) return false;
+        if (visit && locationOf(visit.url).path !== inFlightPath) {
+            return false;
+        }
         // A newer visit displaced this one, and Inertia only interrupts from inside `visit()`,
         // immediately before it sends the replacement. So a successor `start` is already on its way:
         // keep the root this visit opened and let the successor settle it. `cancelled` is the opposite
         // case, with nothing following, so it falls through and settles.
-        if (visit?.interrupted) return false;
+        if (visit?.interrupted) {
+            return false;
+        }
         return true;
     };
 
@@ -186,8 +208,12 @@ export function traceInertiaRouter(router: unknown): () => void {
             // An errored, cancelled or non-Inertia response fires neither navigate nor success. Without
             // this the held root stays idle-suppressed until the 30s finalTimeout. Settle to where the
             // browser actually is, since the visit never landed on its destination.
-            if (!inFlight) return;
-            if (!belongsToThisNavigation(event?.detail?.visit)) return;
+            if (!inFlight) {
+                return;
+            }
+            if (!belongsToThisNavigation(event?.detail?.visit)) {
+                return;
+            }
             inFlight = false;
             inFlightPath = undefined;
             const { href, path } = locationOf(here());
@@ -208,7 +234,9 @@ export function traceInertiaRouter(router: unknown): () => void {
         safeInvoke(offSuccess);
         safeInvoke(offFinish);
         safeInvoke(() => nav.unregister());
-        if (instrumented.get(r) === cleanup) instrumented.delete(r);
+        if (instrumented.get(r) === cleanup) {
+            instrumented.delete(r);
+        }
     };
     instrumented.set(r, cleanup);
 

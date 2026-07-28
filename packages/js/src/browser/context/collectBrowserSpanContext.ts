@@ -35,16 +35,22 @@ export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride
  * Returns `{}` when the href cannot be parsed, so a bad url leaves the current values as they are.
  */
 export const browserSpanUrlAttributes = (config: Readonly<Config>, href: string): Attributes => {
-    if (typeof window === 'undefined') return {};
+    if (typeof window === 'undefined') {
+        return {};
+    }
     const resolved = resolveHref(href);
-    if (resolved === undefined) return {};
+    if (resolved === undefined) {
+        return {};
+    }
     const redacted = redactUrlQuery(resolved, config.urlDenylist);
     return { 'url.full': redacted, 'flare.entry_point.value': redacted };
 };
 
 /** Normalize an override href once; undefined (fall back to live location) when unparseable. */
 function resolveHref(hrefOverride?: string): string | undefined {
-    if (hrefOverride === undefined) return undefined;
+    if (hrefOverride === undefined) {
+        return undefined;
+    }
     try {
         return new URL(hrefOverride, window.location.href).href;
     } catch {

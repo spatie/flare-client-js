@@ -7,7 +7,9 @@ export function resolveSampling(
     config: { tracesSampler?: TracesSampler; tracesSampleRate: number; debug?: boolean },
     rng: () => number = Math.random,
 ): boolean {
-    if (ctx.parentSampled !== undefined) return ctx.parentSampled;
+    if (ctx.parentSampled !== undefined) {
+        return ctx.parentSampled;
+    }
 
     let rate: number;
     if (config.tracesSampler) {
@@ -17,17 +19,25 @@ export function resolveSampling(
         } catch (error) {
             // A throwing customer sampler must never propagate out of startSpan (it would break instrumented host calls
             // like fetch). Fail closed.
-            if (config.debug) console.error('Flare: tracesSampler threw, treating span as not sampled', error);
+            if (config.debug) {
+                console.error('Flare: tracesSampler threw, treating span as not sampled', error);
+            }
             return false;
         }
-        if (typeof result === 'boolean') return result;
+        if (typeof result === 'boolean') {
+            return result;
+        }
         rate = result;
     } else {
         rate = config.tracesSampleRate;
     }
 
     rate = Math.max(0, Math.min(1, rate));
-    if (rate <= 0) return false;
-    if (rate >= 1) return true;
+    if (rate <= 0) {
+        return false;
+    }
+    if (rate >= 1) {
+        return true;
+    }
     return rng() < rate;
 }

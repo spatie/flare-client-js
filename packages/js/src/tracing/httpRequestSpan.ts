@@ -26,7 +26,9 @@ export function safeAbsolute(url: string, origin: string): URL | null {
 
 /** True when `abs` targets one of Flare's own ingest endpoints (never traced). */
 export function isFlareIngestUrl(abs: URL | null, config: Config): boolean {
-    if (!abs) return false;
+    if (!abs) {
+        return false;
+    }
     return [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl].some(
         (u) => typeof u === 'string' && u.length > 0 && abs.href.startsWith(u),
     );
@@ -53,7 +55,9 @@ export function requestSpanAttributes(method: string, abs: URL | null, url: stri
  */
 export function endHttpRequestSpan(span: Span, status: number, opts?: { zeroIsError?: boolean }): void {
     span.setAttribute('http.response.status_code', status);
-    if (status >= 500 || (opts?.zeroIsError && status === 0)) span.setStatus({ code: 2 });
+    if (status >= 500 || (opts?.zeroIsError && status === 0)) {
+        span.setStatus({ code: 2 });
+    }
     span.end();
 }
 
@@ -75,6 +79,8 @@ export function traceparentFor(
     config: Config,
 ): string | null {
     const resolved = abs ? abs.href : url;
-    if (!shouldPropagate(resolved, abs, origin, config.tracePropagationTargets)) return null;
+    if (!shouldPropagate(resolved, abs, origin, config.tracePropagationTargets)) {
+        return null;
+    }
     return buildTraceparent(span.traceId, span.spanId, span.isRecording);
 }

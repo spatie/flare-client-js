@@ -16,8 +16,12 @@ export function resolvePageloadStartNano(
     finalTimeoutNano: number,
     alreadyTraced: boolean,
 ): number {
-    if (alreadyTraced) return nowNano;
-    if (nowNano - backdatedNano > finalTimeoutNano) return nowNano;
+    if (alreadyTraced) {
+        return nowNano;
+    }
+    if (nowNano - backdatedNano > finalTimeoutNano) {
+        return nowNano;
+    }
     return backdatedNano;
 }
 
@@ -42,7 +46,9 @@ export function computePageloadEndNano(
     nowNano: number,
 ): number {
     const endMs = loadEventEndMs || domContentLoadedEventEndMs || 0;
-    if (!endMs) return nowNano;
+    if (!endMs) {
+        return nowNano;
+    }
     return Math.round((timeOriginMs + endMs) * 1e6);
 }
 

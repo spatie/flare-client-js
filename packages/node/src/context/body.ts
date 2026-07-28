@@ -33,17 +33,27 @@ type BodyOptions = {
  * (drop body if it throws on BigInt/Symbol/etc), and truncate to `bodyMaxBytes` including the suffix.
  */
 export function captureBody(body: unknown, contentType: string | undefined, opts: BodyOptions): string | null {
-    if (body === undefined || body === null) return null;
+    if (body === undefined || body === null) {
+        return null;
+    }
 
     let parsed: unknown;
     if (typeof body === 'string') {
-        if (!matchesContentType(contentType, opts.bodyAllowedContentTypes)) return null;
+        if (!matchesContentType(contentType, opts.bodyAllowedContentTypes)) {
+            return null;
+        }
         parsed = parseString(body, contentType);
-        if (parsed === undefined) return null;
+        if (parsed === undefined) {
+            return null;
+        }
     } else if (Buffer.isBuffer(body)) {
-        if (!matchesContentType(contentType, opts.bodyAllowedContentTypes)) return null;
+        if (!matchesContentType(contentType, opts.bodyAllowedContentTypes)) {
+            return null;
+        }
         parsed = parseString(body.toString('utf8'), contentType);
-        if (parsed === undefined) return null;
+        if (parsed === undefined) {
+            return null;
+        }
     } else if (body instanceof URLSearchParams) {
         parsed = Object.fromEntries(body.entries());
     } else if (Array.isArray(body) || isPlainObject(body)) {
@@ -71,17 +81,23 @@ const TRUNCATION_SUFFIX_BYTES = Buffer.byteLength(TRUNCATION_SUFFIX, 'utf8');
  */
 function truncateToByteLimit(serialized: string, maxBytes: number): string {
     const buf = Buffer.from(serialized, 'utf8');
-    if (buf.length <= maxBytes) return serialized;
+    if (buf.length <= maxBytes) {
+        return serialized;
+    }
     if (maxBytes <= TRUNCATION_SUFFIX_BYTES) {
         // Budget too small for suffix plus payload: emit the suffix truncated to budget at a codepoint
         // boundary.
         const suffixBuf = Buffer.from(TRUNCATION_SUFFIX, 'utf8');
         let cut = maxBytes;
-        while (cut > 0 && (suffixBuf[cut] & 0xc0) === 0x80) cut--;
+        while (cut > 0 && (suffixBuf[cut] & 0xc0) === 0x80) {
+            cut--;
+        }
         return suffixBuf.subarray(0, cut).toString('utf8');
     }
     let cut = maxBytes - TRUNCATION_SUFFIX_BYTES;
-    while (cut > 0 && (buf[cut] & 0xc0) === 0x80) cut--;
+    while (cut > 0 && (buf[cut] & 0xc0) === 0x80) {
+        cut--;
+    }
     return buf.subarray(0, cut).toString('utf8') + TRUNCATION_SUFFIX;
 }
 
@@ -91,9 +107,13 @@ function truncateToByteLimit(serialized: string, maxBytes: number): string {
  * matches `application/json; charset=utf-8`. Empty/missing is a hard miss.
  */
 function matchesContentType(ct: string | undefined, allowed: RegExp): boolean {
-    if (!ct) return false;
+    if (!ct) {
+        return false;
+    }
     const mediaType = ct.split(';')[0].trim().toLowerCase();
-    if (!mediaType) return false;
+    if (!mediaType) {
+        return false;
+    }
     return allowed.test(mediaType);
 }
 
@@ -118,7 +138,9 @@ function parseString(text: string, contentType?: string): unknown {
  * FormData, ArrayBuffer views, Buffer, URLSearchParams, and other `typeof === 'object'` built-ins.
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-    if (value === null || typeof value !== 'object') return false;
+    if (value === null || typeof value !== 'object') {
+        return false;
+    }
     const proto = Object.getPrototypeOf(value);
     return proto === null || proto === Object.prototype;
 }
@@ -129,10 +151,16 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * allocation. Primitives/`null` pass through; arrays preserve order, objects preserve keys.
  */
 function redact(value: unknown, denylist: RegExp, seen: WeakSet<object> = new WeakSet()): unknown {
-    if (value === null || typeof value !== 'object') return value;
-    if (seen.has(value as object)) return '[Circular]';
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+    if (seen.has(value as object)) {
+        return '[Circular]';
+    }
     seen.add(value as object);
-    if (Array.isArray(value)) return value.map((v) => redact(v, denylist, seen));
+    if (Array.isArray(value)) {
+        return value.map((v) => redact(v, denylist, seen));
+    }
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
         out[k] = denylist.test(k) ? '[redacted]' : redact(v, denylist, seen);

@@ -8,11 +8,17 @@ export function findHeader(
     headers: Record<string, string | string[] | undefined> | undefined,
     name: string,
 ): string | undefined {
-    if (!headers) return undefined;
+    if (!headers) {
+        return undefined;
+    }
     const target = name.toLowerCase();
     for (const [key, value] of Object.entries(headers)) {
-        if (key.toLowerCase() !== target) continue;
-        if (value === undefined) continue;
+        if (key.toLowerCase() !== target) {
+            continue;
+        }
+        if (value === undefined) {
+            continue;
+        }
         return Array.isArray(value) ? value[0] : value;
     }
     return undefined;
@@ -33,8 +39,12 @@ export const DEFAULT_HEADER_DENYLIST =
  * - Custom + no replace: union `(?:default)|(?:custom)`, forced case-insensitive (header names are).
  */
 export function resolveHeaderDenylist(custom?: RegExp, replaceDefault = false): RegExp {
-    if (!custom) return DEFAULT_HEADER_DENYLIST;
-    if (replaceDefault) return new RegExp(custom.source, custom.flags.replace(/[gy]/g, ''));
+    if (!custom) {
+        return DEFAULT_HEADER_DENYLIST;
+    }
+    if (replaceDefault) {
+        return new RegExp(custom.source, custom.flags.replace(/[gy]/g, ''));
+    }
     return new RegExp(`(?:${DEFAULT_HEADER_DENYLIST.source})|(?:${custom.source})`, 'i');
 }
 
@@ -54,11 +64,17 @@ export function projectHeaders(
     options: { headerDenylist: RegExp; headerAllowlist: RegExp | null },
 ): Attributes {
     const out: Attributes = {};
-    if (!headers) return out;
+    if (!headers) {
+        return out;
+    }
     for (const [rawName, rawValue] of Object.entries(headers)) {
-        if (rawValue === undefined) continue;
+        if (rawValue === undefined) {
+            continue;
+        }
         const name = rawName.toLowerCase();
-        if (options.headerAllowlist && !options.headerAllowlist.test(name)) continue;
+        if (options.headerAllowlist && !options.headerAllowlist.test(name)) {
+            continue;
+        }
         const value = Array.isArray(rawValue) ? rawValue.join(', ') : rawValue;
         out[`http.request.header.${name}`] = options.headerDenylist.test(name) ? '[redacted]' : value;
     }

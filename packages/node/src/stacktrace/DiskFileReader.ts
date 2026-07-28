@@ -16,7 +16,9 @@ import type { FileReader } from '@flareapp/core';
  */
 export class DiskFileReader implements FileReader {
     async read(url: string): Promise<string | null> {
-        if (!isLocalFileUrl(url)) return null;
+        if (!isLocalFileUrl(url)) {
+            return null;
+        }
         try {
             const path = /^file:\/\//i.test(url) ? fileURLToPath(url) : url;
             return await readFile(path, 'utf-8');

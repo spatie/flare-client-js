@@ -140,7 +140,9 @@ export class Flare {
         this._logger.flush();
         this._tracer.flush();
         const pending = [...this.inflight];
-        if (pending.length === 0) return Promise.resolve();
+        if (pending.length === 0) {
+            return Promise.resolve();
+        }
         return new Promise<void>((resolve) => {
             const timer = setTimeout(resolve, timeoutMs);
             Promise.allSettled(pending).then(() => {
@@ -232,7 +234,9 @@ export class Flare {
 
     private async testInternal(): Promise<void> {
         const report = await this.createReportFromError(new Error('The Flare client is set up correctly!'));
-        if (!report) return;
+        if (!report) {
+            return;
+        }
         return this.sendReport(report);
     }
 
@@ -282,19 +286,33 @@ export class Flare {
      */
     setUser(user: User | null): this {
         const scope = this.scopeProvider.active();
-        for (const key of USER_IDENTITY_KEYS) delete scope.pendingAttributes[key];
-        if (!user) return this;
+        for (const key of USER_IDENTITY_KEYS) {
+            delete scope.pendingAttributes[key];
+        }
+        if (!user) {
+            return this;
+        }
 
         const { id, email, fullName, ipAddress, ...rest } = user;
-        if (id !== undefined && id !== null) scope.setAttribute(USER_FIELD_KEYS.id, String(id));
-        if (email !== undefined) scope.setAttribute(USER_FIELD_KEYS.email, email);
-        if (fullName !== undefined) scope.setAttribute(USER_FIELD_KEYS.fullName, fullName);
-        if (ipAddress !== undefined) scope.setAttribute(USER_FIELD_KEYS.ipAddress, ipAddress);
+        if (id !== undefined && id !== null) {
+            scope.setAttribute(USER_FIELD_KEYS.id, String(id));
+        }
+        if (email !== undefined) {
+            scope.setAttribute(USER_FIELD_KEYS.email, email);
+        }
+        if (fullName !== undefined) {
+            scope.setAttribute(USER_FIELD_KEYS.fullName, fullName);
+        }
+        if (ipAddress !== undefined) {
+            scope.setAttribute(USER_FIELD_KEYS.ipAddress, ipAddress);
+        }
 
         const extras = Object.fromEntries(
             Object.entries(rest).filter(([, value]) => value !== undefined),
         ) as Attributes;
-        if (Object.keys(extras).length > 0) scope.setAttribute('user.attributes', extras);
+        if (Object.keys(extras).length > 0) {
+            scope.setAttribute('user.attributes', extras);
+        }
 
         return this;
     }
@@ -319,7 +337,9 @@ export class Flare {
     }
 
     private async reportInternal(error: Error, attributes: Attributes = {}): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+            return;
+        }
 
         const seenAtUnixNano = Date.now() * 1_000_000;
 
@@ -328,10 +348,14 @@ export class Flare {
         const coerced = error instanceof Error ? error : new Error(typeof error === 'string' ? error : String(error));
 
         const errorToReport = await this._config.beforeEvaluate(coerced);
-        if (!errorToReport) return;
+        if (!errorToReport) {
+            return;
+        }
 
         const report = await this.createReportFromError(errorToReport, attributes, seenAtUnixNano);
-        if (!report) return;
+        if (!report) {
+            return;
+        }
 
         return this.sendReport(report);
     }
@@ -345,7 +369,9 @@ export class Flare {
     }
 
     private async reportUnhandledRejectionInternal(message: string, attributes: Attributes = {}): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+            return;
+        }
 
         const seenAtUnixNano = Date.now() * 1_000_000;
 
@@ -372,7 +398,9 @@ export class Flare {
         level?: MessageLevel,
         attributes: Attributes = {},
     ): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+            return;
+        }
 
         const seenAtUnixNano = Date.now() * 1_000_000;
         const stackTrace = await createStackTrace(new Error(), this._config.debug, this.fileReader);
@@ -428,10 +456,18 @@ export class Flare {
             'flare.language.name': 'javascript',
         };
 
-        if (this._config.stage) baseAttributes['service.stage'] = this._config.stage;
-        if (this._config.version) baseAttributes['service.version'] = this._config.version;
-        if (this.framework?.name) baseAttributes['flare.framework.name'] = this.framework.name;
-        if (this.framework?.version) baseAttributes['flare.framework.version'] = this.framework.version;
+        if (this._config.stage) {
+            baseAttributes['service.stage'] = this._config.stage;
+        }
+        if (this._config.version) {
+            baseAttributes['service.version'] = this._config.version;
+        }
+        if (this.framework?.name) {
+            baseAttributes['flare.framework.name'] = this.framework.name;
+        }
+        if (this.framework?.version) {
+            baseAttributes['flare.framework.version'] = this.framework.version;
+        }
 
         return baseAttributes;
     }
@@ -447,10 +483,15 @@ export class Flare {
 
         const entryPoint = activeScope.entryPoint;
         const entryPointOverrides: Attributes = {};
-        if (entryPoint?.identifier !== undefined)
+        if (entryPoint?.identifier !== undefined) {
             entryPointOverrides['flare.entry_point.handler.identifier'] = entryPoint.identifier;
-        if (entryPoint?.type !== undefined) entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
-        if (entryPoint?.name !== undefined) entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
+        }
+        if (entryPoint?.type !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
+        }
+        if (entryPoint?.name !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
+        }
 
         // entryPointOverrides come after the collector so explicit entry-point values win over collector defaults.
         const attributes: Attributes = {
@@ -556,7 +597,9 @@ export class Flare {
         }
 
         const reportToSubmit = await this._config.beforeSubmit(report);
-        if (!reportToSubmit) return;
+        if (!reportToSubmit) {
+            return;
+        }
 
         return this.api.report(
             reportToSubmit,

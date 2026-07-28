@@ -151,7 +151,9 @@ describe('FlareProfiler', () => {
         });
         let ready = false;
         const Suspender = () => {
-            if (!ready) throw gate;
+            if (!ready) {
+                throw gate;
+            }
             return <div>loaded</div>;
         };
         render(

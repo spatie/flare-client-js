@@ -17,7 +17,9 @@ export class ReactNativeFlushScheduler implements FlushScheduler {
 
     getFlush(): (() => void) | undefined {
         const flush = this.flushFn;
-        if (!flush) return undefined;
+        if (!flush) {
+            return undefined;
+        }
         return () => {
             void flush();
         };
