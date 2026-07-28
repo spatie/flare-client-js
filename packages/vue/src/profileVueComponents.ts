@@ -1,3 +1,14 @@
+import {
+    activeComponentRoot,
+    nowNano,
+    recordComponentSpan,
+    reserveSpanId,
+    type ComponentTraceContext,
+} from '@flareapp/js/browser';
+import type { ComponentInternalInstance, ComponentOptions, ComponentPublicInstance } from 'vue';
+
+import { getComponentName } from './getComponentName';
+
 /** What `flareVue`'s `profileComponents` option accepts. */
 export type ProfileComponentsOption = boolean | (string | RegExp)[];
 
@@ -20,4 +31,59 @@ export function createComponentMatcher(option: ProfileComponentsOption): (name: 
         );
 
     return (name: string): boolean => names.has(name) || patterns.some((pattern) => pattern.test(name));
+}
+
+// Profiler state lives on the INTERNAL instance under a Symbol, never through Vue's public-instance
+// proxy: no devtools noise, no `$`-prefix warnings, and no chance of colliding with a user property.
+const PROFILE = Symbol('flareComponentProfile');
+
+type PendingSpan = { name: string; spanId: string; startNano: number; parent: ComponentTraceContext };
+type ProfileState = { marker: ComponentTraceContext; pending: PendingSpan | null };
+type ProfiledInstance = ComponentInternalInstance & { [PROFILE]?: ProfileState };
+
+/**
+ * Record one `browser_component` span per matched component mount. `beforeMount` reserves the span id
+ * and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted`
+ * bottom-up, so a parent's span encloses every descendant's both by time and by parent id.
+ */
+export function createComponentProfilerMixin(matches: (name: string) => boolean): ComponentOptions {
+    return {
+        beforeMount(this: ComponentPublicInstance) {
+            try {
+                const name = getComponentName(this);
+                if (!matches(name)) return; // unmatched components stay transparent: no state, no marker
+
+                const live = activeComponentRoot();
+                if (!live) return; // tracing off, or no root open: record nothing
+
+                const spanId = reserveSpanId();
+                (this.$ as ProfiledInstance)[PROFILE] = {
+                    marker: { traceId: live.traceId, parentSpanId: spanId },
+                    pending: { name, spanId, startNano: nowNano(), parent: live },
+                };
+            } catch {
+                // instrumentation must never break the host
+            }
+        },
+
+        mounted(this: ComponentPublicInstance) {
+            try {
+                const state = (this.$ as ProfiledInstance)[PROFILE];
+                const pending = state?.pending;
+                if (!state || !pending) return;
+
+                state.pending = null; // the marker stays for descendants; the span records once
+                recordComponentSpan({
+                    name: pending.name,
+                    spanId: pending.spanId,
+                    parent: pending.parent,
+                    framework: 'vue',
+                    startTimeUnixNano: pending.startNano,
+                    endTimeUnixNano: nowNano(),
+                });
+            } catch {
+                // instrumentation must never break the host
+            }
+        },
+    };
 }
