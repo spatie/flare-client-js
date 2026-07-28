@@ -111,7 +111,10 @@ export type SdkInfo = { name: string; version: string };
  * vocabulary, not a display string: lowercase, no spaces, hyphenated only where the package name is.
  *
  * The values the first-party SDKs emit, and the only ones the backend recognises:
- * `js`, `node`, `react`, `vue`, `svelte`, `sveltekit`, `react-native`.
+ * `js`, `node`, `node-electron`, `react`, `vue`, `svelte`, `sveltekit`, `react-native`.
+ *
+ * `node-electron` is an Electron main process. Its renderers report `js`, or the framework their
+ * `/inject` entry tags, so the two processes of one app are distinguishable.
  *
  * `js` and `node` are the base SDKs' own claims, set when `@flareapp/js` and `@flareapp/node`
  * construct their Flare. They mean "nothing more specific reported one", which for a vanilla app is

@@ -64,6 +64,10 @@ export class ElectronFlare extends CoreFlare {
         this.ipcMain = deps.ipcMain;
         this.flushScheduler = flushScheduler;
         this.setSdkInfo({ name: SDK_NAME, version: CLIENT_VERSION });
+        // Main-process identity. Renderer reports carry their own framework (js from BrowserFlare, or
+        // react/vue/svelte once an /inject entry tags it) and are forwarded already built, so this
+        // claim only ever labels reports that originate in main.
+        this.setFramework({ name: 'node-electron' });
 
         const cbs = buildFatalCallbacks(
             this,
