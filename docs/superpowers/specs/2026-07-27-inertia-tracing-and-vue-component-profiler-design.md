@@ -118,7 +118,7 @@ History navigation (back/forward) bypasses `start`/`success`/`finish` and fires 
 | `navigate` while `inFlight`                    | `settleNavigation({ name: page.component, source: 'route', url: page.url })`, clear `inFlight`          |
 | `success` while `inFlight`, page path matches  | the same, for the visits `navigate` skips. A mismatch means it belongs to another request               |
 | `navigate` while not `inFlight`, `!sawInitial` | initial page load: `setActiveRouteName(...)` to name the pageload root, set `sawInitial`                |
-| `navigate` while not `inFlight`, `sawInitial`  | back/forward: `startNavigation({ url, hold: true })` then settle immediately                            |
+| `navigate` while not `inFlight`, `sawInitial`  | back/forward: `startNavigation({ url })` (no `hold`) then settle immediately                            |
 | `finish` while `inFlight` with `interrupted`   | a newer visit displaced this one: keep the root and let the successor settle it                         |
 | `finish` while `inFlight`, visit path matches  | terminal failure with no `navigate`: settle to the current location, clear `inFlight`                   |
 
@@ -129,6 +129,12 @@ navigation is ordinary traffic. Without them it would close a root it never open
 `hold: true` plus `settleNavigation` is the pattern the seam already grew for React Router v7, where the
 destination is not known when the navigation opens. Inertia is the same case: at `start` only the request URL
 is known, and the page component name arrives with the response.
+
+The back/forward row deliberately omits `hold`. It opens and settles the root in the same tick, and a held
+root settled that way force-closes at zero duration: `IdleRootController.releaseHold()` calls `finish(now())`
+as soon as it sees no open children, before any child span has a chance to attach. There is no pending wait to
+suppress here either, unlike the `start` row, so dropping `hold` costs nothing and keeps the span real. Do not
+add `hold` back to this row; that is the bug this fixes, not a missing feature.
 
 **Why `success` settles too, not just `navigate`.** `page.set()` fires `navigate` only when `replace` is
 false, and it computes `replace = replace || isSameUrlWithoutHash(page.url, location)`. So it is not only
@@ -260,6 +266,14 @@ finish`, verified through `Response.handle()` returning the promise chain that c
    `interrupted: true` as against `cancelled: true` for an outright cancel.
 8. **Any same-url visit skips `navigate`**, not only `replace: true` ones
    (`replace = replace || isSameUrlWithoutHash(page.url, location)`).
+9. **A prefetch-cache hit fires neither `start` nor `finish`.** `Router.visit()` calls
+   `prefetchedRequests.use()` when a prefetch is cached or in flight, skipping `Request.send()`, the only
+   `fireStartEvent` call site; `fireFinishEvents()` only ever runs from a `Request`. Such a click produces
+   only `navigate` and `success`. With no `start`, `inFlight` is false when `navigate` arrives, so the click
+   falls into the back/forward branch and opens-and-settles in the same tick, reporting near-zero duration
+   for a navigation the user actually waited on. Since `<Link prefetch>` defaults to hover, this is common,
+   not exotic. Documented in the package README rather than fixed here; a proper fix needs prefetch-cache
+   tracking and is left to a later slice.
 
 These are read against `inertiajs/inertia@master`. Worth re-checking against the version a consumer actually
 installs if the handler ever misbehaves, since none of it is public API contract.

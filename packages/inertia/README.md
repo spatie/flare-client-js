@@ -101,6 +101,14 @@ An asynchronous visit that does take you to a different page, such as
 Clicking a second link before the first page arrives is also one navigation, not two. The span runs from the
 first click to the page that actually loaded, which is what the person waiting for it experienced.
 
+## Prefetched navigations report near-zero duration
+
+A click on a `<Link prefetch>` that is served from Inertia's prefetch cache is currently reported as an instant
+navigation. Inertia fires neither `start` nor `finish` for it, only `navigate` and `success`, so the integration
+cannot tell it apart from a back/forward step and opens and settles the span in the same tick. The navigation
+still shows up as a `browser_navigation` span, but its duration should not be read as the time the user actually
+waited. `<Link prefetch>` defaults to hover as its trigger, so this is a common path, not an edge case.
+
 ## Cleanup
 
 `traceInertiaRouter` returns a function that removes its listeners:
@@ -118,3 +126,12 @@ a second set of listeners, so Vite HMR does not accumulate them.
 
 - `@flareapp/js` with `enableTracing: true`
 - Inertia v1 or v2 (any adapter)
+
+## Documentation
+
+Full documentation on performance tracing is available at
+[flareapp.io/docs/javascript/general/installation](https://flareapp.io/docs/javascript/general/installation).
+
+## License
+
+The MIT License (MIT). Please see [License File](../../LICENSE.md) for more information.
