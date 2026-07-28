@@ -14,25 +14,22 @@ export type IdleRootDeps = {
     setTimeout: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
     clearTimeout: (handle: ReturnType<typeof setTimeout>) => void;
     rootStartTime: number; // unix nanos, base for finalTimeout
-    // Floor for a trimmed close: when a root closes with no in-flight children its
-    // end is this floor (read lazily), never `now()`. Navigation passes its start
-    // time (an instant nav trims to ~0); pageload passes the Navigation Timing
-    // load-event end so a childless pageload reports its real load duration instead
-    // of being padded by the whole idleTimeout window.
+    // Where a childless close lands, instead of `now()`. A navigation passes its own start, so an
+    // instant nav trims to ~0; a pageload passes the Navigation Timing load-event end, so it reports its
+    // real load duration rather than the whole idleTimeout window.
     endFloor: () => number;
-    // When true, the root opens with its idle-close suppressed until releaseHold() runs. The
-    // finalTimeout / childSpanTimeout backstops still apply. Used by framework navigation roots
-    // that cannot be named until the router settles, past the idle window.
+    // Suppresses idle-close until releaseHold(), for framework navigation roots that cannot be named
+    // until the router settles, past the idle window. The finalTimeout/childSpanTimeout backstops still
+    // apply.
     held?: boolean;
 };
 
 type Timer = ReturnType<typeof setTimeout> | null;
 
 /**
- * Owns one root span's idle lifecycle. The root stays open while child spans in its trace are
- * active; it closes after `idleTimeout` of no open children (trimmed to the last child's end), a
- * `finalTimeout` hard cap, or a `childSpanTimeout` stuck-child cap. Deps are injected so it is
- * unit-testable without real timers or a real tracer.
+ * Owns one root span's idle lifecycle: open while child spans in its trace are active, closing after
+ * `idleTimeout` with no open children, or on the `finalTimeout` / `childSpanTimeout` backstops. Deps are
+ * injected so this is testable without real timers or a real tracer.
  */
 export class IdleRootController {
     private openChildren = 0;
@@ -64,27 +61,20 @@ export class IdleRootController {
         return this.ended;
     }
 
+    /** For a route change or pagehide. */
     endNow(): void {
-        // Force-ended (route change / pagehide). With no child in flight, trim to the
-        // floor instead of padding to the force-end moment; with an open child use
-        // now() so in-flight work is not cut short before it even started. A held root is
-        // mid-loader-window by definition, so treat it like one with open children: close at
-        // now() so the trace records the work that ran, not a ~0 trim to the start floor.
+        // With no child in flight, trim to the floor rather than padding out to the force-end moment. An
+        // open child, or a hold (which means mid-loader-window), closes at now() instead, so the trace
+        // records the work that ran rather than a ~0 trim back to the start floor.
         this.finish(this.openChildren > 0 || this.held ? this.deps.now() : this.trimmedEnd());
     }
 
     /**
-     * Release a navigation hold: record the settle moment as a close floor and hand the root back to
-     * the normal idle lifecycle. A childless root still measures start→settle, but it stays open (and
-     * stays the active root) for the idle window instead of closing here.
-     *
-     * Closing at settle looks right for the duration and is wrong for everything downstream. A router
-     * settles BEFORE the framework mounts the new route component: vue-router runs `afterEach` in the
-     * same tick as the route update, and Vue mounts on the following scheduler flush. Closing at
-     * settle therefore cleared the active root before every post-navigation mount, so component spans
-     * read a null root and were dropped, and a trailing fetch opened a root of its own.
-     *
-     * No-op when never held or already ended.
+     * Records the settle moment as a close floor and hands the root back to the normal idle lifecycle. It
+     * deliberately does NOT close here: a router settles BEFORE the framework mounts the new route
+     * component (vue-router runs `afterEach` in the route-update tick, Vue mounts on the next flush), so
+     * closing at settle cleared the active root ahead of every post-navigation mount. Component spans
+     * then read a null root and were dropped, and a trailing fetch opened a root of its own.
      */
     releaseHold(): void {
         if (this.ended || !this.held) {
@@ -127,9 +117,8 @@ export class IdleRootController {
 
     private onChildEnded(span: Span): void {
         this.openChildren = Math.max(0, this.openChildren - 1);
-        // endTimeUnixNano is 0 (SpanImpl's unset sentinel) until end() runs, which sets it
-        // before dispatching this event, so a real child is non-zero here. `||` treats the 0
-        // sentinel as unset and falls back to now(), matching SpanImpl.
+        // `||` not `??`: 0 is SpanImpl's unset sentinel, so it has to fall back to now() the way SpanImpl
+        // itself does.
         this.lastChildEndTime = span.endTimeUnixNano || this.deps.now();
         if (this.openChildren > 0) {
             return;
@@ -152,12 +141,8 @@ export class IdleRootController {
         }, this.timeouts.idleTimeout);
     }
 
-    /**
-     * End time for a trimmed close: the latest of the injected floor, the settle moment of a released
-     * hold, and the last child's end, so a root never pads out to `now()`. With no children it is the
-     * floor itself (navigation start, or the pageload load-event end) or the settle moment; with
-     * children it stretches to cover the last one.
-     */
+    /** The latest of the floor, a released hold's settle moment, and the last child's end, so a root
+     *  covers its children without ever padding out to `now()`. */
     private trimmedEnd(): number {
         return Math.max(this.deps.endFloor(), this.settleTime ?? 0, this.lastChildEndTime ?? 0);
     }

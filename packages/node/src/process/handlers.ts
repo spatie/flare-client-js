@@ -6,28 +6,17 @@ type Callbacks = {
 };
 
 /**
- * Owns the lifecycle of the `uncaughtException` and `unhandledRejection` process listeners that feed
- * fatal failures to Flare.
- *
- * 1. `reconcile(...)` makes listener attachment match the current `FatalMode` per event (attach when
- *    wanted-but-absent, detach when unwanted-but-present, else no-op). Idempotent.
- * 2. `detach()` removes both listeners regardless of intent, for tests and graceful shutdown.
- *
- * Kept separate from `NodeFlare` because it's pure `process`-event plumbing with no Flare semantics,
- * which keeps it trivially testable.
+ * Owns the `uncaughtException` and `unhandledRejection` listeners that feed fatal failures to Flare.
+ * Separate from `NodeFlare` because it is pure `process`-event plumbing with no Flare semantics, which
+ * keeps it trivially testable.
  */
 export class ProcessHandlerManager {
-    /** The currently-attached listener for `uncaughtException`, or `null`. */
     private uncaughtHandler: ((err: unknown, origin: string) => void) | null = null;
-    /** The currently-attached listener for `unhandledRejection`, or `null`. */
     private rejectionHandler: ((reason: unknown) => void) | null = null;
 
     constructor(private cbs: Callbacks) {}
 
-    /**
-     * Bring the attached listeners into agreement with the supplied modes.
-     * Idempotent: when current state already matches intent, this is a no-op.
-     */
+    /** Idempotent: a no-op when the attached listeners already match the supplied modes. */
     reconcile(opts: { uncaughtExceptionMode: FatalMode; unhandledRejectionMode: FatalMode }): void {
         this.reconcileOne(
             'uncaughtException',
@@ -49,11 +38,7 @@ export class ProcessHandlerManager {
         );
     }
 
-    /**
-     * Remove both listeners regardless of current intent. Used by tests and by
-     * `NodeFlare.removeProcessListeners()`. Safe to call when nothing is
-     * attached.
-     */
+    /** Remove both listeners regardless of intent. Safe when nothing is attached. */
     detach(): void {
         if (this.uncaughtHandler) {
             process.off('uncaughtException', this.uncaughtHandler as any);

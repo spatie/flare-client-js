@@ -4,10 +4,9 @@ export type RouteName = {
     name: string;
     source: 'route' | 'url';
     /**
-     * Where the navigation is going. When set, the root's `url.full` and `flare.entry_point.value`
-     * are updated together with the name, so a navigation that was redirected, or replaced by a
-     * newer one, reports the page it ended on rather than the one it opened with. Leave it out to
-     * keep the url the root started with.
+     * Where the navigation is going. Re-stamps the root's `url.full` alongside the name, so a redirected
+     * or superseded navigation reports where it ended rather than where it opened. Omit to keep the url
+     * the root started with.
      */
     url?: string;
 };
@@ -25,9 +24,9 @@ export function currentPath(): string {
 }
 
 /**
- * Build a `RouteName`, preferring the router's own parameterized template over the raw path so names
- * aggregate per route rather than per url. `derive` runs inside a try: a router that throws on an
- * unresolved match chain falls back to the url name instead of taking the host down.
+ * Prefers the router's parameterized template over the raw path, so names aggregate per route rather
+ * than per url. `derive` runs inside a try: a router that throws on an unresolved match chain falls back
+ * to the url name instead of taking the host down.
  */
 export function routeName(derive: () => string | undefined, fallbackPath: string, url?: string): RouteName {
     try {
@@ -42,10 +41,9 @@ export function routeName(derive: () => string | undefined, fallbackPath: string
 }
 
 /**
- * Resolve a router location to a full url. `build` is the router's own href builder (vue-router's
- * `resolve`, React Router's `createHref`), which is what puts the app's base path and hash prefix
- * back on. Without it an app served from `/app/` reports `/product/p01` for the real
- * `/app/product/p01`. A router that throws, or has no builder, still gets a url from `fallback`.
+ * `build` is the router's own href builder (vue-router's `resolve`, React Router's `createHref`), which
+ * is what puts the app's base path and hash prefix back on. Without it an app served from `/app/` reports
+ * `/product/p01` for the real `/app/product/p01`. A router that throws still gets a url from `fallback`.
  */
 export function resolveHref(build: () => string | null | undefined, fallback: string): string | undefined {
     let href = fallback;

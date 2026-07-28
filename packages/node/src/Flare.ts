@@ -17,11 +17,8 @@ const NODE_SDK_VERSION =
         ? process.env.FLARE_JS_CLIENT_VERSION
         : '?';
 
-/**
- * Strip `g`/`y` flags from a user-supplied regex. Those flags make `.test()`/`.exec()` keep
- * `lastIndex` state, so reusing the regex across keys (header denylist, body redaction) skips matches
- * after the first hit. All other flags and the source are preserved.
- */
+/** `g`/`y` make `.test()` keep `lastIndex` state, so reusing the regex across keys skips every other
+ *  match. All other flags are preserved. */
 function sanitizeRegex(re: RegExp): RegExp {
     const safeFlags = re.flags.replace(/[gy]/g, '');
     return new RegExp(re.source, safeFlags);
@@ -76,11 +73,7 @@ export class NodeFlare extends CoreFlare {
         this.handlerManager = new ProcessHandlerManager(cbs);
     }
 
-    /**
-     * Set the API key (and optional debug flag), then reconcile process listeners with the current
-     * `nodeOptions`. Reconcile runs on every call, so `light()` re-attaches after
-     * `removeProcessListeners()`.
-     */
+    /** Reconcile runs on every call, so `light()` re-attaches after `removeProcessListeners()`. */
     light(key?: string, debug?: boolean) {
         super.light(key, debug);
         this.isLit = true;
@@ -89,12 +82,8 @@ export class NodeFlare extends CoreFlare {
     }
 
     /**
-     * Merge Node-only options (fatal-handler modes, header/body redaction, shutdown timeout) into the
-     * active config. Safe before or after `light()`: before, options are stored and listeners attach on
-     * `light()`; after, options are stored and listeners reconcile immediately (flipping a mode to
-     * `'off'` detaches, back to `'report'`/`'report-and-exit'` re-attaches).
-     *
-     * Regex options are run through `sanitizeRegex` to strip stateful `g`/`y` flags.
+     * Safe before or after `light()`. Before, the listeners attach on `light()`; after, they reconcile
+     * immediately, so flipping a mode to `'off'` detaches and flipping it back re-attaches.
      */
     configureNode(partial: Partial<NodeOptions>): NodeFlare {
         if (partial.headerDenylist !== undefined || partial.replaceDefaultHeaderDenylist !== undefined) {
@@ -147,38 +136,28 @@ export class NodeFlare extends CoreFlare {
     }
 
     /**
-     * Run `fn` inside a fresh `NodeScope` carrying the supplied request metadata. Inside `fn` and any
-     * async work it awaits, glow/addContext/setUser/report see a scope isolated from concurrent
-     * requests. Use as web-framework middleware: call once per request wrapping the handler, and reports
-     * are attributed to the right request.
+     * Use as web-framework middleware, once per request around the handler. Inside `fn` and any async
+     * work it awaits, reports are attributed to that request rather than to a concurrent one.
      */
     runWithContext<T>(request: RequestContext, fn: () => T): T {
         return this.nodeScopeProvider.runWithContext(request, fn);
     }
 
     /**
-     * Patch request metadata on the active scope after `runWithContext(...)` started. Useful when fields
-     * become known partway through a request (e.g. the absolute URL after proxy headers are parsed).
-     *
-     * Outside any `runWithContext(...)`, writes to the fallback scope: visible to later outside-scope
-     * reports but not inherited by future `runWithContext(...)` calls.
+     * For fields that only become known partway through a request, such as the absolute URL once proxy
+     * headers are parsed. Outside `runWithContext(...)` this writes to the fallback scope, which future
+     * `runWithContext(...)` calls do not inherit.
      */
     mergeContext(partial: Partial<RequestContext>): void {
         this.nodeScopeProvider.mergeContext(partial);
     }
 
-    /**
-     * Request scope inside `runWithContext(...)`, or `null` outside. Returns `null` (not the fallback
-     * scope) so callers can tell "inside a request" from "not". Mainly for debugging.
-     */
+    /** Null (not the fallback scope) outside a request, so callers can tell the two apart. Debugging aid. */
     getContext(): NodeScope | null {
         return this.nodeScopeProvider.getContext();
     }
 
-    /**
-     * Detach the fatal process listeners without changing `nodeOptions`. For tests and graceful-shutdown
-     * paths that own process exit. `light()` afterwards re-attaches per the current options.
-     */
+    /** Leaves `nodeOptions` alone, so a later `light()` re-attaches. For tests and graceful shutdown. */
     removeProcessListeners(): void {
         this.handlerManager.detach();
     }

@@ -69,11 +69,11 @@ export class Flare {
     private framework: Framework | null = null;
 
     /**
-     * @param contextCollector returns per-report attributes (browser DOM, Node process, etc). No-op by default.
-     * @param fileReader       reads source files for stack-trace snippets. Default returns null (no snippets);
+     * @param contextCollector per-report attributes (browser DOM, Node process). No-op by default.
+     * @param fileReader       source files for stack-trace snippets. Defaults to no snippets;
      *                         `@flareapp/js` injects a fetch reader, `@flareapp/node` a disk reader.
-     * @param scopeProvider    returns the current `Scope` (glows, pendingAttributes, entryPoint). Browser uses one
-     *                         global scope; Node uses an AsyncLocalStorage-backed provider so each request gets its own.
+     * @param scopeProvider    the current `Scope`. Browser uses one global scope; Node an
+     *                         AsyncLocalStorage-backed provider so each request gets its own.
      */
     constructor(
         public api: Api = new Api(),
@@ -107,14 +107,12 @@ export class Flare {
     }
 
     /**
-     * Register an in-flight report so `flush()` can wait for it. Called by every public report entry point, each
-     * wrapping its full async pipeline (beforeEvaluate -> stack trace -> beforeSubmit -> api.report) so the whole
-     * roundtrip is tracked, not just the HTTP send.
+     * Register an in-flight report so `flush()` can wait for it. Every entry point wraps its whole async
+     * pipeline (beforeEvaluate -> stack trace -> beforeSubmit -> api.report), not just the HTTP send.
      *
-     * Stores a shadow promise that mirrors `p`'s timing but cannot reject (the `() => undefined` rejection handler
-     * consumes any failure), so an unhandled report rejection never surfaces as a Node warning / console error. The
-     * shadow self-removes from the Set via `.finally`; `delete` never throws, so wrap any richer cleanup in try/catch.
-     * Returns the original `p` so the caller still observes real success/failure; tracking is invisible to them.
+     * What goes in the Set is a shadow promise that mirrors `p`'s timing but cannot reject, so a failed
+     * report never surfaces as an unhandled rejection warning. `p` itself is returned untouched, so the
+     * caller still observes real success or failure.
      */
     private track<T>(p: Promise<T>): Promise<T> {
         const tracked = p.then(
@@ -127,14 +125,12 @@ export class Flare {
     }
 
     /**
-     * Wait until every in-flight report settles or `timeoutMs` elapses, whichever comes first. Always resolves, never
-     * rejects; no retry. Main consumer is `@flareapp/node`'s fatal handler, which awaits the fatal report explicitly
-     * then calls flush to drain any OTHER concurrent reports before `process.exit`.
+     * Wait until every in-flight report settles or `timeoutMs` elapses. Always resolves, never rejects.
+     * Written for `@flareapp/node`'s fatal handler, which awaits the fatal report itself then flushes to
+     * drain any other concurrent reports before `process.exit`.
      *
-     * `[...this.inflight]` snapshots the Set: reports started after this line are NOT awaited, which bounds the wait so
-     * a handler emitting reports during shutdown cannot block the process forever. Call flush again to drain those.
-     * `allSettled` (not `all`) waits for every report regardless of HTTP success/failure; `all` would short-circuit on
-     * the first rejection. Flush does not stop new reports; the instance stays usable afterward.
+     * Snapshotting the Set bounds the wait: reports started after this line are not awaited, so a handler
+     * that keeps emitting during shutdown cannot block the process forever. Call flush again for those.
      */
     flush(timeoutMs = 2000): Promise<void> {
         this._logger.flush();
@@ -200,9 +196,8 @@ export class Flare {
             this._config.tracesSampleRate = Math.max(0, Math.min(1, config.tracesSampleRate));
         }
 
-        // Only re-resolve the denylist when this call actually carries denylist config. Otherwise the spread
-        // above already preserved the previously resolved denylist, and re-resolving with an undefined `custom`
-        // would clobber a custom denylist back to the default, silently re-exposing data the user asked to redact.
+        // Only when this call carries denylist config. Re-resolving with an undefined `custom` would reset a
+        // custom denylist to the default, silently re-exposing data the user asked to redact.
         if (config.urlDenylist !== undefined || config.replaceDefaultUrlDenylist !== undefined) {
             this._config.urlDenylist = resolveDenylist(
                 config.urlDenylist,
@@ -278,11 +273,8 @@ export class Flare {
     }
 
     /**
-     * Attach an identified user to the active scope. Fields are projected to the
-     * keys the Flare backend reads: `user.id`, `user.email`, `user.full_name`,
-     * and `client.address`. Any extra keys are bundled into `user.attributes`.
-     * Pass `null` to clear the user. Scope-aware: in Node this targets the
-     * per-request scope via the scope provider.
+     * Projects the known fields to the keys the Flare backend reads (see `USER_FIELD_KEYS`) and bundles
+     * anything else into `user.attributes`. Pass `null` to clear. In Node this targets the per-request scope.
      */
     setUser(user: User | null): this {
         const scope = this.scopeProvider.active();
@@ -536,16 +528,15 @@ export class Flare {
         };
     }
 
+    /** Local roots only, snapshotted by the Tracer at span START so a long-lived root does not drift into
+     *  the next page's scope. Children get none, and no span ever runs the DOM collector. */
     private getScopeAttributes(): Attributes {
-        // Scope-derived record a LOCAL ROOT span carries: user context, entry-point overrides,
-        // framework-in-context.custom. Tracer snapshots this at span START so a long-lived root does not drift into the
-        // next page's scope. Spans never run the DOM collector; children get no scope. Mirrors the PHP client.
         return this.assembleAttributes({}, {}, false);
     }
 
     private spanResourceAttributes(): Attributes {
-        // Resource is stable per page (host.name). Keep only the collector's resource partition, dropping record-level
-        // context (cookies/url) so nothing heavy or drifting reaches spans. Evaluated once per flush, not per span.
+        // Only the resource partition: record-level context (cookies, url) is heavy and drifts, and this is
+        // evaluated once per flush rather than per span.
         return partitionAttributes(this.contextCollector(this._config)).resource;
     }
 
@@ -562,9 +553,8 @@ export class Flare {
         const activeScope = this.scopeProvider.active();
         const attributes = this.assembleAttributes(this.contextCollector(this._config), input.extraAttributes, true);
 
-        // seenAtUnixNano in real nanoseconds. Date.now() * 1_000_000 exceeds MAX_SAFE_INTEGER by ~3 bits (~256 ns), but
-        // browser clocks are millisecond-precision so the lost bits are below source resolution. PHP's json_decode
-        // reads the 19-digit literal as a 64-bit int (PHP_INT_MAX ~9.22e18 vs our ~1.78e18).
+        // seenAtUnixNano overflows MAX_SAFE_INTEGER by ~3 bits (~256ns), which is below the millisecond
+        // resolution browser clocks actually have. PHP reads the 19-digit literal as a 64-bit int.
         const report: Report = {
             exceptionClass: input.exceptionClass,
             message: input.message,

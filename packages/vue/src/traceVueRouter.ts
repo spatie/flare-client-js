@@ -38,9 +38,6 @@ function isVueRouter(router: unknown): router is VueRouterLike {
 function install(r: VueRouterLike): () => void {
     const nav = registerNavigationSource();
 
-    // Every name carries the destination url so the root's url.full is updated together with it.
-    // The root opens with the first destination, so after a redirect it would otherwise report a
-    // page the user never landed on.
     const routeNameFor = (loc: VueRouteLocationLike): RouteName =>
         routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
 

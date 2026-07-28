@@ -28,9 +28,8 @@ function locationOf(raw: URL | string | null | undefined): { href?: string; path
     }
 }
 
-/** True when the visit is Inertia doing background work rather than moving the user to another page.
- *  These fire the same `start` and `finish` a real visit does, and opening a root for one both invents
- *  a navigation and ends the root that was live. */
+/** Background work fires the same `start` and `finish` a real visit does, so opening a root for one both
+ *  invents a navigation and ends the root that was live. */
 function isBackgroundVisit(visit: InertiaVisitLike | undefined): boolean {
     if (!visit) {
         return false;
@@ -38,17 +37,16 @@ function isBackgroundVisit(visit: InertiaVisitLike | undefined): boolean {
     if (visit.prefetch) {
         return true;
     }
-    // `router.reload()` is the shared entry point for polling, deferred props and infinite scroll. It
-    // always reloads the current url with `async: true`, so an async visit that does not take the user
-    // off the page they are on is a refresh. Infinite scroll only changes the query, which is why this
-    // compares the path rather than the whole url. A deliberate `router.visit(url, { async: true })`
-    // to a different page still opens a root.
+    // `router.reload()` backs polling, deferred props and infinite scroll, and always reloads the current
+    // url with `async: true`. So an async visit that keeps the user on their page is a refresh. Compares
+    // the path, not the url, because infinite scroll only changes the query. A deliberate
+    // `router.visit(url, { async: true })` to another page still opens a root.
     const { path } = locationOf(visit.url);
     return !!visit.async && path !== undefined && path === currentPath();
 }
 
-/** Name a root from the page object. `component` ('Products/Show') is Inertia's low-cardinality route
- *  identifier, so it aggregates the way the other integrations' route templates do. */
+/** `component` ('Products/Show') is Inertia's low-cardinality route identifier, so it aggregates the way
+ *  the other integrations' route templates do. */
 function routeNameFor(page: InertiaPageLike | undefined): RouteName {
     const { href, path } = locationOf(page?.url);
     return routeName(() => page?.component, path ?? currentPath(), href);
@@ -154,29 +152,19 @@ function install(r: InertiaRouterLike): () => void {
     const offSuccess = r.on(
         'success',
         insulate((event: InertiaEventLike) => {
-            // page.set() fires navigate only when replace is false, and it forces replace for a visit
-            // that lands on the url it started on. So a same-url visit, and one that asked for
-            // `replace: true`, both settle here instead. On a normal visit navigate already cleared
-            // inFlight and this is a no-op: navigate fires from inside the promise Response.handle()
-            // returns, and success fires after that resolves.
+            // This is where a same-url visit and a `replace: true` one settle: page.set() fires navigate
+            // only when replace is false, and it forces replace for a visit landing on the url it started
+            // on. A normal visit already cleared inFlight in navigate, so this is a no-op for those.
             if (!inFlight) {
                 return;
             }
             const page = event?.detail?.page;
-            // A background reload's success fires on the async stream while a navigation is still
-            // running on the sync one. Only the response for the page this root was opened for may
-            // settle it here.
+            // A background reload's success fires on the async stream while a navigation runs on the sync
+            // one, so only the response for the page this root opened for may settle it.
             //
-            // A visit that redirects to a different path than it requested also fails this check: the
-            // `success` detail carries only `page`, no visit, so a redirect back to the page the user
-            // was already on is indistinguishable from a background poll of that same page. It is not
-            // dropped, `finish` compares the stable `visit.url` instead and settles it through the
-            // backstop there.
-            //
-            // Both sides can be undefined for a url neither side could parse, which compares equal and
-            // falls through to settle rather than stall on it. Deliberate, unlike finish's explicit
-            // undefined-visit fallthrough below: there is no visit object here to tell a genuinely
-            // unreadable page apart from one that is simply missing.
+            // A visit redirected to a different path also fails this check. `success` carries no visit, so
+            // a redirect back to the page the user was on is indistinguishable from a background poll of
+            // it. Not a leak: `finish` compares the stable `visit.url` and settles through its backstop.
             if (locationOf(page?.url).path !== inFlightPath) {
                 return;
             }
@@ -185,23 +173,19 @@ function install(r: InertiaRouterLike): () => void {
     );
     /** Whether `visit` is the one that opened the currently held root, i.e. `finish` may settle it. */
     const belongsToThisNavigation = (visit: InertiaVisitLike | undefined): boolean => {
-        // Background work (prefetch, poll, deferred props, infinite scroll) fires the same finish a
-        // real visit does, and can share the in-flight navigation's path: a poll of the page the user
-        // is mid-navigation away from ticks on the path they started from, not the one they are
-        // leaving. Without this a background visit that happens to match settles a root it never opened.
+        // Background work fires the same finish a real visit does, and can share the in-flight path: a
+        // poll ticks on the page the user is navigating away from, not the one they are heading to.
         if (isBackgroundVisit(visit)) {
             return false;
         }
-        // Same stream-crossing problem as success. Must run before the interrupted check below: a
-        // visit shape we cannot read at all falls through to the backstop rather than stranding the
-        // held root.
+        // Same stream-crossing problem as success. Must run before the interrupted check: an unreadable
+        // visit shape should reach the backstop rather than strand the held root.
         if (visit && locationOf(visit.url).path !== inFlightPath) {
             return false;
         }
-        // A newer visit displaced this one, and Inertia only interrupts from inside `visit()`,
-        // immediately before it sends the replacement. So a successor `start` is already on its way:
-        // keep the root this visit opened and let the successor settle it. `cancelled` is the opposite
-        // case, with nothing following, so it falls through and settles.
+        // Inertia only interrupts from inside `visit()`, right before sending the replacement, so a
+        // successor `start` is already on its way and can settle this root. `cancelled` has nothing
+        // following it, so it deliberately falls through and settles here.
         if (visit?.interrupted) {
             return false;
         }

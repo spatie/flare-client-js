@@ -1,15 +1,9 @@
 import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 
-/**
- * Content types accepted by default for body capture: JSON and URL-encoded forms. `^` plus `\b` matches
- * bare types and `; charset=utf-8` suffixes while rejecting `application/x-www-form-urlencoded-foo`.
- */
+/** `^` plus `\b` accepts a `; charset=utf-8` suffix while still rejecting `...-urlencoded-foo`. */
 export const DEFAULT_BODY_CONTENT_TYPES = /^application\/(json|x-www-form-urlencoded)\b/i;
 
-/**
- * Keys whose values are replaced with `[redacted]` during body redaction. Reuses core's URL denylist so
- * credentials/tokens are caught by the same regex everywhere.
- */
+/** Reuses core's URL denylist, so credentials are caught by the same regex everywhere. */
 export const DEFAULT_BODY_KEY_DENYLIST = DEFAULT_URL_DENYLIST;
 
 type BodyOptions = {
@@ -75,10 +69,7 @@ export function captureBody(body: unknown, contentType: string | undefined, opts
 const TRUNCATION_SUFFIX = '…[truncated]';
 const TRUNCATION_SUFFIX_BYTES = Buffer.byteLength(TRUNCATION_SUFFIX, 'utf8');
 
-/**
- * Truncate so the UTF-8 byte length never exceeds `maxBytes`, including the appended suffix. Walks back
- * over continuation bytes (`10xxxxxx`) to a codepoint boundary so the result decodes cleanly.
- */
+/** Walks back over continuation bytes (`10xxxxxx`) to a codepoint boundary, so the result still decodes. */
 function truncateToByteLimit(serialized: string, maxBytes: number): string {
     const buf = Buffer.from(serialized, 'utf8');
     if (buf.length <= maxBytes) {
@@ -101,11 +92,8 @@ function truncateToByteLimit(serialized: string, maxBytes: number): string {
     return buf.subarray(0, cut).toString('utf8') + TRUNCATION_SUFFIX;
 }
 
-/**
- * Whether a `content-type` header is on the allowlist. Normalizes to the bare media type first (strips
- * `; charset=...` params, trims, lowercases) so a strict custom regex like `/^application\/json$/` still
- * matches `application/json; charset=utf-8`. Empty/missing is a hard miss.
- */
+/** Normalizes to the bare media type first, so a strict custom regex like `/^application\/json$/` still
+ *  matches `application/json; charset=utf-8`. */
 function matchesContentType(ct: string | undefined, allowed: RegExp): boolean {
     if (!ct) {
         return false;
@@ -117,11 +105,7 @@ function matchesContentType(ct: string | undefined, allowed: RegExp): boolean {
     return allowed.test(mediaType);
 }
 
-/**
- * Parse a serialized body string, branching on content type. URL-encoded forms become a flat object;
- * otherwise JSON. Returns `undefined` (not `null`, a valid JSON value) on parse failure so the caller
- * can tell "couldn't parse" from "parsed to literal null".
- */
+/** Returns `undefined` rather than `null` on failure, since `null` is itself a valid JSON value. */
 function parseString(text: string, contentType?: string): unknown {
     if (contentType && /x-www-form-urlencoded/i.test(contentType)) {
         return Object.fromEntries(new URLSearchParams(text).entries());
@@ -133,10 +117,7 @@ function parseString(text: string, contentType?: string): unknown {
     }
 }
 
-/**
- * True only for `Object.create(null)` or `{}`-shaped values. Excludes class instances, streams,
- * FormData, ArrayBuffer views, Buffer, URLSearchParams, and other `typeof === 'object'` built-ins.
- */
+/** Excludes class instances, streams, FormData, ArrayBuffer views, Buffer and URLSearchParams. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     if (value === null || typeof value !== 'object') {
         return false;
@@ -145,11 +126,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     return proto === null || proto === Object.prototype;
 }
 
-/**
- * Recursively walk `value`, replacing denylisted keys' values with `'[redacted]'` and objects seen more
- * than once with `'[Circular]'`. `seen` is passed as a parameter (not a closure) to avoid per-call
- * allocation. Primitives/`null` pass through; arrays preserve order, objects preserve keys.
- */
+/** `seen` is a parameter rather than a closure to avoid allocating a WeakSet per recursion. */
 function redact(value: unknown, denylist: RegExp, seen: WeakSet<object> = new WeakSet()): unknown {
     if (value === null || typeof value !== 'object') {
         return value;

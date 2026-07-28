@@ -1,25 +1,19 @@
 export type FailureBannerInfo = {
-    /** Human-readable reason shown after "Reason:". */
     reason: string;
-    /** Resolved sourcemap path, interpolated into the recovery command. */
+    // Resolved values, interpolated into the recovery command the banner prints. Anything unset shows a
+    // labelled placeholder instead.
     sourcemap?: string;
-    /** Resolved relative_filename, interpolated into the recovery command. */
     bundleFilename?: string;
-    /** Resolved version, interpolated into the recovery command. */
     version?: string;
-    /** Resolved API key, interpolated into the recovery command. */
     apiKey?: string;
-    /** Resolved API endpoint; only included in the recovery command when set (custom endpoint). */
+    /** Only included in the recovery command when set, i.e. a custom endpoint. */
     apiEndpoint?: string;
 };
 
 const BORDER = '='.repeat(60);
 
-/**
- * Mask an API key for display in a build log (CI commonly archives these). Long keys keep a short
- * head/tail hint so the user can recognise which key it was; short keys are fully masked. Never
- * returns the key in full.
- */
+/** CI commonly archives build logs. A long key keeps a head/tail hint so it stays recognisable; a short
+ *  one is masked completely. Never returns the key in full. */
 export function maskApiKey(apiKey: string): string {
     if (apiKey.length <= 12) {
         return '*'.repeat(apiKey.length);
@@ -27,12 +21,7 @@ export function maskApiKey(apiKey: string): string {
     return `${apiKey.slice(0, 4)}${'*'.repeat(8)}${apiKey.slice(-4)}`;
 }
 
-/**
- * Deliberately large failure banner (a one-line "failed to upload" is too easy to miss in a native
- * build log). Resolved values are interpolated into a copy-pasteable re-run command; unknown values
- * show a labelled placeholder. The API key is masked, never printed in full, since this lands in the
- * build log.
- */
+/** Deliberately large: a one-line "failed to upload" is too easy to miss in a native build log. */
 export function formatFailureBanner(info: FailureBannerInfo): string {
     const sourcemap = info.sourcemap ?? '<path-to-map>';
     const bundleFilename = info.bundleFilename ?? '<bundle-filename>';

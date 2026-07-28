@@ -4,14 +4,11 @@ import { Dimensions, Platform } from 'react-native';
 import { type ExpoModules, loadExpoModules, projectExpoContext } from './expo';
 
 /**
- * Build the synchronous React Native `ContextCollector` core's `Flare` calls on every report. Two layers:
- * RN core (`Platform`, `Dimensions`, read per call) and Expo constants (resolved once, absent on bare RN).
+ * Two layers: RN core (`Platform`, `Dimensions`) read per call, and Expo constants resolved once and
+ * absent on bare RN. Expo's `osName`/`osVersion` override the RN values where present.
  *
- * The authenticated user is not projected here: `Flare.setUser` (inherited from core) writes `user.*` keys
- * straight to the active scope, like node and electron.
- *
- * `Platform.Version` is a string on iOS, number on Android, so it's stringified for `os.version`.
- * `Platform.OS` maps to `os.name` (not `os.type`, the kernel family); Expo's `osName`/`osVersion` override.
+ * `Platform.Version` is a string on iOS and a number on Android, hence the stringify. `Platform.OS` maps
+ * to `os.name`, not `os.type`, which is the kernel family.
  */
 export function makeReactNativeContextCollector(expo: ExpoModules = loadExpoModules()): ContextCollector {
     const expoAttrs = projectExpoContext(expo);
