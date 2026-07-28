@@ -111,7 +111,12 @@ export type SdkInfo = { name: string; version: string };
  * vocabulary, not a display string: lowercase, no spaces, hyphenated only where the package name is.
  *
  * The values the first-party SDKs emit, and the only ones the backend recognises:
- * `react`, `vue`, `svelte`, `sveltekit`, `react-native`.
+ * `js`, `react`, `vue`, `svelte`, `sveltekit`, `react-native`.
+ *
+ * `js` is the browser SDK's own claim, set when `@flareapp/js` constructs its Flare. It means "no
+ * framework package reported one", which for a vanilla app is the truth and for an app that only
+ * imports a framework package's side entry (e.g. `@flareapp/react/profiler`) is the closest the SDK
+ * can get. A framework package always overwrites it, because it imports the js root first.
  *
  * A host app may call `setFramework` with its own value; anything outside the list above is treated
  * as unknown by the backend rather than rejected. Render a display name from this, never the reverse.
