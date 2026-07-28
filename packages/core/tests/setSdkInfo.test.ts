@@ -40,12 +40,12 @@ test('framework attributes omitted by default', async () => {
 });
 
 test('setFramework adds framework attributes and context', async () => {
-    client.setFramework({ name: 'React', version: '19.0.0' });
+    client.setFramework({ name: 'react', version: '19.0.0' });
 
     await client.report(new Error('x'));
 
     const a = fakeApi.lastReport!.attributes;
-    expect(a['flare.framework.name']).toBe('React');
+    expect(a['flare.framework.name']).toBe('react');
     expect(a['flare.framework.version']).toBe('19.0.0');
     const custom = a['context.custom'] as Record<string, unknown>;
     expect(custom.framework).toBe('react');

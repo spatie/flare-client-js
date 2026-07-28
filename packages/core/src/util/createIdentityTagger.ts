@@ -1,3 +1,4 @@
+import type { FrameworkName } from '../framework';
 import type { Framework, SdkInfo } from '../types';
 
 /** Minimal surface the tagger needs; the browser Flare and any subclass satisfy it structurally. */
@@ -10,7 +11,12 @@ export interface SdkTaggable {
  * Builds a per-package SDK/framework identity tagger. Holds its own WeakSet guards so each Flare
  * instance (singleton or injected renderer) is tagged at most once, on each of the two axes.
  */
-export function createIdentityTagger(config: { sdkName: string; sdkVersion: string; frameworkName: string }): {
+/**
+ * `frameworkName` is typed as `FrameworkName`, not `string`: this is the wire vocabulary the backend
+ * keys off, so a first-party package cannot invent a value here. A host app that genuinely needs its
+ * own name calls `setFramework` directly.
+ */
+export function createIdentityTagger(config: { sdkName: string; sdkVersion: string; frameworkName: FrameworkName }): {
     registerSdkIdentity(flare: SdkTaggable): void;
     tagFramework(flare: SdkTaggable, frameworkVersion?: string): void;
 } {

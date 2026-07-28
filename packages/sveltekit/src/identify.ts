@@ -1,4 +1,4 @@
-import { flare } from '@flareapp/js';
+import { flare, FrameworkName } from '@flareapp/js';
 
 import { PACKAGE_VERSION } from './version.js';
 
@@ -8,5 +8,5 @@ import { PACKAGE_VERSION } from './version.js';
  */
 export function registerSvelteKitSdkIdentity(): void {
     flare.setSdkInfo({ name: '@flareapp/sveltekit', version: PACKAGE_VERSION });
-    flare.setFramework({ name: 'SvelteKit' });
+    flare.setFramework({ name: FrameworkName.SvelteKit });
 }

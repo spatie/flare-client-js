@@ -756,7 +756,7 @@ describe('flareVue', () => {
         } as any;
         const app = createApp({ render: () => null });
         app.use(flareVue, { flare: injected });
-        expect(injected.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'Vue' }));
+        expect(injected.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'vue' }));
         expect(injected.setSdkInfo).not.toHaveBeenCalled();
     });
 

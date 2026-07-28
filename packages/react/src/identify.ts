@@ -1,4 +1,4 @@
-import { createIdentityTagger } from '@flareapp/core';
+import { createIdentityTagger, FrameworkName } from '@flareapp/core';
 import type { Flare } from '@flareapp/js/browser';
 import * as React from 'react';
 
@@ -7,7 +7,7 @@ import { PACKAGE_VERSION } from './constants';
 const tagger = createIdentityTagger({
     sdkName: '@flareapp/react',
     sdkVersion: PACKAGE_VERSION,
-    frameworkName: 'React',
+    frameworkName: FrameworkName.React,
 });
 
 /** Web path: full identity on the default singleton (sdk + framework). */

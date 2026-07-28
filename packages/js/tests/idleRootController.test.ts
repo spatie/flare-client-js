@@ -211,14 +211,50 @@ describe('IdleRootController', () => {
         expect(controller.isEnded).toBe(false);
     });
 
-    it('releaseHold closes a childless root at now(), capturing the held duration', () => {
+    it('releaseHold hands a childless root back to the idle lifecycle, closing it at the settle time', () => {
         const root = fakeSpan('root', 'T');
         const h = harness(root, () => 0); // start floor 0
         const controller = new IdleRootController({ ...h.deps, held: true }, TIMEOUTS);
         h.setClock(5000 * 1e6); // 5s of loader time elapsed
         controller.releaseHold();
+
+        // Still open: a router settles BEFORE the framework mounts the new route component, so
+        // closing here would leave nothing for that mount (or a trailing fetch) to attach to.
+        expect(root.end).not.toHaveBeenCalled();
+        expect(controller.isEnded).toBe(false);
+
+        h.advance(1000); // idleTimeout with nothing attached
         expect(root.end).toHaveBeenCalledWith(5000 * 1e6); // settle time, NOT trimmed to floor 0
         expect(controller.isEnded).toBe(true);
+    });
+
+    it('releaseHold leaves the root active, so a later mount can still read it', () => {
+        const root = fakeSpan('root', 'T');
+        const h = harness(root, () => 0);
+        const controller = new IdleRootController({ ...h.deps, held: true }, TIMEOUTS);
+        h.setClock(5000 * 1e6);
+        controller.releaseHold();
+
+        // The regression this guards: settling used to clear the active root, so the component
+        // profiler read null at every post-navigation mount and dropped every span.
+        expect(h.setActiveRoot).toHaveBeenCalledTimes(1);
+        expect(h.setActiveRoot).toHaveBeenCalledWith(root);
+    });
+
+    it('work that starts after the settle attaches and stretches the root', () => {
+        const root = fakeSpan('root', 'T');
+        const h = harness(root, () => 0);
+        const controller = new IdleRootController({ ...h.deps, held: true }, TIMEOUTS);
+        h.setClock(5000 * 1e6);
+        controller.releaseHold();
+
+        // A route component mounts after the router settled and records its span.
+        const child = fakeSpan('c1', 'T', 5200 * 1e6);
+        h.emit('start', child);
+        h.emit('end', child);
+        h.advance(1000);
+
+        expect(root.end).toHaveBeenCalledWith(5200 * 1e6); // stretched past settle to cover the mount
     });
 
     it('held root survives idleTimeout after a child starts and ends during the hold', () => {
@@ -235,7 +271,8 @@ describe('IdleRootController', () => {
         expect(root.end).not.toHaveBeenCalled();
         expect(controller.isEnded).toBe(false);
         h.setClock(5000 * 1e6);
-        controller.releaseHold(); // childless at settle -> close at now(), spanning the loader window
+        controller.releaseHold(); // childless at settle -> idle window, then close at the settle time
+        h.advance(1000);
         expect(root.end).toHaveBeenCalledWith(5000 * 1e6);
         expect(controller.isEnded).toBe(true);
     });

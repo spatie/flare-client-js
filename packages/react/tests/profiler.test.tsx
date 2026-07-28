@@ -3,42 +3,32 @@ import { cleanup, render } from '@testing-library/react';
 import { StrictMode, Suspense, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const seam = vi.hoisted(() => {
-    let counter = 0;
-    return {
-        activeComponentRoot: vi.fn((): { traceId: string; parentSpanId: string } | null => ({
-            traceId: 'T',
-            parentSpanId: 'root',
-        })),
-        reserveSpanId: vi.fn(() => `s${++counter}`),
-        recordComponentSpan: vi.fn(),
-        nowNano: vi.fn(() => 1000),
-        reset: () => {
-            counter = 0;
-        },
-    };
-});
-vi.mock('@flareapp/js/browser', () => ({
-    activeComponentRoot: seam.activeComponentRoot,
-    reserveSpanId: seam.reserveSpanId,
-    recordComponentSpan: seam.recordComponentSpan,
-    nowNano: seam.nowNano,
-}));
+const seam = vi.hoisted(async () => (await import('@flareapp/test-helpers')).createComponentSeam());
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).componentProfilerMock(await seam, await importOriginal()),
+);
 
 import { FlareProfiler, withFlareProfiler } from '../src/profiler';
 
+const fake = await seam;
+
 beforeEach(() => {
-    seam.reset();
-    seam.recordComponentSpan.mockReset();
-    seam.reserveSpanId.mockClear();
-    seam.activeComponentRoot.mockReset().mockReturnValue({ traceId: 'T', parentSpanId: 'root' });
-    seam.nowNano.mockReset().mockReturnValue(1000);
+    fake.reset();
 });
 afterEach(cleanup);
 
+// Reads the recorded arguments rather than the fake's span log: the withFlareProfiler test isolates
+// three renders with recordComponentSpan.mockClear(), which empties mock.calls but not the log.
 const calls = () =>
-    seam.recordComponentSpan.mock.calls.map(
-        (c) => c[0] as { name: string; spanId: string; parent: { traceId: string; parentSpanId: string } },
+    fake.recordComponentSpan.mock.calls.map(
+        (c) =>
+            c[0] as {
+                name: string;
+                spanId: string;
+                parent: { traceId: string; parentSpanId: string };
+                startTimeUnixNano: number;
+                endTimeUnixNano: number;
+            },
     );
 
 describe('FlareProfiler', () => {
@@ -48,7 +38,7 @@ describe('FlareProfiler', () => {
                 <div>content</div>
             </FlareProfiler>,
         );
-        expect(seam.recordComponentSpan).toHaveBeenCalledTimes(1);
+        expect(fake.recordComponentSpan).toHaveBeenCalledTimes(1);
         expect(calls()[0]).toMatchObject({
             name: 'Solo',
             spanId: 's1',
@@ -88,19 +78,19 @@ describe('FlareProfiler', () => {
     });
 
     it('records nothing but still renders children when there is no active root', () => {
-        seam.activeComponentRoot.mockReturnValue(null);
+        fake.setRoot(null);
         const { getByText } = render(
             <FlareProfiler name="Solo">
                 <div>still here</div>
             </FlareProfiler>,
         );
-        expect(seam.recordComponentSpan).not.toHaveBeenCalled();
-        expect(seam.reserveSpanId).not.toHaveBeenCalled();
+        expect(fake.recordComponentSpan).not.toHaveBeenCalled();
+        expect(fake.reserveSpanId).not.toHaveBeenCalled();
         expect(getByText('still here')).toBeTruthy();
     });
 
     it('never throws when the seam throws', () => {
-        seam.recordComponentSpan.mockImplementation(() => {
+        fake.recordComponentSpan.mockImplementation(() => {
             throw new Error('boom');
         });
         expect(() =>
@@ -113,7 +103,7 @@ describe('FlareProfiler', () => {
     });
 
     it('never throws, and still renders children, when activeComponentRoot throws (render phase)', () => {
-        seam.activeComponentRoot.mockImplementation(() => {
+        fake.activeComponentRoot.mockImplementation(() => {
             throw new Error('boom');
         });
         let getByText!: ReturnType<typeof render>['getByText'];
@@ -128,10 +118,7 @@ describe('FlareProfiler', () => {
     });
 
     it('never throws, still renders children, and skips recording when reserveSpanId throws (render phase)', () => {
-        // mockImplementationOnce, not mockImplementation: reserveSpanId is only
-        // mockClear()'d (not mockReset()'d) in beforeEach, so a persistent throwing
-        // implementation would leak into every later test in this file.
-        seam.reserveSpanId.mockImplementationOnce(() => {
+        fake.reserveSpanId.mockImplementation(() => {
             throw new Error('boom');
         });
         let getByText!: ReturnType<typeof render>['getByText'];
@@ -143,7 +130,7 @@ describe('FlareProfiler', () => {
             ));
         }).not.toThrow();
         expect(getByText('still here')).toBeTruthy();
-        expect(seam.recordComponentSpan).not.toHaveBeenCalled();
+        expect(fake.recordComponentSpan).not.toHaveBeenCalled();
     });
 
     it('records exactly once under StrictMode (no duplicate spanId)', () => {
@@ -154,7 +141,7 @@ describe('FlareProfiler', () => {
                 </FlareProfiler>
             </StrictMode>,
         );
-        expect(seam.recordComponentSpan).toHaveBeenCalledTimes(1);
+        expect(fake.recordComponentSpan).toHaveBeenCalledTimes(1);
     });
 
     it('records a suspended child under its profiled ancestor once it resolves', async () => {
@@ -186,12 +173,12 @@ describe('FlareProfiler', () => {
 
     it('re-homes a descendant to the live root when the inherited ancestor context is from a dead trace', () => {
         // Ancestor (a persistent layout) mounts under the initial pageload trace R1.
-        seam.activeComponentRoot.mockReturnValue({ traceId: 'R1', parentSpanId: 'r1root' });
+        fake.setRoot({ traceId: 'R1', parentSpanId: 'r1root' });
         const { rerender } = render(<FlareProfiler name="Layout">{null}</FlareProfiler>);
 
         // Pageload trace R1 closes; a client navigation opens a fresh trace R2. The ancestor
         // does NOT remount (rerender, same fiber), so its provided context stays frozen at R1.
-        seam.activeComponentRoot.mockReturnValue({ traceId: 'R2', parentSpanId: 'r2root' });
+        fake.setRoot({ traceId: 'R2', parentSpanId: 'r2root' });
         rerender(
             <FlareProfiler name="Layout">
                 <FlareProfiler name="Descendant">
@@ -207,6 +194,21 @@ describe('FlareProfiler', () => {
         // pinning to the dead trace (which the live-root gate would drop in production).
         expect(byName.Descendant).toMatchObject({ parent: { traceId: 'R2', parentSpanId: 'r2root' } });
     });
+
+    it('reads the clock twice, so a recorded span has a real duration', () => {
+        // The frozen default clock makes every timestamp the same constant, which cannot tell two
+        // reads apart from one value used twice. Advance it and the start/end split becomes testable.
+        fake.advanceClock();
+
+        render(
+            <FlareProfiler name="Solo">
+                <div>x</div>
+            </FlareProfiler>,
+        );
+
+        const span = calls()[0]!;
+        expect(span.endTimeUnixNano).toBeGreaterThan(span.startTimeUnixNano);
+    });
 });
 
 describe('withFlareProfiler', () => {
@@ -218,14 +220,14 @@ describe('withFlareProfiler', () => {
         render(<WithName />);
         expect(calls()[0]!.name).toBe('Named');
 
-        seam.recordComponentSpan.mockClear();
+        fake.recordComponentSpan.mockClear();
         const Displayed = () => <div>d</div>;
         Displayed.displayName = 'Display';
         const WithDisplayName = withFlareProfiler(Displayed);
         render(<WithDisplayName />);
         expect(calls()[0]!.name).toBe('Display'); // displayName beats Component.name ('Displayed')
 
-        seam.recordComponentSpan.mockClear();
+        fake.recordComponentSpan.mockClear();
         const Explicit = withFlareProfiler(Displayed, { name: 'Explicit' });
         render(<Explicit />);
         expect(calls()[0]!.name).toBe('Explicit'); // explicit beats displayName

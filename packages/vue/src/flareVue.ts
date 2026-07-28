@@ -8,6 +8,7 @@ import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
 import { registerVueSdkInfo, tagVueFramework } from './identify';
+import { createComponentMatcher, createComponentProfilerMixin } from './profileVueComponents';
 import { resolveFlare } from './resolveFlare';
 import { serializeProps } from './serializeProps';
 import { traceVueRouter } from './traceVueRouter';
@@ -161,6 +162,20 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     if (options?.router && flare.config?.enableTracing) {
         try {
             traceVueRouter(options.router);
+        } catch {
+            // never break plugin install
+        }
+    }
+
+    // Only register the mixin when it can actually record. Without `enableTracing` the seam no-ops, so
+    // the mixin would run on every component in the app to do nothing. An empty allowlist is the same
+    // case, so it is treated as off rather than as "an array was passed".
+    const profile = options?.profileComponents;
+    const wantsProfiling = profile === true || (Array.isArray(profile) && profile.length > 0);
+
+    if (wantsProfiling && flare.config?.enableTracing) {
+        try {
+            app.mixin(createComponentProfilerMixin(createComponentMatcher(profile)));
         } catch {
             // never break plugin install
         }

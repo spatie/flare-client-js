@@ -3,3 +3,4 @@ export * from './tracing';
 export * from './factories';
 export * from './globals';
 export * from './navigationSource';
+export * from './componentProfiler';

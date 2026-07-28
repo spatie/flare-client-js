@@ -20,6 +20,30 @@ describe('Flare class from @flareapp/js', () => {
         expect(api.lastReport!.attributes['telemetry.sdk.name']).toBe('@flareapp/js');
     });
 
+    it('new Flare() reports js as the framework, so a vanilla app is never framework-less', async () => {
+        const api = new FakeApi();
+        const flare = new Flare(api, undefined, new NullFileReader());
+        flare.light('test-key');
+        await flare.report(new Error('test'));
+
+        expect(api.lastReport!.attributes['flare.framework.name']).toBe('js');
+        const custom = api.lastReport!.attributes['context.custom'] as Record<string, unknown> | undefined;
+        expect(custom?.framework).toBe('js');
+    });
+
+    it('a framework package tagging later wins over the js default', async () => {
+        // The import graph guarantees this order: @flareapp/react and @flareapp/vue import the js
+        // root (constructing the singleton, which tags 'js') before they tag their own framework.
+        const api = new FakeApi();
+        const flare = new Flare(api, undefined, new NullFileReader());
+        flare.setFramework({ name: 'vue', version: '3.5.0' });
+        flare.light('test-key');
+        await flare.report(new Error('test'));
+
+        expect(api.lastReport!.attributes['flare.framework.name']).toBe('vue');
+        expect(api.lastReport!.attributes['flare.framework.version']).toBe('3.5.0');
+    });
+
     it('new Flare() collects browser context (entry_point.type === web)', async () => {
         const api = new FakeApi();
         const flare = new Flare(api, undefined, new NullFileReader());

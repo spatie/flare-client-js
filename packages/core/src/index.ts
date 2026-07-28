@@ -49,6 +49,8 @@ export {
 } from './util';
 export type { RejectionReporter, SafeCloneOptions, SdkTaggable } from './util';
 
+export { FrameworkName } from './framework';
+
 export { Api } from './api';
 
 export { Flare } from './Flare';

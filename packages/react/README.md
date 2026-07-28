@@ -87,7 +87,7 @@ The MIT License (MIT). Please see [License File](../../LICENSE.md) for more info
 
 ## Component profiler (`@flareapp/react/profiler`)
 
-Opt-in mount profiling: wrap a component to record a `browser_react_component` span for
+Opt-in mount profiling: wrap a component to record a `browser_component` span for
 its mount, nested under the active page-load / navigation trace. Requires tracing to be
 enabled (`enableTracing: true`).
 
@@ -106,6 +106,17 @@ export default withFlareProfiler(ProductPage);
 Spans nest into a tree: a profiled child nests under its nearest profiled ancestor;
 unprofiled components in between are transparent. A component with no active trace
 (tracing off, or no page-load/navigation root) records nothing and renders normally.
+
+A component that mounts later inside an already-mounted profiled ancestor still nests
+under that ancestor, whose own span closed when it finished mounting. The tree is
+correct, but the waterfall shows the child starting after its parent ended. A page body
+swapped inside a persistent layout is the usual way to see this.
+
+**Import the main entry somewhere too.** `@flareapp/react/profiler` is deliberately dependency-free, so
+it does not register React as the framework. That identity (`flare.framework.name`) is what tells Flare a
+component span came from React, and importing `@flareapp/react` anywhere in the app sets it. An app that
+uses only the `/profiler` entry reports `js` instead, and its component spans are attributed to plain
+JavaScript rather than React.
 
 **Naming:** the span name is `name` (prop or `withFlareProfiler(Component, { name })`),
 then `Component.displayName`, then `Component.name`. Minified production builds can

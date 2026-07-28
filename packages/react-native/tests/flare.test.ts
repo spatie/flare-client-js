@@ -169,19 +169,21 @@ describe('ReactNativeFlare', () => {
 });
 
 describe('ReactNativeFlare framework identity', () => {
-    it('tags the framework as React Native by default (no boundary needed)', async () => {
+    it('tags the framework as react-native by default (no boundary needed)', async () => {
         const flare = makeFlare();
         const fake = withFakeApi(flare);
         flare.light('k');
 
         await flare.report(new Error('x'));
 
-        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('React Native');
+        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('react-native');
+        // context.custom lowercases the name, which is now a no-op: the wire vocabulary is already
+        // lowercase, so both paths carry the same token.
         const custom = fake.lastReport?.attributes['context.custom'] as Record<string, unknown> | undefined;
-        expect(custom?.framework).toBe('react native');
+        expect(custom?.framework).toBe('react-native');
     });
 
-    it('coerces the wrapped @flareapp/react boundary tag (React) to React Native', async () => {
+    it('coerces the wrapped @flareapp/react boundary tag to react-native', async () => {
         const flare = makeFlare();
         const fake = withFakeApi(flare);
         flare.light('k');
@@ -192,7 +194,7 @@ describe('ReactNativeFlare framework identity', () => {
 
         await flare.report(new Error('x'));
 
-        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('React Native');
+        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('react-native');
         // The React version the boundary supplied is preserved.
         expect(fake.lastReport?.attributes['flare.framework.version']).toBe('19.2.3');
     });
