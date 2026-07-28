@@ -25,6 +25,16 @@ describe('ElectronFlare', () => {
         expect(a['process.runtime.name']).toBe('electron');
     });
 
+    it('claims node-electron as the framework on main-origin reports', async () => {
+        const { flare, api } = makeFlare();
+        await flare.report(new Error('main boom'));
+
+        const a = api.reports[0].attributes;
+        expect(a['flare.framework.name']).toBe('node-electron');
+        const custom = a['context.custom'] as Record<string, unknown> | undefined;
+        expect(custom?.framework).toBe('node-electron');
+    });
+
     it('setUser writes user.* on the next main-origin report', async () => {
         const { flare, api } = makeFlare();
         flare.setUser({ id: 7, email: 'u@x.io' });
