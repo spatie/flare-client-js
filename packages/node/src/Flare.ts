@@ -68,6 +68,9 @@ export class NodeFlare extends CoreFlare {
         super(new Api(), collector, new DiskFileReader(), scopeProvider, new NodeFlushScheduler());
         this.nodeScopeProvider = scopeProvider;
         this.setSdkInfo({ name: NODE_SDK_NAME, version: NODE_SDK_VERSION });
+        // Claim 'node' so a bare Node app is never framework-less on the wire. A host framework
+        // integration calls setFramework later with its own name, which overwrites this.
+        this.setFramework({ name: 'node' });
 
         const cbs = buildFatalCallbacks(this, () => this.nodeOptions);
         this.handlerManager = new ProcessHandlerManager(cbs);
