@@ -41,6 +41,17 @@ type PendingSpan = { name: string; spanId: string; startNano: number; parent: Co
 type ProfileState = { marker: ComponentTraceContext; pending: PendingSpan | null };
 type ProfiledInstance = ComponentInternalInstance & { [PROFILE]?: ProfileState };
 
+/** The nearest profiled ancestor's marker, walking the internal parent chain. Only matched components
+ *  store a marker, so unmatched ones (and functional components, which get no hooks at all) are
+ *  skipped without any code for them. */
+function nearestMarker(instance: ComponentInternalInstance): ComponentTraceContext | null {
+    for (let node = instance.parent; node; node = node.parent) {
+        const state = (node as ProfiledInstance)[PROFILE];
+        if (state) return state.marker;
+    }
+    return null;
+}
+
 /**
  * Record one `browser_component` span per matched component mount. `beforeMount` reserves the span id
  * and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted`
@@ -53,13 +64,16 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                 const name = getComponentName(this);
                 if (!matches(name)) return; // unmatched components stay transparent: no state, no marker
 
+                const internal = this.$ as ProfiledInstance;
                 const live = activeComponentRoot();
-                if (!live) return; // tracing off, or no root open: record nothing
+                const inherited = nearestMarker(internal);
+                const parent = inherited ?? live;
+                if (!parent) return; // tracing off, or no root open: record nothing
 
                 const spanId = reserveSpanId();
-                (this.$ as ProfiledInstance)[PROFILE] = {
-                    marker: { traceId: live.traceId, parentSpanId: spanId },
-                    pending: { name, spanId, startNano: nowNano(), parent: live },
+                internal[PROFILE] = {
+                    marker: { traceId: parent.traceId, parentSpanId: spanId },
+                    pending: { name, spanId, startNano: nowNano(), parent },
                 };
             } catch {
                 // instrumentation must never break the host
