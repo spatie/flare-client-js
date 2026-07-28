@@ -181,7 +181,9 @@ export class Tracer {
         let recording = state.recording;
         if (state.startedSpanCount >= config.maxSpansPerTrace) {
             recording = false;
-            if (config.debug) console.error('Flare: maxSpansPerTrace reached, dropping span');
+            if (config.debug) {
+                console.error('Flare: maxSpansPerTrace reached, dropping span');
+            }
         } else {
             state.startedSpanCount++;
         }
@@ -266,7 +268,9 @@ export class Tracer {
         // order (getOrSeedState refreshes on access), so the first key is the LRU; evict it at the cap.
         if (this.traceStates.size >= this.maxLiveTraces) {
             const lru = this.traceStates.keys().next().value;
-            if (lru !== undefined) this.traceStates.delete(lru);
+            if (lru !== undefined) {
+                this.traceStates.delete(lru);
+            }
         }
         const state: TraceState = {
             traceId,
@@ -308,26 +312,42 @@ export class Tracer {
                 onEnd: (s) => this.onSpanEnd(s),
             },
         );
-        if (opts.spanType) span.setAttribute('flare.span_type', opts.spanType);
+        if (opts.spanType) {
+            span.setAttribute('flare.span_type', opts.spanType);
+        }
         if (opts.attributes) {
-            for (const [k, v] of Object.entries(opts.attributes)) span.setAttribute(k, v);
+            for (const [k, v] of Object.entries(opts.attributes)) {
+                span.setAttribute(k, v);
+            }
         }
         return span;
     }
 
     private onSpanEnd(span: SpanImpl): void {
         this.emitSpanEvent('end', span);
-        if (span.epoch !== this.epoch) return; // stale: created before a clear(); never buffer
+        // stale: created before a clear(); never buffer
+        if (span.epoch !== this.epoch) {
+            return;
+        }
 
         const state = this.traceStates.get(span.traceId);
         if (state) {
             state.openSpanCount--;
-            if (span.spanId === state.localRootSpanId) state.rootEnded = true;
-            if (state.rootEnded && state.openSpanCount <= 0) this.traceStates.delete(span.traceId);
+            if (span.spanId === state.localRootSpanId) {
+                state.rootEnded = true;
+            }
+            if (state.rootEnded && state.openSpanCount <= 0) {
+                this.traceStates.delete(span.traceId);
+            }
         }
 
-        if (!span.isRecording) return;
-        if (!this.deps.getConfig().enableTracing) return; // ended after disable/clear: no buffering
+        if (!span.isRecording) {
+            return;
+        }
+        // ended after disable/clear: no buffering
+        if (!this.deps.getConfig().enableTracing) {
+            return;
+        }
 
         // Buffering runs inside the app's span.end() call (e.g. the fetch wrapper's success path). Serializing exotic
         // attribute values must never throw out of end() and reject a host request; a failed buffer just drops the span.
@@ -353,7 +373,9 @@ export class Tracer {
             };
             this.buffer.add(buffered);
         } catch (error) {
-            if (this.deps.getConfig().debug) console.error('Flare: failed to buffer span', error);
+            if (this.deps.getConfig().debug) {
+                console.error('Flare: failed to buffer span', error);
+            }
         }
     }
 }

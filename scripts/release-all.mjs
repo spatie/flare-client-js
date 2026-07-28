@@ -152,7 +152,9 @@ const CHECK_DEPS_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), '
  */
 function checkIndependentDepsPublished(releaseSet) {
     const env = { ...process.env };
-    if (SKIP_DEP_CHECK) env.SKIP_DEP_CHECK = '1';
+    if (SKIP_DEP_CHECK) {
+        env.SKIP_DEP_CHECK = '1';
+    }
 
     for (const name of releaseSet) {
         const pkgJson = readPkgJson(name);
@@ -160,7 +162,9 @@ function checkIndependentDepsPublished(releaseSet) {
         // If every @flareapp dep is also being released now, the publish phase
         // covers availability; nothing to pre-check.
         const externalDeps = flareDeps.filter((dep) => !releaseSet.has(shortName(dep)));
-        if (externalDeps.length === 0) continue;
+        if (externalDeps.length === 0) {
+            continue;
+        }
 
         const exclude = [...releaseSet].map((n) => `@flareapp/${n}`).join(',');
         const result = spawnSync('node', [CHECK_DEPS_SCRIPT, pkgDir(name), `--exclude=${exclude}`], {
@@ -168,8 +172,12 @@ function checkIndependentDepsPublished(releaseSet) {
             stdio: ['ignore', 'pipe', 'pipe'],
             env,
         });
-        if (result.stdout) process.stdout.write(result.stdout);
-        if (result.stderr) process.stderr.write(result.stderr);
+        if (result.stdout) {
+            process.stdout.write(result.stdout);
+        }
+        if (result.stderr) {
+            process.stderr.write(result.stderr);
+        }
         if (result.status !== 0) {
             process.exit(result.status ?? 1);
         }
@@ -180,7 +188,9 @@ function collectFlareDeps(pkgJson) {
     const out = [];
     for (const field of ['dependencies', 'peerDependencies']) {
         for (const dep of Object.keys(pkgJson[field] ?? {})) {
-            if (dep.startsWith('@flareapp/')) out.push(dep);
+            if (dep.startsWith('@flareapp/')) {
+                out.push(dep);
+            }
         }
     }
     return out;
@@ -240,7 +250,9 @@ async function promptLockstepVersion() {
             break;
         case '4':
             newVersion = await ask('  Enter version (e.g. 3.0.0): ');
-            if (!isValidSemver(newVersion)) fail(`Invalid semver: ${newVersion}`);
+            if (!isValidSemver(newVersion)) {
+                fail(`Invalid semver: ${newVersion}`);
+            }
             break;
         default:
             fail(`Invalid choice: ${choice}`);
@@ -261,9 +273,15 @@ async function promptIndependentVersion(name) {
     console.log(`\n--- @flareapp/${name} (independent) ---\n`);
     info(`Current version: ${current}`);
     const ans = await ask(`  Enter version to release, 'k' to keep ${current}, or 's' to skip @flareapp/${name}: `);
-    if (ans === '' || ans.toLowerCase() === 's') return null;
-    if (ans.toLowerCase() === 'k') return current;
-    if (!isValidSemver(ans)) fail(`Invalid semver for @flareapp/${name}: ${ans}`);
+    if (ans === '' || ans.toLowerCase() === 's') {
+        return null;
+    }
+    if (ans.toLowerCase() === 'k') {
+        return current;
+    }
+    if (!isValidSemver(ans)) {
+        fail(`Invalid semver for @flareapp/${name}: ${ans}`);
+    }
     return ans;
 }
 
@@ -280,12 +298,24 @@ async function planRelease() {
     const reactNativeSourcemapsVersion = await promptIndependentVersion('react-native-sourcemaps');
 
     const versions = {};
-    for (const name of LOCKSTEP_PACKAGES) versions[name] = lockstepVersion;
-    if (coreVersion) versions['core'] = coreVersion;
-    if (nodeVersion) versions['node'] = nodeVersion;
-    if (electronVersion) versions['electron'] = electronVersion;
-    if (reactNativeVersion) versions['react-native'] = reactNativeVersion;
-    if (reactNativeSourcemapsVersion) versions['react-native-sourcemaps'] = reactNativeSourcemapsVersion;
+    for (const name of LOCKSTEP_PACKAGES) {
+        versions[name] = lockstepVersion;
+    }
+    if (coreVersion) {
+        versions['core'] = coreVersion;
+    }
+    if (nodeVersion) {
+        versions['node'] = nodeVersion;
+    }
+    if (electronVersion) {
+        versions['electron'] = electronVersion;
+    }
+    if (reactNativeVersion) {
+        versions['react-native'] = reactNativeVersion;
+    }
+    if (reactNativeSourcemapsVersion) {
+        versions['react-native-sourcemaps'] = reactNativeSourcemapsVersion;
+    }
 
     const releaseSet = new Set(Object.keys(versions));
     const tiers = PUBLISH_ORDER.map((tier) => tier.filter((n) => releaseSet.has(n))).filter((t) => t.length > 0);
@@ -365,7 +395,9 @@ function updateCrossReferences(plan) {
 
     // Lockstep refs -> caret on the lockstep version.
     for (const { pkg, field, dep } of LOCKSTEP_REFS) {
-        if (!plan.releaseSet.has(pkg)) continue;
+        if (!plan.releaseSet.has(pkg)) {
+            continue;
+        }
         const pkgJson = readPkgJson(pkg);
         if (pkgJson[field]?.[dep]) {
             const oldRange = pkgJson[field][dep];
@@ -378,7 +410,9 @@ function updateCrossReferences(plan) {
 
     // Lockstep deps that are pinned exactly (electron -> js).
     for (const { pkg, field, dep } of LOCKSTEP_EXACT_REFS) {
-        if (!plan.releaseSet.has(pkg)) continue;
+        if (!plan.releaseSet.has(pkg)) {
+            continue;
+        }
         const pkgJson = readPkgJson(pkg);
         if (pkgJson[field]?.[dep]) {
             const oldRange = pkgJson[field][dep];
@@ -394,7 +428,9 @@ function updateCrossReferences(plan) {
     if (plan.releaseSet.has('core')) {
         const coreVersion = plan.versions['core'];
         for (const { pkg, field, dep } of CORE_REFS) {
-            if (!plan.releaseSet.has(pkg)) continue;
+            if (!plan.releaseSet.has(pkg)) {
+                continue;
+            }
             const pkgJson = readPkgJson(pkg);
             if (pkgJson[field]?.[dep]) {
                 const oldRange = pkgJson[field][dep];
@@ -418,8 +454,12 @@ function commitAndTag(plan) {
 
     const filesToStage = [...plan.releaseSet].map((name) => `packages/${name}/package.json`);
     // release-it's after:bump hook regenerates these for svelte/sveltekit.
-    if (plan.releaseSet.has('svelte')) filesToStage.push('packages/svelte/src/version.ts');
-    if (plan.releaseSet.has('sveltekit')) filesToStage.push('packages/sveltekit/src/version.ts');
+    if (plan.releaseSet.has('svelte')) {
+        filesToStage.push('packages/svelte/src/version.ts');
+    }
+    if (plan.releaseSet.has('sveltekit')) {
+        filesToStage.push('packages/sveltekit/src/version.ts');
+    }
 
     const addResult = spawnSync('git', ['add', '--', ...filesToStage], {
         encoding: 'utf-8',
@@ -455,7 +495,9 @@ function releaseCommitMessage(plan) {
     const independent = INDEPENDENT_PACKAGES.filter((n) => plan.releaseSet.has(n)).map(
         (n) => `@flareapp/${n}@${plan.versions[n]}`,
     );
-    if (independent.length) parts.push(`(${independent.join(', ')})`);
+    if (independent.length) {
+        parts.push(`(${independent.join(', ')})`);
+    }
     return parts.join(' ');
 }
 
@@ -685,11 +727,15 @@ async function preflight(plan) {
     console.log('\n--- Pre-flight checks ---\n');
 
     const status = run('git status --porcelain');
-    if (status) fail('Working tree is not clean. Commit or stash changes first.');
+    if (status) {
+        fail('Working tree is not clean. Commit or stash changes first.');
+    }
     info('Working tree clean');
 
     const branch = run('git rev-parse --abbrev-ref HEAD');
-    if (branch !== 'main') fail(`Must be on main branch (currently on ${branch}).`);
+    if (branch !== 'main') {
+        fail(`Must be on main branch (currently on ${branch}).`);
+    }
     info('On main branch');
 
     try {

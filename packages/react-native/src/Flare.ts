@@ -15,18 +15,13 @@ import { ReactNativeFlushScheduler } from './ReactNativeFlushScheduler';
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
 
-/** How long a fatal JS crash holds the app open to drain the transport before delegating to RN's default handler (see globalErrorHandler). */
+/** How long a fatal JS crash holds the app open to drain the transport before RN's default handler runs. */
 const FATAL_FLUSH_TIMEOUT_MS = 2000;
 
 /**
- * React Native `Flare` singleton (exposed as `flare` from the package root).
- *
- * Subclasses core's `Flare`, injecting the RN seams: core `Api` (native fetch), the RN context collector,
- * core `NullFileReader` (no runtime snippets; sourcemaps are a Metro follow-up), core `GlobalScopeProvider`
- * (RN is a single app scope), and `ReactNativeFlushScheduler` (best-effort flush on background).
- *
- * Adds RN-only surface: `removeHandlers` and an idempotent handler install folded into `light()`. `setUser`
- * is inherited from core, writing the backend-read `user.*` keys to the single global scope.
+ * The RN `Flare` singleton, exposed as `flare` from the package root. Uses `NullFileReader` because there
+ * are no runtime snippets on a device (sourcemaps are a Metro follow-up) and `GlobalScopeProvider` because
+ * RN has a single app scope.
  */
 export class ReactNativeFlare extends CoreFlare {
     private readonly scheduler: ReactNativeFlushScheduler;
@@ -35,8 +30,8 @@ export class ReactNativeFlare extends CoreFlare {
     private uninstallers: Array<() => void> = [];
 
     /**
-     * @param rejectionDeps test seam for the rejection hook. Default `{}` resolves the active engine's
-     *        tracker (Hermes or JSC). Tests pass `{ enable: null }` so `light()` installs no leaking global tracker.
+     * @param rejectionDeps test seam. Default `{}` resolves the active engine's tracker (Hermes or JSC);
+     *        tests pass `{ enable: null }` so `light()` installs no leaking global tracker.
      */
     constructor(rejectionDeps: RejectionDeps = {}) {
         const scheduler = new ReactNativeFlushScheduler();
@@ -51,33 +46,24 @@ export class ReactNativeFlare extends CoreFlare {
     }
 
     /**
-     * Force the framework identity to `react-native`. The wrapped
-     * `@flareapp/react` boundary tags every flare it injects as `react` (via
-     * `tagReactFramework`), which is wrong on the RN singleton, so coerce the
-     * name here while preserving whatever version the caller supplied (the React
-     * renderer version when the boundary tags it).
+     * The wrapped `@flareapp/react` boundary tags every flare it injects as `react`, which is wrong here,
+     * so coerce the name while keeping whatever version the caller supplied.
      */
     setFramework(framework: Framework): this {
         return super.setFramework({ ...framework, name: FrameworkName.ReactNative });
     }
 
-    /**
-     * Set the API key (and optional debug flag), then install the global handlers. Idempotent: calling
-     * `light()` twice does not double-wrap `ErrorUtils` (which, unlike node's reconcile, is not naturally so).
-     */
+    /** Idempotent: a second `light()` must not double-wrap `ErrorUtils`, which node's reconcile gets for free. */
     light(key?: string, debug?: boolean): this {
         super.light(key, debug);
         this.install();
         return this;
     }
 
-    /**
-     * Detach the global error handler, rejection tracker, and AppState listener, and clear the install
-     * guard so a later `light()` re-installs. For tests and manual teardown (mirrors node's `removeProcessListeners`).
-     */
+    /** For tests and manual teardown. Clears the install guard, so a later `light()` re-installs. */
     removeHandlers(): void {
-        // Guard each uninstaller individually so one throwing teardown does not strand the rest attached
-        // or leave the install guard set, which would block re-install.
+        // Guarded individually: one throwing teardown must not strand the rest attached, nor leave the
+        // install guard set, which would block re-install.
         for (const uninstall of this.uninstallers) {
             try {
                 uninstall();
@@ -90,24 +76,23 @@ export class ReactNativeFlare extends CoreFlare {
     }
 
     private install(): void {
-        if (this.installed) return;
+        if (this.installed) {
+            return;
+        }
         this.installed = true;
         this.uninstallers.push(
-            // `reportSilently` (not `report`) swallows its own transport rejection so a reporting failure
-            // can't trigger a second error inside the global handler. `isFatal` rides as an attribute.
-            // `onFatal` drains the transport before a production fatal crash tears the app down (see globalErrorHandler).
+            // `reportSilently`, not `report`: it swallows its own transport rejection, so a reporting
+            // failure cannot raise a second error from inside the global handler.
             installGlobalErrorHandler(
                 (error, isFatal) => {
                     this.reportSilently(error, { 'error.fatal': isFatal });
                 },
                 () => this.flush(FATAL_FLUSH_TIMEOUT_MS),
             ),
-            // Mirrors the browser unhandledrejection path: stack-bearing reasons keep their stack via
-            // reportSilently, stackless reasons fall back to reportUnhandledRejection.
             installRejectionTracking(
                 {
                     reportSilently: (error) => this.reportSilently(error),
-                    // Return the promise (no `void`) so `routeRejection` owns the `.catch`, matching @flareapp/js.
+                    // Returns the promise (no `void`) so `routeRejection` owns the `.catch`, as in @flareapp/js.
                     reportUnhandledRejection: (message) => this.reportUnhandledRejection(message),
                 },
                 this.rejectionDeps,

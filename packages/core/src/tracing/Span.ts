@@ -54,7 +54,9 @@ export class SpanImpl implements Span {
     }
 
     setAttribute(key: string, value: AttributeValue): this {
-        if (this.ended) return this;
+        if (this.ended) {
+            return this;
+        }
         if (!(key in this.attributes) && Object.keys(this.attributes).length >= this.deps.maxAttributesPerSpan) {
             this.droppedAttributesCount++;
             return this;
@@ -64,12 +66,16 @@ export class SpanImpl implements Span {
     }
 
     setStatus(status: SpanStatus): this {
-        if (!this.ended) this.status = status;
+        if (!this.ended) {
+            this.status = status;
+        }
         return this;
     }
 
     addEvent(name: string, attributes: Attributes = {}): this {
-        if (this.ended) return this;
+        if (this.ended) {
+            return this;
+        }
         if (this.events.length >= this.deps.maxEventsPerSpan) {
             this.droppedEventsCount++;
             return this;
@@ -88,7 +94,9 @@ export class SpanImpl implements Span {
     }
 
     end(endTimeUnixNano?: number): void {
-        if (this.ended) return;
+        if (this.ended) {
+            return;
+        }
         this.ended = true;
         this.endTimeUnixNano = endTimeUnixNano ?? this.deps.now();
         this.deps.onEnd(this);

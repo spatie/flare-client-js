@@ -26,7 +26,9 @@ export type ExpoModules = {
  */
 export function loadExpoModules(): ExpoModules {
     const mods: ExpoModules = {};
-    if (typeof require === 'undefined') return mods;
+    if (typeof require === 'undefined') {
+        return mods;
+    }
     try {
         mods.device = require('expo-device') as ExpoDeviceModule;
     } catch {
@@ -51,12 +53,20 @@ export function projectExpoContext(expo: ExpoModules): Attributes {
     const attrs: Attributes = {};
     const device = expo.device;
     if (device) {
-        if (device.modelName != null) attrs['device.model.name'] = device.modelName;
-        if (device.osName != null) attrs['os.name'] = device.osName;
-        if (device.osVersion != null) attrs['os.version'] = device.osVersion;
+        if (device.modelName != null) {
+            attrs['device.model.name'] = device.modelName;
+        }
+        if (device.osName != null) {
+            attrs['os.name'] = device.osName;
+        }
+        if (device.osVersion != null) {
+            attrs['os.version'] = device.osVersion;
+        }
         if (device.deviceType != null) {
             const label = DEVICE_TYPE_LABELS[device.deviceType];
-            if (label) attrs['device.type'] = label;
+            if (label) {
+                attrs['device.type'] = label;
+            }
         }
     }
     const application = expo.application;
@@ -64,7 +74,9 @@ export function projectExpoContext(expo: ExpoModules): Attributes {
         if (application.nativeApplicationVersion != null) {
             attrs['app.version'] = application.nativeApplicationVersion;
         }
-        if (application.applicationId != null) attrs['app.id'] = application.applicationId;
+        if (application.applicationId != null) {
+            attrs['app.id'] = application.applicationId;
+        }
     }
     return attrs;
 }

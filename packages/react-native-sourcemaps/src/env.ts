@@ -6,17 +6,14 @@ import { join } from 'node:path';
 const ENV_FILES = ['.env.local', '.env'];
 
 /**
- * Load FLARE_* variables from .env.local / .env in `rootDir` into process.env, without overwriting
- * anything already set.
+ * Load FLARE_* variables into process.env without overwriting anything already set.
  *
- * Native build hooks run in a fresh process that often lacks the upload key: .env files are loaded by
- * Metro at JS runtime not native build time, and an IDE build (or a stale reused Gradle daemon) won't
- * see a key exported in your shell. Reading it from the file makes "drop FLARE_API_KEY in .env.local"
- * work on both platforms without re-exporting per build.
+ * Native build hooks run in a fresh process that usually lacks the upload key: Metro loads .env at JS
+ * runtime, not native build time, and an IDE build or a reused Gradle daemon never sees a key exported in
+ * your shell. Reading the file makes "drop FLARE_API_KEY in .env.local" work on both platforms.
  *
- * Only FLARE_-prefixed keys are read, never unrelated secrets. Minimal parser (no dependency):
- * `KEY=value`, optional `export ` prefix, surrounding quotes stripped, blank and `#` comment lines
- * ignored. Inline comments are not stripped (fine for the alphanumeric keys Flare issues).
+ * Only FLARE_-prefixed keys are read, never unrelated secrets. The parser is minimal to avoid a
+ * dependency; it does not strip inline comments, which is fine for the keys Flare issues.
  */
 export function loadEnvFiles(rootDir: string): void {
     for (const file of ENV_FILES) {

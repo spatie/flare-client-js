@@ -170,7 +170,9 @@ describe('traceVueRouter against a real vue-router', () => {
         const router = makeRouter();
         traceVueRouter(router);
         router.beforeEach((to) => {
-            if (to.path === '/product/p01') throw new Error('guard boom');
+            if (to.path === '/product/p01') {
+                throw new Error('guard boom');
+            }
         });
         mountWith(router);
         await router.isReady();

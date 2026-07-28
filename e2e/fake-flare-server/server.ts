@@ -26,14 +26,19 @@ const readBody = (req: IncomingMessage): Promise<string> =>
 const headersToRecord = (req: IncomingMessage): Record<string, string> => {
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
-        if (typeof value === 'string') headers[key] = value;
-        else if (Array.isArray(value)) headers[key] = value.join(', ');
+        if (typeof value === 'string') {
+            headers[key] = value;
+        } else if (Array.isArray(value)) {
+            headers[key] = value.join(', ');
+        }
     }
     return headers;
 };
 
 const tryParseJson = (text: string): unknown | null => {
-    if (!text) return null;
+    if (!text) {
+        return null;
+    }
     try {
         return JSON.parse(text);
     } catch {
@@ -67,7 +72,9 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
     const listeners = new Set<Listener>();
 
     const notify = (record: FakeFlareRecord): void => {
-        for (const listener of Array.from(listeners)) listener(record);
+        for (const listener of Array.from(listeners)) {
+            listener(record);
+        }
     };
 
     const record = async (req: IncomingMessage, endpoint: FakeFlareEndpoint): Promise<FakeFlareRecord> => {
@@ -153,7 +160,9 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
         const { timeout = 5000, predicate } = opts;
 
         const existing = records.find((r) => r.endpoint === 'reports' && (!predicate || predicate(r)));
-        if (existing) return Promise.resolve(existing);
+        if (existing) {
+            return Promise.resolve(existing);
+        }
 
         return new Promise<FakeFlareRecord>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -162,8 +171,12 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
             }, timeout);
 
             const listener: Listener = (entry) => {
-                if (entry.endpoint !== 'reports') return;
-                if (predicate && !predicate(entry)) return;
+                if (entry.endpoint !== 'reports') {
+                    return;
+                }
+                if (predicate && !predicate(entry)) {
+                    return;
+                }
                 clearTimeout(timer);
                 listeners.delete(listener);
                 resolve(entry);
@@ -176,7 +189,9 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
         const { timeout = 5000, predicate } = opts;
 
         const existing = records.find((r) => r.endpoint === 'traces' && (!predicate || predicate(r)));
-        if (existing) return Promise.resolve(existing);
+        if (existing) {
+            return Promise.resolve(existing);
+        }
 
         return new Promise<FakeFlareRecord>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -185,8 +200,12 @@ export const startFakeFlareServer = async (options: { port?: number } = {}): Pro
             }, timeout);
 
             const listener: Listener = (entry) => {
-                if (entry.endpoint !== 'traces') return;
-                if (predicate && !predicate(entry)) return;
+                if (entry.endpoint !== 'traces') {
+                    return;
+                }
+                if (predicate && !predicate(entry)) {
+                    return;
+                }
                 clearTimeout(timer);
                 listeners.delete(listener);
                 resolve(entry);

@@ -14,11 +14,8 @@ export const FLARE_GRADLE_MARKER = '@flareapp/react-native-sourcemaps Expo confi
 export const SOURCEMAP_FILE_LINE = 'export SOURCEMAP_FILE="$TARGET_TEMP_DIR/main.jsbundle.map"';
 export const GITIGNORE_ENTRY = 'flare.json';
 
-/**
- * Serialise plugin props into the flare.json the native hooks read. Absent props are omitted so the
- * CLI applies its own defaults (endpoint) and env fallback (FLARE_API_KEY). No `version` key: version
- * flows only through FLARE_SOURCEMAP_VERSION.
- */
+/** Absent props are omitted so the CLI applies its own defaults and its FLARE_API_KEY fallback. No
+ *  `version` key: that flows only through FLARE_SOURCEMAP_VERSION. */
 export function flareJsonContents(props: FlarePluginProps): string {
     const config: Record<string, string> = {};
     if (props.apiKey) {
@@ -43,10 +40,9 @@ export function addFlareGradleApply(buildGradle: string, applyFromPath: string):
 }
 
 /**
- * Ensure ios/.xcode.env exports SOURCEMAP_FILE so the stock bundle phase emits the composed map.
- * Idempotent; treats a missing file (empty string) as valid input. The guard is line-based and
- * ignores comments, so a commented-out `# SOURCEMAP_FILE=` does not suppress injection while a real
- * `export SOURCEMAP_FILE=` / `SOURCEMAP_FILE=` (user's custom map path) is left untouched.
+ * Exports SOURCEMAP_FILE so the stock bundle phase emits the composed map. Idempotent, and treats a
+ * missing file as valid input. The guard is line-based and ignores comments, so a commented-out
+ * `# SOURCEMAP_FILE=` does not suppress injection while a real one is left untouched.
  */
 export function addSourcemapFileEnv(xcodeEnv: string): string {
     const alreadySet = xcodeEnv.split('\n').some((line) => {
@@ -70,10 +66,7 @@ export function ensureGitignored(gitignore: string, entry: string = GITIGNORE_EN
     return `${base}${entry}\n`;
 }
 
-/**
- * Shell body of the iOS "Upload Flare sourcemaps" phase: source RN's with-environment.sh (so
- * SOURCEMAP_FILE/FLARE_* are present), then run flare-xcode.sh.
- */
+/** Sources RN's with-environment.sh first, so SOURCEMAP_FILE and FLARE_* are present. */
 export function flareXcodeShellScript(withEnvironmentPath: string, flareXcodePath: string): string {
     return [
         'set -e',

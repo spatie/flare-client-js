@@ -43,7 +43,9 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
         const prior = xhrState.get(this);
         if (prior && prior.span && !prior.ended) {
             prior.ended = true;
-            if (prior.onDone) this.removeEventListener('readystatechange', prior.onDone);
+            if (prior.onDone) {
+                this.removeEventListener('readystatechange', prior.onDone);
+            }
             try {
                 prior.span.setStatus({ code: 2 }); // aborted: no HTTP response was received
                 prior.span.end();
@@ -83,9 +85,22 @@ export function createXHRSetRequestHeader(original: XhrSetHeader): XhrSetHeader 
         original.call(this, name, value);
         if (typeof name === 'string' && name.toLowerCase() === 'traceparent') {
             const state = xhrState.get(this);
-            if (state) state.hasAppTraceparent = true;
+            if (state) {
+                state.hasAppTraceparent = true;
+            }
         }
     };
+}
+
+function setTraceparentHeader(xhr: XMLHttpRequest, traceparent: string | null | undefined): void {
+    if (!traceparent) {
+        return;
+    }
+    try {
+        xhr.setRequestHeader('traceparent', traceparent);
+    } catch {
+        // setRequestHeader throws unless the request is in the OPENED state; ignore.
+    }
 }
 
 /** Patch `send` to open the span, inject `traceparent`, and end on `readyState === 4`. */
@@ -95,13 +110,19 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
 
         const config = tracer.config;
         const state = xhrState.get(this);
-        if (!config.enableTracing || !state) return send();
+        if (!config.enableTracing || !state) {
+            return send();
+        }
         // A completed request whose XHR is re-sent without a fresh open() would start a
         // second span the native send() then rejects (InvalidStateError); pass it through.
-        if (state.ended) return send();
+        if (state.ended) {
+            return send();
+        }
 
         const abs = safeAbsolute(state.url, origin);
-        if (isFlareIngestUrl(abs, config)) return send();
+        if (isFlareIngestUrl(abs, config)) {
+            return send();
+        }
 
         const pathname = abs ? abs.pathname : state.url;
         const span = tracer.startSpan(`${state.method} ${pathname}`, {
@@ -111,20 +132,17 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         state.span = span;
 
         if (!state.hasAppTraceparent) {
-            const tp = traceparentFor(span, abs, state.url, origin, config);
-            if (tp) {
-                try {
-                    this.setRequestHeader('traceparent', tp);
-                } catch {
-                    // setRequestHeader throws unless the request is in the OPENED state; ignore.
-                }
-            }
+            setTraceparentHeader(this, traceparentFor(span, abs, state.url, origin, config));
         }
 
         const onDone = (): void => {
-            if (this.readyState !== 4) return;
+            if (this.readyState !== 4) {
+                return;
+            }
             this.removeEventListener('readystatechange', onDone);
-            if (state.ended) return;
+            if (state.ended) {
+                return;
+            }
             state.ended = true;
             let status = 0;
             try {
@@ -182,11 +200,15 @@ const patcher = createPatcher();
  * via `fill`. Reversible via `unpatchXHR`.
  */
 export function instrumentXHR(tracer: HttpTracer): void {
-    if (patcher.installed) return;
+    if (patcher.installed) {
+        return;
+    }
 
     const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest; location?: { origin?: string } };
     const X = g.XMLHttpRequest;
-    if (typeof X !== 'function' || !X.prototype) return;
+    if (typeof X !== 'function' || !X.prototype) {
+        return;
+    }
 
     const origin = g.location?.origin ?? '';
     const proto = X.prototype as unknown as Record<string, unknown>;
@@ -201,6 +223,8 @@ export function instrumentXHR(tracer: HttpTracer): void {
 export function unpatchXHR(): void {
     const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
     const X = g.XMLHttpRequest;
-    if (typeof X !== 'function' || !X.prototype) return;
+    if (typeof X !== 'function' || !X.prototype) {
+        return;
+    }
     patcher.uninstall(X.prototype as unknown as Record<string, unknown>);
 }

@@ -1,27 +1,42 @@
 // Electron-safe entry: NO @flareapp/js root import. The navigation-source seam comes from
 // @flareapp/js/browser (side-effect-free). NO runtime dependency on react-router — the router is
 // consumed structurally (see ./vendor/reactRouterTypes).
-import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import {
+    insulate,
+    registerNavigationSource,
+    resolveHref,
+    routeName,
+    safeInvoke,
+    type RouteName,
+} from '@flareapp/js/browser';
 
 import type { RRDataRouter, RRLocation, RRMatch, RRRouterState } from './vendor/reactRouterTypes';
 
 /**
- * Reconstruct the parameterized route template (e.g. `/product/:id`) from a resolved match chain
- * by joining each match's declared `route.path`. Returns undefined when nothing usable matched (a
- * URL-name fallback then applies). Ports the substance of Sentry's getNormalizedName, reading the
- * router's already-resolved `state.matches` instead of re-matching.
+ * Rebuild the parameterized template (`/product/:id`) by joining each match's declared `route.path`.
+ * Follows Sentry's getNormalizedName, but reads the router's already-resolved `state.matches` rather
+ * than matching again.
  */
 export function routeNameFromMatches(matches: RRMatch[] | undefined): string | undefined {
-    if (!matches || matches.length === 0) return undefined;
+    if (!matches || matches.length === 0) {
+        return undefined;
+    }
     let path = '';
     for (const m of matches) {
         const p = m.route?.path;
-        if (!p) continue; // pathless layout route, or an index route's empty contribution
+        // pathless layout route, or an index route's empty contribution
+        if (!p) {
+            continue;
+        }
         // An absolute child path resets the accumulator; a relative one appends.
         path = p[0] === '/' ? p : (path.endsWith('/') ? path : path + '/') + p;
     }
-    if (!path) return undefined;
-    if (path[0] !== '/') path = '/' + path;
+    if (!path) {
+        return undefined;
+    }
+    if (path[0] !== '/') {
+        path = '/' + path;
+    }
     return path.replace(/\/{2,}/g, '/'); // collapse the `//` a '/' root part introduces
 }
 
@@ -34,33 +49,13 @@ export function routeNameFromMatches(matches: RRMatch[] | undefined): string | u
 export function traceReactRouter(router: RRDataRouter): () => void {
     const nav = registerNavigationSource();
 
-    // Every name carries the destination url so the root's url.full is updated together with it.
-    // The root opens with the first destination, so after a redirect it would otherwise report a
-    // page the user never landed on.
-    const routeNameFor = (state: RRRouterState): RouteName => {
-        const url = hrefOf(state.location);
-        try {
-            const name = routeNameFromMatches(state.matches);
-            if (name) return { name, source: 'route', url };
-        } catch {
-            // fall through to the URL name
-        }
-        return { name: state.location.pathname, source: 'url', url };
-    };
+    const routeNameFor = (state: RRRouterState): RouteName =>
+        routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
 
     // `createHref` is what puts the router's `basename` back on, and what turns a hash router's
     // location into the `#`-prefixed URL the address bar actually shows. `location.pathname` has
-    // both stripped. Fall back to the bare parts only if the router has no `createHref`.
-    const hrefOf = (loc: RRLocation): string | undefined => {
-        const bare = (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
-        let href = bare;
-        try {
-            href = router.createHref?.(loc) ?? bare;
-        } catch {
-            // a router that throws on createHref still gets a url, just without the basename
-        }
-        return absoluteHref(href);
-    };
+    // both stripped.
+    const hrefOf = (loc: RRLocation): string | undefined => resolveHref(() => router.createHref?.(loc), keyOf(loc));
 
     const keyOf = (loc: RRLocation): string => (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
 
@@ -68,40 +63,40 @@ export function traceReactRouter(router: RRDataRouter): () => void {
     let inFlight = false;
     let lastLocationKey = keyOf(router.state.location);
 
-    // Name (or one-shot re-name, e.g. after an initial-load redirect) the already-running pageload
-    // root from a resolved match chain, and track the committed location it now represents.
     const namePageload = (state: RRRouterState): void => {
         lastLocationKey = keyOf(state.location);
         nav.setActiveRouteName(routeNameFor(state));
     };
 
-    // Name the pageload immediately from RR's synchronously-resolved initial matches (RR populates
-    // state.matches at router creation, before initialization completes), so pageload naming never
-    // depends on a later subscribe firing. `sawInitialSettle` separately gates when we START treating
-    // changes as navigations: only once the router reports `initialized`. RR never dispatches a
-    // navigation before initialization and always notifies on init completion, so the first
-    // `initialized` fire is the settle (possibly after an initial-load redirect), never a navigation.
+    // RR populates state.matches at router creation, before initialization completes, so the pageload
+    // can be named now rather than waiting on a subscribe fire. `sawInitialSettle` separately gates when
+    // changes start counting as navigations: RR never dispatches one before initialization and always
+    // notifies on completion, so the first `initialized` fire is the settle, never a navigation.
     try {
-        if (router.state.matches.length > 0) namePageload(router.state);
+        if (router.state.matches.length > 0) {
+            namePageload(router.state);
+        }
         sawInitialSettle = router.state.initialized === true;
     } catch {
         // never break the host on wiring
     }
 
     const onState = (state: RRRouterState): void => {
-        // Initial-load phase: until RR reports `initialized`, attribute every fire to the pageload
-        // root (one-shot correcting its name once matches resolve) and never open a navigation root.
+        // Until RR reports `initialized`, every fire belongs to the pageload root; open no navigation root.
         if (!sawInitialSettle) {
-            if (state.matches.length > 0) namePageload(state);
-            if (state.initialized) sawInitialSettle = true;
+            if (state.matches.length > 0) {
+                namePageload(state);
+            }
+            if (state.initialized) {
+                sawInitialSettle = true;
+            }
             return;
         }
 
         const navState = state.navigation.state;
 
-        // Loader navigation: RR publishes a non-idle state (loaders/middleware running) BEFORE the
-        // URL commits. Open the root held, timed from now, named at resolve. url from the pending
-        // destination so url.full is correct despite RR committing the URL only at resolve.
+        // RR publishes a non-idle state while loaders run, BEFORE the URL commits. Hence the pending
+        // destination for the url: the committed one is still the page being left.
         if (!inFlight && navState !== 'idle') {
             inFlight = true;
             const dest = state.navigation.location ?? state.location;
@@ -109,7 +104,7 @@ export function traceReactRouter(router: RRDataRouter): () => void {
             return;
         }
 
-        // Loader navigation resolved: name from the now-committed matches and release the hold.
+        // Resolved: the matches have committed, so name from them and release the hold.
         if (inFlight && navState === 'idle') {
             inFlight = false;
             lastLocationKey = keyOf(state.location);
@@ -117,12 +112,10 @@ export function traceReactRouter(router: RRDataRouter): () => void {
             return;
         }
 
-        // Loader-less navigation: RR short-circuits to completeNavigation with NO loading state
-        // (react-router router.ts handleLoaders returns before publishing the loading navigation
-        // when nothing shouldLoad), so location + matches commit in one idle fire and no
-        // navigation.state transition is seen. Detect it by the committed location changing, and
-        // name it immediately (no hold; the normal idle lifecycle captures effect-fired fetches).
-        // settleNavigation's releaseHold is a harmless no-op on this un-held root.
+        // A loader-less navigation never publishes a loading state (RR's handleLoaders returns early when
+        // nothing shouldLoad), so location and matches commit in one idle fire with no state transition to
+        // see. The changed location is the only signal. No hold: the normal idle lifecycle still catches
+        // fetches fired from effects.
         if (!inFlight && navState === 'idle') {
             const locKey = keyOf(state.location);
             if (locKey !== lastLocationKey) {

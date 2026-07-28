@@ -33,56 +33,64 @@ export type RejectionEngineDeps = {
     requirePolyfill?: ((id: string) => unknown) | null;
 };
 
+/** An injected `null` means "engine absent" and must win over the live global, so this tests for
+ *  `undefined` rather than falsiness. */
+function resolveHermes(deps: RejectionEngineDeps): HermesInternalLike | null | undefined {
+    if (deps.hermes !== undefined) {
+        return deps.hermes;
+    }
+    return (globalThis as { HermesInternal?: HermesInternalLike }).HermesInternal;
+}
+
+/** Same `undefined`-not-falsy rule as `resolveHermes`. */
+function resolveRequire(deps: RejectionEngineDeps): ((id: string) => unknown) | null {
+    if (deps.requirePolyfill !== undefined) {
+        return deps.requirePolyfill;
+    }
+    if (typeof require === 'undefined') {
+        return null;
+    }
+    return require;
+}
+
 /**
- * Resolve the promise-rejection enabler for the active JS engine, null when neither is reachable.
- *
- * - Hermes (RN's default since 0.70): tracks on its native Promise via
- *   `global.HermesInternal.enablePromiseRejectionTracker`. The `promise` npm polyfill is not the runtime
- *   Promise here, so its `rejection-tracking.enable()` would hook unused objects and never fire.
- * - JSC / non-Hermes: RN polyfills `global.Promise` with the `promise` package, so
- *   `promise/setimmediate/rejection-tracking.enable()` is the real hook.
- *
- * Exported (with injectable deps) for unit-testing the ordering; not re-exported from the package entry.
+ * The rejection enabler for the active JS engine, null when neither is reachable. Order matters: on
+ * Hermes the `promise` npm polyfill is not the runtime Promise, so its `rejection-tracking.enable()`
+ * would hook unused objects and never fire. On JSC, RN does polyfill `global.Promise` with that package,
+ * making it the real hook. Exported with injectable deps so the ordering is unit-testable.
  */
 export function resolveRejectionEnabler(deps: RejectionEngineDeps = {}): RejectionEnabler | null {
-    const hermes =
-        deps.hermes !== undefined
-            ? deps.hermes
-            : (globalThis as { HermesInternal?: HermesInternalLike }).HermesInternal;
+    const hermes = resolveHermes(deps);
     if (hermes && typeof hermes.enablePromiseRejectionTracker === 'function') {
         return (options) => hermes.enablePromiseRejectionTracker!(options);
     }
 
-    const req =
-        deps.requirePolyfill !== undefined ? deps.requirePolyfill : typeof require !== 'undefined' ? require : null;
-    if (req) {
-        try {
-            const tracker = req('promise/setimmediate/rejection-tracking') as { enable: RejectionEnabler };
-            if (tracker && typeof tracker.enable === 'function') {
-                return (options) => tracker.enable(options);
-            }
-        } catch {
-            // polyfill not present; fall through to null
+    const req = resolveRequire(deps);
+    if (!req) {
+        return null;
+    }
+
+    try {
+        const tracker = req('promise/setimmediate/rejection-tracking') as { enable: RejectionEnabler };
+        if (tracker && typeof tracker.enable === 'function') {
+            return (options) => tracker.enable(options);
         }
+    } catch {
+        // polyfill not present; fall through to null
     }
 
     return null;
 }
 
 /**
- * Best-effort, engine-aware capture of unhandled promise rejections. RN routes these through the engine's
- * tracker (not `window.onunhandledrejection`): `HermesInternal.enablePromiseRejectionTracker` on Hermes,
- * the `promise` polyfill on JSC. Reasons route like the browser handler (core's `routeRejection`), so Error
- * reasons keep their stack via `reportSilently`.
+ * Best-effort, engine-aware capture of unhandled rejections. RN routes these through the engine's tracker
+ * rather than `window.onunhandledrejection`. With no engine hook reachable this is a no-op; uncaught
+ * throws still arrive via ErrorUtils.
  *
- * If no engine hook is reachable this is a no-op (uncaught throws via ErrorUtils still work) with a dev-only
- * debug line; it must never crash. The `enable(...)` call is wrapped so a throwing hook degrades to no-op.
- *
- * Chaining caveat: enabling replaces the engine's current callbacks (RN registers its own dev warning) and
- * neither engine exposes a getter for the previous ones, so we can't chain RN's default. To avoid swallowing
- * that signal, `onUnhandled` re-emits a `console.warn` in dev.
- *
- * Returns an uninstaller that re-enables with no-op callbacks (no clean disable exists on either engine).
+ * Enabling REPLACES the engine's current callbacks, including RN's own dev warning, and neither engine
+ * exposes a getter for the previous ones, so chaining is impossible. `onUnhandled` re-emits a
+ * `console.warn` in dev to avoid swallowing that signal. For the same reason the uninstaller re-enables
+ * with no-op callbacks: neither engine offers a clean disable.
  */
 export function installRejectionTracking(reporter: RejectionReporter, deps: RejectionDeps = {}): () => void {
     const enable = deps.enable !== undefined ? deps.enable : resolveRejectionEnabler();

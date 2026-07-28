@@ -27,11 +27,17 @@ export default function flareSourcemaps({
     function log(message: string, isError = false) {
         const formatted = `@flareapp/vite: ${message}`;
         if (isError) {
-            if (logger) logger.error(formatted);
-            else console.error(formatted);
+            if (logger) {
+                logger.error(formatted);
+            } else {
+                console.error(formatted);
+            }
         } else {
-            if (logger) logger.info(formatted);
-            else console.log(formatted);
+            if (logger) {
+                logger.info(formatted);
+            } else {
+                console.log(formatted);
+            }
         }
     }
 

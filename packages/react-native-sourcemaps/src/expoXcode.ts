@@ -21,10 +21,8 @@ type XcodeInternal = {
 };
 
 /**
- * Append an "Upload Flare sourcemaps" shell-script phase to the app target. Appended so it always
- * runs after the JS bundle phase, whatever that phase is named or wherever it sits across Expo SDKs.
- * Skips if a phase with our name already exists. Mutates `project` in place (the `xcode` lib's
- * contract) and returns the same instance.
+ * Appended rather than positioned, so it runs after the JS bundle phase whatever that phase is named and
+ * wherever it sits across Expo SDKs. Mutates `project` in place, per the `xcode` lib's contract.
  */
 export function addUploadBuildPhase(project: XcodeProject, shellScript: string): XcodeProject {
     const internal = project as unknown as XcodeInternal;

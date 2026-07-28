@@ -69,7 +69,9 @@ export function readLinesFromFile(
 
     for (let i = -half; i <= half; i++) {
         const currentLineIndex = errorLineIndex + i;
-        if (currentLineIndex < 0 || !lines[currentLineIndex]) continue;
+        if (currentLineIndex < 0 || !lines[currentLineIndex]) {
+            continue;
+        }
         const displayLine = currentLineIndex + 1;
         const line = lines[currentLineIndex];
         if (line.length > maxSnippetLineLength) {
@@ -92,5 +94,7 @@ export function readLinesFromFile(
 
 // Clearing the cache is useful in tests.
 export function __clearFileReaderCacheForTests(): void {
-    for (const key of Object.keys(cachedFiles)) delete cachedFiles[key];
+    for (const key of Object.keys(cachedFiles)) {
+        delete cachedFiles[key];
+    }
 }

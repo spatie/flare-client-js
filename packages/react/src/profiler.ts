@@ -10,6 +10,7 @@ import {
     nowNano,
     recordComponentSpan,
     reserveSpanId,
+    resolveComponentParent,
     type ComponentTraceContext,
 } from '@flareapp/js/browser';
 import {
@@ -39,13 +40,7 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     const parentRef = useRef<ComponentTraceContext | null | undefined>(undefined);
     if (parentRef.current === undefined) {
         try {
-            const live = activeComponentRoot();
-            // Prefer an inherited ancestor context only while it still belongs to the live
-            // trace. A profiled component that persists across navigations (e.g. a layout)
-            // froze its context under the pageload trace; once that root closes and a client
-            // navigation opens a new root, a descendant must re-home to the LIVE root rather
-            // than pin the subtree to the dead trace (which the live-root gate would drop).
-            parentRef.current = context && live && context.traceId === live.traceId ? context : live;
+            parentRef.current = resolveComponentParent(context, activeComponentRoot());
         } catch {
             parentRef.current = null; // resolved to transparent; never throw into the host
         }
@@ -79,7 +74,9 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     const hasRecorded = useRef(false);
     useMountEffect(() => {
         const own = ownRef.current;
-        if (!parent || !own || hasRecorded.current) return;
+        if (!parent || !own || hasRecorded.current) {
+            return;
+        }
         hasRecorded.current = true;
         try {
             recordComponentSpan({

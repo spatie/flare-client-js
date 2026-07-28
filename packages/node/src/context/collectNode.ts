@@ -8,14 +8,11 @@ import { findHeader, projectHeaders } from './headers';
 import { collectProcessAttributes } from './process';
 
 /**
- * Build the Node-side `ContextCollector` that core's `Flare` calls per report. Projects two sources into
- * OTel-style attributes: process info (always present) and the active request scope (method, path/url
- * with query keys redacted, headers with denylist applied, optional body) when `runWithContext(...)` is
- * active. Outside a request it falls back to the shared scope and emits no request attrs. User identity
- * is not projected here; `Flare.setUser` writes straight to `pendingAttributes`.
+ * Projects process info (always) and the active request scope (only inside `runWithContext`) into
+ * OTel-style attributes. User identity is not projected here: `Flare.setUser` writes straight to
+ * `pendingAttributes`.
  *
- * `getOptions` is a getter so `configureNode(...)` changes show up on later reports without rebuilding
- * the collector.
+ * `getOptions` is a getter so `configureNode(...)` shows up on later reports without rebuilding this.
  */
 export function makeNodeContextCollector(
     provider: AsyncLocalStorageScopeProvider,
@@ -36,17 +33,16 @@ export function makeNodeContextCollector(
             ...collectProcessAttributes(),
         };
 
-        // Active scope: per-request NodeScope inside runWithContext, or the shared fallback outside.
-        // Either way `request` is a real RequestContext; unset fields are `undefined`.
         const scope = provider.active();
         const { request } = scope;
 
-        if (request.method) attrs['http.request.method'] = request.method;
+        if (request.method) {
+            attrs['http.request.method'] = request.method;
+        }
 
-        // `request.path` is a server-relative path with optional query (the shape of `req.url` from
-        // `node:http`). Split into `url.path` (before `?`) and `url.query` (after `?`, denylisted keys
-        // redacted). We reuse core's `redactUrlQuery` by passing the whole path and slicing the prefix
-        // back off, rather than reimplementing redact-query here.
+        // `request.path` has the shape of `req.url` from `node:http`: server-relative, optional query.
+        // Redacting the whole path and slicing the prefix back off reuses core's `redactUrlQuery` rather
+        // than reimplementing query redaction here.
         if (request.path) {
             const queryStart = request.path.indexOf('?');
             if (queryStart === -1) {
@@ -59,23 +55,23 @@ export function makeNodeContextCollector(
             }
         }
 
-        // `request.url` is the absolute URL when the caller has it (post proxy/host resolution). Goes to
-        // `url.full` with its query redacted. Independent of `request.path`; either, both, or neither.
+        // The absolute URL when the caller has it, post proxy/host resolution. Independent of
+        // `request.path`: either, both or neither may be set.
         if (request.url) {
             attrs['url.full'] = redactUrlQuery(request.url, config.urlDenylist);
         }
 
-        // Live node options once per call; already sanitized by `configureNode`, so used directly.
+        // Already sanitized by `configureNode`, so used directly.
         const opts = getOptions();
         Object.assign(attrs, projectHeaders(request.headers, opts));
 
-        // Body capture off by default. When on, look up `content-type` case-insensitively (header names
-        // are case-insensitive but `request.headers` is a plain Record). `captureBody` returns null when
-        // the type isn't allowed, the body is missing, or serialization fails; only emit when non-null.
+        // `findHeader` because header names are case-insensitive while `request.headers` is a plain Record.
         if (opts.captureRequestBody) {
             const contentType = findHeader(request.headers, 'content-type');
             const body = captureBody(request.body, contentType, opts);
-            if (body !== null) attrs['http.request.body'] = body;
+            if (body !== null) {
+                attrs['http.request.body'] = body;
+            }
         }
 
         return attrs;
