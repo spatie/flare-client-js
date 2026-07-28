@@ -112,11 +112,11 @@ under that ancestor, whose own span closed when it finished mounting. The tree i
 correct, but the waterfall shows the child starting after its parent ended. A page body
 swapped inside a persistent layout is the usual way to see this.
 
-**Use the main entry too.** `@flareapp/react/profiler` is deliberately dependency-free, so it does not
-register React as the framework. That identity (`flare.framework.name`) is what tells Flare a component
-span came from React, and it is set by `FlareErrorBoundary` or `flareReactErrorHandler` from the main
-`@flareapp/react` entry. Profiling with neither of those anywhere in the app produces spans Flare cannot
-attribute to a framework.
+**Import the main entry somewhere too.** `@flareapp/react/profiler` is deliberately dependency-free, so
+it does not register React as the framework. That identity (`flare.framework.name`) is what tells Flare a
+component span came from React, and importing `@flareapp/react` anywhere in the app sets it. An app that
+uses only the `/profiler` entry reports `js` instead, and its component spans are attributed to plain
+JavaScript rather than React.
 
 **Naming:** the span name is `name` (prop or `withFlareProfiler(Component, { name })`),
 then `Component.displayName`, then `Component.name`. Minified production builds can
