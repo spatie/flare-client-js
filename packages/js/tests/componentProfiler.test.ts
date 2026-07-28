@@ -82,7 +82,6 @@ describe('component-profiler seam', () => {
             name: 'ProductPage',
             spanId: 'p1',
             parent: { traceId: 'T', parentSpanId: 'root' },
-            framework: 'react',
             startTimeUnixNano: 10,
             endTimeUnixNano: 20,
         });
@@ -94,9 +93,15 @@ describe('component-profiler seam', () => {
                 parent: { traceId: 'T', spanId: 'root' },
                 spanType: 'browser_component',
                 startTimeUnixNano: 10,
-                attributes: { 'flare.component.name': 'ProductPage', 'flare.component.framework': 'react' },
+                attributes: { 'flare.component.name': 'ProductPage' },
             }),
         );
+
+        // Asserted on the key list, not just deep equality: an attribute present with an undefined
+        // value still costs a wire slot, and toEqual treats it as absent. No framework attribute
+        // here, because the recording framework is already on the envelope resource as
+        // flare.framework.name.
+        expect(Object.keys(startSpan.mock.calls[0]![1]!.attributes!)).toEqual(['flare.component.name']);
     });
 
     it('recordComponentSpan drops the span when the active root no longer matches the traceId', () => {
@@ -109,7 +114,6 @@ describe('component-profiler seam', () => {
             name: 'ProductPage',
             spanId: 'p1',
             parent: { traceId: 'T', parentSpanId: 'root' },
-            framework: 'react',
             startTimeUnixNano: 10,
             endTimeUnixNano: 20,
         });
@@ -123,7 +127,6 @@ describe('component-profiler seam', () => {
                 name: 'X',
                 spanId: 'x',
                 parent: { traceId: 'T', parentSpanId: 'root' },
-                framework: 'vue',
                 startTimeUnixNano: 1,
                 endTimeUnixNano: 2,
             }),

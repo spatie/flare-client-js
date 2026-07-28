@@ -86,7 +86,6 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
                 name,
                 spanId: own.spanId,
                 parent,
-                framework: 'react',
                 startTimeUnixNano: own.startNano,
                 endTimeUnixNano: nowNano(),
             });

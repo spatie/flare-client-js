@@ -45,7 +45,6 @@ describe('component profiler mixin', () => {
         expect(fake.spans()).toHaveLength(1);
         expect(fake.spans()[0]).toMatchObject({
             name: 'ProductPage',
-            framework: 'vue',
             parent: { traceId: 'T', parentSpanId: 'root' },
         });
     });

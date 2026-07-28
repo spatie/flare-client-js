@@ -9,9 +9,6 @@ import { BrowserSpanType } from './spanTypes';
 
 export type ComponentTraceContext = { traceId: string; parentSpanId: string };
 
-/** Which framework integration recorded the span. Stamped as `flare.component.framework`. */
-export type ComponentFramework = 'react' | 'vue';
-
 /** Unix nanos on the same clock the tracer uses for span timestamps. */
 export const nowNano = defaultNowNano;
 
@@ -46,7 +43,6 @@ export function recordComponentSpan(span: {
     name: string;
     spanId: string;
     parent: ComponentTraceContext;
-    framework: ComponentFramework;
     startTimeUnixNano: number;
     endTimeUnixNano: number;
     attributes?: Record<string, unknown>;
@@ -62,11 +58,10 @@ export function recordComponentSpan(span: {
                 parent: { traceId: span.parent.traceId, spanId: span.parent.parentSpanId },
                 spanType: BrowserSpanType.Component,
                 startTimeUnixNano: span.startTimeUnixNano,
-                attributes: {
-                    ...span.attributes,
-                    'flare.component.name': span.name,
-                    'flare.component.framework': span.framework,
-                },
+                // No framework attribute: which framework recorded this is already on the envelope
+                // resource as flare.framework.name, and repeating it per span is duplicate weight
+                // on a span type that can hit maxSpansPerTrace.
+                attributes: { ...span.attributes, 'flare.component.name': span.name },
             })
             .end(span.endTimeUnixNano);
     } catch {

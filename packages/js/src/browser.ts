@@ -65,7 +65,6 @@ export {
     reserveSpanId,
     recordComponentSpan,
     nowNano,
-    type ComponentFramework,
     type ComponentTraceContext,
 } from './tracing/componentProfiler';
 export { BrowserSpanType } from './tracing/spanTypes';

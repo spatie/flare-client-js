@@ -6,7 +6,6 @@ export type RecordedComponentSpan = {
     name: string;
     spanId: string;
     parent: { traceId: string; parentSpanId: string };
-    framework: string;
     startTimeUnixNano: number;
     endTimeUnixNano: number;
 };

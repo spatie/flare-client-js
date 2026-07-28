@@ -95,7 +95,6 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                     name: pending.name,
                     spanId: pending.spanId,
                     parent: pending.parent,
-                    framework: 'vue',
                     startTimeUnixNano: pending.startNano,
                     endTimeUnixNano: nowNano(),
                 });
