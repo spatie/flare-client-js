@@ -24,13 +24,13 @@ export function safeAbsolute(url: string, origin: string): URL | null {
     }
 }
 
-/** True when `abs` targets one of Flare's own ingest endpoints (never traced). */
-export function isFlareIngestUrl(abs: URL | null, config: Config): boolean {
-    if (!abs) {
+/** True when `absoluteUrl` targets one of Flare's own ingest endpoints (never traced). */
+export function isFlareIngestUrl(absoluteUrl: URL | null, config: Config): boolean {
+    if (!absoluteUrl) {
         return false;
     }
     return [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl].some(
-        (u) => typeof u === 'string' && u.length > 0 && abs.href.startsWith(u),
+        (u) => typeof u === 'string' && u.length > 0 && absoluteUrl.href.startsWith(u),
     );
 }
 
@@ -38,12 +38,17 @@ export function isFlareIngestUrl(abs: URL | null, config: Config): boolean {
  * Shared request-span attributes for a fetch/XHR call. `url.full` is redacted the same way error
  * reports are, so tokens/reset codes never leak.
  */
-export function requestSpanAttributes(method: string, abs: URL | null, url: string, config: Config): Attributes {
+export function requestSpanAttributes(
+    method: string,
+    absoluteUrl: URL | null,
+    url: string,
+    config: Config,
+): Attributes {
     return {
         'http.request.method': method,
-        'url.full': redactUrlQuery(abs ? abs.href : url, config.urlDenylist),
-        ...(abs ? { 'server.address': abs.hostname } : {}),
-        ...(abs && abs.port ? { 'server.port': Number(abs.port) } : {}),
+        'url.full': redactUrlQuery(absoluteUrl ? absoluteUrl.href : url, config.urlDenylist),
+        ...(absoluteUrl ? { 'server.address': absoluteUrl.hostname } : {}),
+        ...(absoluteUrl && absoluteUrl.port ? { 'server.port': Number(absoluteUrl.port) } : {}),
     };
 }
 
@@ -73,13 +78,13 @@ export function finishHttpSpanError(span: Span, error: unknown): void {
  */
 export function traceparentFor(
     span: Span,
-    abs: URL | null,
+    absoluteUrl: URL | null,
     url: string,
     origin: string,
     config: Config,
 ): string | null {
-    const resolved = abs ? abs.href : url;
-    if (!shouldPropagate(resolved, abs, origin, config.tracePropagationTargets)) {
+    const resolved = absoluteUrl ? absoluteUrl.href : url;
+    if (!shouldPropagate(resolved, absoluteUrl, origin, config.tracePropagationTargets)) {
         return null;
     }
     return buildTraceparent(span.traceId, span.spanId, span.isRecording);
