@@ -71,8 +71,6 @@ export function recordComponentSpan(span: {
                 parent: { traceId: span.parent.traceId, spanId: span.parent.parentSpanId },
                 spanType: BrowserSpanType.Component,
                 startTimeUnixNano: span.startTimeUnixNano,
-                // No framework attribute: the envelope resource already carries flare.framework.name, and
-                // this span type can hit maxSpansPerTrace, so per-span duplication costs real budget.
                 attributes: { ...span.attributes, 'flare.component.name': span.name },
             })
             .end(span.endTimeUnixNano);
