@@ -67,7 +67,11 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                 const internal = this.$ as ProfiledInstance;
                 const live = activeComponentRoot();
                 const inherited = nearestMarker(internal);
-                const parent = inherited ?? live;
+                // Prefer an ancestor's marker only while it still belongs to the live trace. A profiled
+                // component that survives a navigation (a layout around a swapped page body) froze its
+                // marker under the pageload trace, and the live-root gate would drop anything pointing
+                // at it. Re-home to the live root instead.
+                const parent = inherited && live && inherited.traceId === live.traceId ? inherited : live;
                 if (!parent) return; // tracing off, or no root open: record nothing
 
                 const spanId = reserveSpanId();

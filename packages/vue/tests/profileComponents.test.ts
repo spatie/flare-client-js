@@ -128,3 +128,31 @@ describe('nesting', () => {
         expect(layout.endTimeUnixNano).toBeGreaterThan(gallery.endTimeUnixNano);
     });
 });
+
+describe('cross-trace re-homing', () => {
+    it('re-homes a descendant to the live root when its ancestor belongs to a dead trace', async () => {
+        // A layout that outlives the pageload trace, with the page body swapped underneath it.
+        const Body = defineComponent({ name: 'Body', render: () => h('span', 'body') });
+        const PersistentLayout = defineComponent({
+            name: 'PersistentLayout',
+            data: () => ({ showBody: false }),
+            render(this: { showBody: boolean }) {
+                return h('div', this.showBody ? [h(Body)] : []);
+            },
+        });
+
+        // Mounted directly rather than through mountProfiled, so the wrapper keeps its precise type
+        // and setData type-checks against the component's own data.
+        const wrapper = mount(PersistentLayout, {
+            global: { mixins: [profiler(['PersistentLayout', 'Body'])] },
+        });
+        expect(fake.spans()).toHaveLength(1); // the layout, under the pageload root
+
+        // The pageload root closes and a navigation opens a new root with a new traceId.
+        fake.setRoot({ traceId: 'T2', parentSpanId: 'nav' });
+        await wrapper.setData({ showBody: true });
+
+        const body = fake.spans().find((span) => span.name === 'Body')!;
+        expect(body.parent).toEqual({ traceId: 'T2', parentSpanId: 'nav' });
+    });
+});
