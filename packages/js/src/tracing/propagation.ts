@@ -3,7 +3,7 @@ export type FetchInput = string | URL | Request;
 /** Follows OTel/Sentry `tracePropagationTargets`: same-origin by default, `[]` disables all. */
 export function shouldPropagate(
     url: string,
-    abs: URL | null,
+    absoluteUrl: URL | null,
     currentOrigin: string,
     targets?: (string | RegExp)[],
 ): boolean {
@@ -13,7 +13,7 @@ export function shouldPropagate(
         }
         return targets.some((t) => (typeof t === 'string' ? url.includes(t) : t.test(url)));
     }
-    return abs !== null && abs.origin === currentOrigin;
+    return absoluteUrl !== null && absoluteUrl.origin === currentOrigin;
 }
 
 /** Null on a throwing or malformed entry: the caller then passes the source through untouched, so a

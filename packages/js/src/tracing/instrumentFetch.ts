@@ -40,20 +40,20 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
         }
 
         const { method, url } = resolveRequest(input, init);
-        const abs = safeAbsolute(url, origin);
-        if (isFlareIngestUrl(abs, config)) {
+        const absoluteUrl = safeAbsolute(url, origin);
+        if (isFlareIngestUrl(absoluteUrl, config)) {
             return call(init);
         }
 
-        const pathname = abs ? abs.pathname : url;
+        const pathname = absoluteUrl ? absoluteUrl.pathname : url;
 
         const span = tracer.startSpan(`${method} ${pathname}`, {
             spanType: BrowserSpanType.Fetch,
-            attributes: requestSpanAttributes(method, abs, url, config),
+            attributes: requestSpanAttributes(method, absoluteUrl, url, config),
         });
 
         let finalInit = init;
-        const traceparent = traceparentFor(span, abs, url, origin, config);
+        const traceparent = traceparentFor(span, absoluteUrl, url, origin, config);
         if (traceparent) {
             finalInit = mergeTraceparentHeader(input, init, traceparent);
         }
