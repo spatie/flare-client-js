@@ -15,7 +15,7 @@ describe('@flareapp/svelte web entry', () => {
 
         // SvelteKit contract: identity is set at import (module load), not deferred.
         expect(setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/svelte' }));
-        expect(setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
+        expect(setFramework).toHaveBeenCalledWith({ name: 'svelte' });
 
         // default provider registered for no-option usage
         const { resolveFlare } = await import('../src/resolveFlare.js');

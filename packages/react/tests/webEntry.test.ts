@@ -15,7 +15,7 @@ describe('@flareapp/react web entry', () => {
 
         // Identity set on the singleton at import.
         expect(setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/react' }));
-        expect(setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'React' }));
+        expect(setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'react' }));
 
         // The singleton is now the resolveFlare default.
         const { resolveFlare } = await import('../src/resolveFlare');

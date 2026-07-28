@@ -10,6 +10,6 @@ initFlare();
 
 const app = createApp(Layout);
 app.use(router);
-app.use(flareVue, { router });
+app.use(flareVue, { router, profileComponents: ['Layout', 'ProductsPage', 'ProductPage', 'CartPage'] });
 app.component('FlareErrorBoundary', FlareErrorBoundary);
 app.mount('#app');

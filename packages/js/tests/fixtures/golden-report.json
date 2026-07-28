@@ -31,6 +31,7 @@
         "telemetry.sdk.name": "@flareapp/js",
         "telemetry.sdk.version": "golden",
         "flare.language.name": "javascript",
+        "flare.framework.name": "js",
         "service.stage": "production",
         "service.version": "1.0.0",
         "flare.entry_point.type": "web",
@@ -44,6 +45,7 @@
         "document.ready_state": "complete",
         "flare.entry_point.handler.name": "UserShow",
         "context.custom": {
+            "framework": "js",
             "userId": 7
         },
         "context.tenant": {

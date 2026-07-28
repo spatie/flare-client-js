@@ -11,14 +11,14 @@ describe('react identity', () => {
         const flare = fakeIdentity() as any;
         registerReactSdkIdentity(flare);
         expect(flare.setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/react' }));
-        expect(flare.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'React' }));
+        expect(flare.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'react' }));
     });
 
     test('tagReactFramework sets framework only, never sdkInfo', async () => {
         const { tagReactFramework } = await import('../src/identify');
         const flare = fakeIdentity() as any;
         tagReactFramework(flare);
-        expect(flare.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'React' }));
+        expect(flare.setFramework).toHaveBeenCalledWith(expect.objectContaining({ name: 'react' }));
         expect(flare.setSdkInfo).not.toHaveBeenCalled();
     });
 

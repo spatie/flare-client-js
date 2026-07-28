@@ -1,4 +1,4 @@
-import { Api, Flare as CoreFlare } from '@flareapp/core';
+import { Api, Flare as CoreFlare, FrameworkName } from '@flareapp/core';
 
 import { DEFAULT_BODY_CONTENT_TYPES, DEFAULT_BODY_KEY_DENYLIST } from './context/body';
 import { makeNodeContextCollector } from './context/collectNode';
@@ -68,6 +68,9 @@ export class NodeFlare extends CoreFlare {
         super(new Api(), collector, new DiskFileReader(), scopeProvider, new NodeFlushScheduler());
         this.nodeScopeProvider = scopeProvider;
         this.setSdkInfo({ name: NODE_SDK_NAME, version: NODE_SDK_VERSION });
+        // Claim 'node' so a bare Node app is never framework-less on the wire. A host framework
+        // integration calls setFramework later with its own name, which overwrites this.
+        this.setFramework({ name: FrameworkName.Node });
 
         const cbs = buildFatalCallbacks(this, () => this.nodeOptions);
         this.handlerManager = new ProcessHandlerManager(cbs);

@@ -35,6 +35,7 @@ export type {
 export {
     convertToError,
     DEFAULT_URL_DENYLIST,
+    FrameworkName,
     redactObjectValues,
     redactUrlQuery,
     resolveDenylist,

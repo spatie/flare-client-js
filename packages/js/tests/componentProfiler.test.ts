@@ -91,11 +91,17 @@ describe('component-profiler seam', () => {
             expect.objectContaining({
                 spanId: 'p1',
                 parent: { traceId: 'T', spanId: 'root' },
-                spanType: 'browser_react_component',
+                spanType: 'browser_component',
                 startTimeUnixNano: 10,
-                attributes: { 'flare.react.component': 'ProductPage' },
+                attributes: { 'flare.component.name': 'ProductPage' },
             }),
         );
+
+        // Asserted on the key list, not just deep equality: an attribute present with an undefined
+        // value still costs a wire slot, and toEqual treats it as absent. No framework attribute
+        // here, because the recording framework is already on the envelope resource as
+        // flare.framework.name.
+        expect(Object.keys(startSpan.mock.calls[0]![1]!.attributes!)).toEqual(['flare.component.name']);
     });
 
     it('recordComponentSpan drops the span when the active root no longer matches the traceId', () => {

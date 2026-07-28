@@ -1,6 +1,7 @@
-// Side-effect-free component-profiler seam for @flareapp/react/profiler. Hides all
-// tracer coupling behind four functions bound to the singleton browser tracer, the
-// same discipline as registerNavigationSource. Imported from '@flareapp/js/browser'.
+// Side-effect-free component-profiler seam, shared by @flareapp/react/profiler and the
+// @flareapp/vue component-profiler mixin. Hides all tracer coupling behind four functions
+// bound to the singleton browser tracer, the same discipline as registerNavigationSource.
+// Imported from '@flareapp/js/browser'.
 import { defaultNowNano, spanId as makeSpanId } from '@flareapp/core';
 
 import { activeTracingFlare } from './browserTracing';
@@ -55,9 +56,12 @@ export function recordComponentSpan(span: {
             .startSpan(span.name, {
                 spanId: span.spanId,
                 parent: { traceId: span.parent.traceId, spanId: span.parent.parentSpanId },
-                spanType: BrowserSpanType.ReactComponent,
+                spanType: BrowserSpanType.Component,
                 startTimeUnixNano: span.startTimeUnixNano,
-                attributes: { ...span.attributes, 'flare.react.component': span.name },
+                // No framework attribute: which framework recorded this is already on the envelope
+                // resource as flare.framework.name, and repeating it per span is duplicate weight
+                // on a span type that can hit maxSpansPerTrace.
+                attributes: { ...span.attributes, 'flare.component.name': span.name },
             })
             .end(span.endTimeUnixNano);
     } catch {

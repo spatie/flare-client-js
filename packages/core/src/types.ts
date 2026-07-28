@@ -1,3 +1,5 @@
+import type { FrameworkName } from './framework';
+
 export type MessageLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
 
 export type AttributeValue = string | number | boolean | null | AttributeValue[] | { [key: string]: AttributeValue };
@@ -123,7 +125,12 @@ export type EntryPointHandler = {
 
 export type SdkInfo = { name: string; version: string };
 
-export type Framework = { name: string; version?: string };
+/**
+ * The framework identity an SDK reports. `name` is wire format, not a display string: first-party
+ * SDKs use a `FrameworkName`. A host app may call `setFramework` with its own value (e.g. `express`),
+ * which the backend treats as unknown rather than rejecting, so the type stays open.
+ */
+export type Framework = { name: FrameworkName | (string & {}); version?: string };
 
 // Logging
 
