@@ -286,7 +286,7 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
-    it('a held navigation root does not idle-close before settleNavigation, then closes on settle', () => {
+    it('a held navigation root does not idle-close before settleNavigation, then closes an idle window after it', () => {
         vi.useFakeTimers();
         const { flare, spans } = fakeFlare();
         startBrowserTracing(flare);
@@ -302,6 +302,13 @@ describe('registerNavigationSource', () => {
         expect(spans[1].span.name).toBe('/product/:id');
         expect(spans[1].attrs['flare.entry_point.handler.identifier']).toBe('/product/:id');
         expect(spans[1].attrs['flare.route.source']).toBe('route');
+
+        // Settling hands the root back to the idle lifecycle rather than closing it: a framework
+        // mounts its route component after the router settles, and that mount must still find a
+        // live root to attach to.
+        expect(navRoot.end).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(1000); // idleTimeout with nothing attached
         expect(navRoot.end).toHaveBeenCalled();
         src.unregister();
     });
@@ -329,9 +336,12 @@ describe('registerNavigationSource', () => {
         src.startNavigation({ path: '/product/p01', url: 'https://app.test/product/p01', hold: true });
         const navRoot = spans[1].span as unknown as { end: ReturnType<typeof vi.fn> };
 
-        // Nothing settled it; tearing down the source mid-hold must close the childless root now,
-        // not leave it idle-suppressed until the 30s finalTimeout.
+        // Nothing settled it; tearing down the source mid-hold must hand the childless root back to
+        // the idle lifecycle, not leave it idle-suppressed until the 30s finalTimeout.
         src.unregister();
+        expect(navRoot.end).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(1000); // idleTimeout, not the 30s backstop
         expect(navRoot.end).toHaveBeenCalled();
     });
 

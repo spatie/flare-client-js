@@ -37,6 +37,7 @@ type Timer = ReturnType<typeof setTimeout> | null;
 export class IdleRootController {
     private openChildren = 0;
     private lastChildEndTime: number | null = null;
+    private settleTime: number | null = null;
     private idleTimer: Timer = null;
     private finalTimer: Timer = null;
     private childTimer: Timer = null;
@@ -73,18 +74,23 @@ export class IdleRootController {
     }
 
     /**
-     * Release a navigation hold. A childless root closes at `now()` (so its duration spans
-     * start→settle, capturing the loader window); a root with children re-arms the normal idle
-     * lifecycle so trailing work keeps it open. No-op when never held or already ended.
+     * Release a navigation hold: record the settle moment as a close floor and hand the root back to
+     * the normal idle lifecycle. A childless root still measures start→settle, but it stays open (and
+     * stays the active root) for the idle window instead of closing here.
+     *
+     * Closing at settle looks right for the duration and is wrong for everything downstream. A router
+     * settles BEFORE the framework mounts the new route component: vue-router runs `afterEach` in the
+     * same tick as the route update, and Vue mounts on the following scheduler flush. Closing at
+     * settle therefore cleared the active root before every post-navigation mount, so component spans
+     * read a null root and were dropped, and a trailing fetch opened a root of its own.
+     *
+     * No-op when never held or already ended.
      */
     releaseHold(): void {
         if (this.ended || !this.held) return;
         this.held = false;
-        if (this.openChildren > 0) {
-            this.armIdle();
-        } else {
-            this.finish(this.deps.now());
-        }
+        if (this.openChildren === 0) this.settleTime = this.deps.now();
+        this.armIdle();
     }
 
     private onSpanEvent(phase: 'start' | 'end', span: Span): void {
@@ -121,13 +127,13 @@ export class IdleRootController {
     }
 
     /**
-     * End time for a trimmed close: the later of the injected floor and the last
-     * child's end, so a root never pads out to `now()`. With no children it is the
-     * floor itself (navigation start, or the pageload load-event end); with children
-     * it stretches to cover the last one.
+     * End time for a trimmed close: the latest of the injected floor, the settle moment of a released
+     * hold, and the last child's end, so a root never pads out to `now()`. With no children it is the
+     * floor itself (navigation start, or the pageload load-event end) or the settle moment; with
+     * children it stretches to cover the last one.
      */
     private trimmedEnd(): number {
-        return Math.max(this.deps.endFloor(), this.lastChildEndTime ?? 0);
+        return Math.max(this.deps.endFloor(), this.settleTime ?? 0, this.lastChildEndTime ?? 0);
     }
 
     private clearIdle(): void {
