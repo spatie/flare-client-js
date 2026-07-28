@@ -22,7 +22,7 @@ integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads
 
 ## Monorepo structure
 
-npm workspaces monorepo with 9 published packages, 1 internal package, 5 framework playground apps, a shared fixture
+npm workspaces monorepo with 14 published packages, 2 internal packages, 5 framework playground apps, a shared fixture
 package, and a Playwright-based e2e suite:
 
 | Package                            | npm name                             | Purpose                                                                                        |
@@ -33,6 +33,7 @@ package, and a Playwright-based e2e suite:
 | `packages/vue`                     | `@flareapp/vue`                      | Vue error handler plugin (`flareVue()`); `/inject` entry for Electron renderers                |
 | `packages/svelte`                  | `@flareapp/svelte`                   | Svelte 5 `FlareErrorBoundary` with props serialization; `/inject` entry for Electron renderers |
 | `packages/sveltekit`               | `@flareapp/sveltekit`                | SvelteKit error hooks (`handleErrorWithFlare`) + route context                                 |
+| `packages/inertia`                 | `@flareapp/inertia`                  | Inertia.js navigation tracing (`traceInertiaRouter`), adapter-agnostic                         |
 | `packages/vite`                    | `@flareapp/vite`                     | Vite build plugin for sourcemap upload with retry logic                                        |
 | `packages/webpack`                 | `@flareapp/webpack`                  | Webpack 5 plugin for sourcemap upload                                                          |
 | `packages/nextjs`                  | `@flareapp/nextjs`                   | Next.js wrapper (`withFlareSourcemaps`) for sourcemap upload                                   |

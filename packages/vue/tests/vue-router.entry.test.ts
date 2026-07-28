@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { browserSeamStub } from '@flareapp/test-helpers';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 describe('@flareapp/vue vue-router tracing entry', () => {
@@ -10,11 +11,7 @@ describe('@flareapp/vue vue-router tracing entry', () => {
     test('importing traceVueRouter does NOT evaluate the @flareapp/js root singleton', async () => {
         const rootFactory = vi.fn(() => ({ flare: {} }));
         vi.doMock('@flareapp/js', rootFactory);
-        vi.doMock('@flareapp/js/browser', () => ({
-            registerNavigationSource: () => ({}),
-            insulate: (fn: (...a: unknown[]) => void) => fn,
-            safeInvoke: (fn?: () => void) => fn?.(),
-        }));
+        vi.doMock('@flareapp/js/browser', () => browserSeamStub());
         await import('../src/traceVueRouter');
         expect(rootFactory).not.toHaveBeenCalled();
         expect((window as unknown as { flare?: unknown }).flare).toBeUndefined();

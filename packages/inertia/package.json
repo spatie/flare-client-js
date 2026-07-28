@@ -1,11 +1,9 @@
 {
-    "name": "@flareapp/core",
+    "name": "@flareapp/inertia",
     "version": "2.6.0",
-    "description": "Environment-agnostic core for the Flare JS SDK",
+    "description": "Inertia.js performance tracing for flareapp.io",
     "homepage": "https://flareapp.io",
-    "bugs": {
-        "url": "https://github.com/spatie/flare-client-js/issues"
-    },
+    "bugs": "https://github.com/spatie/flare-client-js/issues",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/spatie/flare-client-js.git"
@@ -21,6 +19,7 @@
     "files": [
         "dist"
     ],
+    "sideEffects": false,
     "main": "./dist/index.cjs",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.cts",
@@ -38,20 +37,21 @@
     },
     "scripts": {
         "prepublishOnly": "npm run build",
-        "build": "tsdown src/index.ts --format cjs,esm --dts --env.FLARE_JS_CLIENT_VERSION=$(node -p \"require('./package.json').version\") --clean",
-        "test": "vitest run",
+        "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
         "typescript": "tsc --noEmit",
+        "test": "vitest run",
         "release": "release-it"
     },
-    "dependencies": {
-        "error-stack-parser": "^2.0.2"
-    },
     "devDependencies": {
+        "@flareapp/js": "file:../js",
         "@flareapp/test-helpers": "*",
         "jsdom": "^26.1.0",
         "tsdown": "^0.20.3",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18"
+        "vitest": "^4.0.0"
+    },
+    "peerDependencies": {
+        "@flareapp/js": "^2.6.0"
     },
     "publishConfig": {
         "access": "public"
