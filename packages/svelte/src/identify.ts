@@ -1,3 +1,4 @@
+import { FrameworkName } from '@flareapp/core';
 import type { Flare } from '@flareapp/js/browser';
 
 import { PACKAGE_VERSION } from './version.js';
@@ -23,5 +24,5 @@ export function tagSvelteFramework(flare: Flare): void {
         return;
     }
     frameworkTagged.add(flare);
-    flare.setFramework({ name: 'svelte' });
+    flare.setFramework({ name: FrameworkName.Svelte });
 }

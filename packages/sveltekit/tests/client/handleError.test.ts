@@ -4,29 +4,10 @@ import { handleErrorWithFlare } from '../../src/client/handleError';
 
 const mockReport = vi.fn();
 
-vi.mock('@flareapp/js', () => ({
-    convertToError: (e: unknown) => {
-        if (e instanceof Error) return e;
-        if (typeof e === 'string') return new Error(e);
-        if (
-            typeof e === 'object' &&
-            e !== null &&
-            'message' in e &&
-            typeof (e as Record<string, unknown>).message === 'string'
-        )
-            return new Error((e as Record<string, string>).message);
-        return new Error(String(e));
-    },
-    flare: {
-        report: (...args: unknown[]) => mockReport(...args),
-        reportSilently: (...args: unknown[]) => mockReport(...args),
-        setSdkInfo: vi.fn(),
-        setFramework: vi.fn(),
-        addContext: vi.fn(),
-    },
-    DEFAULT_URL_DENYLIST:
-        /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i,
-}));
+vi.mock('@flareapp/js', async () => {
+    const { flareJsMock } = await import('../__mocks__/flareJs');
+    return flareJsMock((...args) => mockReport(...args));
+});
 
 vi.mock('@flareapp/svelte', () => ({}));
 

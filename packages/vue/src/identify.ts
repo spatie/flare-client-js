@@ -1,3 +1,4 @@
+import { FrameworkName } from '@flareapp/core';
 import type { Flare } from '@flareapp/js/browser';
 
 import { PACKAGE_VERSION } from './constants';
@@ -24,5 +25,5 @@ export function tagVueFramework(flare: Flare, appVersion: string | undefined): v
         return;
     }
     frameworkTagged.add(flare);
-    flare.setFramework({ name: 'vue', version: appVersion });
+    flare.setFramework({ name: FrameworkName.Vue, version: appVersion });
 }

@@ -1,4 +1,4 @@
-import { Api, Flare as CoreFlare, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
+import { Api, Flare as CoreFlare, FrameworkName, GlobalScopeProvider, NullFileReader } from '@flareapp/core';
 import type { Framework } from '@flareapp/core';
 
 import { makeReactNativeContextCollector } from './context/collectReactNative';
@@ -23,7 +23,6 @@ import { ReactNativeFlushScheduler } from './ReactNativeFlushScheduler';
 // comes from the toolchain (@types/node), which keeps tsc happy.
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
-const RN_FRAMEWORK_NAME = 'react-native';
 
 // How long a fatal JS crash holds the app open to drain the transport before
 // delegating to RN's crash-triggering default handler (see globalErrorHandler).
@@ -65,18 +64,18 @@ export class ReactNativeFlare extends CoreFlare {
         this.setSdkInfo({ name: RN_SDK_NAME, version: RN_SDK_VERSION });
         // Tag the framework identity proactively so it holds even when no
         // FlareErrorBoundary is mounted to tag it (see setFramework below).
-        this.setFramework({ name: RN_FRAMEWORK_NAME });
+        this.setFramework({ name: FrameworkName.ReactNative });
     }
 
     /**
-     * Force the framework identity to "React Native". The wrapped
-     * `@flareapp/react` boundary tags every flare it injects as `React` (via
+     * Force the framework identity to `react-native`. The wrapped
+     * `@flareapp/react` boundary tags every flare it injects as `react` (via
      * `tagReactFramework`), which is wrong on the RN singleton — so coerce the
      * name here while preserving whatever version the caller supplied (the React
      * renderer version when the boundary tags it).
      */
     setFramework(framework: Framework): this {
-        return super.setFramework({ ...framework, name: RN_FRAMEWORK_NAME });
+        return super.setFramework({ ...framework, name: FrameworkName.ReactNative });
     }
 
     /**

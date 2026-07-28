@@ -1,12 +1,17 @@
-import { Api, Flare as CoreFlare, GlobalScopeProvider, USER_IDENTITY_KEYS, userIdentityAttributes, type Config, type Report } from '@flareapp/core';
+import {
+    Api,
+    Flare as CoreFlare,
+    FrameworkName,
+    GlobalScopeProvider,
+    USER_IDENTITY_KEYS,
+    userIdentityAttributes,
+    type Config,
+    type Report,
+} from '@flareapp/core';
 import type { App, IpcMain } from 'electron';
 
 import { CLIENT_VERSION } from '../env';
-import {
-    DEFAULT_ELECTRON_OPTIONS,
-    type ElectronOptions,
-    type ResolvedElectronOptions,
-} from '../types';
+import { DEFAULT_ELECTRON_OPTIONS, type ElectronOptions, type ResolvedElectronOptions } from '../types';
 import { collectElectronAppAttributes, makeElectronContextCollector } from './collectElectron';
 import { ElectronDiskFileReader } from './ElectronDiskFileReader';
 import { ElectronFlushScheduler } from './ElectronFlushScheduler';
@@ -67,7 +72,7 @@ export class ElectronFlare extends CoreFlare {
         // Main-process identity. Renderer reports carry their own framework (js from BrowserFlare, or
         // react/vue/svelte once an /inject entry tags it) and are forwarded already built, so this
         // claim only ever labels reports that originate in main.
-        this.setFramework({ name: 'node-electron' });
+        this.setFramework({ name: FrameworkName.NodeElectron });
 
         const cbs = buildFatalCallbacks(
             this,

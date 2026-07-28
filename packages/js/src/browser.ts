@@ -1,6 +1,7 @@
 import {
     Api,
     Flare as CoreFlare,
+    FrameworkName,
     GlobalScopeProvider,
     type ContextCollector,
     type FileReader,
@@ -24,7 +25,7 @@ export class Flare extends CoreFlare {
         // Claim 'js' as the framework so a vanilla browser app is never framework-less on the wire.
         // Framework packages overwrite this: they import this root (constructing the singleton, which
         // runs this line) before tagging their own name, so the more specific value always wins.
-        this.setFramework({ name: 'js' });
+        this.setFramework({ name: FrameworkName.Js });
     }
 }
 

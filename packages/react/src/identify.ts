@@ -1,3 +1,4 @@
+import { FrameworkName } from '@flareapp/core';
 import type { Flare } from '@flareapp/js/browser';
 import * as React from 'react';
 
@@ -24,5 +25,5 @@ export function tagReactFramework(flare: Flare): void {
         return;
     }
     frameworkTagged.add(flare);
-    flare.setFramework({ name: 'react', version: React.version });
+    flare.setFramework({ name: FrameworkName.React, version: React.version });
 }
