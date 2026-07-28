@@ -69,11 +69,17 @@ export class Flare {
     private framework: Framework | null = null;
 
     /**
+     * @param api              fetch transport for reports, logs and traces. Stateless: ingest url and
+     *                         key are passed per call, so tests swap in a fake.
      * @param contextCollector per-report attributes (browser DOM, Node process). No-op by default.
      * @param fileReader       source files for stack-trace snippets. Defaults to no snippets;
      *                         `@flareapp/js` injects a fetch reader, `@flareapp/node` a disk reader.
      * @param scopeProvider    the current `Scope`. Browser uses one global scope; Node an
      *                         AsyncLocalStorage-backed provider so each request gets its own.
+     * @param scheduler        drains the log and span buffers when the host's lifecycle ends (browser
+     *                         unload, process exit). No-op by default, leaving only size/timer flushes.
+     * @param activeSpanHolder tracks the active span so new spans auto-parent to it. In-memory by
+     *                         default; a platform can back it with AsyncLocalStorage instead.
      */
     constructor(
         public api: Api = new Api(),
