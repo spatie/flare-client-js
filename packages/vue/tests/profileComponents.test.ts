@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h, type Component } from 'vue';
+import { createApp, defineComponent, h, type Component } from 'vue';
 
 const seam = vi.hoisted(async () => (await import('@flareapp/test-helpers')).createComponentSeam());
 vi.mock('@flareapp/js/browser', async (importOriginal) =>
     (await import('@flareapp/test-helpers')).componentProfilerMock(await seam, await importOriginal()),
 );
 
+import { flareVue } from '../src/flareVue';
 import {
     createComponentMatcher,
     createComponentProfilerMixin,
@@ -154,5 +155,51 @@ describe('cross-trace re-homing', () => {
 
         const body = fake.spans().find((span) => span.name === 'Body')!;
         expect(body.parent).toEqual({ traceId: 'T2', parentSpanId: 'nav' });
+    });
+});
+
+describe('flareVue wiring', () => {
+    // The injected-flare stub shape is the one packages/vue/tests/flareVue.test.ts already uses, plus
+    // `config`, which is what flareVue reads to gate tracing features.
+    const install = (profileComponents?: ProfileComponentsOption, enableTracing = true) => {
+        const injected = {
+            config: { enableTracing },
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+
+        const app = createApp(ProductPage);
+        app.use(flareVue, { flare: injected, profileComponents });
+        app.mount(document.createElement('div'));
+
+        return app;
+    };
+
+    it('profiles when profileComponents is set and tracing is on', () => {
+        install(['ProductPage']);
+
+        expect(fake.spans()).toHaveLength(1);
+    });
+
+    it('registers no mixin when tracing is off', () => {
+        install(['ProductPage'], false);
+
+        expect(fake.spans()).toHaveLength(0);
+        expect(fake.reserveSpanId).not.toHaveBeenCalled();
+    });
+
+    it('registers no mixin when profileComponents is absent', () => {
+        install(undefined);
+
+        expect(fake.spans()).toHaveLength(0);
+    });
+
+    it('registers no mixin for an empty allowlist', () => {
+        install([]);
+
+        expect(fake.spans()).toHaveLength(0);
+        expect(fake.reserveSpanId).not.toHaveBeenCalled();
     });
 });
