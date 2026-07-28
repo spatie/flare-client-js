@@ -39,7 +39,7 @@ describe('@flareapp/react/inject reports through an injected RendererFlare', () 
         // SDK identity stays electron's (injected instance's own sdkInfo, never clobbered)...
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
         // ...while react tags the framework. Core emits framework as an attribute.
-        expect(parsed.attributes['flare.framework.name']).toBe('React');
+        expect(parsed.attributes['flare.framework.name']).toBe('react');
         // React context survives the serialize + (would-be) IPC trip intact.
         const reactCtx = parsed.attributes['context.custom'].react;
         expect(Array.isArray(reactCtx.componentStack)).toBe(true);

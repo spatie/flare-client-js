@@ -44,7 +44,7 @@ describe('@flareapp/vue/inject FlareErrorBoundary through the RendererFlare brid
 
         const parsed = JSON.parse(payload);
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
-        expect(parsed.attributes['flare.framework.name']).toBe('Vue');
+        expect(parsed.attributes['flare.framework.name']).toBe('vue');
         expect(parsed.attributes['context.custom'].vue).toBeDefined();
     });
 });

@@ -14,14 +14,14 @@ describe('svelte identity', () => {
         const flare = fakeFlare();
         registerSvelteSdkIdentity(flare);
         expect(flare.setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/svelte' }));
-        expect(flare.setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
+        expect(flare.setFramework).toHaveBeenCalledWith({ name: 'svelte' });
     });
 
     test('tagSvelteFramework sets framework only, never sdkInfo', async () => {
         const { tagSvelteFramework } = await import('../src/identify.js');
         const flare = fakeFlare();
         tagSvelteFramework(flare);
-        expect(flare.setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
+        expect(flare.setFramework).toHaveBeenCalledWith({ name: 'svelte' });
         expect(flare.setSdkInfo).not.toHaveBeenCalled();
     });
 

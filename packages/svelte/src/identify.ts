@@ -23,5 +23,5 @@ export function tagSvelteFramework(flare: Flare): void {
         return;
     }
     frameworkTagged.add(flare);
-    flare.setFramework({ name: 'Svelte' });
+    flare.setFramework({ name: 'svelte' });
 }

@@ -24,5 +24,5 @@ export function tagReactFramework(flare: Flare): void {
         return;
     }
     frameworkTagged.add(flare);
-    flare.setFramework({ name: 'React', version: React.version });
+    flare.setFramework({ name: 'react', version: React.version });
 }

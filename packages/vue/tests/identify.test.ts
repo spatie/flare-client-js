@@ -21,7 +21,7 @@ describe('vue identity', () => {
         const { tagVueFramework } = await import('../src/identify');
         const flare = fakeFlare();
         tagVueFramework(flare, '3.4.0');
-        expect(flare.setFramework).toHaveBeenCalledWith({ name: 'Vue', version: '3.4.0' });
+        expect(flare.setFramework).toHaveBeenCalledWith({ name: 'vue', version: '3.4.0' });
         expect(flare.setSdkInfo).not.toHaveBeenCalled();
     });
 

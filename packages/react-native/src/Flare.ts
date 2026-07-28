@@ -23,7 +23,7 @@ import { ReactNativeFlushScheduler } from './ReactNativeFlushScheduler';
 // comes from the toolchain (@types/node), which keeps tsc happy.
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
-const RN_FRAMEWORK_NAME = 'React Native';
+const RN_FRAMEWORK_NAME = 'react-native';
 
 // How long a fatal JS crash holds the app open to drain the transport before
 // delegating to RN's crash-triggering default handler (see globalErrorHandler).

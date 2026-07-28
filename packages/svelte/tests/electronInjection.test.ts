@@ -29,7 +29,7 @@ describe('@flareapp/svelte/inject reports through an injected RendererFlare', ()
 
         const parsed = JSON.parse(payload);
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
-        expect(parsed.attributes['flare.framework.name']).toBe('Svelte');
+        expect(parsed.attributes['flare.framework.name']).toBe('svelte');
         expect(parsed.attributes['context.custom'].svelte).toBeDefined();
         // NOTE: do NOT assert window.flare/globalThis.flare is undefined — importing
         // @flareapp/electron/renderer legitimately sets window.flare (renderer.ts side effect).

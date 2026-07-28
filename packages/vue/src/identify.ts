@@ -24,5 +24,5 @@ export function tagVueFramework(flare: Flare, appVersion: string | undefined): v
         return;
     }
     frameworkTagged.add(flare);
-    flare.setFramework({ name: 'Vue', version: appVersion });
+    flare.setFramework({ name: 'vue', version: appVersion });
 }

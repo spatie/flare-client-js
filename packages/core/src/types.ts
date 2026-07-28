@@ -104,6 +104,18 @@ export type EntryPointHandler = {
 
 export type SdkInfo = { name: string; version: string };
 
+/**
+ * The framework identity every SDK reports. `name` is WIRE FORMAT: it ships as the
+ * `flare.framework.name` resource attribute on traces and logs, as an attribute on error reports, and
+ * (lowercased) as `context.custom.framework`. The Flare backend keys off it, so it is a fixed
+ * vocabulary, not a display string: lowercase, no spaces, hyphenated only where the package name is.
+ *
+ * The values the first-party SDKs emit, and the only ones the backend recognises:
+ * `react`, `vue`, `svelte`, `sveltekit`, `react-native`.
+ *
+ * A host app may call `setFramework` with its own value; anything outside the list above is treated
+ * as unknown by the backend rather than rejected. Render a display name from this, never the reverse.
+ */
 export type Framework = { name: string; version?: string };
 
 // --- Logging ---
