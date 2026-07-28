@@ -6,7 +6,7 @@ import { PACKAGE_VERSION } from './version.js';
 const tagger = createIdentityTagger({
     sdkName: '@flareapp/svelte',
     sdkVersion: PACKAGE_VERSION,
-    frameworkName: 'Svelte',
+    frameworkName: 'svelte',
 });
 
 /** Web path: full identity on the default singleton. Svelte's framework has no version. */

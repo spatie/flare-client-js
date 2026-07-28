@@ -14,7 +14,7 @@ import { ReactNativeFlushScheduler } from './ReactNativeFlushScheduler';
 // define from matching, so the version never inlines. Under vitest (real node) it reads '?', fine for tests.
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
-const RN_FRAMEWORK_NAME = 'React Native';
+const RN_FRAMEWORK_NAME = 'react-native';
 
 /** How long a fatal JS crash holds the app open to drain the transport before delegating to RN's default handler (see globalErrorHandler). */
 const FATAL_FLUSH_TIMEOUT_MS = 2000;

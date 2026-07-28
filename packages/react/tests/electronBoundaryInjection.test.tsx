@@ -41,7 +41,7 @@ describe('@flareapp/react/inject FlareErrorBoundary through the RendererFlare br
 
         const parsed = JSON.parse(payload);
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
-        expect(parsed.attributes['flare.framework.name']).toBe('React');
+        expect(parsed.attributes['flare.framework.name']).toBe('react');
         expect(parsed.attributes['context.custom'].react).toBeDefined();
     });
 });
