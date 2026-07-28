@@ -1,0 +1,19 @@
+{
+    "git": {
+        "tagName": "@flareapp/inertia@${version}",
+        "tagAnnotation": "Release @flareapp/inertia@${version}",
+        "commitMessage": "chore: release @flareapp/inertia@${version}",
+        "requireBranch": "main",
+        "requireCleanWorkingDir": true,
+        "push": true
+    },
+    "npm": {
+        "publish": true
+    },
+    "github": {
+        "release": false
+    },
+    "hooks": {
+        "before:release": "npm test --if-present"
+    }
+}

@@ -35,6 +35,7 @@ const PUBLISHED_PACKAGES = [
     'webpack',
     'nextjs',
     'electron',
+    'inertia',
 ];
 
 function pkgDir(name) {

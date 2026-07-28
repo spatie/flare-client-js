@@ -38,7 +38,7 @@ const NPM_POLL_INTERVAL_MS = Number(process.env.NPM_POLL_INTERVAL_MS ?? 30_000);
 const NPM_POLL_TIMEOUT_MS = Number(process.env.NPM_POLL_TIMEOUT_MS ?? 10 * 60_000);
 
 // The lockstep set: one shared version anchored on @flareapp/js.
-const LOCKSTEP_PACKAGES = ['js', 'react', 'vue', 'svelte', 'webpack', 'vite', 'sveltekit', 'nextjs'];
+const LOCKSTEP_PACKAGES = ['js', 'react', 'vue', 'svelte', 'webpack', 'vite', 'sveltekit', 'nextjs', 'inertia'];
 
 // Independently versioned packages, prompted separately each run.
 const INDEPENDENT_PACKAGES = ['core', 'node', 'electron', 'react-native', 'react-native-sourcemaps'];
@@ -55,7 +55,7 @@ const INDEPENDENT_PACKAGES = ['core', 'node', 'electron', 'react-native', 'react
 const PUBLISH_ORDER = [
     ['core'],
     ['js', 'node', 'react-native', 'react-native-sourcemaps'],
-    ['react', 'vue', 'svelte', 'webpack', 'vite', 'electron'],
+    ['react', 'vue', 'svelte', 'webpack', 'vite', 'electron', 'inertia'],
     ['sveltekit', 'nextjs'],
 ];
 
@@ -70,6 +70,7 @@ const LOCKSTEP_REFS = [
     { pkg: 'sveltekit', field: 'peerDependencies', dep: '@flareapp/js' },
     { pkg: 'sveltekit', field: 'dependencies', dep: '@flareapp/svelte' },
     { pkg: 'nextjs', field: 'dependencies', dep: '@flareapp/webpack' },
+    { pkg: 'inertia', field: 'peerDependencies', dep: '@flareapp/js' },
 ];
 
 const CORE_REFS = [
