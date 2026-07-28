@@ -1,3 +1,5 @@
+import type { FrameworkName } from './framework';
+
 export type MessageLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
 
 export type AttributeValue = string | number | boolean | null | AttributeValue[] | { [key: string]: AttributeValue };
@@ -124,28 +126,11 @@ export type EntryPointHandler = {
 export type SdkInfo = { name: string; version: string };
 
 /**
- * The framework identity every SDK reports. `name` is WIRE FORMAT: it ships as the
- * `flare.framework.name` resource attribute on traces and logs, as an attribute on error reports, and
- * (lowercased) as `context.custom.framework`. The Flare backend keys off it, so it is a fixed
- * vocabulary, not a display string: lowercase, no spaces, hyphenated only where the package name is.
- *
- * The values the first-party SDKs emit, and the only ones the backend recognises:
- * `js`, `node`, `node-electron`, `react`, `vue`, `svelte`, `sveltekit`, `react-native`.
- *
- * `node-electron` is an Electron main process. Its renderers report `js`, or the framework their
- * `/inject` entry tags, so the two processes of one app are distinguishable.
- *
- * `js` and `node` are the base SDKs' own claims, set when `@flareapp/js` and `@flareapp/node`
- * construct their Flare. They mean "nothing more specific reported one", which for a vanilla app is
- * the truth and for an app that only imports a framework package's side entry (e.g.
- * `@flareapp/react/profiler`) is the closest the SDK can get. Anything more specific overwrites the
- * claim: a framework package because it imports the base root first, a Node host framework because
- * it calls `setFramework` at startup.
- *
- * A host app may call `setFramework` with its own value; anything outside the list above is treated
- * as unknown by the backend rather than rejected. Render a display name from this, never the reverse.
+ * The framework identity an SDK reports. `name` is wire format, not a display string: first-party
+ * SDKs use a `FrameworkName`. A host app may call `setFramework` with its own value (e.g. `express`),
+ * which the backend treats as unknown rather than rejecting, so the type stays open.
  */
-export type Framework = { name: string; version?: string };
+export type Framework = { name: FrameworkName | (string & {}); version?: string };
 
 // Logging
 

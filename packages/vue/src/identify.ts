@@ -1,4 +1,4 @@
-import { createIdentityTagger } from '@flareapp/core';
+import { createIdentityTagger, FrameworkName } from '@flareapp/core';
 import type { Flare } from '@flareapp/js/browser';
 
 import { PACKAGE_VERSION } from './constants';
@@ -6,7 +6,7 @@ import { PACKAGE_VERSION } from './constants';
 const tagger = createIdentityTagger({
     sdkName: '@flareapp/vue',
     sdkVersion: PACKAGE_VERSION,
-    frameworkName: 'vue',
+    frameworkName: FrameworkName.Vue,
 });
 
 /** Web path: SDK identity only; the framework version (app.version) is only known at install time. */
