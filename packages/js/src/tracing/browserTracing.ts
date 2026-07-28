@@ -33,6 +33,21 @@ function resolveTimeouts(config: Config): IdleTimeouts {
     };
 }
 
+/**
+ * Run `fn` against the current root's controller while that root is still open. Swallows a throwing
+ * controller: neither ending a prior root nor releasing a hold may stop what the caller does next.
+ */
+function withLiveController(fn: (live: IdleRootController) => void): void {
+    if (!controller || controller.isEnded) {
+        return;
+    }
+    try {
+        fn(controller);
+    } catch {
+        // instrumentation must never throw into the host app
+    }
+}
+
 function startRoot(
     flare: BrowserTracingFlare,
     spanType: BrowserSpanType,
@@ -97,13 +112,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
     if (navSource) {
         return;
     }
-    if (controller && !controller.isEnded) {
-        try {
-            controller.endNow();
-        } catch {
-            // A failing prior-root teardown must not stop the new root from starting.
-        }
-    }
+    withLiveController((live) => live.endNow());
     startRoot(flare, BrowserSpanType.Navigation, defaultNowNano(), path);
 }
 
@@ -217,21 +226,24 @@ export function stopBrowserTracing(): void {
 
 /** Rename the current root and update the attributes that go with the name. No-op once it closed. */
 function applyRouteName(route: RouteName): void {
-    if (currentRoot && controller && !controller.isEnded) {
-        try {
-            currentRoot.name = route.name;
-            currentRoot.setAttribute('flare.entry_point.handler.identifier', route.name);
-            currentRoot.setAttribute('flare.route.source', route.source);
-            if (route.url !== undefined && activeFlare) {
-                const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
-                for (const key of Object.keys(urlAttrs)) {
-                    currentRoot.setAttribute(key, urlAttrs[key]);
-                }
-            }
-        } catch {
-            // instrumentation must never throw into the host app
-        }
+    const root = currentRoot;
+    if (!root) {
+        return;
     }
+
+    withLiveController(() => {
+        root.name = route.name;
+        root.setAttribute('flare.entry_point.handler.identifier', route.name);
+        root.setAttribute('flare.route.source', route.source);
+
+        if (route.url === undefined || !activeFlare) {
+            return;
+        }
+        const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
+        for (const key of Object.keys(urlAttrs)) {
+            root.setAttribute(key, urlAttrs[key]);
+        }
+    });
 }
 
 /**
@@ -257,13 +269,7 @@ export function registerNavigationSource(): NavigationSource {
             }
             const path = opts?.path ?? currentPath();
             lastPath = path;
-            if (controller && !controller.isEnded) {
-                try {
-                    controller.endNow();
-                } catch {
-                    // a failing prior-root teardown must not stop the new root
-                }
-            }
+            withLiveController((live) => live.endNow());
             startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path, opts?.url, opts?.hold);
         },
         setActiveRouteName(route) {
@@ -277,13 +283,7 @@ export function registerNavigationSource(): NavigationSource {
                 return;
             }
             applyRouteName(route);
-            if (controller && !controller.isEnded) {
-                try {
-                    controller.releaseHold();
-                } catch {
-                    // instrumentation must never throw into the host app
-                }
-            }
+            withLiveController((live) => live.releaseHold());
         },
         unregister() {
             if (!active()) {
@@ -293,13 +293,7 @@ export function registerNavigationSource(): NavigationSource {
             // never come, e.g. route-provider unmount or HMR mid-navigation) does not stay
             // idle-suppressed until the finalTimeout force-close. A childless root then closes now;
             // one with an open child resumes the normal idle lifecycle.
-            if (controller && !controller.isEnded) {
-                try {
-                    controller.releaseHold();
-                } catch {
-                    // instrumentation must never throw into the host app
-                }
-            }
+            withLiveController((live) => live.releaseHold());
             navSource = null;
             lastPath = currentPath();
         },

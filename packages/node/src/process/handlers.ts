@@ -79,12 +79,16 @@ export class ProcessHandlerManager {
     ): void {
         const current = get();
         const wants = mode !== 'off';
-        if (wants && !current) {
-            set(impl);
-            process.on(event, impl as any);
-        } else if (!wants && current) {
+
+        if (wants === (current !== null)) {
+            return;
+        }
+        if (!wants) {
             process.off(event, current as any);
             set(null);
+            return;
         }
+        set(impl);
+        process.on(event, impl as any);
     }
 }

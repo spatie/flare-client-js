@@ -44,26 +44,44 @@ export type RejectionEngineDeps = {
  *
  * Exported (with injectable deps) for unit-testing the ordering; not re-exported from the package entry.
  */
+/** An injected `null` means "engine absent" and must win over the live global, so this tests for
+ *  `undefined` rather than falsiness. */
+function resolveHermes(deps: RejectionEngineDeps): HermesInternalLike | null | undefined {
+    if (deps.hermes !== undefined) {
+        return deps.hermes;
+    }
+    return (globalThis as { HermesInternal?: HermesInternalLike }).HermesInternal;
+}
+
+/** Same `undefined`-not-falsy rule as `resolveHermes`. */
+function resolveRequire(deps: RejectionEngineDeps): ((id: string) => unknown) | null {
+    if (deps.requirePolyfill !== undefined) {
+        return deps.requirePolyfill;
+    }
+    if (typeof require === 'undefined') {
+        return null;
+    }
+    return require;
+}
+
 export function resolveRejectionEnabler(deps: RejectionEngineDeps = {}): RejectionEnabler | null {
-    const hermes =
-        deps.hermes !== undefined
-            ? deps.hermes
-            : (globalThis as { HermesInternal?: HermesInternalLike }).HermesInternal;
+    const hermes = resolveHermes(deps);
     if (hermes && typeof hermes.enablePromiseRejectionTracker === 'function') {
         return (options) => hermes.enablePromiseRejectionTracker!(options);
     }
 
-    const req =
-        deps.requirePolyfill !== undefined ? deps.requirePolyfill : typeof require !== 'undefined' ? require : null;
-    if (req) {
-        try {
-            const tracker = req('promise/setimmediate/rejection-tracking') as { enable: RejectionEnabler };
-            if (tracker && typeof tracker.enable === 'function') {
-                return (options) => tracker.enable(options);
-            }
-        } catch {
-            // polyfill not present; fall through to null
+    const req = resolveRequire(deps);
+    if (!req) {
+        return null;
+    }
+
+    try {
+        const tracker = req('promise/setimmediate/rejection-tracking') as { enable: RejectionEnabler };
+        if (tracker && typeof tracker.enable === 'function') {
+            return (options) => tracker.enable(options);
         }
+    } catch {
+        // polyfill not present; fall through to null
     }
 
     return null;

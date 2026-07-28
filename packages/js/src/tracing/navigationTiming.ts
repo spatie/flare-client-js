@@ -25,17 +25,29 @@ export function resolvePageloadStartNano(
     return backdatedNano;
 }
 
+/** The Navigation Timing API, or null where it is missing or only partly implemented. */
+function navigationTiming(): Performance | null {
+    const perf = (globalThis as { performance?: Performance }).performance;
+    if (!perf || typeof perf.getEntriesByType !== 'function' || typeof perf.timeOrigin !== 'number') {
+        return null;
+    }
+    return perf;
+}
+
+function navigationEntry(perf: Performance): PerformanceNavigationTiming | undefined {
+    return perf.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+}
+
 /**
  * The pageload root's start time in unix nanoseconds, backdated to navigation start via the
  * Navigation Timing entry. Falls back to the tracer's clock when the API is unavailable.
  */
 export function pageloadStartNano(): number {
-    const perf = (globalThis as { performance?: Performance }).performance;
-    if (!perf || typeof perf.getEntriesByType !== 'function' || typeof perf.timeOrigin !== 'number') {
+    const perf = navigationTiming();
+    if (!perf) {
         return defaultNowNano();
     }
-    const entry = perf.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-    return computePageloadStartNano(perf.timeOrigin, entry?.startTime);
+    return computePageloadStartNano(perf.timeOrigin, navigationEntry(perf)?.startTime);
 }
 
 /** Pure math seam (unit-testable): timeOrigin(ms) + load-event-end(ms) → unix nanos; `now` when unset. */
@@ -60,11 +72,11 @@ export function computePageloadEndNano(
  * childless pageload reports its real load duration rather than idle-timeout padding.
  */
 export function pageloadEndNano(): number {
-    const perf = (globalThis as { performance?: Performance }).performance;
-    if (!perf || typeof perf.getEntriesByType !== 'function' || typeof perf.timeOrigin !== 'number') {
+    const perf = navigationTiming();
+    if (!perf) {
         return defaultNowNano();
     }
-    const entry = perf.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const entry = navigationEntry(perf);
     return computePageloadEndNano(
         perf.timeOrigin,
         entry?.loadEventEnd,

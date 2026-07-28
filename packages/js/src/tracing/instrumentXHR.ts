@@ -92,6 +92,17 @@ export function createXHRSetRequestHeader(original: XhrSetHeader): XhrSetHeader 
     };
 }
 
+function setTraceparentHeader(xhr: XMLHttpRequest, traceparent: string | null | undefined): void {
+    if (!traceparent) {
+        return;
+    }
+    try {
+        xhr.setRequestHeader('traceparent', traceparent);
+    } catch {
+        // setRequestHeader throws unless the request is in the OPENED state; ignore.
+    }
+}
+
 /** Patch `send` to open the span, inject `traceparent`, and end on `readyState === 4`. */
 export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: string): XhrSend {
     return function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null): void {
@@ -121,14 +132,7 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         state.span = span;
 
         if (!state.hasAppTraceparent) {
-            const tp = traceparentFor(span, abs, state.url, origin, config);
-            if (tp) {
-                try {
-                    this.setRequestHeader('traceparent', tp);
-                } catch {
-                    // setRequestHeader throws unless the request is in the OPENED state; ignore.
-                }
-            }
+            setTraceparentHeader(this, traceparentFor(span, abs, state.url, origin, config));
         }
 
         const onDone = (): void => {

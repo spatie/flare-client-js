@@ -150,27 +150,35 @@ export class ElectronFlare extends CoreFlare {
 
     /** Attach/detach the process-gone listeners to match options.captureRenderProcessGone. Idempotent. */
     private reconcileCrashListeners(): void {
-        const want = this.options.captureRenderProcessGone;
+        const want = Boolean(this.options.captureRenderProcessGone);
         const attached = this.renderGoneHandler !== null;
-        if (want && !attached) {
-            this.renderGoneHandler = (
-                _event: unknown,
-                webContents: { id?: number } | undefined,
-                details: { reason?: string; exitCode?: number },
-            ) => {
-                return this.reportProcessGone('renderer', details, webContents?.id);
-            };
-            this.childGoneHandler = (
-                _event: unknown,
-                details: { reason?: string; exitCode?: number; type?: string; serviceName?: string },
-            ) => {
-                return this.reportProcessGone('child', details);
-            };
-            this.app.on('render-process-gone', this.renderGoneHandler as any);
-            this.app.on('child-process-gone', this.childGoneHandler as any);
-        } else if (!want && attached) {
-            this.detachCrashListeners();
+
+        if (want === attached) {
+            return;
         }
+        if (!want) {
+            this.detachCrashListeners();
+            return;
+        }
+        this.attachCrashListeners();
+    }
+
+    private attachCrashListeners(): void {
+        this.renderGoneHandler = (
+            _event: unknown,
+            webContents: { id?: number } | undefined,
+            details: { reason?: string; exitCode?: number },
+        ) => {
+            return this.reportProcessGone('renderer', details, webContents?.id);
+        };
+        this.childGoneHandler = (
+            _event: unknown,
+            details: { reason?: string; exitCode?: number; type?: string; serviceName?: string },
+        ) => {
+            return this.reportProcessGone('child', details);
+        };
+        this.app.on('render-process-gone', this.renderGoneHandler as any);
+        this.app.on('child-process-gone', this.childGoneHandler as any);
     }
 
     private detachCrashListeners(): void {

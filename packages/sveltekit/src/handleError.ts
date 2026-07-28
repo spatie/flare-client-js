@@ -22,21 +22,23 @@ declare namespace App {
     }
 }
 
+function isClientError(status: unknown): boolean {
+    if (typeof status !== 'number') {
+        return false;
+    }
+    return status >= 400 && status < 500;
+}
+
+/** A 4xx is Kit answering the request (not found, unauthorized), not the app failing. Kit reports the
+ *  status on the input, and on the error itself for one thrown by `error()`. */
 function shouldSkip(input: HandleErrorInput): boolean {
-    if (input.status >= 400 && input.status < 500) {
+    if (isClientError(input.status)) {
         return true;
     }
-    const err = input.error;
-    if (typeof err === 'object' && err !== null) {
-        const obj = err as Record<string, unknown>;
-        if (typeof obj.status === 'number' && obj.status >= 400 && obj.status < 500) {
-            return true;
-        }
-        if (obj.type === 'error' && typeof obj.status === 'number' && obj.status >= 400 && obj.status < 500) {
-            return true;
-        }
+    if (typeof input.error !== 'object' || input.error === null) {
+        return false;
     }
-    return false;
+    return isClientError((input.error as Record<string, unknown>).status);
 }
 
 function unwrapSvelteKitError(error: unknown): unknown {
