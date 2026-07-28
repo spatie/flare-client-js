@@ -59,9 +59,17 @@ function referencedPaths(pkg) {
     const paths = new Set();
 
     const addIfRelative = (value) => {
-        if (typeof value !== 'string') return;
-        if (!value.startsWith('.') && !value.startsWith('/')) return; // bare specifier
-        if (value.includes('*')) return; // glob subpath pattern, can't check statically
+        if (typeof value !== 'string') {
+            return;
+        }
+        // bare specifier
+        if (!value.startsWith('.') && !value.startsWith('/')) {
+            return;
+        }
+        // glob subpath pattern, can't check statically
+        if (value.includes('*')) {
+            return;
+        }
         paths.add(normalize(value));
     };
 
@@ -69,15 +77,21 @@ function referencedPaths(pkg) {
         addIfRelative(pkg[field]);
     }
 
-    if (typeof pkg.bin === 'string') addIfRelative(pkg.bin);
-    else if (pkg.bin && typeof pkg.bin === 'object') {
-        for (const v of Object.values(pkg.bin)) addIfRelative(v);
+    if (typeof pkg.bin === 'string') {
+        addIfRelative(pkg.bin);
+    } else if (pkg.bin && typeof pkg.bin === 'object') {
+        for (const v of Object.values(pkg.bin)) {
+            addIfRelative(v);
+        }
     }
 
     const walkExports = (node) => {
-        if (typeof node === 'string') addIfRelative(node);
-        else if (node && typeof node === 'object') {
-            for (const v of Object.values(node)) walkExports(v);
+        if (typeof node === 'string') {
+            addIfRelative(node);
+        } else if (node && typeof node === 'object') {
+            for (const v of Object.values(node)) {
+                walkExports(v);
+            }
         }
     };
     walkExports(pkg.exports);
@@ -101,7 +115,9 @@ export function checkPack(names = PUBLISHED_PACKAGES) {
 
     for (const name of names) {
         const pkg = readPkgJson(name);
-        if (pkg.private) continue;
+        if (pkg.private) {
+            continue;
+        }
 
         const referenced = referencedPaths(pkg);
         const packed = packedFiles(name);
@@ -110,7 +126,9 @@ export function checkPack(names = PUBLISHED_PACKAGES) {
         if (missing.length > 0) {
             failures.push({ name: pkg.name, missing });
             console.error(`  FAIL ${pkg.name}: manifest references files absent from the tarball:`);
-            for (const m of missing) console.error(`         - ${m}`);
+            for (const m of missing) {
+                console.error(`         - ${m}`);
+            }
         } else {
             console.log(`  ok   ${pkg.name} (${referenced.size} referenced files present)`);
         }

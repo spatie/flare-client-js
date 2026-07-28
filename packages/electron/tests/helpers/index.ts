@@ -39,7 +39,9 @@ export function fakeIpcMain() {
     return {
         handlers,
         handle: vi.fn((channel: string, fn: Function) => {
-            if (handlers[channel]) throw new Error('Attempted to register a second handler');
+            if (handlers[channel]) {
+                throw new Error('Attempted to register a second handler');
+            }
             handlers[channel] = fn;
         }),
         removeHandler: vi.fn((channel: string) => {

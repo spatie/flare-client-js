@@ -8,13 +8,12 @@ export interface SdkTaggable {
 }
 
 /**
- * Builds a per-package SDK/framework identity tagger. Holds its own WeakSet guards so each Flare
- * instance (singleton or injected renderer) is tagged at most once, on each of the two axes.
- */
-/**
- * `frameworkName` is typed as `FrameworkName`, not `string`: this is the wire vocabulary the backend
- * keys off, so a first-party package cannot invent a value here. A host app that genuinely needs its
- * own name calls `setFramework` directly.
+ * A per-package SDK/framework identity tagger. Holds its own WeakSet guards, so each Flare instance
+ * (singleton or injected renderer) is tagged at most once on each of the two axes.
+ *
+ * `frameworkName` is `FrameworkName` rather than `string` because that is the wire vocabulary the backend
+ * keys off, so a first-party package cannot invent a value. A host app that needs its own name calls
+ * `setFramework` directly.
  */
 export function createIdentityTagger(config: { sdkName: string; sdkVersion: string; frameworkName: FrameworkName }): {
     registerSdkIdentity(flare: SdkTaggable): void;
@@ -25,12 +24,16 @@ export function createIdentityTagger(config: { sdkName: string; sdkVersion: stri
 
     return {
         registerSdkIdentity(flare) {
-            if (sdkTagged.has(flare)) return;
+            if (sdkTagged.has(flare)) {
+                return;
+            }
             sdkTagged.add(flare);
             flare.setSdkInfo({ name: config.sdkName, version: config.sdkVersion });
         },
         tagFramework(flare, frameworkVersion) {
-            if (frameworkTagged.has(flare)) return;
+            if (frameworkTagged.has(flare)) {
+                return;
+            }
             frameworkTagged.add(flare);
             flare.setFramework(
                 frameworkVersion === undefined

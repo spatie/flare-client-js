@@ -173,11 +173,13 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     const profile = options?.profileComponents;
     const wantsProfiling = profile === true || (Array.isArray(profile) && profile.length > 0);
 
-    if (wantsProfiling && flare.config?.enableTracing) {
-        try {
-            app.mixin(createComponentProfilerMixin(createComponentMatcher(profile)));
-        } catch {
-            // never break plugin install
-        }
+    if (!wantsProfiling || !flare.config?.enableTracing) {
+        return;
+    }
+
+    try {
+        app.mixin(createComponentProfilerMixin(createComponentMatcher(profile)));
+    } catch {
+        // never break plugin install
     }
 };

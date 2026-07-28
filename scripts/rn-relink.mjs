@@ -116,7 +116,9 @@ function verify(name, appDir) {
     //    feature symbol the registry might one day also ship.
     for (const p of PACKAGES) {
         const copies = findScopedCopies(appDir, p);
-        if (copies.length === 0) fail(`@flareapp/${p} not installed`);
+        if (copies.length === 0) {
+            fail(`@flareapp/${p} not installed`);
+        }
         if (copies.length > 1) {
             fail(
                 `${copies.length} copies of @flareapp/${p} installed (expected 1) — a registry copy leaked in via dedup. ` +
@@ -150,8 +152,12 @@ function verify(name, appDir) {
     // 3. Exactly one react and one react-native.
     for (const mod of ['react', 'react-native']) {
         const copies = countCopies(appDir, mod);
-        if (copies === 0) fail(`${mod} not resolved`);
-        if (copies > 1) fail(`${copies} copies of ${mod} (expected 1) — duplicate/haste collision risk`);
+        if (copies === 0) {
+            fail(`${mod} not resolved`);
+        }
+        if (copies > 1) {
+            fail(`${copies} copies of ${mod} (expected 1) — duplicate/haste collision risk`);
+        }
     }
 
     console.log(`[relink:verify ${name}] OK`);
@@ -163,7 +169,9 @@ function countCopies(appDir, mod) {
     const scoped = join(appDir, 'node_modules', '@flareapp');
     if (existsSync(scoped)) {
         for (const pkg of readdirSync(scoped)) {
-            if (existsSync(join(scoped, pkg, 'node_modules', mod, 'package.json'))) count++;
+            if (existsSync(join(scoped, pkg, 'node_modules', mod, 'package.json'))) {
+                count++;
+            }
         }
     }
     return count;
@@ -175,12 +183,16 @@ function countCopies(appDir, mod) {
 function findScopedCopies(appDir, pkg) {
     const out = [];
     const top = join(appDir, 'node_modules', '@flareapp', pkg);
-    if (existsSync(join(top, 'package.json'))) out.push(top);
+    if (existsSync(join(top, 'package.json'))) {
+        out.push(top);
+    }
     const scoped = join(appDir, 'node_modules', '@flareapp');
     if (existsSync(scoped)) {
         for (const parent of readdirSync(scoped)) {
             const nested = join(scoped, parent, 'node_modules', '@flareapp', pkg);
-            if (existsSync(join(nested, 'package.json'))) out.push(nested);
+            if (existsSync(join(nested, 'package.json'))) {
+                out.push(nested);
+            }
         }
     }
     return out;
@@ -190,13 +202,18 @@ function findScopedCopies(appDir, pkg) {
 // order. Byte-identical builds hash equal; a registry copy with different bytes
 // (even at the same version) does not. Returns null if dist/ is missing.
 function hashDist(distDir) {
-    if (!existsSync(distDir)) return null;
+    if (!existsSync(distDir)) {
+        return null;
+    }
     const files = [];
     const walk = (dir) => {
         for (const name of readdirSync(dir).toSorted()) {
             const full = join(dir, name);
-            if (statSync(full).isDirectory()) walk(full);
-            else files.push(full);
+            if (statSync(full).isDirectory()) {
+                walk(full);
+            } else {
+                files.push(full);
+            }
         }
     };
     walk(distDir);

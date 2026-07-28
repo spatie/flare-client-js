@@ -3,6 +3,7 @@ import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer }
 import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
 import { IdleRootController, type IdleTimeouts } from './IdleRootController';
+import { currentPath, type NavigationSource, type RouteName } from './navigation';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 import { BrowserSpanType } from './spanTypes';
 
@@ -11,24 +12,6 @@ export type BrowserTracingFlare = {
     readonly config: Config;
     startSpan(name: string, opts?: SpanOptions): Span;
     tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
-};
-
-export type RouteName = {
-    name: string;
-    source: 'route' | 'url';
-    /**
-     * Where the navigation is going. When set, the root's `url.full` and `flare.entry_point.value`
-     * are updated together with the name, so a navigation that was redirected, or replaced by a
-     * newer one, reports the page it ended on rather than the one it opened with. Leave it out to
-     * keep the url the root started with.
-     */
-    url?: string;
-};
-export type NavigationSource = {
-    startNavigation(opts?: { path?: string; url?: string; hold?: boolean }): void;
-    setActiveRouteName(route: RouteName): void;
-    settleNavigation(route: RouteName): void;
-    unregister(): void;
 };
 
 let controller: IdleRootController | null = null;
@@ -48,6 +31,21 @@ function resolveTimeouts(config: Config): IdleTimeouts {
         finalTimeout: config.finalTimeout ?? 30000,
         childSpanTimeout: config.childSpanTimeout ?? 15000,
     };
+}
+
+/**
+ * Run `fn` against the current root's controller while that root is still open. Swallows a throwing
+ * controller: neither ending a prior root nor releasing a hold may stop what the caller does next.
+ */
+function withLiveController(fn: (live: IdleRootController) => void): void {
+    if (!controller || controller.isEnded) {
+        return;
+    }
+    try {
+        fn(controller);
+    } catch {
+        // instrumentation must never throw into the host app
+    }
 }
 
 function startRoot(
@@ -98,22 +96,23 @@ function startRoot(
         } catch {
             // ignore
         }
-        if (flare.config.debug) console.error('Flare: failed to start browser tracing root', error);
+        if (flare.config.debug) {
+            console.error('Flare: failed to start browser tracing root', error);
+        }
     }
 }
 
 function onUrlChanged(flare: BrowserTracingFlare): void {
     const path = location.pathname;
-    if (path === lastPath) return;
-    lastPath = path;
-    if (navSource) return; // a framework integration drives navigation; keep lastPath current, open no root
-    if (controller && !controller.isEnded) {
-        try {
-            controller.endNow();
-        } catch {
-            // A failing prior-root teardown must not stop the new root from starting.
-        }
+    if (path === lastPath) {
+        return;
     }
+    lastPath = path;
+    // a framework integration drives navigation; keep lastPath current, open no root
+    if (navSource) {
+        return;
+    }
+    withLiveController((live) => live.endNow());
     startRoot(flare, BrowserSpanType.Navigation, defaultNowNano(), path);
 }
 
@@ -123,8 +122,12 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
  * plus `popstate`). No-op outside a browser. Idempotent.
  */
 export function startBrowserTracing(flare: BrowserTracingFlare): void {
-    if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') return;
-    if (uninstall) return;
+    if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') {
+        return;
+    }
+    if (uninstall) {
+        return;
+    }
 
     activeFlare = flare;
     lastPath = location.pathname;
@@ -143,11 +146,15 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
         // A third party may wrap history.pushState/replaceState on top of ours, so unfill can't
         // restore on stop and this closure leaks. `uninstall` doubles as the installed flag, so the
         // leaked wrapper stays inert instead of starting roots and arming timers while tracing is off.
-        if (!uninstall) return;
+        if (!uninstall) {
+            return;
+        }
         try {
             onUrlChanged(flare);
         } catch (error) {
-            if (flare.config.debug) console.error('Flare: browser tracing navigation handler failed', error);
+            if (flare.config.debug) {
+                console.error('Flare: browser tracing navigation handler failed', error);
+            }
         }
     };
     const wrap = (original: unknown) =>
@@ -168,18 +175,24 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
             try {
                 controller.endNow();
             } catch (error) {
-                if (flare.config.debug) console.error('Flare: failed to end tracing root on page hide', error);
+                if (flare.config.debug) {
+                    console.error('Flare: failed to end tracing root on page hide', error);
+                }
             }
         }
         try {
             flare.tracer.flush({ keepalive: true });
         } catch (error) {
-            if (flare.config.debug) console.error('Flare: failed to flush spans on page hide', error);
+            if (flare.config.debug) {
+                console.error('Flare: failed to flush spans on page hide', error);
+            }
         }
     };
     const onPageHide = (): void => endRootAndFlush();
     const onVisibilityChange = (): void => {
-        if (document.visibilityState === 'hidden') endRootAndFlush();
+        if (document.visibilityState === 'hidden') {
+            endRootAndFlush();
+        }
     };
     window.addEventListener('pagehide', onPageHide);
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -198,7 +211,9 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
  * Page-global singleton: stops whatever session is active, not a per-Flare-instance one.
  */
 export function stopBrowserTracing(): void {
-    if (controller && !controller.isEnded) controller.endNow();
+    if (controller && !controller.isEnded) {
+        controller.endNow();
+    }
     controller = null;
     if (uninstall) {
         uninstall();
@@ -211,19 +226,24 @@ export function stopBrowserTracing(): void {
 
 /** Rename the current root and update the attributes that go with the name. No-op once it closed. */
 function applyRouteName(route: RouteName): void {
-    if (currentRoot && controller && !controller.isEnded) {
-        try {
-            currentRoot.name = route.name;
-            currentRoot.setAttribute('flare.entry_point.handler.identifier', route.name);
-            currentRoot.setAttribute('flare.route.source', route.source);
-            if (route.url !== undefined && activeFlare) {
-                const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
-                for (const key of Object.keys(urlAttrs)) currentRoot.setAttribute(key, urlAttrs[key]);
-            }
-        } catch {
-            // instrumentation must never throw into the host app
-        }
+    const root = currentRoot;
+    if (!root) {
+        return;
     }
+
+    withLiveController(() => {
+        root.name = route.name;
+        root.setAttribute('flare.entry_point.handler.identifier', route.name);
+        root.setAttribute('flare.route.source', route.source);
+
+        if (route.url === undefined || !activeFlare) {
+            return;
+        }
+        const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
+        for (const key of Object.keys(urlAttrs)) {
+            root.setAttribute(key, urlAttrs[key]);
+        }
+    });
 }
 
 /**
@@ -236,55 +256,46 @@ function applyRouteName(route: RouteName): void {
  */
 export function registerNavigationSource(): NavigationSource {
     const token = {};
-    if (navSource && activeFlare?.config.debug) console.debug('Flare: navigation source replaced');
+    if (navSource && activeFlare?.config.debug) {
+        console.debug('Flare: navigation source replaced');
+    }
     navSource = token;
     const active = (): boolean => navSource === token;
-    const here = (): string => (typeof location !== 'undefined' ? location.pathname : '');
 
     return {
         startNavigation(opts) {
-            if (!active() || !activeFlare) return;
-            const path = opts?.path ?? here();
-            lastPath = path;
-            if (controller && !controller.isEnded) {
-                try {
-                    controller.endNow();
-                } catch {
-                    // a failing prior-root teardown must not stop the new root
-                }
+            if (!active() || !activeFlare) {
+                return;
             }
+            const path = opts?.path ?? currentPath();
+            lastPath = path;
+            withLiveController((live) => live.endNow());
             startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path, opts?.url, opts?.hold);
         },
         setActiveRouteName(route) {
-            if (!active()) return;
+            if (!active()) {
+                return;
+            }
             applyRouteName(route);
         },
         settleNavigation(route) {
-            if (!active()) return;
-            applyRouteName(route);
-            if (controller && !controller.isEnded) {
-                try {
-                    controller.releaseHold();
-                } catch {
-                    // instrumentation must never throw into the host app
-                }
+            if (!active()) {
+                return;
             }
+            applyRouteName(route);
+            withLiveController((live) => live.releaseHold());
         },
         unregister() {
-            if (!active()) return;
+            if (!active()) {
+                return;
+            }
             // Release any hold so a navigation root opened held (awaiting a settle that will now
             // never come, e.g. route-provider unmount or HMR mid-navigation) does not stay
             // idle-suppressed until the finalTimeout force-close. A childless root then closes now;
             // one with an open child resumes the normal idle lifecycle.
-            if (controller && !controller.isEnded) {
-                try {
-                    controller.releaseHold();
-                } catch {
-                    // instrumentation must never throw into the host app
-                }
-            }
+            withLiveController((live) => live.releaseHold());
             navSource = null;
-            lastPath = here();
+            lastPath = currentPath();
         },
     };
 }

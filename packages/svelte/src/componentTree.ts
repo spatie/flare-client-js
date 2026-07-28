@@ -113,7 +113,9 @@ function hasAncestor(node: ComponentTreeNode, ancestor: ComponentTreeNode): bool
     const seen = new Set<ComponentTreeNode>();
 
     while (current && !seen.has(current)) {
-        if (current === ancestor) return true;
+        if (current === ancestor) {
+            return true;
+        }
         seen.add(current);
         current = current.parent;
     }

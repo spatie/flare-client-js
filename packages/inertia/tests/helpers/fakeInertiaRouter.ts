@@ -143,7 +143,9 @@ export function createFakeInertiaRouter(): FakeInertiaRouter {
             emit('navigate', pageDetail(visit));
         },
         listenerCount(event) {
-            if (event) return (listeners.get(event) ?? []).length;
+            if (event) {
+                return (listeners.get(event) ?? []).length;
+            }
             return [...listeners.values()].reduce((total, l) => total + l.length, 0);
         },
     };

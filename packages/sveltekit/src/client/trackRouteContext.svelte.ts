@@ -11,7 +11,9 @@ let tracking = false;
  * flare.report() calls) then carries the route ID, URL, params, and redacted query parameters.
  */
 export function trackRouteContext(): void {
-    if (tracking) return;
+    if (tracking) {
+        return;
+    }
     tracking = true;
 
     $effect.root(() => {

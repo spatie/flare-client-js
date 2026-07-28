@@ -41,8 +41,12 @@ export function withFlareConfig(config: SvelteConfig, options?: WithFlareConfigO
 }
 
 function normalizePreprocessors(preprocess: SvelteConfig['preprocess']): PreprocessorGroup[] {
-    if (!preprocess) return [];
-    if (Array.isArray(preprocess)) return preprocess;
+    if (!preprocess) {
+        return [];
+    }
+    if (Array.isArray(preprocess)) {
+        return preprocess;
+    }
     return [preprocess];
 }
 

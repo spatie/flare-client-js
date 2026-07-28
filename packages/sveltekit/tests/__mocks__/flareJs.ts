@@ -4,8 +4,12 @@ const DEFAULT_URL_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
 function convertToError(error: unknown): Error {
-    if (error instanceof Error) return error;
-    if (typeof error === 'string') return new Error(error);
+    if (error instanceof Error) {
+        return error;
+    }
+    if (typeof error === 'string') {
+        return new Error(error);
+    }
     if (typeof error === 'object' && error !== null) {
         const message = (error as Record<string, unknown>).message;
         return new Error(typeof message === 'string' ? message : String(error));

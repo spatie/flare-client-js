@@ -11,7 +11,9 @@ export function catchWindowErrors() {
 
     window.addEventListener('error', (event: ErrorEvent) => {
         const flare = (window as unknown as { flare?: RejectionReporter }).flare;
-        if (!flare) return;
+        if (!flare) {
+            return;
+        }
         // ErrorEvent.error is null for cross-origin script errors ("Script error."), skip those.
         if (event.error instanceof Error) {
             flare.reportSilently(event.error);
@@ -20,7 +22,9 @@ export function catchWindowErrors() {
 
     window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
         const flare = (window as unknown as { flare?: RejectionReporter }).flare;
-        if (!flare) return;
+        if (!flare) {
+            return;
+        }
 
         // Shared routing: Error/stack-bearing -> reportSilently, stackless ->
         // reportUnhandledRejection. Same path the RN engine tracker uses.

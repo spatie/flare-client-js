@@ -31,7 +31,9 @@ export class SpanBuffer {
     add(span: BufferedSpan): void {
         const config = this.deps.getConfig();
         if (this.estimateBytes(span) > config.spanFlushMaxBytes) {
-            if (config.debug) console.error('Flare: dropping oversized span');
+            if (config.debug) {
+                console.error('Flare: dropping oversized span');
+            }
             return;
         }
         this.buffer.push(span);
@@ -41,8 +43,13 @@ export class SpanBuffer {
 
     flush(opts?: { keepalive?: boolean }): void {
         const config = this.deps.getConfig();
-        if (!config.enableTracing) return; // parity with Logger gating on enableLogs
-        if (this.buffer.length === 0) return;
+        // parity with Logger gating on enableLogs
+        if (!config.enableTracing) {
+            return;
+        }
+        if (this.buffer.length === 0) {
+            return;
+        }
 
         if (!assertKey(config.key, config.debug)) {
             this.clearTimer();
@@ -56,12 +63,16 @@ export class SpanBuffer {
         if (opts?.keepalive) {
             spans = this.packForKeepalive(config, resource);
             this.buffer = this.buffer.filter((s) => !spans.includes(s));
-            if (this.buffer.length > 0) this.armTimer(config);
+            if (this.buffer.length > 0) {
+                this.armTimer(config);
+            }
         } else {
             spans = this.buffer;
             this.buffer = [];
         }
-        if (spans.length === 0) return;
+        if (spans.length === 0) {
+            return;
+        }
 
         this.deps.track(
             this.deps.api.traces(
@@ -92,7 +103,9 @@ export class SpanBuffer {
     }
 
     private armTimer(config: Config): void {
-        if (this.timerActive) return;
+        if (this.timerActive) {
+            return;
+        }
         this.timerActive = true;
         this.timer = setTimeout(() => this.flush(), config.spanFlushIntervalMs);
         // Node's Timeout has unref(); the browser's number does not.
@@ -137,11 +150,21 @@ export class SpanBuffer {
             'telemetry.sdk.version': sdk.version,
             'flare.language.name': 'javascript',
         };
-        if (config.serviceName) identity['service.name'] = config.serviceName;
-        if (config.version) identity['service.version'] = config.version;
-        if (config.stage) identity['service.stage'] = config.stage;
-        if (framework?.name) identity['flare.framework.name'] = framework.name;
-        if (framework?.version) identity['flare.framework.version'] = framework.version;
+        if (config.serviceName) {
+            identity['service.name'] = config.serviceName;
+        }
+        if (config.version) {
+            identity['service.version'] = config.version;
+        }
+        if (config.stage) {
+            identity['service.stage'] = config.stage;
+        }
+        if (framework?.name) {
+            identity['flare.framework.name'] = framework.name;
+        }
+        if (framework?.version) {
+            identity['flare.framework.version'] = framework.version;
+        }
         return { ...this.deps.getResourceAttributes(), ...identity };
     }
 

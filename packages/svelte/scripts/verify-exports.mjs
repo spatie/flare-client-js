@@ -41,7 +41,9 @@ const paths = [];
     if (typeof node === 'string') {
         paths.push(node);
     } else if (node && typeof node === 'object') {
-        for (const v of Object.values(node)) collect(v);
+        for (const v of Object.values(node)) {
+            collect(v);
+        }
     }
 })(inject);
 for (const p of paths) {

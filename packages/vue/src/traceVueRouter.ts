@@ -1,13 +1,16 @@
-import { absoluteHref, insulate, registerNavigationSource, safeInvoke, type RouteName } from '@flareapp/js/browser';
+import {
+    insulate,
+    instrumentOnce,
+    registerNavigationSource,
+    resolveHref,
+    routeName,
+    safeInvoke,
+    type RouteName,
+} from '@flareapp/js/browser';
 
 import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from './vendor/vueRouterTypes';
 
 const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED — a newer nav superseded this one
-
-// Dedup re-instrumentation of the same router. Vite HMR can re-run plugin install against a persistent
-// router; without this each cycle appends another guard triple that is never removed. Keyed on the
-// router object, so a genuinely new router is unaffected.
-const instrumented = new WeakMap<object, () => void>();
 
 /**
  * Trace a vue-router instance: name the `browser_pageload` root from the initial route, and open a
@@ -16,43 +19,37 @@ const instrumented = new WeakMap<object, () => void>();
  * (not part of the public entry). Inert for a non-router value; never throws into the host.
  */
 export function traceVueRouter(router: unknown): () => void {
-    const r = router as Partial<VueRouterLike> | null;
-    if (!r || typeof r.beforeEach !== 'function' || typeof r.afterEach !== 'function') {
+    if (!isVueRouter(router)) {
         return () => {}; // wrong shape → inert
     }
 
-    instrumented.get(r)?.(); // HMR: tear down any prior instrumentation of this same router first
+    return instrumentOnce(router, () => install(router));
+}
 
+/** Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional. */
+function isVueRouter(router: unknown): router is VueRouterLike {
+    const r = router as Partial<VueRouterLike> | null;
+    if (!r) {
+        return false;
+    }
+    return typeof r.beforeEach === 'function' && typeof r.afterEach === 'function';
+}
+
+function install(r: VueRouterLike): () => void {
     const nav = registerNavigationSource();
 
-    // Every name carries the destination url so the root's url.full is updated together with it.
-    // The root opens with the first destination, so after a redirect it would otherwise report a
-    // page the user never landed on.
-    const routeNameFor = (loc: VueRouteLocationLike): RouteName => {
-        const url = hrefOf(loc);
-        try {
-            const matched = loc.matched;
-            const template = matched && matched.length > 0 ? matched[matched.length - 1]?.path : undefined;
-            if (template) return { name: template, source: 'route', url };
-        } catch {
-            // fall through to the URL name
-        }
-        return { name: loc.path, source: 'url', url };
-    };
+    const routeNameFor = (loc: VueRouteLocationLike): RouteName =>
+        routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
 
     // `resolve` is what puts the app's base path or `#` prefix back on: `fullPath` has them
     // stripped, so an app served from `/app/` would report `/product/p01` for the real
-    // `/app/product/p01`. Fall back to the bare path only if the router has no `resolve`.
+    // `/app/product/p01`.
     const hrefOf = (loc: VueRouteLocationLike): string | undefined => {
         const path = loc.fullPath ?? loc.path;
-        if (!path) return undefined;
-        let href = path;
-        try {
-            href = r.resolve?.(path)?.href ?? path;
-        } catch {
-            // a router that throws on resolve still gets a url, just without the base path
+        if (!path) {
+            return undefined;
         }
-        return absoluteHref(href);
+        return resolveHref(() => r.resolve?.(path)?.href, path);
     };
 
     const isInitial = (from: VueRouteLocationLike | undefined): boolean =>
@@ -86,7 +83,9 @@ export function traceVueRouter(router: unknown): () => void {
             // plain duplicated nav is short-circuited before guards run and surfaces solely as an afterEach
             // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
             // no navigation root.
-            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) return;
+            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) {
+                return;
+            }
 
             if (!inFlight) {
                 inFlight = true;
@@ -106,7 +105,9 @@ export function traceVueRouter(router: unknown): () => void {
                 return;
             }
 
-            if (!inFlight) return;
+            if (!inFlight) {
+                return;
+            }
 
             if (!failure) {
                 inFlight = false;
@@ -118,7 +119,9 @@ export function traceVueRouter(router: unknown): () => void {
             // failure here is terminal. `cancelled` (a newer nav superseded this one) keeps the held root
             // for the successor's afterEach; `aborted` / `duplicated` / unknown release it to the current
             // location so a blocked navigation can't strand a held root until the finalTimeout backstop.
-            if (failure.type === NAVIGATION_CANCELLED) return;
+            if (failure.type === NAVIGATION_CANCELLED) {
+                return;
+            }
             inFlight = false;
             nav.settleNavigation(routeNameFor(from));
         }),
@@ -128,7 +131,9 @@ export function traceVueRouter(router: unknown): () => void {
         typeof r.onError === 'function'
             ? r.onError(
                   insulate(() => {
-                      if (!inFlight) return;
+                      if (!inFlight) {
+                          return;
+                      }
                       inFlight = false;
                       const current = r.currentRoute?.value;
                       nav.settleNavigation(current ? routeNameFor(current) : { name: '', source: 'url' });
@@ -136,13 +141,10 @@ export function traceVueRouter(router: unknown): () => void {
               )
             : undefined;
 
-    const cleanup = (): void => {
+    return () => {
         safeInvoke(offBefore);
         safeInvoke(offAfter);
         safeInvoke(offError);
         safeInvoke(() => nav.unregister());
-        if (instrumented.get(r) === cleanup) instrumented.delete(r);
     };
-    instrumented.set(r, cleanup);
-    return cleanup;
 }

@@ -11,8 +11,12 @@ export function isNativeFetch(fn: unknown): boolean {
  */
 export function supportsNativeFetch(): boolean {
     const g = globalThis as { fetch?: unknown; document?: Document };
-    if (typeof g.fetch !== 'function') return false;
-    if (isNativeFetch(g.fetch)) return true;
+    if (typeof g.fetch !== 'function') {
+        return false;
+    }
+    if (isNativeFetch(g.fetch)) {
+        return true;
+    }
 
     // Browser-only fallback: read an untouched fetch from a detached iframe.
     // Not exercised by the node-env unit tests.
@@ -24,7 +28,9 @@ export function supportsNativeFetch(): boolean {
             sandbox.hidden = true;
             doc.head.appendChild(sandbox);
             const win = sandbox.contentWindow as (Window & { fetch?: unknown }) | null;
-            if (win && typeof win.fetch === 'function') result = isNativeFetch(win.fetch);
+            if (win && typeof win.fetch === 'function') {
+                result = isNativeFetch(win.fetch);
+            }
             doc.head.removeChild(sandbox);
         } catch {
             result = false;

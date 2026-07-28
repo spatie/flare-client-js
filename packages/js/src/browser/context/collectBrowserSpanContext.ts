@@ -5,16 +5,13 @@ import { browserEntryPoint } from './collectBrowser';
 import request from './request';
 
 /**
- * Lean context a browser pageload/navigation root span carries: entry-point plus request identity
- * (url.full, user_agent.original, referrer, ready_state), redacted. Excludes cookies, structured
- * query params (requestData), and host.name (resource-level, sourced separately). Captured at span
- * start so a long-lived root reflects the page it represents, not the page current at close.
+ * Entry point plus request identity for a pageload/navigation root. Deliberately leaner than the report
+ * context: no cookies, no structured query params, no host.name (that is resource-level). Captured at
+ * span start, so a long-lived root reflects the page it represents rather than the page at close.
  *
- * @param hrefOverride destination href for a framework navigation root whose router reports the
- * destination before the URL commits. When set and parseable, the URL-derived keys (url.full,
- * flare.entry_point.value, flare.entry_point.handler.identifier) are computed from it; non-URL keys
- * always reflect the live document. An unparseable override is ignored (live location used), so a
- * bad destination URL can neither poison url.full nor throw into root creation.
+ * @param hrefOverride destination href for a router that reports where it is going before the URL
+ * commits. Only the URL-derived keys come from it; the rest always reflect the live document. An
+ * unparseable override falls back to the live location instead of throwing into root creation.
  */
 export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride?: string): Attributes => {
     if (typeof window === 'undefined') {
@@ -25,26 +22,29 @@ export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride
 };
 
 /**
- * The url attributes of a root span, so a root can be updated when its destination changes after it
- * opened. That happens on a redirect, or when a newer navigation replaces this one. `startNavigation`
- * sets the url from the first destination, so without this the root reports a page the user never
- * landed on.
+ * Re-stamps a root's url after a redirect, or when a newer navigation replaces this one: the root opened
+ * with the first destination, so it would otherwise report a page the user never landed on.
  *
- * Leaves `flare.entry_point.handler.identifier` alone. The route template owns that one, and taking
- * it from the href would turn `/product/[id]` back into `/product/p01`.
- * Returns `{}` when the href cannot be parsed, so a bad url leaves the current values as they are.
+ * Leaves `flare.entry_point.handler.identifier` alone. The route template owns that, and deriving it from
+ * the href would turn `/product/[id]` back into `/product/p01`.
  */
 export const browserSpanUrlAttributes = (config: Readonly<Config>, href: string): Attributes => {
-    if (typeof window === 'undefined') return {};
+    if (typeof window === 'undefined') {
+        return {};
+    }
     const resolved = resolveHref(href);
-    if (resolved === undefined) return {};
+    if (resolved === undefined) {
+        return {};
+    }
     const redacted = redactUrlQuery(resolved, config.urlDenylist);
     return { 'url.full': redacted, 'flare.entry_point.value': redacted };
 };
 
 /** Normalize an override href once; undefined (fall back to live location) when unparseable. */
 function resolveHref(hrefOverride?: string): string | undefined {
-    if (hrefOverride === undefined) return undefined;
+    if (hrefOverride === undefined) {
+        return undefined;
+    }
     try {
         return new URL(hrefOverride, window.location.href).href;
     } catch {

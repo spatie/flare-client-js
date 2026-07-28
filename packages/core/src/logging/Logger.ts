@@ -63,8 +63,12 @@ export class Logger {
     // `attributes` is a raw passthrough spread flat onto the record (same resource/record partitioning).
     private record(level: MessageLevel, message: string, context: Attributes, attributes: Attributes): void {
         const config = this.deps.getConfig();
-        if (!config.enableLogs) return;
-        if (config.minimumLogLevel && !isAtOrAboveMinimum(level, config.minimumLogLevel)) return;
+        if (!config.enableLogs) {
+            return;
+        }
+        if (config.minimumLogLevel && !isAtOrAboveMinimum(level, config.minimumLogLevel)) {
+            return;
+        }
 
         const userAttributes: Attributes = { 'log.context': context, ...attributes };
         const { record, resource } = this.deps.buildLogAttributes(userAttributes);
@@ -81,7 +85,9 @@ export class Logger {
         // Oversized-record guard: a single record over the byte cap can never ship (and makes the trim
         // unsatisfiable). Drop at capture.
         if (this.estimateBytes(buffered) > config.logFlushMaxBytes) {
-            if (config.debug) console.error('Flare: dropping oversized log record');
+            if (config.debug) {
+                console.error('Flare: dropping oversized log record');
+            }
             return;
         }
 
@@ -111,7 +117,9 @@ export class Logger {
     }
 
     private armTimer(config: Config): void {
-        if (this.timerActive) return;
+        if (this.timerActive) {
+            return;
+        }
         this.timerActive = true;
         this.timer = setTimeout(() => this.flush(), config.logFlushIntervalMs);
         // Node's Timeout has unref(); the browser's number does not.
@@ -129,8 +137,12 @@ export class Logger {
 
     flush(opts?: { keepalive?: boolean }): void {
         const config = this.deps.getConfig();
-        if (!config.enableLogs) return;
-        if (this.buffer.length === 0) return;
+        if (!config.enableLogs) {
+            return;
+        }
+        if (this.buffer.length === 0) {
+            return;
+        }
 
         // Key gate: never send unauthenticated. assertKey (not bare truthiness) so debug mode logs the same missing-key
         // diagnostic reports get. Reset the timer but keep the buffer so records survive until a key is set.
@@ -149,12 +161,16 @@ export class Logger {
             records = this.packForKeepalive(config);
             this.buffer = this.buffer.filter((log) => !records.includes(log));
             // Re-arm the interval so retained records flush on resume without waiting for the next captured log.
-            if (this.buffer.length > 0) this.armTimer(config);
+            if (this.buffer.length > 0) {
+                this.armTimer(config);
+            }
         } else {
             records = this.buffer;
             this.buffer = [];
         }
-        if (records.length === 0) return;
+        if (records.length === 0) {
+            return;
+        }
 
         this.deps.track(
             this.deps.api.logs(
@@ -201,11 +217,21 @@ export class Logger {
             'telemetry.sdk.version': sdk.version,
             'flare.language.name': 'javascript',
         };
-        if (config.serviceName) identity['service.name'] = config.serviceName;
-        if (config.version) identity['service.version'] = config.version;
-        if (config.stage) identity['service.stage'] = config.stage;
-        if (framework?.name) identity['flare.framework.name'] = framework.name;
-        if (framework?.version) identity['flare.framework.version'] = framework.version;
+        if (config.serviceName) {
+            identity['service.name'] = config.serviceName;
+        }
+        if (config.version) {
+            identity['service.version'] = config.version;
+        }
+        if (config.stage) {
+            identity['service.stage'] = config.stage;
+        }
+        if (framework?.name) {
+            identity['flare.framework.name'] = framework.name;
+        }
+        if (framework?.version) {
+            identity['flare.framework.version'] = framework.version;
+        }
         return { ...this.resourceAttributes, ...identity };
     }
 

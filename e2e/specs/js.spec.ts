@@ -38,7 +38,9 @@ test.describe('js playground', () => {
         page.on('request', (req) => {
             if (req.resourceType() === 'fetch') {
                 const tp = req.headers()['traceparent'];
-                if (tp) outgoingTraceparent = tp;
+                if (tp) {
+                    outgoingTraceparent = tp;
+                }
             }
         });
 

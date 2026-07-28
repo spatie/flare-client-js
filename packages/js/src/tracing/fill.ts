@@ -12,8 +12,13 @@ export function fill<T extends Record<string, unknown>, K extends keyof T>(
     replacer: (original: T[K]) => T[K],
 ): void {
     const original = source[name];
-    if (typeof original !== 'function') return;
-    if ((original as Wrapped<unknown>).__flare_original__) return; // already patched
+    if (typeof original !== 'function') {
+        return;
+    }
+    // already patched
+    if ((original as Wrapped<unknown>).__flare_original__) {
+        return;
+    }
 
     const wrapped = replacer(original) as Wrapped<T[K]>;
     Object.defineProperty(wrapped, '__flare_original__', {
@@ -28,5 +33,7 @@ export function fill<T extends Record<string, unknown>, K extends keyof T>(
 /** Restore a previously `fill`ed property to its original. Safe if never filled. */
 export function unfill<T extends Record<string, unknown>, K extends keyof T>(source: T, name: K): void {
     const current = source[name] as Wrapped<T[K]>;
-    if (current && current.__flare_original__) source[name] = current.__flare_original__;
+    if (current && current.__flare_original__) {
+        source[name] = current.__flare_original__;
+    }
 }
