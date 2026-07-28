@@ -8,7 +8,7 @@ export const BrowserSpanType = {
     Navigation: 'browser_navigation',
     Fetch: 'browser_fetch',
     Xhr: 'browser_xhr',
-    ReactComponent: 'browser_react_component',
+    Component: 'browser_component',
 } as const;
 
 export type BrowserSpanType = (typeof BrowserSpanType)[keyof typeof BrowserSpanType];

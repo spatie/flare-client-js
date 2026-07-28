@@ -82,6 +82,7 @@ describe('component-profiler seam', () => {
             name: 'ProductPage',
             spanId: 'p1',
             parent: { traceId: 'T', parentSpanId: 'root' },
+            framework: 'react',
             startTimeUnixNano: 10,
             endTimeUnixNano: 20,
         });
@@ -91,9 +92,9 @@ describe('component-profiler seam', () => {
             expect.objectContaining({
                 spanId: 'p1',
                 parent: { traceId: 'T', spanId: 'root' },
-                spanType: 'browser_react_component',
+                spanType: 'browser_component',
                 startTimeUnixNano: 10,
-                attributes: { 'flare.react.component': 'ProductPage' },
+                attributes: { 'flare.component.name': 'ProductPage', 'flare.component.framework': 'react' },
             }),
         );
     });
@@ -108,6 +109,7 @@ describe('component-profiler seam', () => {
             name: 'ProductPage',
             spanId: 'p1',
             parent: { traceId: 'T', parentSpanId: 'root' },
+            framework: 'react',
             startTimeUnixNano: 10,
             endTimeUnixNano: 20,
         });
@@ -121,6 +123,7 @@ describe('component-profiler seam', () => {
                 name: 'X',
                 spanId: 'x',
                 parent: { traceId: 'T', parentSpanId: 'root' },
+                framework: 'vue',
                 startTimeUnixNano: 1,
                 endTimeUnixNano: 2,
             }),
