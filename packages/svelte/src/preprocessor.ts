@@ -82,6 +82,10 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
+            if (!isJavaScriptScript(attributes)) {
+                return;
+            }
+
             // For a component with no instance script the markup hook adds a `<script>` with our
             // injection, then Svelte runs this script hook over that injected block in the same pass.
             // Without this guard we inject a second time -> a duplicate `const __flare_node__`
@@ -117,17 +121,59 @@ function escapeString(str: string): string {
 }
 
 /**
+ * The regex Svelte's own preprocessor uses to find script tags, copied verbatim from
+ * `svelte/src/compiler/preprocess/index.js`. The leading comment alternative is load-bearing: it
+ * consumes `<!-- ... -->` first, so a commented-out or documented `<script>` matches as a comment
+ * rather than as a tag. Matching Svelte here is the point, because Svelte decides which tags reach
+ * the `script` hook and the markup hook has to predict that exactly.
+ */
+const REGEX_SCRIPT_OR_COMMENT =
+    /<!--[^]*?-->|<script((?:\s+[^=>'"/\s]+=(?:"[^"]*"|'[^']*'|[^>\s]+)|\s+[^=>'"/\s]+)*\s*)(?:\/>|>([\S\s]*?)<\/script>)/g;
+
+/**
+ * Types Svelte still treats as an instance script. A tag carrying anything else (`application/ld+json`,
+ * `importmap`, `text/template`) holds data rather than component code.
+ */
+const JAVASCRIPT_SCRIPT_TYPES = new Set([
+    'text/javascript',
+    'application/javascript',
+    'text/ecmascript',
+    'application/ecmascript',
+    'module',
+]);
+
+/**
  * Returns true when the component source contains at least one instance `<script>`,
  * i.e. a script that is not `<script module>` / `<script context="module">`.
  */
 function hasInstanceScript(content: string): boolean {
-    for (const match of content.matchAll(/<script(\s[^>]*)?>/gi)) {
+    // matchAll clones the regex, so the shared `g` literal keeps no lastIndex between calls.
+    for (const match of content.matchAll(REGEX_SCRIPT_OR_COMMENT)) {
+        if (match[0].startsWith('<!--')) {
+            continue;
+        }
+
         if (!isModuleScriptAttributes(match[1] ?? '')) {
             return true;
         }
     }
 
     return false;
+}
+
+/**
+ * Svelte hands the `script` hook every script tag in the file, nested ones included, so a
+ * `<script type="application/ld+json">` inside the markup arrives here looking like component code.
+ * Prepending an import to one corrupts the data it holds. Skipping on an unrecognized type costs at
+ * most a missing registration; injecting into one ships broken output.
+ */
+function isJavaScriptScript(attributes: Record<string, string | boolean>): boolean {
+    const type = attributes.type;
+    if (type == null || typeof type === 'boolean') {
+        return true;
+    }
+
+    return JAVASCRIPT_SCRIPT_TYPES.has(type.trim().toLowerCase());
 }
 
 /**

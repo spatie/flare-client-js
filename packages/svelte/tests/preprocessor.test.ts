@@ -357,3 +357,64 @@ describe('withFlareConfig — profileComponents', () => {
         expect(out.code).not.toContain('__flare_prof__');
     });
 });
+
+// Both bugs below come from treating a raw text match as a structural fact. Svelte decides what counts
+// as a script tag with the regex mirrored in REGEX_SCRIPT_OR_COMMENT, and it hands the `script` hook
+// every tag in the file rather than just the instance one.
+describe('flarePreprocessor — script tags that only look like component code', () => {
+    test('a <script> mentioned inside an HTML comment does not count as an instance script', async () => {
+        // Svelte's regex consumes comments first, so this component reaches the script hook with no
+        // instance script at all. Reading the mention as real leaves it silently uninstrumented.
+        const source = `<!-- replaced the old <script>console.log(1)</script> block -->\n<p>hi</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expect(out.code).toContain('__flare_reg__');
+        expect((out.code.match(/__flare_node__/g) || []).length).toBe(1);
+        expect(() => compile(out.code, { filename: FAKE_FILE })).not.toThrow();
+    });
+
+    test('a commented-out script does not suppress profiling either', async () => {
+        const source = `<!-- <script>old()</script> -->\n<p>hi</p>`;
+        const out = await preprocess(source, flarePreprocessor({ componentTracking: false, profileComponents: true }), {
+            filename: FAKE_FILE,
+        });
+
+        expect((out.code.match(/__flare_prof__\(/g) || []).length).toBe(1);
+    });
+
+    // A JSON-LD block is data. Prepending an ESM import to it produces invalid structured data in the
+    // shipped page, which is worse than not instrumenting the component at all.
+    test('leaves a nested non-JavaScript script untouched', async () => {
+        const source = [
+            '<script lang="ts">',
+            '  let x = 1;',
+            '</script>',
+            '',
+            '<div>',
+            '  <script type="application/ld+json">',
+            '    {"@type": "Product"}',
+            '  </script>',
+            '</div>',
+        ].join('\n');
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        // Injected once, into the instance script only.
+        expect((out.code.match(/__flare_node__/g) || []).length).toBe(1);
+        expect(out.code).toMatch(/<script type="application\/ld\+json">\s*\{"@type": "Product"\}/);
+        expect(() => compile(out.code, { filename: FAKE_FILE })).not.toThrow();
+    });
+
+    test.each(['text/javascript', 'module'])('still injects into an instance script typed %s', (type) => {
+        const pp = flarePreprocessor();
+        const out = (pp as any).script({ content: 'let x = 1;', filename: FAKE_FILE, attributes: { type } });
+
+        expect(out.code).toContain('__flare_reg__');
+    });
+
+    test.each(['application/ld+json', 'importmap', 'text/template'])('skips a %s script', (type) => {
+        const pp = flarePreprocessor();
+        const out = (pp as any).script({ content: '{"a":1}', filename: FAKE_FILE, attributes: { type } });
+
+        expect(out).toBeUndefined();
+    });
+});
