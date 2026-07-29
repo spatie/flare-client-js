@@ -61,6 +61,11 @@ flare.setUser({ id: 123, email: 'jane@example.com', fullName: 'Jane Doe' });
 
 See the [JavaScript identifying-users docs](https://flareapp.io/docs/javascript/data-collection/identifying-users) for the full field list. Pass `null` to clear.
 
+## Documentation
+
+Full documentation on the error boundary, lifecycle callbacks, reset keys, custom boundary usage, and more is available
+at [flareapp.io/docs/svelte/general/installation](https://flareapp.io/docs/svelte/general/installation).
+
 ## Component profiling
 
 Records one span per component mount, nested under the active pageload or navigation trace, so you can
@@ -144,11 +149,6 @@ rendered inside `{:then}` can therefore start after its parent has already ended
 
 Only mounts are recorded. Svelte 5 disallows `beforeUpdate` and `afterUpdate` in runes mode, so there is
 no reliable way to time an update from outside a component.
-
-## Documentation
-
-Full documentation on the error boundary, lifecycle callbacks, reset keys, custom boundary usage, and more is available
-at [flareapp.io/docs/svelte/general/installation](https://flareapp.io/docs/svelte/general/installation).
 
 ## Compatibility
 
