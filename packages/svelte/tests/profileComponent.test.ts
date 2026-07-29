@@ -12,6 +12,7 @@ import Branch from './fixtures/profile/Branch.svelte';
 import DeepNested from './fixtures/profile/DeepNested.svelte';
 import Leaf from './fixtures/profile/Leaf.svelte';
 import Nested from './fixtures/profile/Nested.svelte';
+import PersistentLayout from './fixtures/profile/PersistentLayout.svelte';
 
 const fake = await seam;
 
@@ -64,6 +65,17 @@ describe('__flareProfileComponent', () => {
 
         expect(() => render(Leaf, { props: { name: 'ProductGallery' } })).not.toThrow();
     });
+
+    // The synchronous throw above only covers init. recordComponentSpan runs later, inside onMount,
+    // which needs its own guard: an unguarded throw there would propagate into Svelte's mount lifecycle
+    // instead of instrumentation staying invisible to the host.
+    it('never throws into the host when the deferred record throws', () => {
+        fake.recordComponentSpan.mockImplementation(() => {
+            throw new Error('seam exploded');
+        });
+
+        expect(() => render(Leaf, { props: { name: 'ProductGallery' } })).not.toThrow();
+    });
 });
 
 describe('nesting', () => {
@@ -86,18 +98,27 @@ describe('nesting', () => {
         expect(parent!.parent).toEqual({ traceId: 'T', parentSpanId: 'root' });
     });
 
-    it('re-homes to the live root when an ancestor context belongs to a dead trace', async () => {
-        // The layout mounts under the pageload trace...
-        render(Branch, { props: { name: 'Layout' } });
+    it('re-homes a descendant to the live root when a persistent ancestor holds a stale context', async () => {
+        // The layout mounts under the pageload trace and stays mounted as the SAME instance across the
+        // navigation below (rerender, not a fresh render), so its published context stays frozen at T.
+        // Only its child toggles in, and it is the child's resolution this test is aimed at.
+        const { rerender } = render(PersistentLayout, { props: { show: false } });
         await tick();
-        fake.reset();
 
-        // ...then a navigation opens a new root, and only the page re-mounts.
+        // The pageload trace closes; a navigation opens a fresh root with a new traceId, and the
+        // layout's child is revealed without the layout itself remounting.
         fake.setRoot({ traceId: 'T2', parentSpanId: 'nav-root' });
-        render(Leaf, { props: { name: 'ProductPage' } });
+        await rerender({ show: true });
         await tick();
 
-        expect(fake.spans()[0]!.parent).toEqual({ traceId: 'T2', parentSpanId: 'nav-root' });
+        const layout = fake.spans().find((s) => s.name === 'Layout')!;
+        const page = fake.spans().find((s) => s.name === 'ProductPage')!;
+
+        // The layout recorded once, under its own live trace at mount time (T).
+        expect(layout.parent).toEqual({ traceId: 'T', parentSpanId: 'root' });
+        // The child inherited the stale T context but RE-HOMES to the live T2 root instead of pinning
+        // to the dead trace.
+        expect(page.parent).toEqual({ traceId: 'T2', parentSpanId: 'nav-root' });
     });
 
     // The README promises this: the tree reflects the allowlist, not the real component tree. Only

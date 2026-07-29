@@ -39,13 +39,17 @@ export function __flareProfileComponent(name: string): void {
         setContext(PROFILE_KEY, { traceId: parent.traceId, parentSpanId: spanId });
 
         onMount(() => {
-            recordComponentSpan({
-                name,
-                spanId,
-                parent,
-                startTimeUnixNano,
-                endTimeUnixNano: nowNano(),
-            });
+            try {
+                recordComponentSpan({
+                    name,
+                    spanId,
+                    parent,
+                    startTimeUnixNano,
+                    endTimeUnixNano: nowNano(),
+                });
+            } catch {
+                // instrumentation must never break the host
+            }
         });
     } catch {
         // instrumentation must never break the host
