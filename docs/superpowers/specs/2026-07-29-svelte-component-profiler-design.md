@@ -4,20 +4,40 @@ Status: ready for planning
 Date: 2026-07-29
 Branch: `svelte-component-profiler` (off `performance-monitoring-and-tracing`, tip `53467c8`)
 
+Revised 2026-07-29 after review. Four corrections, three of them from re-probing Svelte 5.56.1 rather
+than from reasoning: the `{#await}` timing claim was backwards, the Goal example showed a tree only a
+pageload produces, `resolveProfileName` was specified against path shapes a preprocessor never receives,
+and the injection table conflated a per-config decision with a per-file one. The `@flareapp/core` move is
+now an argued trade-off instead of a foregone conclusion.
+
 ## Goal
 
 Record one `browser_component` span per matched Svelte component mount, nested as a true tree under the
 active `browser_pageload` or `browser_navigation` root. This is the third and last framework profiler,
 after React (PR #71) and Vue (PR #85).
 
-Result for a SvelteKit app:
+Result for a SvelteKit app, on the initial load:
 
 ```
-browser_navigation  /product/[id]      312ms
+browser_pageload  /product/[id]        312ms
  └─ +layout                            290ms
      └─ product/[id]/+page             240ms
          └─ AddToCartButton             12ms
 ```
+
+A later client-side navigation is flatter, and deliberately so. A SvelteKit layout does not re-mount
+across navigation, which is its whole point, so it never re-runs the profile call and records no span
+for that trace. The page re-mounts, finds the layout's marker frozen on the previous trace, and re-homes
+to the live root:
+
+```
+browser_navigation  /product/[other]   180ms
+ └─ product/[other]/+page              140ms
+     └─ AddToCartButton                 11ms
+```
+
+Layout spans appear on the load where the layout mounts, not on every trace. See "Cross-trace re-homing"
+under Edge cases for why re-homing is what keeps the page span alive at all.
 
 ## Feasibility, and what we deliberately do not build
 
@@ -49,8 +69,9 @@ Sources: [Sentry Svelte component tracking](https://docs.sentry.io/platforms/jav
 
 ## Timing model, measured
 
-The Svelte docs do not state parent/child ordering for `onMount`, so it was measured with a throwaway
-probe (a parent with two static children plus one `{#if}`-gated late child, since deleted):
+The Svelte docs do not state parent/child ordering for `onMount`, so it was measured with throwaway
+probes (since deleted) against Svelte 5.56.1. The first covered a parent with two static children plus one
+`{#if}`-gated late child:
 
 ```
 initial:  parent:init → childA:init → childB:init
@@ -58,16 +79,48 @@ initial:  parent:init → childA:init → childB:init
 late:     late:init → late:onMount
 ```
 
-Three properties this pins down:
+A second round covered the shape SvelteKit actually generates. Its `root.svelte` renders the page as
+children of the layout, so the probe mirrored that (`<Layout><Page /></Layout>`, with the layout doing
+`{@render children()}`):
+
+```
+plain snippet:      layout:init → page:init (ctx=layout) → page:onMount → layout:onMount
+inside {#if}:       layout:init → page:init (ctx=layout) → page:onMount → layout:onMount
+inside <svelte:boundary>: layout:init → page:init (ctx=layout) → page:onMount → layout:onMount
+inside {#await}:    layout:init → layout:onMount → page:init (ctx=layout) → page:onMount
+```
+
+What this pins down:
 
 - The instance script body runs strictly top-down, so a parent has published its context before any child
   initializes. That is what makes reserved span ids work.
-- `onMount` runs strictly bottom-up, so a parent's `[start, end]` encloses every descendant's both by time
-  and by `parent_span_id`, and the waterfall nests correctly.
+- Snippet children inherit the context of the component that **renders** the snippet, not the one that
+  declares it. The Svelte 4 slot-context gotcha does not apply to Svelte 5 snippets. This is load-bearing:
+  it is the only reason `+page` nests under `+layout` at all, since SvelteKit passes the page as children.
+- `svelte:boundary` is transparent to both context and ordering, so the playground's `FlareErrorBoundary`
+  sitting between layout and page changes nothing.
+- `onMount` runs bottom-up **except across an `{#await}`**, where the parent does not wait for the pending
+  branch. See "Time nesting is not guaranteed" below.
 - A late-mounted child runs its own init/`onMount` pair and resolves against whatever root is live then.
 
-This is the same shape as Vue's `beforeMount`/`mounted` and React's render/effect pair, so the model ports
-without change.
+Apart from the `{#await}` exception this is the same shape as Vue's `beforeMount`/`mounted` and React's
+render/effect pair, so the model ports.
+
+### Time nesting is not guaranteed
+
+`parent_span_id` nesting is always correct: context is published at init, top-down, before any descendant
+runs. Time nesting is not. With an `{#await}` between a parent and a child, the parent's `onMount` fires
+immediately rather than waiting for the promise, so the parent span **ends before the child span starts**.
+The child bar then sits entirely to the right of its parent's end in the waterfall.
+
+Two consequences for the plan:
+
+- Do not write a test that asserts the general "parent encloses child by time" rule. Assert the measured
+  orderings above, including the `{#await}` inversion, so a Svelte scheduling change shows up as a failure
+  rather than as a quietly wrong waterfall.
+- Flare's waterfall has to tolerate a child whose range falls outside its parent's. Confirm that before
+  shipping. If it clamps or renders oddly, that is a UI question, not something this slice can fix from
+  the client, because the parent records first and cannot know what its subtree will do later.
 
 ## Scope decisions (locked during brainstorm)
 
@@ -96,8 +149,8 @@ Three layers. The preprocessor stands in for the global seam React has via conte
 3. **Seam.** `@flareapp/js/browser` is untouched. `activeComponentRoot`, `resolveComponentParent`,
    `reserveSpanId`, `nowNano` and `recordComponentSpan` all work as-is.
 
-**No change to `@flareapp/js` in this slice.** The only cross-package change is moving one shared utility
-into `@flareapp/core` (below).
+**No change to `@flareapp/js` in this slice.** The only possible cross-package change is where the shared
+matcher lives, which is an open trade-off rather than a settled move (see "Shared matcher").
 
 ## Public API
 
@@ -163,6 +216,32 @@ whole config, so it reads this and passes it into `flarePreprocessor` options. P
 `kit` key and effectively never have `+`-prefixed filenames, so the rule is inert there. A `+`-prefixed
 file outside the routes dir falls back to the basename.
 
+### The input is an absolute path, the routesDir is not
+
+The paths in the table above are written project-relative for readability. A preprocessor does not
+receive them that way. `filename` arrives absolute, which this repo already had to deal with once:
+`componentTree.ts:127` normalizes with `.replace(/^.*?\/src\//, 'src/')` for exactly this reason, and the
+existing preprocessor test fixture is `/app/src/Button.svelte`.
+
+So `resolveProfileName` cannot naively diff `filename` against a project-relative `routesDir` like
+`src/routes`. It has to locate the routes directory inside an absolute path first. `process.cwd()` is not
+a reliable anchor here, because a build in this monorepo does not always run from the project root.
+
+Pick one rule and state it in the implementation:
+
+- a segment search for the `routesDir` suffix inside the normalized absolute path, matching what
+  `componentTree` already does, or
+- an absolute root threaded through from `withFlareConfig`, which knows where the config was loaded from,
+  and a `path.relative` against it.
+
+The segment search is the smaller change and is consistent with the existing normalizer. Either way the
+tests must use absolute fixture paths, since a relative fixture would pass while the real build fails.
+
+Getting this wrong fails silently and lands on precisely the case this rule exists to prevent. The
+directory prefix is dropped, every route resolves to a bare `+page`, and `/\+(page|layout)$/` still
+matches, so profiling still happens and produces spans that are uniformly indistinguishable. There is no
+error to notice.
+
 ### Deliberately kept separate from `extractComponentName`
 
 `extractComponentName` (bare basename) feeds the error-reporting component tree and is already published.
@@ -176,20 +255,36 @@ oversight.
 
 ## Injection
 
-Four cases, driven by the two independent options:
+Two decisions at two different levels, which the plan should keep apart because they are easy to
+conflate.
+
+**Per config, in `withFlareConfig`.** Install the preprocessor unless both features are off. Only
+`componentTracking === false` together with a falsy or empty `profileComponents` skips it entirely.
+
+**Per file, in the hooks.** Given an installed preprocessor:
 
 | `componentTracking` | matches `profileComponents` | injected                                                      |
 | ------------------- | --------------------------- | ------------------------------------------------------------- |
 | on                  | yes                         | both imports, `__flare_reg__(...)` then `__flare_prof__(...)` |
 | on                  | no                          | today's registration only, unchanged                          |
 | off                 | yes                         | `__flare_prof__(...)` only                                    |
-| off                 | no                          | preprocessor not installed                                    |
+| off                 | no                          | nothing                                                       |
+
+That last row is reachable: `{ componentTracking: false, profileComponents: ['Foo'] }` installs the
+preprocessor, and every file that is not `Foo` gets nothing. It is a per-file miss, not an uninstalled
+preprocessor.
+
+**`exclude` stays a global kill switch.** It short-circuits both hooks today, before anything is
+injected, and it keeps doing that. An excluded file gets neither a registration nor a profile call,
+whatever `profileComponents` says. The alternative, scoping `exclude` to the tree only, would mean a file
+the user explicitly excluded still emits spans. Add a test row for it, since the option now has two
+features to suppress rather than one.
 
 Injected form for the first case:
 
 ```js
 import { __flareRegisterComponent as __flare_reg__, __flareProfileComponent as __flare_prof__ } from '@flareapp/svelte';
-const __flare_node__ = __flare_reg__('Name', '/src/routes/product/[id]/+page.svelte');
+const __flare_node__ = __flare_reg__('Name', '/app/src/routes/product/[id]/+page.svelte');
 __flare_prof__('product/[id]/+page');
 ```
 
@@ -241,19 +336,39 @@ registered component; the profiler links only profiled ones.
 
 ## Shared matcher
 
-`createComponentMatcher` currently lives in `packages/vue/src/profileVueComponents.ts`. Move it to
-`@flareapp/core` as `util/componentMatcher.ts`, export it from core's index, and have Vue import it from
-there.
+`createComponentMatcher` currently lives in `packages/vue/src/profileVueComponents.ts`. The Svelte slice
+needs the same function at build time, so it has to be shared. Where it lands is the open question below.
 
 This is a real dedup, not a cosmetic one: the function carries non-obvious logic (stripping `g` and `y`
 flags into a copy, because a sticky regex carries `lastIndex` between calls and would make every other
 `test()` miss). Copying that into the Svelte package would be copying a bug fix.
 
-Two facts make core the right home. Both packages already depend on `@flareapp/core@2.6.0` directly, and
-core's entry is pure re-exports with no side effects at import, so loading it from a Node build config is
-safe. It cannot live in `@flareapp/js/browser` like the rest of the tracing seam, because the Svelte
-matcher runs at build time inside `svelte.config.js`, where pulling in a browser bundle entry does not
-belong.
+It cannot live in `@flareapp/js/browser` like the rest of the tracing seam, because the Svelte matcher
+runs at build time inside `svelte.config.js`, where pulling in a browser bundle entry does not belong.
+
+Core is the obvious remaining home, and both packages already depend on `@flareapp/core@2.6.0` directly,
+but it is not free and the plan should decide with the cost visible rather than assume it away:
+
+- `@flareapp/svelte/config` currently imports only `magic-string` and `svelte/compiler`. It is a clean,
+  light Node build-time entry.
+- Core has a single `.` export, no `sideEffects: false` declaration, and a built bundle around 60 KB ESM
+  that carries `Flare`, `Api`, the tracer, stack parsing and `error-stack-parser`.
+- Nothing tree-shakes here. `svelte.config.js` is evaluated by Node, not bundled. So every `vite dev`,
+  `vite build`, `svelte-package` and `svelte-kit sync` would load the whole runtime error client to call
+  a twenty-line pure function.
+
+"No side effects at import" answers whether this is safe. It does not answer whether it is proportionate.
+Three options, in order of preference:
+
+1. Add a `@flareapp/core/util` subpath export so the build config pulls only the matcher. Costs one
+   export map entry and one extra tsdown entry point.
+2. Move it to core's root export as originally specified, and accept the load cost. Simplest, and the
+   cost is milliseconds, but it couples the build config to the runtime client.
+3. Duplicate the twenty lines in the Svelte package with a comment pointing at the Vue original and at
+   the `lastIndex` reason. Rejected by the repo's own "shared utility" rule unless the first two turn out
+   worse in practice.
+
+Whichever is chosen, the `lastIndex` comment travels with the code. That is the part worth not losing.
 
 ## Edge cases
 
@@ -269,15 +384,26 @@ belong.
   `resolveComponentParent` re-homes to the live root when trace ids differ. A layout around a swapped page
   body is the default SvelteKit structure, so this is the common path and gets a dedicated regression test.
   It depends on the nav-root-stays-open-past-settle fix, already in this branch via `6df1b52`.
+  Re-homing keeps the page span alive, but it does not restore the nesting: the layout's marker stays
+  frozen for the lifetime of the layout, so from the first navigation onward the page always attaches
+  straight to the navigation root. The layout itself records nothing on those traces, because it never
+  re-mounts. This is the flatter tree shown under Goal, and it is the steady state for a SvelteKit app,
+  not a degraded corner case. Do not let a test assert layout nesting on a navigation trace.
 - **Transparent bail.** A component that finds no live root sets no context, so descendants inherit the
   nearest profiled ancestor and re-validate against the live root themselves. Same transparency contract
   as React and Vue.
-- **`{#await}` blocks.** The span covers the wait, so read the duration as "time to mount, including waits
-  in the subtree". A wait longer than `idleTimeout` closes the root, and the live-root gate drops the span
-  rather than re-sampling it onto a dead trace. Identical to Vue's async-`setup` behavior.
+- **`{#await}` blocks.** A parent's span does **not** cover a wait in its subtree. Measured: the parent's
+  `onMount` fires without waiting for the pending branch, so the parent span ends before the awaited child
+  span starts (see "Time nesting is not guaranteed"). Read a parent's duration as "time to mount its own
+  synchronous subtree", not as time-to-interactive. The `idleTimeout` risk belongs to the awaited child,
+  not the parent: a wait long enough to close the root means the child's `recordComponentSpan` hits the
+  live-root gate and drops, while the parent already recorded normally. Vue's async-`setup` behavior is
+  the closer analogue for the child half of this, not for the parent.
 - **Orphan degradation.** If an ancestor's span is dropped by the span cap, descendants point at a missing
   parent and Flare's tree builder reparents them to the root. Because `onMount` is bottom-up, the ancestor
-  is buffered last, so the cap hits ancestors first. Inherited from the React and Vue models.
+  is normally buffered last, so the cap hits ancestors first. The `{#await}` inversion flips that for the
+  awaited subtree, where the child buffers after its parent. Either way the tree builder handles it.
+  Inherited from the React and Vue models.
 - **Components with no instance script.** Already handled by the existing `markup` hook.
 
 ## Tests
@@ -286,14 +412,25 @@ In `packages/svelte/tests/`, using the existing `@flareapp/test-helpers` mocks t
 uses:
 
 - `resolveProfileName.test.ts` — the naming rule, custom `routesDir`, non-route files, `+`-prefixed files
-  outside the routes dir, Windows paths.
-- `preprocessor.test.ts` (extend) — the four injection cases, the widened double-injection guard, the
-  profile-only path, the no-instance-script path.
-- `preprocessor.test.ts` also covers `withFlareConfig` today (5 assertions); extend it there for
-  `profileComponents` gating and the both-off early return. There is no separate `config.test.ts` and this
-  slice does not add one.
+  outside the routes dir, Windows paths. **Every fixture path must be absolute**, matching the existing
+  `FAKE_FILE = '/app/src/Button.svelte'` convention. A project-relative fixture would pass while the real
+  build silently falls back to bare basenames.
+- `preprocessor.test.ts` (extend) — the four per-file injection cases, the widened double-injection guard,
+  the profile-only path, the no-instance-script path, and `exclude` suppressing the profile call as well
+  as the registration.
+- `preprocessor.test.ts` also covers `withFlareConfig` today; extend it there for `profileComponents`
+  gating, the both-off early return, and the case that proves the install decision and the match decision
+  are separate (`componentTracking: false` with a non-empty `profileComponents` still installs). There is
+  no separate `config.test.ts` and this slice does not add one.
 - `profileComponent.test.ts` — parent/child nesting by `parent_span_id`, bail with no live root,
   cross-trace re-homing, late/conditional mount, and that a throwing seam never propagates into the host.
+- `profileComponent.test.ts` also pins the two measured Svelte behaviors the design rests on, because
+  both are Svelte internals rather than documented contracts: a component passed as snippet children
+  nests under the component that renders the snippet, and the `{#await}` ordering inversion. Assert the
+  observed orderings, not a general "parent encloses child by time" rule, which is false.
+- Assert the navigation shape as it actually is: page re-homed directly under the navigation root, no
+  layout span on that trace. A test that expects layout nesting after a navigation encodes the wrong
+  model and will pass only by accident.
 
 `packages/vue/tests/profileVueComponents.test.ts` moves its matcher assertions to a new core test when
 `createComponentMatcher` moves.
@@ -306,8 +443,14 @@ That needs one small extraction. The add-to-cart button in
 `playgrounds/svelte/src/routes/product/[id]/+page.svelte` is currently inline markup, and the React and
 React Router playgrounds both profile an `AddToCartButton` leaf. Extracting it to
 `playgrounds/svelte/src/lib/AddToCartButton.svelte` keeps the three playgrounds comparable and gives a
-three-level waterfall instead of a two-span one. The existing `testIds.addToCart(product.id)` test id moves
-with it, so the e2e suite is unaffected.
+deep enough tree to actually see nesting. The existing `testIds.addToCart(product.id)` test id moves with
+it, so the e2e suite is unaffected.
+
+Manual check when wiring it up: load `/product/<id>` directly and confirm the full pageload tree
+(`+layout` → `product/[id]/+page` → `AddToCartButton`), then navigate between two products and confirm
+the flatter navigation tree with no layout span. Those are two different expected shapes, not a bug in
+one of them. The layout also sits inside `<FlareErrorBoundary>` in this playground, which was measured to
+be transparent to both context and ordering, so it should not appear in or disturb the tree.
 
 ## README
 
@@ -318,6 +461,10 @@ A component-profiling section in `packages/svelte/README.md` covering:
 - the naming table, and that names are route-aware for `+`-prefixed files.
 - that only matched components produce spans, and that unmatched ancestors are skipped in the nesting.
 - that there are no update spans, with the runes reason, so nobody files it as a bug.
+- that layouts appear on the load where they mount, so a navigation waterfall is flatter than a pageload
+  one. Without this the first bug report will be "my layout span disappeared".
+- that a parent's duration excludes waits in an `{#await}` subtree, and that such a child can appear after
+  its parent ends in the waterfall.
 
 ## Out of scope
 
