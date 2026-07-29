@@ -1,5 +1,5 @@
-// Side-effect-free seam shared by @flareapp/react/profiler and the @flareapp/vue mixin. Keeps all
-// tracer coupling on this side, the same discipline as registerNavigationSource.
+// Side-effect-free seam shared by @flareapp/react/profiler and the @flareapp/vue mixin. Keeps every
+// reference to the tracer on this side, the same rule registerNavigationSource follows.
 import { defaultNowNano, spanId as makeSpanId } from '@flareapp/core';
 
 import { activeTracingFlare } from './browserTracing';
@@ -45,8 +45,8 @@ export function resolveComponentParent(
 
 /**
  * Records only while the reserved root is still the live recording root, and drops the span otherwise.
- * Dropping avoids seeding a fresh TraceState for a dead trace, which would re-sample, and avoids
- * attaching a phantom child to a root that already shipped.
+ * Dropping avoids starting a fresh TraceState for a dead trace, which would re-run the sampler, and
+ * avoids adding a child to a root that already shipped.
  */
 export function recordComponentSpan(span: {
     name: string;

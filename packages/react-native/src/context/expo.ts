@@ -46,7 +46,7 @@ export function loadExpoModules(): ExpoModules {
 const DEVICE_TYPE_LABELS: Record<number, string> = { 1: 'phone', 2: 'tablet', 3: 'desktop', 4: 'tv' };
 
 /**
- * Project the synchronous Expo constants into report attributes. Only present (non-null) fields are emitted.
+ * Turn the synchronous Expo constants into report attributes. Only present (non-null) fields are emitted.
  * Async Expo getters are not used, since the context collector is synchronous.
  */
 export function projectExpoContext(expo: ExpoModules): Attributes {

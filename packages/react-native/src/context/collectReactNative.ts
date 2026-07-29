@@ -34,7 +34,7 @@ export function makeReactNativeContextCollector(expo: ExpoModules = loadExpoModu
             }
         }
 
-        // Also surface the device info as a `context.device` group: the semantic `device.*`/`app.*` attrs
+        // Also show the device info as a `context.device` group: the `device.*`/`app.*` attributes
         // aren't in Flare's typed DTO yet so they don't render, but custom context groups do. Built from
         // `attrs` so Expo's os.name/os.version overrides carry through.
         const device = buildDeviceContext(attrs);

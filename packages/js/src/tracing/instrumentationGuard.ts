@@ -1,7 +1,7 @@
-// The one rule every host-invoked instrumentation callback obeys: a tracing throw can never escape into
-// the host's dispatch.
+// The most important rule every instrumentation callback has to follow: a throw from our tracing SDK
+// can never reach the host (aka our code MAY NEVER crash the app)
 
-/** For a callback the host invokes: a router guard, a store subscriber. */
+/** For a callback the host invokes: a router guard, a store subscriber, ... */
 export function insulate<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
     return (...a: A): void => {
         try {

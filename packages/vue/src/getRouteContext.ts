@@ -10,7 +10,7 @@ type GetRouteContextOptions = {
 
 const ROUTE_PARAMS_DEPTH = 2;
 
-/** vue-router allows a symbol route name; neither shape survives JSON, so project both to a string. */
+/** vue-router allows a symbol route name; neither shape survives JSON, so convert both to a string. */
 function routeNameOf(value: unknown): string | null {
     if (typeof value === 'string') {
         return value;

@@ -4,7 +4,7 @@ import type { Attributes } from '@flareapp/core';
 
 /**
  * Snapshot the Node runtime + host environment at report time as OTel resource attributes. Called
- * per-report rather than cached so `process.uptime()` stays honest and `os.hostname()` tracks mid-run
+ * per-report rather than cached so `process.uptime()` stays accurate and `os.hostname()` tracks mid-run
  * changes; cheap enough (property reads plus a couple `os` syscalls).
  */
 export function collectProcessAttributes(): Attributes {

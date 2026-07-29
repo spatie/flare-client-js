@@ -82,8 +82,8 @@ export class Logger {
             resourceAttributes: resource,
         };
 
-        // Oversized-record guard: a single record over the byte cap can never ship (and makes the trim
-        // unsatisfiable). Drop at capture.
+        // Oversized-record guard: a single record over the byte cap can never ship, and the trim loop
+        // could never get the buffer back under the cap while it sits there. Drop it at capture.
         if (this.estimateBytes(buffered) > config.logFlushMaxBytes) {
             if (config.debug) {
                 console.error('Flare: dropping oversized log record');
@@ -244,12 +244,12 @@ export class Logger {
     }
 
     private estimateBytes(log: BufferedLog): number {
-        // Approximate heuristic used ONLY for the soft batching caps (weight-flush, oversized-record drop, trim loop).
-        // Two known approximations: (1) .length counts UTF-16 code units, not UTF-8 bytes; (2) resourceAttributes are
-        // hoisted to the envelope and sent once per request, but counted once per record here. Both acceptable: these
-        // caps are soft and /v1/logs has no hard per-request byte limit. The HARD keepalive cap is measured separately
-        // with exact UTF-8 bytes in packForKeepalive (~64 KB, real browser-enforced). flatJsonStringify (not
-        // JSON.stringify) because record attributes are raw user data that can contain cycles.
+        // A rough estimate, used ONLY for the soft batching caps (weight-flush, oversized-record drop, trim loop). It
+        // is wrong in two known ways: (1) .length counts UTF-16 code units, not UTF-8 bytes; (2) resourceAttributes
+        // move to the envelope and are sent once per request, but are counted once per record here. Both are fine:
+        // these caps are soft and /v1/logs has no hard per-request byte limit. The HARD keepalive cap is measured
+        // separately in packForKeepalive, with exact UTF-8 bytes (~64 KB, enforced by the browser). flatJsonStringify
+        // rather than JSON.stringify, because record attributes are raw user data that can contain cycles.
         return flatJsonStringify(log).length;
     }
 
