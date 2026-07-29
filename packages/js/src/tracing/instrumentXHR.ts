@@ -19,8 +19,8 @@ type XhrSetHeader = XMLHttpRequest['setRequestHeader'];
 type XhrState = {
     method: string;
     url: string;
-    span?: Span; // set at send; nulled once the span ends (Finding 9: no dangling Span ref)
-    onDone?: () => void; // the readystatechange listener; set at send; nulled once detached
+    span?: Span; // set at send; cleared once the span ends
+    onDone?: () => void; // the readystatechange listener; set at send; cleared once detached
     hasAppTraceparent: boolean;
     ended: boolean;
 };
@@ -31,6 +31,16 @@ type XhrState = {
 const xhrState = new WeakMap<XMLHttpRequest, XhrState>();
 
 /**
+ * Drop the span and listener references once a request is done with them. The entry itself stays in
+ * the WeakMap for the re-send `ended` guard, so without this it would keep the Span and the listener
+ * closure alive for as long as the app holds on to the XHR.
+ */
+function releaseRequestRefs(state: XhrState): void {
+    state.span = undefined;
+    state.onDone = undefined;
+}
+
+/**
  * Patch `open` to capture method/URL. Bails (records no state) when either is missing.
  * Calling `open()` on an in-flight request ends that prior request's span (marked aborted)
  * and detaches its `readystatechange` listener before the new request's method/URL are captured.
@@ -38,8 +48,8 @@ const xhrState = new WeakMap<XMLHttpRequest, XhrState>();
 export function createXHROpen(original: XhrOpen): XhrOpen {
     return function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
         // WHATWG: open() on an in-flight request terminates it with no DONE readystatechange.
-        // Leaving the prior span/listener in place would let the next request's DONE cross-end
-        // the prior span with this one's status (Finding 1). End it as aborted and detach now.
+        // Leaving the prior span and listener in place would let the next request's DONE end the
+        // prior span with this request's status. End it as aborted and detach now.
         const prior = xhrState.get(this);
         if (prior && prior.span && !prior.ended) {
             prior.ended = true;
@@ -52,8 +62,7 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
             } catch {
                 // Instrumentation must never throw into the host app.
             }
-            prior.span = undefined;
-            prior.onDone = undefined;
+            releaseRequestRefs(prior);
         }
 
         if (method && url != null) {
@@ -160,10 +169,7 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             } catch {
                 // Instrumentation must never throw into the host app.
             }
-            // Release refs so the WeakMap entry (kept for the re-send `ended` guard) no longer
-            // pins the Span or this closure (Finding 9).
-            state.span = undefined;
-            state.onDone = undefined;
+            releaseRequestRefs(state);
         };
         this.addEventListener('readystatechange', onDone);
         state.onDone = onDone;
@@ -180,19 +186,15 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             } catch {
                 // Instrumentation must never mask the host app's original error.
             }
-            // Same ref-release as the DONE path (Finding 9). The throw below still leaves the
-            // WeakMap entry in place for the re-send `ended` guard.
-            state.span = undefined;
-            state.onDone = undefined;
+            releaseRequestRefs(state);
             throw error;
         }
     } as XhrSend;
 }
 
-// Owns one installed flag across all three methods, so a third party wrapping just one
-// (e.g. `send`) cannot wedge the others. See createPatcher for the atomic install/uninstall
-// semantics (Finding 2: a per-method single-flag design is unsafe once methods share state,
-// since `send` depends on state `open` populates).
+// One installed flag across all three methods, so they always install and restore together. A flag
+// per method would let a third party wrapping just one of them (say `send`) leave that one patched
+// while the others go back to native, and `send` reads the state `open` records.
 const patcher = createPatcher();
 
 /**
@@ -205,15 +207,15 @@ export function instrumentXHR(tracer: HttpTracer): void {
         return;
     }
 
-    const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest; location?: { origin?: string } };
-    const X = g.XMLHttpRequest;
-    if (typeof X !== 'function' || !X.prototype) {
+    const globals = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest; location?: { origin?: string } };
+    const xhrConstructor = globals.XMLHttpRequest;
+    if (typeof xhrConstructor !== 'function' || !xhrConstructor.prototype) {
         return;
     }
 
-    const origin = g.location?.origin ?? '';
-    const proto = X.prototype as unknown as Record<string, unknown>;
-    patcher.install(proto, [
+    const origin = globals.location?.origin ?? '';
+    const prototype = xhrConstructor.prototype as unknown as Record<string, unknown>;
+    patcher.install(prototype, [
         { name: 'open', wrap: (o) => createXHROpen(o as XhrOpen) },
         { name: 'setRequestHeader', wrap: (o) => createXHRSetRequestHeader(o as XhrSetHeader) },
         { name: 'send', wrap: (o) => createXHRSend(tracer, o as XhrSend, origin) },
@@ -222,10 +224,10 @@ export function instrumentXHR(tracer: HttpTracer): void {
 
 /** Restore the original `XMLHttpRequest.prototype` methods. Safe if never patched. */
 export function unpatchXHR(): void {
-    const g = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
-    const X = g.XMLHttpRequest;
-    if (typeof X !== 'function' || !X.prototype) {
+    const globals = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
+    const xhrConstructor = globals.XMLHttpRequest;
+    if (typeof xhrConstructor !== 'function' || !xhrConstructor.prototype) {
         return;
     }
-    patcher.uninstall(X.prototype as unknown as Record<string, unknown>);
+    patcher.uninstall(xhrConstructor.prototype as unknown as Record<string, unknown>);
 }

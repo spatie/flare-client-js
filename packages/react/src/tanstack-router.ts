@@ -55,33 +55,33 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
 
     const offBeforeLoad = router.subscribe(
         'onBeforeLoad',
-        insulate((e: TsrNavEvent) => {
+        insulate((event: TsrNavEvent) => {
             // initial pageload (handled via onResolved)
-            if (e.fromLocation === undefined) {
+            if (event.fromLocation === undefined) {
                 return;
             }
             // no-op reload (e.g. router.invalidate())
-            if (e.toLocation.state === e.fromLocation.state) {
+            if (event.toLocation.state === event.fromLocation.state) {
                 return;
             }
             if (!inFlight) {
                 inFlight = true;
-                nav.startNavigation({ path: e.toLocation.pathname });
+                nav.startNavigation({ path: event.toLocation.pathname });
             }
-            nav.setActiveRouteName(routeNameFor(e.toLocation)); // set / re-set (redirect hops)
+            nav.setActiveRouteName(routeNameFor(event.toLocation)); // set / re-set (redirect hops)
         }),
     );
 
     const offResolved = router.subscribe(
         'onResolved',
-        insulate((e: TsrNavEvent) => {
-            if (e.fromLocation === undefined) {
-                nav.setActiveRouteName(routeNameFor(e.toLocation)); // one-shot pageload correction
+        insulate((event: TsrNavEvent) => {
+            if (event.fromLocation === undefined) {
+                nav.setActiveRouteName(routeNameFor(event.toLocation)); // one-shot pageload correction
                 return;
             }
             if (inFlight) {
                 inFlight = false;
-                nav.setActiveRouteName(routeNameFor(e.toLocation)); // finalize the navigation name
+                nav.setActiveRouteName(routeNameFor(event.toLocation)); // finalize the navigation name
             }
         }),
     );

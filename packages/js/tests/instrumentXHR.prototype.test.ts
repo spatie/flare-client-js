@@ -43,7 +43,7 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         expect(startSpan).not.toHaveBeenCalled();
     });
 
-    it('a third party wrapping send does not wedge open permanently (Finding 2 regression)', () => {
+    it('a third party wrapping send leaves the other two patched methods restorable', () => {
         const proto = XMLHttpRequest.prototype as unknown as Record<string, { __flare_original__?: unknown }>;
         const { tracer, startSpan } = makeTracer();
 
