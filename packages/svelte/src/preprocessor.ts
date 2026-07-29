@@ -56,11 +56,8 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
-            // Only bail when an INSTANCE script is present; the script hook registers those.
-            // A component whose only script is a module script (`<script module>` or the legacy
-            // `<script context="module">`) still needs an instance registration injected here,
-            // because the script hook skips module scripts entirely and would otherwise leave the
-            // component out of the tree.
+            // Only bail on an instance script, since the script hook handles those. A component with
+            // just a module script still needs one added here, because the script hook skips those.
             if (hasInstanceScript(content)) {
                 return;
             }
@@ -86,11 +83,8 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
-            // For a component with no instance script the markup hook adds a `<script>` with our
-            // injection, then Svelte runs this script hook over that injected block in the same pass.
-            // Without this guard we inject a second time -> a duplicate `const __flare_node__`
-            // ("already been declared") or a duplicate profile span. Checking both tokens matters:
-            // a profile-only injection contains no `__flare_node__` to recognize.
+            // Svelte runs this hook over the block the markup hook just added, so without this we'd
+            // inject twice. Both tokens matter: a profile-only injection has no `__flare_node__`.
             if (content.includes('__flare_node__') || content.includes('__flare_prof__')) {
                 return;
             }
@@ -106,9 +100,8 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
 }
 
 /**
- * The component-tree name used by error reports. Deliberately a bare basename and deliberately NOT
- * `resolveProfileName`: this name is already published, and changing it would change existing error
- * report hierarchies. Profiling uses the route-aware name instead.
+ * The name error reports use. Stays a bare basename rather than reusing `resolveProfileName`, because
+ * changing it would change component hierarchies people already have.
  */
 function extractComponentName(filename: string): string {
     const normalized = filename.replace(/\\/g, '/');
@@ -136,10 +129,7 @@ const JAVASCRIPT_SCRIPT_TYPES = new Set([
     'module',
 ]);
 
-/**
- * Returns true when the component source contains at least one instance `<script>`,
- * i.e. a script that is not `<script module>` / `<script context="module">`.
- */
+/** True when the source has a script that isn't `<script module>` / `<script context="module">`. */
 function hasInstanceScript(content: string): boolean {
     // matchAll clones the regex, so the shared /g/ literal can't leak lastIndex between calls.
     for (const match of content.matchAll(REGEX_SCRIPT_OR_COMMENT)) {
@@ -169,19 +159,12 @@ function isJavaScriptScript(attributes: Record<string, string | boolean>): boole
     return JAVASCRIPT_SCRIPT_TYPES.has(type.trim().toLowerCase());
 }
 
-/**
- * Detects a Svelte module script from its raw opening-tag attributes: the Svelte 5
- * `<script module>` boolean attribute or the legacy `<script context="module">`.
- */
+/** Handles both the Svelte 5 `<script module>` and the legacy `<script context="module">`. */
 function isModuleScriptAttributes(attributes: string): boolean {
     return /\bcontext\s*=\s*["']module["']/i.test(attributes) || /(?:^|\s)module(?=\s|=|$)/i.test(attributes);
 }
 
-/**
- * Prepends the injected registration to the component source and returns a result with
- * a sourcemap. Prepending lines shifts every following line, so without a map the stack
- * frames and debugger positions inside the original component would be offset.
- */
+/** The map matters: prepending shifts every line below, throwing off stack frames and breakpoints. */
 function prependWithMap(content: string, injection: string, filename: string) {
     const s = new MagicString(content);
     s.prepend(injection);

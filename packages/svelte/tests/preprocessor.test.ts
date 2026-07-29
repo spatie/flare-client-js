@@ -229,8 +229,7 @@ describe('flarePreprocessor — profile injection', () => {
         expect(out.code).toContain("__flare_prof__('cart/+page');");
     });
 
-    // `exclude` is a global kill switch, not a component-tree-only one. A file the user explicitly
-    // excluded must not emit spans either.
+    // `exclude` kills everything, not just the component tree.
     test('exclude suppresses the profile call as well as the registration', () => {
         const pp = flarePreprocessor({ profileComponents: true, exclude: /routes/ });
         const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
@@ -238,8 +237,8 @@ describe('flarePreprocessor — profile injection', () => {
         expect(out).toBeUndefined();
     });
 
-    // The profile symbol must exist on whichever entry importSource names. src/inject.ts exports it for
-    // exactly this case; without that export the injected call resolves to undefined and throws at init.
+    // Whichever entry importSource names has to export the symbol, or the injected call is undefined
+    // and throws at init.
     test('emits the profile import from the inject entry when importSource is the inject entry', () => {
         const pp = flarePreprocessor({ importSource: '@flareapp/svelte/inject', profileComponents: true });
         const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
@@ -271,8 +270,8 @@ describe('flarePreprocessor — profile injection through the full pipeline', ()
         expect(() => compile(out.code, { filename: ROUTE_FILE })).not.toThrow();
     });
 
-    // Without widening the double-injection guard, the markup hook injects a <script> that the script
-    // hook then re-processes, producing two __flare_prof__ calls.
+    // Without the widened guard the script hook reprocesses the block markup just added, giving two
+    // __flare_prof__ calls.
     test('a scriptless profile-only component injects exactly once and compiles', async () => {
         const out = await preprocess(
             '<p>hello</p>',
@@ -308,19 +307,18 @@ describe('withFlareConfig — profileComponents', () => {
         expect(withFlareConfig(cfg, { componentTracking: false, profileComponents: [] })).toBe(cfg);
     });
 
-    // The install decision and the per-file match decision are separate. Tracking off with a non-empty
-    // allowlist still installs the preprocessor.
+    // Installing and matching are separate decisions. Tracking off still installs if the allowlist
+    // has entries.
     test('installs the preprocessor when only profiling is on (array disjunct)', () => {
         const input = {};
         const cfg = withFlareConfig(input, { componentTracking: false, profileComponents: ['Foo'] });
 
-        // A new object, not the early-return path that hands the input straight back.
+        // A new object, so we didn't take the early return.
         expect(cfg).not.toBe(input);
         expect(Array.isArray(cfg.preprocess) && cfg.preprocess).toHaveLength(1);
     });
 
-    // Same install decision, but through the `profileComponents === true` disjunct rather than a
-    // non-empty array.
+    // Same as above, but via `profileComponents: true` instead of an array.
     test('installs the preprocessor when only profiling is on (profileComponents: true disjunct)', () => {
         const input = {};
         const cfg = withFlareConfig(input, { componentTracking: false, profileComponents: true });

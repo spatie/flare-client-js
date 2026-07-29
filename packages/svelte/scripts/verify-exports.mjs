@@ -52,10 +52,8 @@ for (const p of paths) {
     }
 }
 
-// Grep the RUNTIME target each entry actually resolves to (not a hardcoded path) for the surface.
-// Both the root entry and the inject entry re-export the same set of names — the preprocessor
-// injects `__flareProfileComponent` from whichever one the caller's `importSource` names, so both
-// need to actually carry it in the built bundle.
+// Grep whatever target each entry actually resolves to, not a hardcoded path. Both entries need the
+// full set, because importSource decides which one the injected import points at.
 const expectedExports = [
     'createFlareErrorHandler',
     'FlareErrorBoundary',

@@ -25,7 +25,7 @@ export interface WithFlareConfigOptions {
 export function withFlareConfig(config: SvelteConfig, options?: WithFlareConfigOptions): SvelteConfig {
     const { componentTracking = true, profileComponents = false, exclude, importSource } = options ?? {};
 
-    // An empty array profiles nothing, so it is "off" for the purpose of deciding whether to install.
+    // An empty array profiles nothing, so treat it as off when deciding whether to install.
     const profilingRequested =
         profileComponents === true || (Array.isArray(profileComponents) && profileComponents.length > 0);
 

@@ -23,7 +23,7 @@ describe('resolveProfileName', () => {
         expect(resolveProfileName('/app/source/pages/cart/+page.svelte', 'source/pages')).toBe('cart/+page');
     });
 
-    // A `+` file that is not under the routes dir has no route path to borrow.
+    // Nothing to borrow a route path from out here.
     it('falls back to the basename for a + file outside the routes dir', () => {
         expect(resolveProfileName('/app/src/lib/+weird.svelte')).toBe('+weird');
     });
@@ -32,8 +32,7 @@ describe('resolveProfileName', () => {
         expect(resolveProfileName('C:\\app\\src\\routes\\product\\[id]\\+page.svelte')).toBe('product/[id]/+page');
     });
 
-    // A project checked out into a directory that itself contains `src/routes` must anchor on the last
-    // occurrence, not the first.
+    // A checkout path can contain `src/routes` itself, so anchor on the last one.
     it('anchors on the last routes segment', () => {
         expect(resolveProfileName('/home/src/routes/app/src/routes/cart/+page.svelte')).toBe('cart/+page');
     });
@@ -42,8 +41,7 @@ describe('resolveProfileName', () => {
         expect(resolveProfileName('src/routes/cart/+page.svelte')).toBe('cart/+page');
     });
 
-    // `kit.files.routes` is resolved by SvelteKit with path.resolve, so `./src/routes` and
-    // `src/routes/` are both legal things for a user to write. Neither may drop the route prefix.
+    // SvelteKit path.resolve()s this, so both forms are legal to write.
     it('tolerates a routesDir written with a leading ./ or a trailing slash', () => {
         expect(resolveProfileName('/app/src/routes/cart/+page.svelte', './src/routes')).toBe('cart/+page');
         expect(resolveProfileName('/app/src/routes/cart/+page.svelte', 'src/routes/')).toBe('cart/+page');

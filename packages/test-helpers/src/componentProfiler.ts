@@ -18,9 +18,8 @@ export type FakeComponentSeam = {
     /** Swap what the live root is, including to null for "tracing off or no root open". */
     setRoot(root: FakeComponentRoot): void;
     /**
-     * Make `nowNano` return a larger value on every call, so a suite can assert that a span's start and
-     * end are two distinct reads. Off by default: a frozen clock keeps the ordinary timestamp assertions
-     * readable as literals.
+     * Make `nowNano` climb on every call, so a test can tell a span's start and end apart. Off by
+     * default, since a frozen clock keeps timestamp assertions readable as literals.
      */
     advanceClock(stepNano?: number): void;
     /** The spans the seam was asked to record, in order. */

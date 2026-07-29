@@ -11,8 +11,8 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            // More specific first: Vite alias matching is prefix-based, so the subpath entry must be
-            // checked before the bare-package entry or it resolves to '.../src/index.ts/util'.
+            // Must come before the bare entry: Vite matches aliases by prefix, so '@flareapp/core'
+            // would otherwise swallow this and resolve to '.../src/index.ts/util'.
             '@flareapp/core/util': resolve(__dirname, '../core/src/util/index.ts'),
             '@flareapp/core': resolve(__dirname, '../core/src/index.ts'),
             '@flareapp/js/browser': resolve(__dirname, '../js/src/browser.ts'),

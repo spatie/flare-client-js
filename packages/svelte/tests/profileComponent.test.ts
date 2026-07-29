@@ -42,11 +42,8 @@ describe('__flareProfileComponent', () => {
         expect(span.endTimeUnixNano).toBeGreaterThan(span.startTimeUnixNano);
     });
 
-    // This is also the SSR contract. On the server `activeTracingFlare()` is null module state, so
-    // `activeComponentRoot()` returns null and this path is what runs: no span id reserved, no context
-    // published, and `onMount` would never fire there anyway. There is no separate svelte/server test
-    // because @testing-library/svelte compiles components for the client (it puts the `browser`
-    // condition first), and server-rendering a client-compiled component throws `effect_orphan`.
+    // Doubles as the SSR case: on the server there's no active root either. No separate server test,
+    // because @testing-library/svelte only compiles for the client.
     it('records nothing when no root is active, and still renders', async () => {
         fake.setRoot(null);
 
@@ -66,9 +63,7 @@ describe('__flareProfileComponent', () => {
         expect(() => render(Leaf, { props: { name: 'ProductGallery' } })).not.toThrow();
     });
 
-    // The synchronous throw above only covers init. recordComponentSpan runs later, inside onMount,
-    // which needs its own guard: an unguarded throw there would propagate into Svelte's mount lifecycle
-    // instead of instrumentation staying invisible to the host.
+    // The test above only covers init. This one runs inside onMount, which needs its own guard.
     it('never throws into the host when the deferred record throws', () => {
         fake.recordComponentSpan.mockImplementation(() => {
             throw new Error('seam exploded');
@@ -99,14 +94,12 @@ describe('nesting', () => {
     });
 
     it('re-homes a descendant to the live root when a persistent ancestor holds a stale context', async () => {
-        // The layout mounts under the pageload trace and stays mounted as the SAME instance across the
-        // navigation below (rerender, not a fresh render), so its published context stays frozen at T.
-        // Only its child toggles in, and it is the child's resolution this test is aimed at.
+        // rerender, not a fresh render, so the layout stays the same instance and its context stays
+        // stuck on T. The child is what we're actually testing here.
         const { rerender } = render(PersistentLayout, { props: { show: false } });
         await tick();
 
-        // The pageload trace closes; a navigation opens a fresh root with a new traceId, and the
-        // layout's child is revealed without the layout itself remounting.
+        // A navigation opens a new root, and the child appears without the layout remounting.
         fake.setRoot({ traceId: 'T2', parentSpanId: 'nav-root' });
         await rerender({ show: true });
         await tick();
@@ -114,16 +107,13 @@ describe('nesting', () => {
         const layout = fake.spans().find((s) => s.name === 'Layout')!;
         const page = fake.spans().find((s) => s.name === 'ProductPage')!;
 
-        // The layout recorded once, under its own live trace at mount time (T).
         expect(layout.parent).toEqual({ traceId: 'T', parentSpanId: 'root' });
-        // The child inherited the stale T context but RE-HOMES to the live T2 root instead of pinning
-        // to the dead trace.
+        // The child inherited the stale T context but re-homes to T2 rather than a dead trace.
         expect(page.parent).toEqual({ traceId: 'T2', parentSpanId: 'nav-root' });
     });
 
-    // The README promises this: the tree reflects the allowlist, not the real component tree. Only
-    // matched files get the call injected at all, so an unmatched component is simply absent from the
-    // chain and its context passes straight through.
+    // The tree follows the allowlist, not the real component tree. Unmatched components never get the
+    // call injected, so they just pass their context through.
     it('nests under the nearest MATCHED ancestor, skipping unprofiled components in between', async () => {
         render(DeepNested);
         await tick();
@@ -135,9 +125,8 @@ describe('nesting', () => {
         expect(page.parent).toEqual({ traceId: 'T', parentSpanId: layout.spanId });
     });
 
-    // Transparent bail: a component that finds no live root publishes NO context, so a descendant
-    // resolves against the live root itself rather than inheriting a phantom parent. mockImplementationOnce
-    // makes only the first (parent's) lookup come back empty; init is top-down, so that is the layout.
+    // Publishing no context means descendants resolve against the live root instead of inheriting a
+    // phantom parent. mockImplementationOnce only empties the first lookup, which is the layout's.
     it('stays transparent to descendants when it finds no live root', async () => {
         fake.activeComponentRoot.mockImplementationOnce(() => null);
 
@@ -149,11 +138,11 @@ describe('nesting', () => {
     });
 });
 
-// Both behaviors below are Svelte internals rather than documented guarantees. They are pinned here so a
-// Svelte upgrade that changes them fails loudly instead of producing a quietly wrong waterfall.
+// Neither of these is documented by Svelte, so pin them. A version that changes them should fail here
+// rather than quietly produce a wrong waterfall.
 describe('measured Svelte behavior', () => {
-    // Load-bearing: SvelteKit passes the page to the layout as children, so without this `+page` would
-    // never nest under `+layout`. The Svelte 4 slot-context gotcha does not apply to Svelte 5 snippets.
+    // SvelteKit hands the page to the layout as children, so without this `+page` would never nest
+    // under `+layout`.
     it('gives snippet children the context of the component that renders the snippet', async () => {
         render(Nested);
         await tick();
@@ -163,8 +152,8 @@ describe('measured Svelte behavior', () => {
         expect(child.parent.parentSpanId).toBe(parent.spanId);
     });
 
-    // A parent does NOT wait for a pending {#await} branch, so its span ends before the awaited child's
-    // span starts. Never assert "parent encloses child in time" anywhere in this suite.
+    // A parent doesn't wait for a pending {#await} branch, so its span ends before the child's starts.
+    // Never assert that a parent encloses its child in time.
     it('mounts an awaiting parent before its awaited child initializes', async () => {
         fake.advanceClock();
 
@@ -176,10 +165,10 @@ describe('measured Svelte behavior', () => {
         const parent = fake.spans().find((s) => s.name === 'Layout')!;
         const child = fake.spans().find((s) => s.name === 'ProductPage')!;
 
-        // Parent records FIRST here, the inverse of the ordinary bottom-up order.
+        // Parent records first here, the opposite of the usual bottom-up order.
         expect(fake.spans().indexOf(parent)).toBeLessThan(fake.spans().indexOf(child));
         expect(child.startTimeUnixNano).toBeGreaterThan(parent.endTimeUnixNano);
-        // Parent-id nesting still holds, because context is published at init.
+        // Nesting by id still holds, because context is published at init.
         expect(child.parent.parentSpanId).toBe(parent.spanId);
     });
 });

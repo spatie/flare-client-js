@@ -2,8 +2,8 @@
 export type ProfileComponentsOption = boolean | (string | RegExp)[];
 
 /**
- * Build the allowlist predicate once, so a mount costs one name resolution and one match. Strings match
- * exactly, regexes by `test()`.
+ * Built once so a mount costs one name resolution and one match. Strings match exactly, regexes by
+ * `test()`.
  */
 export function createComponentMatcher(option: ProfileComponentsOption): (name: string) => boolean {
     if (option === true) {
@@ -15,8 +15,8 @@ export function createComponentMatcher(option: ProfileComponentsOption): (name: 
 
     const names = new Set(option.filter((entry): entry is string => typeof entry === 'string'));
 
-    // A `g` or `y` regex carries lastIndex between calls, so reusing the caller's object would make
-    // every other test() miss. Strip those flags into a copy rather than mutating what was passed in.
+    // A /g/ or /y/ regex carries lastIndex between calls, so every other test() would miss. Copy
+    // rather than mutate what the caller handed us.
     const patterns = option
         .filter((entry): entry is RegExp => entry instanceof RegExp)
         .map((pattern) =>
