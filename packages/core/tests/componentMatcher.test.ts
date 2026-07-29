@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createComponentMatcher } from '../src/profileVueComponents';
+import { createComponentMatcher } from '../src/util/componentMatcher';
 
 describe('createComponentMatcher', () => {
     it('matches nothing when profiling is off', () => {
@@ -40,13 +40,20 @@ describe('createComponentMatcher', () => {
         expect(createComponentMatcher([])('ProductPage')).toBe(false);
     });
 
-    it('is not confused by a global regex used repeatedly', () => {
-        // A `g` or `y` regex advances lastIndex on every test(), so the second call on the same
-        // matcher would miss. The matcher strips those flags when it is built.
+    // A `g` or `y` regex carries lastIndex between calls, so reusing the caller's object would make
+    // every other test() miss. This is the whole reason the function copies the pattern.
+    it('does not let a sticky or global regex miss on alternate calls', () => {
         const matches = createComponentMatcher([/Page/g]);
 
         expect(matches('ProductPage')).toBe(true);
         expect(matches('ProductPage')).toBe(true);
         expect(matches('CartPage')).toBe(true);
+    });
+
+    it("does not mutate the caller's regex", () => {
+        const pattern = /Page/g;
+        createComponentMatcher([pattern])('ProductPage');
+
+        expect(pattern.lastIndex).toBe(0);
     });
 });
