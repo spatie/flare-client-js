@@ -1,8 +1,5 @@
-<!--
-    Stands in for SvelteKit's generated root: it passes the page to the layout as a snippet, which is
-    the shape the whole nesting design depends on. Its own name matches no allowlist entry, so it
-    records no span and the layout parents straight to the active root.
--->
+<!-- Stands in for SvelteKit's root: hands the page to the layout as a snippet. Not in the allowlist,
+     so it records nothing itself. -->
 <script lang="ts">
     import Layout from './+layout.svelte';
     import Page from './product/[id]/+page.svelte';

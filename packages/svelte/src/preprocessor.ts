@@ -121,19 +121,13 @@ function escapeString(str: string): string {
 }
 
 /**
- * The regex Svelte's own preprocessor uses to find script tags, copied verbatim from
- * `svelte/src/compiler/preprocess/index.js`. The leading comment alternative is load-bearing: it
- * consumes `<!-- ... -->` first, so a commented-out or documented `<script>` matches as a comment
- * rather than as a tag. Matching Svelte here is the point, because Svelte decides which tags reach
- * the `script` hook and the markup hook has to predict that exactly.
+ * Copied from Svelte's own preprocessor, because Svelte decides which tags reach the script hook and
+ * we have to agree with it. The `<!-- -->` branch is what stops a commented-out `<script>` counting.
  */
 const REGEX_SCRIPT_OR_COMMENT =
     /<!--[^]*?-->|<script((?:\s+[^=>'"/\s]+=(?:"[^"]*"|'[^']*'|[^>\s]+)|\s+[^=>'"/\s]+)*\s*)(?:\/>|>([\S\s]*?)<\/script>)/g;
 
-/**
- * Types Svelte still treats as an instance script. A tag carrying anything else (`application/ld+json`,
- * `importmap`, `text/template`) holds data rather than component code.
- */
+/** Anything else (`application/ld+json`, `importmap`, ...) holds data, not component code. */
 const JAVASCRIPT_SCRIPT_TYPES = new Set([
     'text/javascript',
     'application/javascript',
@@ -147,7 +141,7 @@ const JAVASCRIPT_SCRIPT_TYPES = new Set([
  * i.e. a script that is not `<script module>` / `<script context="module">`.
  */
 function hasInstanceScript(content: string): boolean {
-    // matchAll clones the regex, so the shared `g` literal keeps no lastIndex between calls.
+    // matchAll clones the regex, so the shared /g/ literal can't leak lastIndex between calls.
     for (const match of content.matchAll(REGEX_SCRIPT_OR_COMMENT)) {
         if (match[0].startsWith('<!--')) {
             continue;
@@ -162,10 +156,9 @@ function hasInstanceScript(content: string): boolean {
 }
 
 /**
- * Svelte hands the `script` hook every script tag in the file, nested ones included, so a
- * `<script type="application/ld+json">` inside the markup arrives here looking like component code.
- * Prepending an import to one corrupts the data it holds. Skipping on an unrecognized type costs at
- * most a missing registration; injecting into one ships broken output.
+ * Svelte passes us every script tag, nested ones too, so a JSON-LD block turns up here looking like
+ * component code. Injecting into one would corrupt it, so when in doubt we skip: a missing
+ * registration is cheaper than broken output.
  */
 function isJavaScriptScript(attributes: Record<string, string | boolean>): boolean {
     const type = attributes.type;

@@ -9,16 +9,10 @@ import { flarePreprocessor } from './src/preprocessor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// The REAL preprocessor, installed over the test compile so preprocessedRuntime.test.ts can assert on
-// what injected code actually does at runtime, not just on the string the preprocessor emits.
-//
-// Scoped by allowlist rather than by path: `componentTracking: false` plus a `profileComponents` list
-// that only tests/fixtures/preprocessed/* can satisfy means every other .svelte file in this package
-// is returned untouched, so the rest of the suite compiles exactly as before.
-//
-// `importSource` points at the module itself instead of '@flareapp/svelte' so the test does not
-// depend on dist being built. That the published entries re-export the symbol is covered separately
-// by webEntry, injectEntry and sveltekitContract.
+// Runs the real preprocessor so preprocessedRuntime.test.ts can check what the injected code does,
+// not just what the preprocessor prints. The allowlist is what keeps it scoped: nothing outside
+// tests/fixtures/preprocessed/ matches, so the rest of the suite compiles unchanged. importSource
+// points straight at the module so the test doesn't need a build.
 const preprocessedFixtures = flarePreprocessor({
     componentTracking: false,
     profileComponents: [/\+(page|layout)(@[^/]*)?$/, 'AddToCartButton'],
