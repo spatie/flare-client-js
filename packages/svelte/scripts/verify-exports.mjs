@@ -52,22 +52,34 @@ for (const p of paths) {
     }
 }
 
-// Grep the RUNTIME target the map actually resolves to (not a hardcoded path) for the surface.
-const runtimeTarget = inject.import?.default ?? inject.svelte;
-const entry = runtimeTarget ? resolve(pkgDir, runtimeTarget) : null;
-if (!entry || !existsSync(entry)) {
-    fail(`runtime target ${runtimeTarget} does not exist (build first)`);
-} else {
+// Grep the RUNTIME target each entry actually resolves to (not a hardcoded path) for the surface.
+// Both the root entry and the inject entry re-export the same set of names — the preprocessor
+// injects `__flareProfileComponent` from whichever one the caller's `importSource` names, so both
+// need to actually carry it in the built bundle.
+const expectedExports = [
+    'createFlareErrorHandler',
+    'FlareErrorBoundary',
+    '__flareRegisterComponent',
+    '__flareProfileComponent',
+    'withFlareConfig',
+    'flarePreprocessor',
+];
+const root = pkg.exports?.['.'];
+const entriesToCheck = {
+    '.': root?.import?.default ?? root?.svelte,
+    './inject': inject.import?.default ?? inject.svelte,
+};
+
+for (const [entryName, runtimeTarget] of Object.entries(entriesToCheck)) {
+    const entry = runtimeTarget ? resolve(pkgDir, runtimeTarget) : null;
+    if (!entry || !existsSync(entry)) {
+        fail(`exports["${entryName}"]: runtime target ${runtimeTarget} does not exist (build first)`);
+        continue;
+    }
     const src = readFileSync(entry, 'utf8');
-    for (const name of [
-        'createFlareErrorHandler',
-        'FlareErrorBoundary',
-        '__flareRegisterComponent',
-        'withFlareConfig',
-        'flarePreprocessor',
-    ]) {
+    for (const name of expectedExports) {
         if (!new RegExp(`\\b${name}\\b`).test(src)) {
-            fail(`${runtimeTarget} is missing export: ${name}`);
+            fail(`exports["${entryName}"] (${runtimeTarget}) is missing export: ${name}`);
         }
     }
 }
@@ -76,5 +88,5 @@ if (failed) {
     process.exit(1);
 }
 console.log(
-    `[verify-exports] OK — exports["./inject"] targets match (${paths.length} paths) and the runtime entry exposes the expected surface.`,
+    `[verify-exports] OK — exports["./inject"] targets match (${paths.length} paths) and both the root and inject entries expose the expected surface.`,
 );

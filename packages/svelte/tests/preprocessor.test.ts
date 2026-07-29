@@ -293,3 +293,57 @@ describe('flarePreprocessor — profile injection through the full pipeline', ()
         expect(() => compile(out.code, { filename: ROUTE_FILE })).not.toThrow();
     });
 });
+
+describe('withFlareConfig — profileComponents', () => {
+    function scriptOutOf(cfg: ReturnType<typeof withFlareConfig>, filename: string) {
+        const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
+        return (preprocessors[0] as any).script({ content: 'let x = 1;', filename, attributes: SCRIPT_ATTRS });
+    }
+
+    test('returns the config untouched only when BOTH features are off', () => {
+        const cfg = { kit: {} };
+
+        expect(withFlareConfig(cfg, { componentTracking: false })).toBe(cfg);
+        expect(withFlareConfig(cfg, { componentTracking: false, profileComponents: false })).toBe(cfg);
+        expect(withFlareConfig(cfg, { componentTracking: false, profileComponents: [] })).toBe(cfg);
+    });
+
+    // The install decision and the per-file match decision are separate. Tracking off with a non-empty
+    // allowlist still installs the preprocessor.
+    test('installs the preprocessor when only profiling is on', () => {
+        const input = {};
+        const cfg = withFlareConfig(input, { componentTracking: false, profileComponents: ['Foo'] });
+
+        // A new object, not the early-return path that hands the input straight back.
+        expect(cfg).not.toBe(input);
+        expect(Array.isArray(cfg.preprocess) && cfg.preprocess).toHaveLength(1);
+    });
+
+    test('threads profileComponents through to the preprocessor', () => {
+        const cfg = withFlareConfig({}, { profileComponents: [/\+page$/] });
+        const out = scriptOutOf(cfg, '/app/src/routes/cart/+page.svelte');
+
+        expect(out.code).toContain("__flare_prof__('cart/+page');");
+    });
+
+    test('reads routesDir from kit.files.routes', () => {
+        const cfg = withFlareConfig({ kit: { files: { routes: 'source/pages' } } }, { profileComponents: true });
+        const out = scriptOutOf(cfg, '/app/source/pages/cart/+page.svelte');
+
+        expect(out.code).toContain("__flare_prof__('cart/+page');");
+    });
+
+    test('defaults to src/routes when kit.files.routes is absent', () => {
+        const cfg = withFlareConfig({}, { profileComponents: true });
+        const out = scriptOutOf(cfg, '/app/src/routes/cart/+page.svelte');
+
+        expect(out.code).toContain("__flare_prof__('cart/+page');");
+    });
+
+    test('does not profile anything by default', () => {
+        const cfg = withFlareConfig({});
+        const out = scriptOutOf(cfg, '/app/src/routes/cart/+page.svelte');
+
+        expect(out.code).not.toContain('__flare_prof__');
+    });
+});
