@@ -42,5 +42,5 @@ export {
     toCustomContext,
 } from '@flareapp/core';
 
-/** @deprecated use redactUrlQuery instead - same behavior, more honest name */
+/** @deprecated use redactUrlQuery instead: same behavior, clearer name */
 export { redactUrlQuery as redactFullPath } from '@flareapp/core';

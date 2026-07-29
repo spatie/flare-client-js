@@ -19,8 +19,9 @@ function getErrorUtils(): ErrorUtilsLike | undefined {
  *
  * `onFatal` exists because a production fatal tears the app down while our report is still an async fetch
  * the OS kills, so a bare report rarely sends. With it, the previous handler is deferred until the
- * transport drains. Skipped in `__DEV__` so it does not fight the red box, and latched so a second fatal
- * mid-flush delegates rather than racing two shutdowns. Mirrors Sentry's RN SDK.
+ * transport drains. Skipped in `__DEV__` so it does not fight the red box, and it only runs for the
+ * first fatal, so a second one mid-flush hands straight over instead of starting a second shutdown.
+ * Mirrors Sentry's RN SDK.
  */
 export function installGlobalErrorHandler(
     report: (error: Error, isFatal: boolean) => void,
@@ -46,9 +47,9 @@ export function installGlobalErrorHandler(
             void onFatal()
                 .catch(() => {})
                 .then(() => {
-                    // The latch stays set across the delegation. In production `previous` tears the app
-                    // down so it never reopens; where `previous` does return, a fatal raised during it
-                    // delegates immediately instead of starting a second flush cycle.
+                    // `handlingFatal` stays set while handing over. In production `previous` tears the app
+                    // down so it is never cleared; where `previous` does return, a fatal raised during it
+                    // hands over right away instead of starting a second flush cycle.
                     try {
                         previous?.(error, isFatal);
                     } finally {

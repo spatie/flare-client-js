@@ -6,11 +6,11 @@ export type MethodPatch = { name: string; wrap: (original: unknown) => unknown }
 
 /**
  * One `installed` flag across a set of methods on the same target, so a multi-method patch (XHR's
- * open/setRequestHeader/send) installs and restores atomically. Per-method flags are unsafe once the
- * methods share state: a third party wrapping only one of them would leave that one live while the
- * rest restored to native, and XHR's `open` populates what `send` reads.
+ * open/setRequestHeader/send) installs and restores as a unit. A flag per method is unsafe once the
+ * methods share state: a third party wrapping only one of them would leave that one patched while
+ * the rest went back to native, and XHR's `open` records what `send` reads.
  *
- * Target is passed per call rather than captured, because callers re-derive it fresh
+ * Target is passed per call rather than captured, because callers look it up fresh
  * (`globalThis.fetch` may not exist yet under SSR).
  */
 export function createPatcher() {
@@ -34,10 +34,10 @@ export function createPatcher() {
         },
 
         /**
-         * Restores only if every method is still cleanly restorable, i.e. our wrapper is still the top
-         * of its chain. With a third-party wrapper on top of ours, restore nothing and stay `installed`:
-         * our wrappers remain in the chain but go inert via their own `enableTracing` check, so the next
-         * `install` is a no-op rather than a second layer of wrapping.
+         * Restores only if every method can still be restored cleanly, meaning our wrapper is still the
+         * outermost one. If a third party wrapped ours, restore nothing and stay `installed`: our
+         * wrappers stay in place but do nothing, thanks to their own `enableTracing` check, so the next
+         * `install` is a no-op instead of adding a second layer of wrapping.
          */
         uninstall(target: Record<string, unknown>): void {
             if (!installed) {

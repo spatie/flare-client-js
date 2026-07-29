@@ -1,10 +1,11 @@
 import { LogsEnvelope, Report, TracesEnvelope } from '../types';
 import { flatJsonStringify } from '../util';
 
-// A browser rejects a keepalive fetch when the sum of its body and every other in-flight keepalive body exceeds ~64 KiB
-// (Fetch spec). logs and traces share one Api, so on pagehide two ~60 KB envelopes would breach that and one would be
-// dropped. Track the in-flight total and downgrade a request to a normal fetch when it would breach the budget. A
-// downgraded request still ships on soft backgrounding, and on a real unload is no worse off than the rejection.
+// A browser rejects a keepalive fetch when the sum of its body and every other in-flight keepalive body goes over
+// ~64 KiB (Fetch spec). logs and traces share one Api, so on pagehide two ~60 KB envelopes would go over that and one
+// of them would be dropped. Track the in-flight total and send a normal (non-keepalive) fetch instead when a request
+// would push it over. That request still ships on soft backgrounding, and on a real unload it is no worse off than
+// being rejected.
 const MAX_PENDING_KEEPALIVE_BYTES = 60_000;
 const MAX_PENDING_KEEPALIVE_REQUESTS = 15;
 

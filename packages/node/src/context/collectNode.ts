@@ -8,8 +8,8 @@ import { findHeader, projectHeaders } from './headers';
 import { collectProcessAttributes } from './process';
 
 /**
- * Projects process info (always) and the active request scope (only inside `runWithContext`) into
- * OTel-style attributes. User identity is not projected here: `Flare.setUser` writes straight to
+ * Turns process info (always) and the active request scope (only inside `runWithContext`) into
+ * OTel-style attributes. User identity is not handled here: `Flare.setUser` writes straight to
  * `pendingAttributes`.
  *
  * `getOptions` is a getter so `configureNode(...)` shows up on later reports without rebuilding this.

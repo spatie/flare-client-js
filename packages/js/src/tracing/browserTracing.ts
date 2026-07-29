@@ -82,8 +82,8 @@ function startRoot(
         );
         currentRoot = root;
     } catch (error) {
-        // Instrumentation must never break the app. On failure, undo partial state (end the
-        // orphaned span, clear the active root) and leave tracing inert rather than throwing.
+        // Instrumentation must never break the app. On failure, undo what was half-done (end the
+        // orphaned span, clear the active root) and leave tracing switched off rather than throwing.
         controller = null;
         currentRoot = null;
         try {
@@ -144,8 +144,8 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
 
     const handle = (): void => {
         // A third party may wrap history.pushState/replaceState on top of ours, so unfill can't
-        // restore on stop and this closure leaks. `uninstall` doubles as the installed flag, so the
-        // leaked wrapper stays inert instead of starting roots and arming timers while tracing is off.
+        // restore on stop and this closure is left behind. `uninstall` doubles as the installed flag,
+        // so that leftover wrapper does nothing instead of starting roots and timers while tracing is off.
         if (!uninstall) {
             return;
         }

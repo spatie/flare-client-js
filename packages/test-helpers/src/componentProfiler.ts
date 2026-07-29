@@ -86,7 +86,7 @@ export function createComponentSeam(): FakeComponentSeam {
 /**
  * The `@flareapp/js/browser` mock for a profiler suite. Only the four seam functions are faked; pass
  * the real module as `original` and everything else stays real, so a suite cannot pass against a
- * hand-written stand-in that has drifted from the code it stands in for. Same discipline as
+ * hand-written stand-in that has drifted from the code it stands in for. Same approach as
  * `browserSeamMock`.
  *
  *     vi.mock('@flareapp/js/browser', async (importOriginal) =>

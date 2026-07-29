@@ -43,7 +43,7 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
  * Subclasses core's `Flare` and wires the Node-only seams in its constructor:
  * - `AsyncLocalStorageScopeProvider` so each `runWithContext(...)` callback gets its own `NodeScope`,
  *   isolated from concurrent requests.
- * - `makeNodeContextCollector(...)` projects the current `NodeScope` + process info into report attrs.
+ * - `makeNodeContextCollector(...)` turns the current `NodeScope` + process info into report attributes.
  * - `DiskFileReader` reads source for stack-trace snippets via `node:fs/promises`, not `fetch`.
  * - `ProcessHandlerManager` attaches/detaches the fatal process listeners per `NodeOptions`.
  *

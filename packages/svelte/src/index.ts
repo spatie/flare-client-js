@@ -4,9 +4,9 @@ import { registerSvelteSdkIdentity } from './identify.js';
 import { registerDefaultFlare } from './resolveFlare.js';
 
 // Web entry. Importing @flareapp/js runs the root's side effects (window.flare + global catch),
-// correct for the web. Registering the singleton and its SDK identity at import time is a hard
-// contract: @flareapp/sveltekit `export * from '@flareapp/svelte'` and overrides the SDK name
-// per-report, relying on this running first (spec Decision 6). Do not defer it.
+// correct for the web. Registering the singleton and its SDK identity at import time is required:
+// @flareapp/sveltekit does `export * from '@flareapp/svelte'` and overrides the SDK name per
+// report, which only works if this ran first. Do not defer it.
 registerDefaultFlare(() => flare);
 registerSvelteSdkIdentity(flare);
 

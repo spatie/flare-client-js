@@ -15,5 +15,5 @@ export {
 // Re-export the original internal helpers that the rest of @flareapp/js relies on.
 // Internal callers continue to `import { ... } from '../util'` unchanged.
 
-/** @deprecated use redactUrlQuery instead - same behavior, honest name */
+/** @deprecated use redactUrlQuery instead: same behavior, clearer name */
 export { redactUrlQuery as redactFullPath } from '@flareapp/core';

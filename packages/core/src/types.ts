@@ -7,7 +7,7 @@ export type AttributeValue = string | number | boolean | null | AttributeValue[]
 export type Attributes = Record<string, AttributeValue>;
 
 /**
- * An identified user passed to `Flare.setUser`. Known fields project to the backend keys: `id`->`user.id`,
+ * An identified user passed to `Flare.setUser`. Known fields map to the backend keys: `id`->`user.id`,
  * `email`->`user.email`, `fullName`->`user.full_name`, `ipAddress`->`client.address`. Any other key lands in
  * `user.attributes`. Caveat: the open index signature means a misspelled known field (e.g. `full_name` for `fullName`)
  * silently lands in `user.attributes` with no type error. Spell the four known fields exactly.

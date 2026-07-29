@@ -11,8 +11,8 @@ export type RRRouterState = {
     location: RRLocation;
     matches: RRMatch[];
     navigation: RRNavigation;
-    // `initialized` gates the initial-load guard. `historyAction` is intentionally NOT read: the
-    // open decision keys on the navigation.state transition, not the committed action.
+    // `initialized` gates the initial-load guard. `historyAction` is deliberately NOT read: whether
+    // to open a root is decided by the change in navigation.state, not by the committed action.
     initialized?: boolean;
 };
 export type RRDataRouter = {

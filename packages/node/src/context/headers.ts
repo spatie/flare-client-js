@@ -1,6 +1,6 @@
 import type { Attributes } from '@flareapp/core';
 
-/** Case-insensitive. Array values coalesce to the first element; consumers here want a scalar. */
+/** Case-insensitive. An array value collapses to its first element; callers here want a single value. */
 export function findHeader(
     headers: Record<string, string | string[] | undefined> | undefined,
     name: string,
@@ -21,7 +21,7 @@ export function findHeader(
     return undefined;
 }
 
-/** The `^...$` anchoring is load-bearing: an unanchored `cookie` would also match `X-Some-Cookie-Hint`. */
+/** The `^` and `$` matter: without them, `cookie` would also match a header like `X-Some-Cookie-Hint`. */
 export const DEFAULT_HEADER_DENYLIST =
     /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-csrf-token|x-xsrf-token|x-auth-token|forwarded|x-forwarded-(?:for|user))$/i;
 
@@ -37,9 +37,10 @@ export function resolveHeaderDenylist(custom?: RegExp, replaceDefault = false): 
 }
 
 /**
- * Projects headers to `http.request.header.<name>` attributes. An allowlist drops a header entirely
- * (the compliance opt-in), while the denylist keeps the key and redacts the value, so its presence is
- * still visible. `undefined` is how `node:http` says "not sent", so those are dropped.
+ * Turns headers into `http.request.header.<name>` attributes. The two lists differ on purpose: an
+ * allowlist drops a header entirely, for apps that may only send named headers, while the denylist
+ * keeps the name and replaces the value, so you can still see the header was there. `undefined` is
+ * how `node:http` says "not sent", so those are dropped.
  */
 export function projectHeaders(
     headers: Record<string, string | string[] | undefined> | undefined,

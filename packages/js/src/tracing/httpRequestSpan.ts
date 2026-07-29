@@ -15,7 +15,7 @@ export type HttpTracer = {
     startSpan(name: string, opts?: SpanOptions): Span;
 };
 
-/** Absolutize `url` against `origin`, or null if it cannot be parsed. */
+/** Resolve `url` to an absolute URL against `origin`, or null if it cannot be parsed. */
 export function safeAbsolute(url: string, origin: string): URL | null {
     try {
         return new URL(url, origin || undefined);

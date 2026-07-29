@@ -16,9 +16,10 @@ function isDevMode(): boolean {
 
 /**
  * Builds a per-package Flare resolver: `registerDefaultFlare` (wired once by the web entry) and
- * `resolveFlare` (called at wiring time). Each call holds its own default-provider state. The
- * Electron `__flare` tripwire is parameterized by `packageName`; `injectInstruction` overrides the
- * trailing hint for packages whose guidance differs (e.g. svelte's preprocessor importSource).
+ * `resolveFlare` (called at wiring time). Each call holds its own default-provider state. The check
+ * that warns about the Electron `__flare` bridge uses `packageName` in its message;
+ * `injectInstruction` replaces the closing hint for packages whose advice differs (for example
+ * svelte, which points at the preprocessor's importSource).
  */
 export function createFlareResolver(config: { packageName: string; injectInstruction?: string }): {
     registerDefaultFlare(provider: () => Flare): void;

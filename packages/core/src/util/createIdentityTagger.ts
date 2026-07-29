@@ -9,10 +9,10 @@ export interface SdkTaggable {
 
 /**
  * A per-package SDK/framework identity tagger. Holds its own WeakSet guards, so each Flare instance
- * (singleton or injected renderer) is tagged at most once on each of the two axes.
+ * (singleton or injected renderer) gets each of the two tags at most once.
  *
- * `frameworkName` is `FrameworkName` rather than `string` because that is the wire vocabulary the backend
- * keys off, so a first-party package cannot invent a value. A host app that needs its own name calls
+ * `frameworkName` is `FrameworkName` rather than `string` because those are the exact values the backend
+ * recognises, so a first-party package cannot invent one. A host app that needs its own name calls
  * `setFramework` directly.
  */
 export function createIdentityTagger(config: { sdkName: string; sdkVersion: string; frameworkName: FrameworkName }): {

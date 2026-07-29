@@ -1,7 +1,7 @@
 // @flareapp/react/profiler — opt-in React component-mount tracing.
 //
 // Electron-safe / dependency-free: imports ONLY React and the side-effect-free
-// @flareapp/js/browser seam. NO @flareapp/js root import (same discipline as
+// @flareapp/js/browser seam. NO @flareapp/js root import (same rule as
 // ./tanstack-router). Each <FlareProfiler> records one `browser_component` span
 // for its mount, nested under the nearest profiled ancestor (or the active
 // browser_pageload / browser_navigation root) via React context and reserved span ids.

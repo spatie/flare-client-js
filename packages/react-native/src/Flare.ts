@@ -62,8 +62,8 @@ export class ReactNativeFlare extends CoreFlare {
 
     /** For tests and manual teardown. Clears the install guard, so a later `light()` re-installs. */
     removeHandlers(): void {
-        // Guarded individually: one throwing teardown must not strand the rest attached, nor leave the
-        // install guard set, which would block re-install.
+        // Each one is guarded on its own: a teardown that throws must not leave the rest attached, nor
+        // leave the install guard set, which would block a re-install.
         for (const uninstall of this.uninstallers) {
             try {
                 uninstall();
