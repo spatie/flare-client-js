@@ -176,3 +176,120 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
         expect(out.map.sources).toContain(FAKE_FILE);
     });
 });
+
+const ROUTE_FILE = '/app/src/routes/product/[id]/+page.svelte';
+
+describe('flarePreprocessor — profile injection', () => {
+    test('injects nothing extra when profileComponents is absent', () => {
+        const out = runScriptHook(flarePreprocessor());
+
+        expect(out.code).toContain('__flare_reg__');
+        expect(out.code).not.toContain('__flare_prof__');
+    });
+
+    test('injects both calls for a matched file when tracking is on', () => {
+        const pp = flarePreprocessor({ profileComponents: [/\+page$/] });
+        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+
+        expect(out.code).toContain('__flareRegisterComponent as __flare_reg__');
+        expect(out.code).toContain('__flareProfileComponent as __flare_prof__');
+        expect(out.code).toContain("__flare_prof__('product/[id]/+page');");
+    });
+
+    test('injects only the profile call when tracking is off', () => {
+        const pp = flarePreprocessor({ componentTracking: false, profileComponents: [/\+page$/] });
+        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+
+        expect(out.code).toContain('__flare_prof__');
+        expect(out.code).not.toContain('__flare_reg__');
+    });
+
+    test('injects nothing for an unmatched file when tracking is off', () => {
+        const pp = flarePreprocessor({ componentTracking: false, profileComponents: ['SomethingElse'] });
+        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+
+        expect(out).toBeUndefined();
+    });
+
+    test('matches on the route-aware name, not the basename', () => {
+        const pp = flarePreprocessor({ profileComponents: ['product/[id]/+page'] });
+        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+
+        expect(out.code).toContain('__flare_prof__');
+    });
+
+    test('honors a custom routesDir', () => {
+        const pp = flarePreprocessor({ profileComponents: [/\+page$/], routesDir: 'source/pages' });
+        const out = (pp as any).script({
+            content: 'let x = 1;',
+            filename: '/app/source/pages/cart/+page.svelte',
+            attributes: SCRIPT_ATTRS,
+        });
+
+        expect(out.code).toContain("__flare_prof__('cart/+page');");
+    });
+
+    // `exclude` is a global kill switch, not a component-tree-only one. A file the user explicitly
+    // excluded must not emit spans either.
+    test('exclude suppresses the profile call as well as the registration', () => {
+        const pp = flarePreprocessor({ profileComponents: true, exclude: /routes/ });
+        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+
+        expect(out).toBeUndefined();
+    });
+
+    // The profile symbol must exist on whichever entry importSource names. src/inject.ts exports it for
+    // exactly this case; without that export the injected call resolves to undefined and throws at init.
+    test('emits the profile import from the inject entry when importSource is the inject entry', () => {
+        const pp = flarePreprocessor({ importSource: '@flareapp/svelte/inject', profileComponents: true });
+        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+
+        expect(out.code).toContain('__flareProfileComponent as __flare_prof__');
+        expect(out.code).toContain("from '@flareapp/svelte/inject'");
+    });
+
+    test('escapes a single quote in the profile name', () => {
+        const pp = flarePreprocessor({ profileComponents: true });
+        const out = (pp as any).script({
+            content: 'let x = 1;',
+            filename: "/app/src/lib/Product's.svelte",
+            attributes: SCRIPT_ATTRS,
+        });
+
+        expect(out.code).toContain("__flare_prof__('Product\\'s');");
+    });
+});
+
+describe('flarePreprocessor — profile injection through the full pipeline', () => {
+    test('a scriptless matched component injects each call exactly once and compiles', async () => {
+        const out = await preprocess('<p>hello</p>', flarePreprocessor({ profileComponents: true }), {
+            filename: ROUTE_FILE,
+        });
+
+        expect((out.code.match(/__flare_prof__\(/g) || []).length).toBe(1);
+        expect((out.code.match(/__flare_node__/g) || []).length).toBe(1);
+        expect(() => compile(out.code, { filename: ROUTE_FILE })).not.toThrow();
+    });
+
+    // Without widening the double-injection guard, the markup hook injects a <script> that the script
+    // hook then re-processes, producing two __flare_prof__ calls.
+    test('a scriptless profile-only component injects exactly once and compiles', async () => {
+        const out = await preprocess(
+            '<p>hello</p>',
+            flarePreprocessor({ componentTracking: false, profileComponents: true }),
+            { filename: ROUTE_FILE },
+        );
+
+        expect((out.code.match(/__flare_prof__\(/g) || []).length).toBe(1);
+        expect(out.code).not.toContain('__flare_node__');
+        expect(() => compile(out.code, { filename: ROUTE_FILE })).not.toThrow();
+    });
+
+    test('a module-only matched component still gets one profile call', async () => {
+        const source = `<script module>\nexport const shared = 1;\n</script>\n<p>hi</p>`;
+        const out = await preprocess(source, flarePreprocessor({ profileComponents: true }), { filename: ROUTE_FILE });
+
+        expect((out.code.match(/__flare_prof__\(/g) || []).length).toBe(1);
+        expect(() => compile(out.code, { filename: ROUTE_FILE })).not.toThrow();
+    });
+});
