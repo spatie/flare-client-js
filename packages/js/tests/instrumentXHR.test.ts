@@ -140,7 +140,7 @@ describe('createXHR* wrappers', () => {
         expect(setHeaderSpy.mock.calls.some(([name]) => String(name).toLowerCase() === 'traceparent')).toBe(false);
     });
 
-    it("still injects Flare's traceparent when the apps own setRequestHeader throws (Finding 6)", () => {
+    it("still injects Flare's traceparent when the apps own setRequestHeader throws", () => {
         const { tracer } = makeTracer();
         // Native setRequestHeader throws for a forbidden value (e.g. a stray newline); the app's
         // header never lands. Flare's own tp value is well-formed, so it must not trip the throw.
@@ -250,7 +250,7 @@ describe('createXHR* wrappers', () => {
         expect(startSpan).not.toHaveBeenCalled();
     });
 
-    it('traces an empty-string URL, matching fetch (Finding 7)', () => {
+    it('traces an empty-string URL, matching fetch', () => {
         const { tracer, startSpan } = makeTracer();
         const { xhr } = instrument(tracer);
 
@@ -323,7 +323,7 @@ describe('createXHR* wrappers', () => {
         expect(startSpan).toHaveBeenCalledOnce();
     });
 
-    it('ends the prior span as aborted on a mid-flight re-open, so the next DONE cannot cross-end it (Finding 1)', () => {
+    it('ends the prior span as aborted on a mid-flight re-open, so the next DONE cannot cross-end it', () => {
         const { tracer, startSpan, spans } = makeTracer();
         const { xhr } = instrument(tracer);
 
@@ -348,7 +348,7 @@ describe('createXHR* wrappers', () => {
         expect(xhr.listenerCount('readystatechange')).toBe(0);
     });
 
-    it('ends the prior span when re-opened mid-flight but never re-sent (Finding 1)', () => {
+    it('ends the prior span when re-opened mid-flight but never re-sent', () => {
         const { tracer, startSpan, spans } = makeTracer();
         const { xhr } = instrument(tracer);
 

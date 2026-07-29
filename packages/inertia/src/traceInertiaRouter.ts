@@ -45,8 +45,8 @@ function isBackgroundVisit(visit: InertiaVisitLike | undefined): boolean {
     return !!visit.async && path !== undefined && path === currentPath();
 }
 
-/** `component` ('Products/Show') is Inertia's low-cardinality route identifier, so it aggregates the way
- *  the other integrations' route templates do. */
+/** `component` ('Products/Show') is Inertia's route identifier, and there is a small fixed set of them,
+ *  so reports group by it the way the other integrations' route templates do. */
 function routeNameFor(page: InertiaPageLike | undefined): RouteName {
     const { href, path } = locationOf(page?.url);
     return routeName(() => page?.component, path ?? currentPath(), href);
@@ -55,11 +55,11 @@ function routeNameFor(page: InertiaPageLike | undefined): RouteName {
 /**
  * Trace an Inertia router: open a held `browser_navigation` root per visit, settled once the page
  * arrives. Call it before Inertia boots, so the initial `navigate` is seen. Returns a cleanup that
- * removes the listeners and unregisters. Inert for a non-router value; never throws into the host.
+ * removes the listeners and unregisters. Does nothing for a non-router value; never throws into the host.
  */
 export function traceInertiaRouter(router: unknown): () => void {
     if (!isInertiaRouter(router)) {
-        return () => {}; // wrong shape -> inert
+        return () => {}; // not a router: do nothing
     }
 
     return instrumentOnce(router, () => install(router));
@@ -69,7 +69,7 @@ function isInertiaRouter(router: unknown): router is InertiaRouterLike {
     return !!router && typeof (router as Partial<InertiaRouterLike>).on === 'function';
 }
 
-function install(r: InertiaRouterLike): () => void {
+function install(router: InertiaRouterLike): () => void {
     const nav = registerNavigationSource();
 
     let inFlight = false;
@@ -97,7 +97,7 @@ function install(r: InertiaRouterLike): () => void {
         nav.settleNavigation(nameFor(page));
     };
 
-    const offStart = r.on(
+    const offStart = router.on(
         'start',
         insulate((event: InertiaEventLike) => {
             const visit = event?.detail?.visit;
@@ -122,7 +122,7 @@ function install(r: InertiaRouterLike): () => void {
         }),
     );
 
-    const offNavigate = r.on(
+    const offNavigate = router.on(
         'navigate',
         insulate((event: InertiaEventLike) => {
             const page = event?.detail?.page;
@@ -149,7 +149,7 @@ function install(r: InertiaRouterLike): () => void {
             settle(page);
         }),
     );
-    const offSuccess = r.on(
+    const offSuccess = router.on(
         'success',
         insulate((event: InertiaEventLike) => {
             // This is where a same-url visit and a `replace: true` one settle: page.set() fires navigate
@@ -179,7 +179,7 @@ function install(r: InertiaRouterLike): () => void {
             return false;
         }
         // Same stream-crossing problem as success. Must run before the interrupted check: an unreadable
-        // visit shape should reach the backstop rather than strand the held root.
+        // visit shape should reach the backstop rather than leave the held root open forever.
         if (visit && locationOf(visit.url).path !== inFlightPath) {
             return false;
         }
@@ -192,7 +192,7 @@ function install(r: InertiaRouterLike): () => void {
         return true;
     };
 
-    const offFinish = r.on(
+    const offFinish = router.on(
         'finish',
         insulate((event: InertiaEventLike) => {
             // An errored, cancelled or non-Inertia response fires neither navigate nor success. Without

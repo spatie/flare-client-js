@@ -16,11 +16,11 @@ const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED — a newer n
  * Trace a vue-router instance: name the `browser_pageload` root from the initial route, and open a
  * parameterized, held `browser_navigation` root per route change, settled once the navigation confirms.
  * Returns a cleanup that removes the guards and unregisters. Consumed by `flareVue({ router })`; internal
- * (not part of the public entry). Inert for a non-router value; never throws into the host.
+ * (not part of the public entry). Does nothing for a non-router value; never throws into the host.
  */
 export function traceVueRouter(router: unknown): () => void {
     if (!isVueRouter(router)) {
-        return () => {}; // wrong shape → inert
+        return () => {}; // not a router: do nothing
     }
 
     return instrumentOnce(router, () => install(router));
@@ -28,14 +28,14 @@ export function traceVueRouter(router: unknown): () => void {
 
 /** Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional. */
 function isVueRouter(router: unknown): router is VueRouterLike {
-    const r = router as Partial<VueRouterLike> | null;
-    if (!r) {
+    const candidate = router as Partial<VueRouterLike> | null;
+    if (!candidate) {
         return false;
     }
-    return typeof r.beforeEach === 'function' && typeof r.afterEach === 'function';
+    return typeof candidate.beforeEach === 'function' && typeof candidate.afterEach === 'function';
 }
 
-function install(r: VueRouterLike): () => void {
+function install(router: VueRouterLike): () => void {
     const nav = registerNavigationSource();
 
     const routeNameFor = (loc: VueRouteLocationLike): RouteName =>
@@ -49,7 +49,7 @@ function install(r: VueRouterLike): () => void {
         if (!path) {
             return undefined;
         }
-        return resolveHref(() => r.resolve?.(path)?.href, path);
+        return resolveHref(() => router.resolve?.(path)?.href, path);
     };
 
     const isInitial = (from: VueRouteLocationLike | undefined): boolean =>
@@ -61,7 +61,7 @@ function install(r: VueRouterLike): () => void {
     // Enrich the pageload root immediately if the router already resolved its initial route (e.g. flareVue
     // installed after `await router.isReady()`); otherwise the first guard pair handles it.
     try {
-        const current = r.currentRoute?.value;
+        const current = router.currentRoute?.value;
         if (current && current.matched && current.matched.length > 0) {
             nav.setActiveRouteName(routeNameFor(current));
             sawInitial = true;
@@ -70,7 +70,7 @@ function install(r: VueRouterLike): () => void {
         // never break the host on wiring
     }
 
-    const offBefore = r.beforeEach(
+    const offBefore = router.beforeEach(
         insulate((to: VueRouteLocationLike, from: VueRouteLocationLike) => {
             // Initial navigation first: START_LOCATION.fullPath is '/', so an app whose initial route is
             // '/' would otherwise be swallowed by the same-location skip below.
@@ -80,7 +80,7 @@ function install(r: VueRouterLike): () => void {
             }
 
             // Only a `force: true` re-navigation reaches beforeEach with to.fullPath === from.fullPath: a
-            // plain duplicated nav is short-circuited before guards run and surfaces solely as an afterEach
+            // plain duplicate nav is stopped before the guards run and shows up only as an afterEach
             // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
             // no navigation root.
             if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) {
@@ -95,7 +95,7 @@ function install(r: VueRouterLike): () => void {
         }),
     );
 
-    const offAfter = r.afterEach(
+    const offAfter = router.afterEach(
         insulate((to: VueRouteLocationLike, from: VueRouteLocationLike, failure?: NavigationFailureLike) => {
             if (!sawInitial && isInitial(from)) {
                 if (!failure) {
@@ -115,10 +115,10 @@ function install(r: VueRouterLike): () => void {
                 return;
             }
 
-            // A redirect never reaches afterEach (vue-router short-circuits to a new navigation), so any
-            // failure here is terminal. `cancelled` (a newer nav superseded this one) keeps the held root
-            // for the successor's afterEach; `aborted` / `duplicated` / unknown release it to the current
-            // location so a blocked navigation can't strand a held root until the finalTimeout backstop.
+            // A redirect never reaches afterEach (vue-router starts a new navigation instead), so a failure
+            // here is the end of the road. `cancelled` (a newer nav replaced this one) keeps the held root
+            // for that newer nav's afterEach; `aborted` / `duplicated` / unknown release it to the current
+            // location, so a blocked navigation can't leave a root held open until the finalTimeout backstop.
             if (failure.type === NAVIGATION_CANCELLED) {
                 return;
             }
@@ -128,14 +128,14 @@ function install(r: VueRouterLike): () => void {
     );
 
     const offError =
-        typeof r.onError === 'function'
-            ? r.onError(
+        typeof router.onError === 'function'
+            ? router.onError(
                   insulate(() => {
                       if (!inFlight) {
                           return;
                       }
                       inFlight = false;
-                      const current = r.currentRoute?.value;
+                      const current = router.currentRoute?.value;
                       nav.settleNavigation(current ? routeNameFor(current) : { name: '', source: 'url' });
                   }),
               )

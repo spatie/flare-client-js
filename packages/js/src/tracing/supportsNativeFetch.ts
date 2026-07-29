@@ -10,28 +10,28 @@ export function isNativeFetch(fn: unknown): boolean {
  * wrapped `fetch` and the direct toString check is unreliable.
  */
 export function supportsNativeFetch(): boolean {
-    const g = globalThis as { fetch?: unknown; document?: Document };
-    if (typeof g.fetch !== 'function') {
+    const globals = globalThis as { fetch?: unknown; document?: Document };
+    if (typeof globals.fetch !== 'function') {
         return false;
     }
-    if (isNativeFetch(g.fetch)) {
+    if (isNativeFetch(globals.fetch)) {
         return true;
     }
 
     // Browser-only fallback: read an untouched fetch from a detached iframe.
     // Not exercised by the node-env unit tests.
     let result = false;
-    const doc = g.document;
-    if (doc && typeof doc.createElement === 'function') {
+    const document = globals.document;
+    if (document && typeof document.createElement === 'function') {
         try {
-            const sandbox = doc.createElement('iframe');
+            const sandbox = document.createElement('iframe');
             sandbox.hidden = true;
-            doc.head.appendChild(sandbox);
-            const win = sandbox.contentWindow as (Window & { fetch?: unknown }) | null;
-            if (win && typeof win.fetch === 'function') {
-                result = isNativeFetch(win.fetch);
+            document.head.appendChild(sandbox);
+            const sandboxWindow = sandbox.contentWindow as (Window & { fetch?: unknown }) | null;
+            if (sandboxWindow && typeof sandboxWindow.fetch === 'function') {
+                result = isNativeFetch(sandboxWindow.fetch);
             }
-            doc.head.removeChild(sandbox);
+            document.head.removeChild(sandbox);
         } catch {
             result = false;
         }

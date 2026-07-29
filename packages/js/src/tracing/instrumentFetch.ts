@@ -80,9 +80,9 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
     };
 }
 
-// Owns the installed flag for the single `fetch` method. A wrapper leaked by a failed unpatch
+// Owns the installed flag for the single `fetch` method. A wrapper left behind by a failed unpatch
 // stays live and checks enableTracing per call, so one wrapper in the chain is always enough.
-// See createPatcher for the shared atomic install/uninstall semantics.
+// See createPatcher for how install and uninstall stay in step.
 const patcher = createPatcher();
 
 /**
@@ -95,16 +95,16 @@ export function instrumentFetch(tracer: HttpTracer): void {
         return;
     }
 
-    const g = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
-    if (typeof g.fetch !== 'function') {
+    const globals = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
+    if (typeof globals.fetch !== 'function') {
         return;
     }
     if (!supportsNativeFetch()) {
         return;
     }
 
-    const origin = g.location?.origin ?? '';
-    patcher.install(g as unknown as Record<string, unknown>, [
+    const origin = globals.location?.origin ?? '';
+    patcher.install(globals as unknown as Record<string, unknown>, [
         { name: 'fetch', wrap: (original) => createFetchWrapper(tracer, original as typeof fetch, origin) },
     ]);
 }
