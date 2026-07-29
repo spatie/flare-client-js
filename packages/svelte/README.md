@@ -69,7 +69,8 @@ at [flareapp.io/docs/svelte/general/installation](https://flareapp.io/docs/svelt
 ## Component profiling
 
 Records one span per component mount, nested under the active pageload or navigation trace, so you can
-see which components dominate a page's render time.
+see which components dominate a page's render time. Requires tracing to be enabled (`enableTracing:
+true`).
 
 Turn it on in `svelte.config.js` with an allowlist:
 
@@ -79,7 +80,7 @@ import adapter from '@sveltejs/adapter-node';
 
 export default withFlareConfig(
     { kit: { adapter: adapter() } },
-    { profileComponents: [/\+(page|layout)$/, 'AddToCartButton'] },
+    { profileComponents: [/\+(page|layout)(@[^/]*)?$/, 'AddToCartButton'] },
 );
 ```
 
@@ -110,6 +111,9 @@ Names come from the filename, and route files carry their route directory so the
 Without the route prefix every route in a SvelteKit app would be called `+page`, and the allowlist could
 not target one of them. The allowlist matches the same string the span reports, so what you write is what
 you see. Renaming or moving a file silently stops it being profiled.
+
+Layout-breakout files (`+page@.svelte`, `+page@(app).svelte`, `+layout@.svelte`, and so on) keep their
+`@` suffix in the span name, for example `foo/+page@(app)`.
 
 ### What the tree shows
 

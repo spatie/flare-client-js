@@ -23,6 +23,7 @@ describe('@flareapp/svelte web entry — SvelteKit contract', () => {
             'FlareErrorBoundary',
             'createFlareErrorHandler',
             '__flareRegisterComponent',
+            '__flareProfileComponent',
             'getComponentTreeContext',
             'withFlareConfig',
             'flarePreprocessor',

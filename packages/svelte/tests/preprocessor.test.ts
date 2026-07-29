@@ -310,11 +310,21 @@ describe('withFlareConfig — profileComponents', () => {
 
     // The install decision and the per-file match decision are separate. Tracking off with a non-empty
     // allowlist still installs the preprocessor.
-    test('installs the preprocessor when only profiling is on', () => {
+    test('installs the preprocessor when only profiling is on (array disjunct)', () => {
         const input = {};
         const cfg = withFlareConfig(input, { componentTracking: false, profileComponents: ['Foo'] });
 
         // A new object, not the early-return path that hands the input straight back.
+        expect(cfg).not.toBe(input);
+        expect(Array.isArray(cfg.preprocess) && cfg.preprocess).toHaveLength(1);
+    });
+
+    // Same install decision, but through the `profileComponents === true` disjunct rather than a
+    // non-empty array.
+    test('installs the preprocessor when only profiling is on (profileComponents: true disjunct)', () => {
+        const input = {};
+        const cfg = withFlareConfig(input, { componentTracking: false, profileComponents: true });
+
         expect(cfg).not.toBe(input);
         expect(Array.isArray(cfg.preprocess) && cfg.preprocess).toHaveLength(1);
     });

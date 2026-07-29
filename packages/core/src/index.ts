@@ -28,6 +28,9 @@ export type {
     User,
 } from './types';
 
+// createComponentMatcher / ProfileComponentsOption are deliberately NOT re-exported here. They are
+// build-time helpers meant to be imported from '@flareapp/core/util' by a svelte.config.js without
+// pulling in this root entry (and everything it drags along).
 export {
     assert,
     assertKey,

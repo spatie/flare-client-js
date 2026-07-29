@@ -3,5 +3,5 @@ import adapter from '@sveltejs/adapter-node';
 
 export default withFlareConfig(
     { kit: { adapter: adapter() } },
-    { profileComponents: [/\+(page|layout)$/, 'AddToCartButton'] },
+    { profileComponents: [/\+(page|layout)(@[^/]*)?$/, 'AddToCartButton'] },
 );
