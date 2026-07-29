@@ -1,7 +1,7 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import { productById, unsplashUrl, testIds } from '@flareapp/playgrounds-shared';
-    import { cart } from '$lib/cart.svelte';
+    import { productById, unsplashUrl } from '@flareapp/playgrounds-shared';
+    import AddToCartButton from '$lib/AddToCartButton.svelte';
     import { flare } from '$lib/flare.client';
 
     const product = $derived(productById(page.params.id ?? ''));
@@ -18,14 +18,7 @@
             <h1 class="text-2xl font-semibold">{product.title}</h1>
             <p class="text-sm opacity-70">Photograph by {product.photographer}</p>
             <div class="text-xl font-mono">${(product.priceCents / 100).toFixed(2)}</div>
-            <button
-                type="button"
-                data-testid={testIds.addToCart(product.id)}
-                onclick={() => cart.add(product.id)}
-                class="rounded-lg bg-brand-ink text-white py-3 hover:opacity-90"
-            >
-                Add to cart
-            </button>
+            <AddToCartButton productId={product.id} />
             <button
                 type="button"
                 onclick={() => {
