@@ -1,5 +1,6 @@
 export * from './assert';
 export * from './assertKey';
+export * from './componentMatcher';
 export * from './convertToError';
 export * from './createIdentityTagger';
 export * from './extractCode';

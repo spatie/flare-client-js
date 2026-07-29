@@ -28,6 +28,8 @@ export type {
     User,
 } from './types';
 
+// createComponentMatcher is left out on purpose. A svelte.config.js should get it from
+// '@flareapp/core/util' instead of pulling in this entry and everything it drags along.
 export {
     assert,
     assertKey,
