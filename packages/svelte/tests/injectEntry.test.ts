@@ -26,4 +26,9 @@ describe('@flareapp/svelte/inject entry', () => {
         const { createFlareErrorHandler } = await import('../src/inject.js');
         expect(() => createFlareErrorHandler()).toThrow(/No Flare instance available/);
     });
+
+    test('exports __flareProfileComponent for the preprocessor to import', async () => {
+        const mod = await import('../src/inject.js');
+        expect(typeof mod.__flareProfileComponent).toBe('function');
+    });
 });

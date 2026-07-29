@@ -21,4 +21,9 @@ describe('@flareapp/svelte web entry', () => {
         const { resolveFlare } = await import('../src/resolveFlare.js');
         expect(resolveFlare()).toBe(singleton);
     });
+
+    test('exports __flareProfileComponent for the preprocessor to import', async () => {
+        const mod = await import('../src/index.js');
+        expect(typeof mod.__flareProfileComponent).toBe('function');
+    });
 });

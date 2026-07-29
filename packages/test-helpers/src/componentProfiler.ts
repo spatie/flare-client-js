@@ -19,8 +19,8 @@ export type FakeComponentSeam = {
     setRoot(root: FakeComponentRoot): void;
     /**
      * Make `nowNano` return a larger value on every call, so a suite can assert that a span's start and
-     * end are two distinct reads and that a parent encloses its descendants in time. Off by default: a
-     * frozen clock keeps the ordinary timestamp assertions readable as literals.
+     * end are two distinct reads. Off by default: a frozen clock keeps the ordinary timestamp assertions
+     * readable as literals.
      */
     advanceClock(stepNano?: number): void;
     /** The spans the seam was asked to record, in order. */
