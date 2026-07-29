@@ -279,7 +279,7 @@ export class Flare {
     }
 
     /**
-     * Projects the known fields to the keys the Flare backend reads (see `USER_FIELD_KEYS`) and bundles
+     * Maps the known fields onto the keys the Flare backend reads (see `USER_FIELD_KEYS`) and bundles
      * anything else into `user.attributes`. Pass `null` to clear. In Node this targets the per-request scope.
      */
     setUser(user: User | null): this {
@@ -341,9 +341,9 @@ export class Flare {
 
         const seenAtUnixNano = Date.now() * 1_000_000;
 
-        // Coerce non-Error values so we always have a real Error to walk a stack from. Typed as Error
-        // for ergonomics, but consumers may pass anything.
-        const coerced = error instanceof Error ? error : new Error(typeof error === 'string' ? error : String(error));
+        // Turn a non-Error value into a real Error, so there is always a stack to walk. The parameter is
+        // typed as Error to keep the common call easy, but consumers may pass anything.
+        const coerced = error instanceof Error ? error : new Error(String(error));
 
         const errorToReport = await this._config.beforeEvaluate(coerced);
         if (!errorToReport) {
