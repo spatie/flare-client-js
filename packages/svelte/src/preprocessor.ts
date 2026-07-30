@@ -99,14 +99,17 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
     };
 }
 
+/** Svelte's own `get_basename`, which is what its sourcemap chaining compares against. */
+function basename(filename: string): string {
+    return filename.split(/[/\\]/).pop() ?? filename;
+}
+
 /**
  * The name error reports use. Stays a bare basename rather than reusing `resolveProfileName`, because
  * changing it would change component hierarchies people already have.
  */
 function extractComponentName(filename: string): string {
-    const normalized = filename.replace(/\\/g, '/');
-    const base = normalized.split('/').pop() ?? filename;
-    return base.replace(/\.svelte$/, '');
+    return basename(filename).replace(/\.svelte$/, '');
 }
 
 function escapeString(str: string): string {
@@ -171,6 +174,8 @@ function prependWithMap(content: string, injection: string, filename: string) {
 
     return {
         code: s.toString(),
-        map: s.generateMap({ hires: true, source: filename }),
+        // Basename, not the full path: Svelte matches sources with get_basename, and on a miss it
+        // silently drops the line offset instead of erroring.
+        map: s.generateMap({ hires: true, source: basename(filename) }),
     };
 }

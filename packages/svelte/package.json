@@ -60,6 +60,7 @@
         "release": "release-it"
     },
     "devDependencies": {
+        "@jridgewell/trace-mapping": "^0.3.31",
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@flareapp/test-helpers": "*",

@@ -1,4 +1,5 @@
-import { compile, preprocess } from 'svelte/compiler';
+import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
+import { compile, preprocess, type Processed } from 'svelte/compiler';
 import { describe, expect, test } from 'vitest';
 
 import { withFlareConfig } from '../src/config.js';
@@ -17,6 +18,13 @@ function runScriptHook(pp: ReturnType<typeof flarePreprocessor>, filename = FAKE
 function runMarkupHook(pp: ReturnType<typeof flarePreprocessor>, filename = FAKE_FILE) {
     const result = (pp as any).markup({ content: '<p>hello</p>', filename });
     return result;
+}
+
+// preprocess() types its map as `string | object`, so narrow it once instead of at every assertion.
+type PreprocessedMap = { version: 3; names: string[]; sources: string[]; mappings: string };
+
+function mapOf(processed: Processed): PreprocessedMap {
+    return processed.map as unknown as PreprocessedMap;
 }
 
 describe('flarePreprocessor — importSource option', () => {
@@ -158,22 +166,43 @@ describe('flarePreprocessor — component name escaping (B-svelte-1)', () => {
     });
 });
 
-// Prepending lines without a map offsets every subsequent line in stack traces and the debugger.
+// Prepending lines without a map Svelte can match offsets every line below it, in stack traces and in
+// the debugger.
 describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
-    test('the markup hook returns a sourcemap', () => {
-        const pp = flarePreprocessor();
-        const out = (pp as any).markup({ content: '<p>hi</p>', filename: FAKE_FILE });
-        expect(out.map).toBeTruthy();
-        expect(out.map.mappings).toBeTypeOf('string');
-        expect(out.map.sources).toContain(FAKE_FILE);
+    // Markup ABOVE the <script> is what makes this able to fail. Svelte offsets a script hook's map by
+    // get_location(tagOpen.length), which is zero lines when the script opens the file.
+    const WITH_SCRIPT = ['<p>one</p>', '<p>two</p>', '<script>', 'let marker = 1;', '</script>'].join('\n');
+    const SCRIPTLESS = ['<p>one</p>', '<p>two</p>', '<p>marker</p>'].join('\n');
+
+    /** Which original line the preprocessed output claims `needle` came from. */
+    function originalLineOf(processed: Processed, needle: string): number | null {
+        const lines = processed.code.split('\n');
+        const line = lines.findIndex((text) => text.includes(needle)) + 1;
+        const tracer = new TraceMap(mapOf(processed));
+
+        return originalPositionFor(tracer, { line, column: lines[line - 1]!.indexOf(needle) }).line;
+    }
+
+    test('names the source the way Svelte looks it up', async () => {
+        const withScript = await preprocess(WITH_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
+        const scriptless = await preprocess(SCRIPTLESS, flarePreprocessor(), { filename: FAKE_FILE });
+
+        // get_basename in compiler/utils/mapped_code.js. An absolute path never matches, and on a miss
+        // Svelte silently skips the offset that makes the map correct.
+        expect(mapOf(withScript).sources).toEqual(['Button.svelte']);
+        expect(mapOf(scriptless).sources).toEqual(['Button.svelte']);
     });
 
-    test('the script hook returns a sourcemap', () => {
-        const pp = flarePreprocessor();
-        const out = (pp as any).script({ content: 'let x = 1;', filename: FAKE_FILE, attributes: SCRIPT_ATTRS });
-        expect(out.map).toBeTruthy();
-        expect(out.map.mappings).toBeTypeOf('string');
-        expect(out.map.sources).toContain(FAKE_FILE);
+    test('a script body line still points at its original line', async () => {
+        const out = await preprocess(WITH_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expect(originalLineOf(out, 'let marker = 1;')).toBe(4);
+    });
+
+    test('markup in a scriptless component still points at its original line', async () => {
+        const out = await preprocess(SCRIPTLESS, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expect(originalLineOf(out, '<p>marker</p>')).toBe(3);
     });
 });
 
