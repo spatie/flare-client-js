@@ -183,7 +183,7 @@ and a `release` script in each `packages/<pkg>/package.json`.
 There are two paths:
 
 - **`scripts/release-all.mjs`, the normal one.** Releases the lockstep set (`js`, `react`, `vue`, `svelte`,
-  `webpack`, `vite`, `sveltekit`, `nextjs`) on one shared version, and can release the independently versioned
+  `webpack`, `vite`, `sveltekit`, `nextjs`, `inertia`) on one shared version, and can release the independently versioned
   packages (`core`, `node`, `electron`, `react-native`, `react-native-sourcemaps`) in the same run. It drives
   `release-it` per package, rewrites cross-package references, and publishes in dependency tiers.
 - **Per-package `release-it`.** `cd packages/<pkg> && npm run release`. Bumps and publishes that one package,
@@ -246,12 +246,12 @@ If any of those fail, fix first; do not release.
 ### Versioning rules
 
 - Two version tracks. The lockstep set (`js`, `react`, `vue`, `svelte`, `webpack`, `vite`, `sveltekit`,
-  `nextjs`) shares one version anchored on `@flareapp/js`. `core`, `node`, `electron`, `react-native` and
+  `nextjs`, `inertia`) shares one version anchored on `@flareapp/js`. `core`, `node`, `electron`, `react-native` and
   `react-native-sourcemaps` version independently.
 - Use semver: bug fix only -> `patch`, additive non-breaking -> `minor`, breaking change -> `major`.
 - **Cross-package references are rewritten automatically by `scripts/release-all.mjs`, not by hand.**
   On every run it sets the `@flareapp/js` peer range of `@flareapp/react`, `@flareapp/vue`,
-  `@flareapp/svelte` and `@flareapp/sveltekit` to `^<lockstepVersion>`, plus `@flareapp/sveltekit` ->
+  `@flareapp/svelte`, `@flareapp/sveltekit` and `@flareapp/inertia` to `^<lockstepVersion>`, plus `@flareapp/sveltekit` ->
   `@flareapp/svelte` and `@flareapp/nextjs` -> `@flareapp/webpack`. See `LOCKSTEP_REFS` and
   `updateCrossReferences` in that script; the edits are staged into the release commit. Every lockstep
   package is always in the release set, so there is no "remember to raise the peer floor" step.
