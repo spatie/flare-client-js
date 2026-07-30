@@ -4,12 +4,18 @@ import type { PreprocessorGroup } from 'svelte/compiler';
 
 import { resolveProfileName } from './resolveProfileName.js';
 
-// Loaded on demand. A static import puts svelte/compiler in the module graph of the runtime entries,
-// which re-export this file, and svelte declares no `sideEffects` so nothing shakes it back out.
+// Loaded on demand. Our package.json already marks this file shakeable via `sideEffects`, so a static
+// import costs nothing in a well-behaved bundler, but this way one that ignores `sideEffects` still
+// cannot drag the compiler into an app bundle.
 let compiler: Promise<typeof import('svelte/compiler')> | undefined;
 
 function loadCompiler(): Promise<typeof import('svelte/compiler')> {
-    compiler ??= import('svelte/compiler');
+    compiler ??= import('svelte/compiler').catch((error: unknown) => {
+        // Otherwise one transient failure sticks to every remaining file in the build.
+        compiler = undefined;
+
+        throw error;
+    });
 
     return compiler;
 }
@@ -101,21 +107,67 @@ function escapeString(str: string): string {
 /** Svelte's AST carries this at runtime; its estree `Program` type does not declare it. */
 type ScriptBody = { start: number };
 
+/** Copied from Svelte's own preprocessor, so we agree with it on what counts as a style tag. */
+const REGEX_STYLE_TAGS =
+    /<!--[^]*?-->|<style((?:\s+[^=>'"/\s]+=(?:"[^"]*"|'[^']*'|[^>\s]+)|\s+[^=>'"/\s]+)*\s*)(?:\/>|>([\S\s]*?)<\/style>)/g;
+
+const CLOSING_STYLE_TAG = '</style>';
+
+/** One warning per file per process. A dev server runs this hook again on every save. */
+const warnedFiles = new Set<string>();
+
+/**
+ * Blanks out every `<style>` body, keeping the exact character count so offsets into the original
+ * still line up. Svelte parses style bodies as CSS, so `lang="scss"` and friends throw and would
+ * otherwise cost the file its registration.
+ */
+function blankStyleBodies(content: string): string {
+    return content.replace(REGEX_STYLE_TAGS, (match: string, _attributes: string, body?: string) => {
+        // The first branch of the regex matches comments, which have no body to blank.
+        if (body === undefined || match.startsWith('<!--')) {
+            return match;
+        }
+
+        const bodyStart = match.length - body.length - CLOSING_STYLE_TAG.length;
+
+        // Newlines survive so reported line numbers keep matching the real file.
+        return match.slice(0, bodyStart) + body.replace(/[^\n]/g, ' ') + match.slice(bodyStart + body.length);
+    });
+}
+
+function warnOnce(filename: string, reason: string): void {
+    if (warnedFiles.has(filename)) {
+        return;
+    }
+
+    warnedFiles.add(filename);
+    // Silence here reads as "component tracking works", which is worse than a noisy build.
+    console.warn(`[flare] Skipped component tracking for ${filename}: ${reason}`);
+}
+
 /**
  * Where the instance script's body begins, `null` when the component has none, `undefined` when the
  * source cannot be parsed. Svelte hands a script hook every `<script>` in the file, nested ones
  * included, so only the parser can say which one belongs to the component.
  */
 async function instanceScriptStart(content: string, filename: string): Promise<number | null | undefined> {
-    const { parse } = await loadCompiler();
+    // parse() strips a BOM and we don't, so every offset it hands back would be one character off.
+    if (content.charCodeAt(0) === 0xfeff) {
+        warnOnce(filename, 'the file starts with a byte order mark');
+
+        return undefined;
+    }
 
     try {
-        const root = parse(content, { modern: true, filename });
+        const { parse } = await loadCompiler();
+        const root = parse(blankStyleBodies(content), { modern: true, filename });
 
         return root.instance ? (root.instance.content as unknown as ScriptBody).start : null;
-    } catch {
-        // Not Svelte yet: a markup preprocessor further down the chain may still have to transform it.
+    } catch (error) {
+        // Half-written source, or a template another preprocessor still has to turn into Svelte.
         // Skipping costs a registration; guessing corrupts the file.
+        warnOnce(filename, error instanceof Error ? error.message : String(error));
+
         return undefined;
     }
 }
@@ -132,8 +184,8 @@ function injectWithMap(content: string, injection: string, filename: string, sta
 
     return {
         code: s.toString(),
-        // Basename, not the full path: Svelte matches sources with get_basename, and on a miss it
-        // silently drops the line offset instead of erroring.
+        // Basename, not the full path: Svelte merges this map with the compiler's own by matching
+        // sources through get_basename, and that merge assumes preprocessor maps name it that way.
         map: s.generateMap({ hires: true, source: basename(filename) }),
     };
 }

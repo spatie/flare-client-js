@@ -97,6 +97,31 @@ Profiling and component tracking are independent. You can run either on its own:
 withFlareConfig(config, { componentTracking: false, profileComponents: [/\+page$/] });
 ```
 
+### Preprocessor ordering
+
+Both features are injected by a Svelte preprocessor, which `withFlareConfig` installs for you. It parses
+each file with `svelte/compiler` to find the component's own instance script, which is the only reliable
+way to tell that script apart from a `<script>` nested in your markup. So it has to be handed Svelte
+syntax.
+
+That only constrains you if you also run a markup preprocessor that converts another template language
+(pug and the like) into Svelte. `withFlareConfig` puts the Flare preprocessor first, where it would see
+the untransformed template, so in that setup wire it up yourself and place it after the one that
+produces Svelte:
+
+```js
+import { flarePreprocessor } from '@flareapp/svelte/config';
+
+export default {
+    preprocess: [templateToSvelte(), flarePreprocessor({ profileComponents: [/\+page$/] })],
+};
+```
+
+Style blocks are not affected. `<style lang="scss">` and friends are handled regardless of ordering.
+
+A file the preprocessor cannot parse is left exactly as it was, with a warning naming the file. You lose
+that component's registration, never the build.
+
 ### Component names
 
 Names come from the filename, and route files carry their route directory so they stay distinguishable:
