@@ -23,17 +23,25 @@ export function supportsNativeFetch(): boolean {
     let result = false;
     const document = globals.document;
     if (document && typeof document.createElement === 'function') {
+        let sandbox: HTMLIFrameElement | null = null;
         try {
-            const sandbox = document.createElement('iframe');
+            sandbox = document.createElement('iframe');
             sandbox.hidden = true;
             document.head.appendChild(sandbox);
             const sandboxWindow = sandbox.contentWindow as (Window & { fetch?: unknown }) | null;
             if (sandboxWindow && typeof sandboxWindow.fetch === 'function') {
                 result = isNativeFetch(sandboxWindow.fetch);
             }
-            document.head.removeChild(sandbox);
         } catch {
             result = false;
+        } finally {
+            try {
+                // Own catch: appendChild is inside the try above, so the probe may never have been
+                // attached, and removal must not throw out of here into the host app.
+                sandbox?.remove();
+            } catch {
+                // already detached
+            }
         }
     }
     return result;
