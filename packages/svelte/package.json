@@ -60,10 +60,10 @@
         "release": "release-it"
     },
     "devDependencies": {
-        "@jridgewell/trace-mapping": "^0.3.31",
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@flareapp/test-helpers": "*",
+        "@jridgewell/trace-mapping": "^0.3.31",
         "@sveltejs/package": "^2.5.7",
         "@sveltejs/vite-plugin-svelte": "^5.0.0",
         "@testing-library/svelte": "^5.0.0",

@@ -166,8 +166,8 @@ describe('flarePreprocessor — component name escaping (B-svelte-1)', () => {
     });
 });
 
-// Prepending lines without a map Svelte can match offsets every line below it, in stack traces and in
-// the debugger.
+// If the emitted map's source name doesn't match what Svelte looks up, Svelte skips the line offset
+// it would otherwise apply, so every line below the prepended content reports the wrong original line.
 describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
     // Markup ABOVE the <script> is what makes this able to fail. Svelte offsets a script hook's map by
     // get_location(tagOpen.length), which is zero lines when the script opens the file.
