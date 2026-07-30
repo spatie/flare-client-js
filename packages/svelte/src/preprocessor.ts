@@ -4,9 +4,8 @@ import type { PreprocessorGroup } from 'svelte/compiler';
 
 import { resolveProfileName } from './resolveProfileName.js';
 
-// Loaded on demand. Our package.json already marks this file shakeable via `sideEffects`, so a static
-// import costs nothing in a well-behaved bundler, but this way one that ignores `sideEffects` still
-// cannot drag the compiler into an app bundle.
+// Loaded on demand so the compiler stays out of the entry's module graph. Costs nothing at
+// runtime either: this hook only ever runs during the build's preprocessing pass.
 let compiler: Promise<typeof import('svelte/compiler')> | undefined;
 
 function loadCompiler(): Promise<typeof import('svelte/compiler')> {
@@ -151,18 +150,22 @@ function warnOnce(filename: string, reason: string): void {
  * included, so only the parser can say which one belongs to the component.
  */
 async function instanceScriptStart(content: string, filename: string): Promise<number | null | undefined> {
-    // parse() strips a BOM and we don't, so every offset it hands back would be one character off.
-    if (content.charCodeAt(0) === 0xfeff) {
-        warnOnce(filename, 'the file starts with a byte order mark');
-
-        return undefined;
-    }
+    // parse() strips a leading BOM itself and reports offsets against the stripped source, so we
+    // strip it before parsing too and add the character back onto whatever offset comes out.
+    const hasBom = content.charCodeAt(0) === 0xfeff;
+    const source = hasBom ? content.slice(1) : content;
 
     try {
         const { parse } = await loadCompiler();
-        const root = parse(blankStyleBodies(content), { modern: true, filename });
+        const root = parse(blankStyleBodies(source), { modern: true, filename });
 
-        return root.instance ? (root.instance.content as unknown as ScriptBody).start : null;
+        if (!root.instance) {
+            return null;
+        }
+
+        const start = (root.instance.content as unknown as ScriptBody).start;
+
+        return hasBom ? start + 1 : start;
     } catch (error) {
         // Half-written source, or a template another preprocessor still has to turn into Svelte.
         // Skipping costs a registration; guessing corrupts the file.
@@ -184,8 +187,8 @@ function injectWithMap(content: string, injection: string, filename: string, sta
 
     return {
         code: s.toString(),
-        // Basename, not the full path: Svelte merges this map with the compiler's own by matching
-        // sources through get_basename, and that merge assumes preprocessor maps name it that way.
+        // Basename, not the full path: the merged map inherits `sources` from the oldest map in
+        // the chain, which is ours, so an absolute path here ships in every built sourcemap.
         map: s.generateMap({ hires: true, source: basename(filename) }),
     };
 }

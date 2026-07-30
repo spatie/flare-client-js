@@ -39,20 +39,30 @@ function expectSingleInstanceInjection(code: string, filename = FAKE_FILE): void
     expect(hits).toHaveLength(1);
 
     const instance = parse(code, { modern: true, filename }).instance;
-    expect(instance).not.toBeNull();
+    expect(instance).toBeTruthy();
 
     const body = instance!.content as unknown as ScriptBody;
     expect(hits[0]!.index).toBeGreaterThanOrEqual(body.start);
     expect(hits[0]!.index).toBeLessThan(body.end);
 }
 
-/** Same check without parsing, for sources `parse` itself rejects (a scss block, say). */
-function expectInjectionInsideFirstScript(code: string): void {
-    const hits = [...code.matchAll(/__flareRegisterComponent/g)];
+/**
+ * Same check without parsing, for sources `parse` itself rejects (a scss block, say). Also pins the
+ * top-level `<script` count against the input: a prepended fresh script block still lands inside the
+ * offset bounds above, so only this count catches that regression.
+ */
+function expectInjectionInsideFirstScript(input: string, output: string): void {
+    const hits = [...output.matchAll(/__flareRegisterComponent/g)];
     expect(hits).toHaveLength(1);
 
-    expect(hits[0]!.index).toBeGreaterThan(code.indexOf('<script>'));
-    expect(hits[0]!.index).toBeLessThan(code.indexOf('</script>'));
+    expect(hits[0]!.index).toBeGreaterThan(output.indexOf('<script>'));
+    expect(hits[0]!.index).toBeLessThan(output.indexOf('</script>'));
+
+    const inputScripts = (input.match(/<script/g) || []).length;
+    const outputScripts = (output.match(/<script/g) || []).length;
+    // No instance script to begin with: the only way to inject is to prepend a brand new one.
+    const expectedNewScripts = inputScripts > 0 ? 0 : 1;
+    expect(outputScripts - inputScripts).toBe(expectedNewScripts);
 }
 
 describe('flarePreprocessor — importSource option', () => {
@@ -184,7 +194,7 @@ describe('flarePreprocessor — component name escaping (B-svelte-1)', () => {
 });
 
 // Injecting shifts every line below the injection point, so without a map those lines report the
-// wrong original line. Svelte's merge matches preprocessor maps by basename, so the name matters too.
+// wrong original line. The merged map's `sources` come from ours too, so the basename matters.
 describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
     // Markup ABOVE the <script> means there is markup whose line numbers the injection can shift.
     const MARKUP_THEN_SCRIPT = ['<p>one</p>', '<p>two</p>', '<script>', 'let marker = 1;', '</script>'].join('\n');
@@ -203,14 +213,14 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
         const withScript = await preprocess(MARKUP_THEN_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
         const scriptless = await preprocess(MARKUP_ONLY, flarePreprocessor(), { filename: FAKE_FILE });
 
-        // merge_with_preprocessor_map in compiler/utils/mapped_code.js patches the compiler's own map
-        // to get_basename(filename) before merging, and expects ours to already name it that way.
+        // The merged map inherits `sources` from the oldest map in the chain, which is ours, so
+        // this name is what every shipped .svelte sourcemap ends up pointing at.
         expect(mapOf(withScript).sources).toEqual(['Button.svelte']);
         expect(mapOf(scriptless).sources).toEqual(['Button.svelte']);
     });
 
-    // Nothing else drives two maps through combine_sourcemaps, which is where a source name decides
-    // whether the older map gets chained in at all.
+    // The only test that chains two preprocessor maps together, to confirm the basename survives
+    // the merge and positions still resolve.
     test('positions survive a chain with another markup preprocessor', async () => {
         const banner: PreprocessorGroup = {
             name: 'banner',
@@ -515,8 +525,8 @@ describe('flarePreprocessor — nested <script> tags are not ours', () => {
         expect(out.code).toContain(nestedModule);
     });
 
-    // Today this file gets its registration injected into the head script and never receives an
-    // instance script at all, so the component is silently not registered.
+    // This used to get its registration injected into the head script and never receive an
+    // instance script at all, leaving the component silently unregistered.
     test('creates an instance script when the only script is a nested one', async () => {
         const source = `<svelte:head>\n  ${NESTED}\n</svelte:head>\n<p>hi</p>`;
         const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
@@ -542,7 +552,7 @@ describe('flarePreprocessor — style blocks in a language the CSS parser cannot
         const source = `<script>\nlet x = 1;\n</script>\n<p>{x}</p>\n${style}`;
         const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
 
-        expectInjectionInsideFirstScript(out.code);
+        expectInjectionInsideFirstScript(source, out.code);
         // Byte-identical: we parse a blanked copy, but what we emit is the untouched source.
         expect(out.code).toContain(style);
     });
@@ -551,7 +561,7 @@ describe('flarePreprocessor — style blocks in a language the CSS parser cannot
         const source = `<p>hello</p>\n${CASES.scss}`;
         const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
 
-        expectInjectionInsideFirstScript(out.code);
+        expectInjectionInsideFirstScript(source, out.code);
         expect(out.code).toContain(CASES.scss);
     });
 
@@ -568,7 +578,7 @@ describe('flarePreprocessor — style blocks in a language the CSS parser cannot
         const source = `${CASES.scss}\n<script>\nlet x = 1;\n</script>`;
         const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
 
-        expectInjectionInsideFirstScript(out.code);
+        expectInjectionInsideFirstScript(source, out.code);
         expect(out.code).toContain(CASES.scss);
     });
 });
@@ -583,18 +593,6 @@ describe('flarePreprocessor — sources it refuses to touch', () => {
 
     afterEach(() => {
         warn.mockRestore();
-    });
-
-    // parse() strips a BOM before reporting offsets and we don't, so acting on them would splice the
-    // injection into the middle of the <script> tag and the component would stop compiling.
-    test('leaves a file that starts with a byte order mark alone', async () => {
-        const file = '/app/src/Bom.svelte';
-        const source = `﻿<script>\nlet x = 1;\n</script>\n<p>{x}</p>`;
-        const out = await preprocess(source, flarePreprocessor(), { filename: file });
-
-        expect(out.code).toBe(source);
-        expect(() => compile(out.code, { filename: file })).not.toThrow();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining(file));
     });
 
     test('emits nothing when the source does not parse', async () => {
@@ -614,5 +612,19 @@ describe('flarePreprocessor — sources it refuses to touch', () => {
         expect(warn).toHaveBeenCalledTimes(1);
         expect(warn.mock.calls[0]![0]).toContain(file);
         expect(warn.mock.calls[0]![0]).toContain('Block was left open');
+    });
+});
+
+// parse() strips a leading BOM and reports offsets against the stripped source, so we have to do
+// the same slicing before trusting any offset it hands back.
+describe('flarePreprocessor — byte order mark', () => {
+    test('injects into the instance script, keeps the BOM, and still compiles', async () => {
+        const file = '/app/src/Bom.svelte';
+        const source = `﻿<script>\nlet x = 1;\n</script>\n<p>{x}</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: file });
+
+        expect(out.code.charCodeAt(0)).toBe(0xfeff);
+        expectSingleInstanceInjection(out.code.slice(1), file);
+        expect(() => compile(out.code, { filename: file })).not.toThrow();
     });
 });
