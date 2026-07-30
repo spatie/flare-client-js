@@ -1,5 +1,5 @@
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
-import { compile, preprocess, type Processed } from 'svelte/compiler';
+import { compile, parse, preprocess, type Processed } from 'svelte/compiler';
 import { describe, expect, test } from 'vitest';
 
 import { withFlareConfig } from '../src/config.js';
@@ -25,6 +25,22 @@ type PreprocessedMap = { version: 3; names: string[]; sources: string[]; mapping
 
 function mapOf(processed: Processed): PreprocessedMap {
     return processed.map as unknown as PreprocessedMap;
+}
+
+// Svelte's AST carries these at runtime; its estree `Program` type does not declare them.
+type ScriptBody = { start: number; end: number };
+
+/** Asserts the registration was injected exactly once, into the component's own instance script. */
+function expectSingleInstanceInjection(code: string, filename = FAKE_FILE): void {
+    const hits = [...code.matchAll(/__flareRegisterComponent/g)];
+    expect(hits).toHaveLength(1);
+
+    const instance = parse(code, { modern: true, filename }).instance;
+    expect(instance).not.toBeNull();
+
+    const body = instance!.content as unknown as ScriptBody;
+    expect(hits[0]!.index).toBeGreaterThanOrEqual(body.start);
+    expect(hits[0]!.index).toBeLessThan(body.end);
 }
 
 describe('flarePreprocessor — importSource option', () => {
@@ -438,5 +454,65 @@ describe('flarePreprocessor — script tags that only look like component code',
         const out = (pp as any).script({ content: '{"a":1}', filename: FAKE_FILE, attributes: { type } });
 
         expect(out).toBeUndefined();
+    });
+});
+
+// Svelte hands the script hook every <script> in the file, nested ones included, with no offset saying
+// where it sat. Injecting into one ships an `import` inside a classic script.
+describe('flarePreprocessor — nested <script> tags are not ours', () => {
+    const NESTED = '<script>window.analytics = 1;</script>';
+
+    test('leaves an untyped script inside <svelte:head> alone', async () => {
+        const source = `<script>let x = 1;</script>\n<svelte:head>\n  ${NESTED}\n</svelte:head>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expectSingleInstanceInjection(out.code);
+        expect(out.code).toContain(NESTED);
+    });
+
+    test('leaves an untyped script inside a markup element alone', async () => {
+        const source = `<script>let x = 1;</script>\n<div>\n  ${NESTED}\n</div>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expectSingleInstanceInjection(out.code);
+        expect(out.code).toContain(NESTED);
+    });
+
+    test('leaves a nested <script src> empty', async () => {
+        const source = `<script>let x = 1;</script>\n<div><script src="/a.js"></script></div>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expectSingleInstanceInjection(out.code);
+        expect(out.code).toContain('<script src="/a.js"></script>');
+    });
+
+    // The nested script comes FIRST here. A text scan for the first non-module <script> picks that one,
+    // so this ordering is what separates a real fix from a plausible-looking one.
+    test('picks the instance script even when a nested one comes first', async () => {
+        const source = `<svelte:head>${NESTED}</svelte:head>\n<script>let x = 1;</script>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expectSingleInstanceInjection(out.code);
+        expect(out.code).toContain(NESTED);
+    });
+
+    test('leaves a nested type="module" script alone', async () => {
+        const nestedModule = `<script type="module">import('./x.js');</script>`;
+        const source = `<script>let x = 1;</script>\n<div>${nestedModule}</div>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expectSingleInstanceInjection(out.code);
+        expect(out.code).toContain(nestedModule);
+    });
+
+    // Today this file gets its registration injected into the head script and never receives an
+    // instance script at all, so the component is silently not registered.
+    test('creates an instance script when the only script is a nested one', async () => {
+        const source = `<svelte:head>\n  ${NESTED}\n</svelte:head>\n<p>hi</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
+
+        expectSingleInstanceInjection(out.code);
+        expect(out.code).toContain(NESTED);
+        expect(() => compile(out.code, { filename: FAKE_FILE })).not.toThrow();
     });
 });
