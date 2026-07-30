@@ -4,6 +4,16 @@ import type { PreprocessorGroup } from 'svelte/compiler';
 
 import { resolveProfileName } from './resolveProfileName.js';
 
+// Loaded on demand. A static import puts svelte/compiler in the module graph of the runtime entries,
+// which re-export this file, and svelte declares no `sideEffects` so nothing shakes it back out.
+let compiler: Promise<typeof import('svelte/compiler')> | undefined;
+
+function loadCompiler(): Promise<typeof import('svelte/compiler')> {
+    compiler ??= import('svelte/compiler');
+
+    return compiler;
+}
+
 export interface FlarePreprocessorOptions {
     exclude?: RegExp;
     importSource?: string;
@@ -51,14 +61,8 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
     return {
         name: 'flare-component-tree',
 
-        markup({ content, filename }) {
+        async markup({ content, filename }) {
             if (!filename?.includes('.svelte') || exclude?.test(filename)) {
-                return;
-            }
-
-            // Only bail on an instance script, since the script hook handles those. A component with
-            // just a module script still needs one added here, because the script hook skips those.
-            if (hasInstanceScript(content)) {
                 return;
             }
 
@@ -67,34 +71,12 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
-            return prependWithMap(content, `<script>\n${injection}</script>\n`, filename);
-        },
-
-        script({ content, filename, attributes }) {
-            if (!filename?.includes('.svelte') || exclude?.test(filename)) {
+            const start = await instanceScriptStart(content, filename);
+            if (start === undefined) {
                 return;
             }
 
-            if (attributes.context === 'module' || attributes.module != null) {
-                return;
-            }
-
-            if (!isJavaScriptScript(attributes)) {
-                return;
-            }
-
-            // Svelte runs this hook over the block the markup hook just added, so without this we'd
-            // inject twice. Both tokens matter: a profile-only injection has no `__flare_node__`.
-            if (content.includes('__flare_node__') || content.includes('__flare_prof__')) {
-                return;
-            }
-
-            const injection = buildInjection(filename);
-            if (!injection) {
-                return;
-            }
-
-            return prependWithMap(content, injection, filename);
+            return injectWithMap(content, injection, filename, start);
         },
     };
 }
@@ -116,61 +98,37 @@ function escapeString(str: string): string {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
-/**
- * Copied from Svelte's own preprocessor, because Svelte decides which tags reach the script hook and
- * we have to agree with it. The `<!-- -->` branch is what stops a commented-out `<script>` counting.
- */
-const REGEX_SCRIPT_OR_COMMENT =
-    /<!--[^]*?-->|<script((?:\s+[^=>'"/\s]+=(?:"[^"]*"|'[^']*'|[^>\s]+)|\s+[^=>'"/\s]+)*\s*)(?:\/>|>([\S\s]*?)<\/script>)/g;
-
-/** Anything else (`application/ld+json`, `importmap`, ...) holds data, not component code. */
-const JAVASCRIPT_SCRIPT_TYPES = new Set([
-    'text/javascript',
-    'application/javascript',
-    'text/ecmascript',
-    'application/ecmascript',
-    'module',
-]);
-
-/** True when the source has a script that isn't `<script module>` / `<script context="module">`. */
-function hasInstanceScript(content: string): boolean {
-    // matchAll clones the regex, so the shared /g/ literal can't leak lastIndex between calls.
-    for (const match of content.matchAll(REGEX_SCRIPT_OR_COMMENT)) {
-        if (match[0].startsWith('<!--')) {
-            continue;
-        }
-
-        if (!isModuleScriptAttributes(match[1] ?? '')) {
-            return true;
-        }
-    }
-
-    return false;
-}
+/** Svelte's AST carries this at runtime; its estree `Program` type does not declare it. */
+type ScriptBody = { start: number };
 
 /**
- * Svelte passes us every script tag, nested ones too, so a JSON-LD block turns up here looking like
- * component code. Injecting into one would corrupt it, so when in doubt we skip: a missing
- * registration is cheaper than broken output.
+ * Where the instance script's body begins, `null` when the component has none, `undefined` when the
+ * source cannot be parsed. Svelte hands a script hook every `<script>` in the file, nested ones
+ * included, so only the parser can say which one belongs to the component.
  */
-function isJavaScriptScript(attributes: Record<string, string | boolean>): boolean {
-    const type = attributes.type;
-    if (type == null || typeof type === 'boolean') {
-        return true;
+async function instanceScriptStart(content: string, filename: string): Promise<number | null | undefined> {
+    const { parse } = await loadCompiler();
+
+    try {
+        const root = parse(content, { modern: true, filename });
+
+        return root.instance ? (root.instance.content as unknown as ScriptBody).start : null;
+    } catch {
+        // Not Svelte yet: a markup preprocessor further down the chain may still have to transform it.
+        // Skipping costs a registration; guessing corrupts the file.
+        return undefined;
     }
-
-    return JAVASCRIPT_SCRIPT_TYPES.has(type.trim().toLowerCase());
 }
 
-/** Handles both the Svelte 5 `<script module>` and the legacy `<script context="module">`. */
-function isModuleScriptAttributes(attributes: string): boolean {
-    return /\bcontext\s*=\s*["']module["']/i.test(attributes) || /(?:^|\s)module(?=\s|=|$)/i.test(attributes);
-}
-
-/** The map matters: prepending shifts every line below, throwing off stack frames and breakpoints. */
-function prependWithMap(content: string, injection: string, filename: string) {
+/** The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints. */
+function injectWithMap(content: string, injection: string, filename: string, start: number | null) {
     const s = new MagicString(content);
-    s.prepend(injection);
+
+    if (start === null) {
+        s.prepend(`<script>\n${injection}</script>\n`);
+    } else {
+        s.appendLeft(start, `\n${injection}`);
+    }
 
     return {
         code: s.toString(),

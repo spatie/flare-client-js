@@ -6,18 +6,20 @@ import { withFlareConfig } from '../src/config.js';
 import { flarePreprocessor } from '../src/preprocessor.js';
 
 const FAKE_FILE = '/app/src/Button.svelte';
-const SCRIPT_ATTRS = { lang: undefined };
 
-// Run the script hook (component with <script>).
-function runScriptHook(pp: ReturnType<typeof flarePreprocessor>, filename = FAKE_FILE) {
-    const result = (pp as any).script({ content: 'console.log("hi");', filename, attributes: SCRIPT_ATTRS });
-    return result;
+// The two component shapes. Both go through the markup hook now, so tests drive one entry point.
+const WITH_SCRIPT = '<script>\nlet x = 1;\n</script>\n<p>{x}</p>';
+const SCRIPTLESS = '<p>hello</p>';
+
+function runMarkup(pp: ReturnType<typeof flarePreprocessor>, content = SCRIPTLESS, filename = FAKE_FILE) {
+    return (pp as any).markup({ content, filename });
 }
 
-// Run the markup hook (no <script> tag, scriptless component).
-function runMarkupHook(pp: ReturnType<typeof flarePreprocessor>, filename = FAKE_FILE) {
-    const result = (pp as any).markup({ content: '<p>hello</p>', filename });
-    return result;
+/** The group withFlareConfig installs, which it always puts first. */
+function flareGroupOf(cfg: ReturnType<typeof withFlareConfig>): ReturnType<typeof flarePreprocessor> {
+    const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
+
+    return preprocessors[0]!;
 }
 
 // preprocess() types its map as `string | object`, so narrow it once instead of at every assertion.
@@ -44,33 +46,33 @@ function expectSingleInstanceInjection(code: string, filename = FAKE_FILE): void
 }
 
 describe('flarePreprocessor — importSource option', () => {
-    describe('script branch (component with <script>)', () => {
-        test('defaults to importing from @flareapp/svelte (web)', () => {
+    describe('component with an instance script', () => {
+        test('defaults to importing from @flareapp/svelte (web)', async () => {
             const pp = flarePreprocessor();
-            const out = runScriptHook(pp);
+            const out = await runMarkup(pp, WITH_SCRIPT);
             expect(out.code).toContain("from '@flareapp/svelte'");
             expect(out.code).not.toContain("from '@flareapp/svelte/inject'");
         });
 
-        test('emits the inject specifier when importSource is @flareapp/svelte/inject', () => {
+        test('emits the inject specifier when importSource is @flareapp/svelte/inject', async () => {
             const pp = flarePreprocessor({ importSource: '@flareapp/svelte/inject' });
-            const out = runScriptHook(pp);
+            const out = await runMarkup(pp, WITH_SCRIPT);
             expect(out.code).toContain("from '@flareapp/svelte/inject'");
             expect(out.code).not.toContain("from '@flareapp/svelte'");
         });
     });
 
-    describe('markup branch (scriptless component)', () => {
-        test('defaults to importing from @flareapp/svelte (web)', () => {
+    describe('scriptless component', () => {
+        test('defaults to importing from @flareapp/svelte (web)', async () => {
             const pp = flarePreprocessor();
-            const out = runMarkupHook(pp);
+            const out = await runMarkup(pp, SCRIPTLESS);
             expect(out.code).toContain("from '@flareapp/svelte'");
             expect(out.code).not.toContain("from '@flareapp/svelte/inject'");
         });
 
-        test('emits the inject specifier when importSource is @flareapp/svelte/inject', () => {
+        test('emits the inject specifier when importSource is @flareapp/svelte/inject', async () => {
             const pp = flarePreprocessor({ importSource: '@flareapp/svelte/inject' });
-            const out = runMarkupHook(pp);
+            const out = await runMarkup(pp, SCRIPTLESS);
             expect(out.code).toContain("from '@flareapp/svelte/inject'");
             expect(out.code).not.toContain("from '@flareapp/svelte'");
         });
@@ -78,35 +80,28 @@ describe('flarePreprocessor — importSource option', () => {
 });
 
 describe('withFlareConfig — importSource option', () => {
-    test('threads importSource through to the preprocessor (script branch)', () => {
+    test('threads importSource through to the preprocessor (component with an instance script)', async () => {
         const cfg = withFlareConfig({}, { importSource: '@flareapp/svelte/inject' });
-        const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
-        const pp = preprocessors[0];
-        const out = (pp as any).script({ content: 'let x = 1;', filename: FAKE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(flareGroupOf(cfg), WITH_SCRIPT);
         expect(out.code).toContain("from '@flareapp/svelte/inject'");
     });
 
-    test('threads importSource through to the preprocessor (markup branch)', () => {
+    test('threads importSource through to the preprocessor (scriptless component)', async () => {
         const cfg = withFlareConfig({}, { importSource: '@flareapp/svelte/inject' });
-        const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
-        const pp = preprocessors[0];
-        const out = (pp as any).markup({ content: '<p>hello</p>', filename: FAKE_FILE });
+        const out = await runMarkup(flareGroupOf(cfg), SCRIPTLESS);
         expect(out.code).toContain("from '@flareapp/svelte/inject'");
     });
 
-    test('default (no importSource) still emits @flareapp/svelte', () => {
+    test('default (no importSource) still emits @flareapp/svelte', async () => {
         const cfg = withFlareConfig({});
-        const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
-        const pp = preprocessors[0];
-        const out = (pp as any).script({ content: 'let x = 1;', filename: FAKE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(flareGroupOf(cfg), WITH_SCRIPT);
         expect(out.code).toContain("from '@flareapp/svelte'");
         expect(out.code).not.toContain("from '@flareapp/svelte/inject'");
     });
 });
 
-// Run through Svelte's real pipeline (markup -> script in one pass), not the hooks in isolation.
-// Only this catches the markup hook injecting a <script> that the script hook then re-processes
-// (double injection -> duplicate `__flare_node__` -> compile error).
+// Run through Svelte's real pipeline instead of the hook in isolation, so the output has to survive
+// preprocess() and compile() rather than merely look right.
 describe('flarePreprocessor — full preprocess() + compile() pipeline', () => {
     test('a scriptless component injects exactly once and compiles', async () => {
         const out = await preprocess('<p>hello</p>', flarePreprocessor(), { filename: FAKE_FILE });
@@ -157,21 +152,17 @@ describe('flarePreprocessor — full preprocess() + compile() pipeline', () => {
 describe('flarePreprocessor — component name escaping (B-svelte-1)', () => {
     const APOSTROPHE_FILE = "/app/src/Product's.svelte";
 
-    test('escapes a single quote in the component name (markup hook)', () => {
+    test('escapes a single quote in the component name (scriptless component)', async () => {
         const pp = flarePreprocessor();
-        const out = (pp as any).markup({ content: '<p>hi</p>', filename: APOSTROPHE_FILE });
+        const out = await runMarkup(pp, SCRIPTLESS, APOSTROPHE_FILE);
         expect(out.code).toContain("__flare_reg__('Product\\'s'");
         // The unescaped form would close the string literal early and inject stray JS.
         expect(out.code).not.toContain("__flare_reg__('Product's'");
     });
 
-    test('escapes a single quote in the component name (script hook)', () => {
+    test('escapes a single quote in the component name (component with an instance script)', async () => {
         const pp = flarePreprocessor();
-        const out = (pp as any).script({
-            content: 'let x = 1;',
-            filename: APOSTROPHE_FILE,
-            attributes: SCRIPT_ATTRS,
-        });
+        const out = await runMarkup(pp, WITH_SCRIPT, APOSTROPHE_FILE);
         expect(out.code).toContain("__flare_reg__('Product\\'s'");
         expect(out.code).not.toContain("__flare_reg__('Product's'");
     });
@@ -185,10 +176,10 @@ describe('flarePreprocessor — component name escaping (B-svelte-1)', () => {
 // If the emitted map's source name doesn't match what Svelte looks up, Svelte skips the line offset
 // it would otherwise apply, so every line below the prepended content reports the wrong original line.
 describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
-    // Markup ABOVE the <script> is what makes this able to fail. Svelte offsets a script hook's map by
-    // get_location(tagOpen.length), which is zero lines when the script opens the file.
-    const WITH_SCRIPT = ['<p>one</p>', '<p>two</p>', '<script>', 'let marker = 1;', '</script>'].join('\n');
-    const SCRIPTLESS = ['<p>one</p>', '<p>two</p>', '<p>marker</p>'].join('\n');
+    // Markup ABOVE the <script> is what makes this able to fail: a component whose script opens the
+    // file has nothing to shift, so it stays correct even with a map Svelte cannot match up.
+    const MARKUP_THEN_SCRIPT = ['<p>one</p>', '<p>two</p>', '<script>', 'let marker = 1;', '</script>'].join('\n');
+    const MARKUP_ONLY = ['<p>one</p>', '<p>two</p>', '<p>marker</p>'].join('\n');
 
     /** Which original line the preprocessed output claims `needle` came from. */
     function originalLineOf(processed: Processed, needle: string): number | null {
@@ -200,8 +191,8 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
     }
 
     test('names the source the way Svelte looks it up', async () => {
-        const withScript = await preprocess(WITH_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
-        const scriptless = await preprocess(SCRIPTLESS, flarePreprocessor(), { filename: FAKE_FILE });
+        const withScript = await preprocess(MARKUP_THEN_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
+        const scriptless = await preprocess(MARKUP_ONLY, flarePreprocessor(), { filename: FAKE_FILE });
 
         // get_basename in compiler/utils/mapped_code.js. An absolute path never matches, and on a miss
         // Svelte silently skips the offset that makes the map correct.
@@ -210,13 +201,13 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
     });
 
     test('a script body line still points at its original line', async () => {
-        const out = await preprocess(WITH_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
+        const out = await preprocess(MARKUP_THEN_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
 
         expect(originalLineOf(out, 'let marker = 1;')).toBe(4);
     });
 
     test('markup in a scriptless component still points at its original line', async () => {
-        const out = await preprocess(SCRIPTLESS, flarePreprocessor(), { filename: FAKE_FILE });
+        const out = await preprocess(MARKUP_ONLY, flarePreprocessor(), { filename: FAKE_FILE });
 
         expect(originalLineOf(out, '<p>marker</p>')).toBe(3);
     });
@@ -225,80 +216,72 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
 const ROUTE_FILE = '/app/src/routes/product/[id]/+page.svelte';
 
 describe('flarePreprocessor — profile injection', () => {
-    test('injects nothing extra when profileComponents is absent', () => {
-        const out = runScriptHook(flarePreprocessor());
+    test('injects nothing extra when profileComponents is absent', async () => {
+        const out = await runMarkup(flarePreprocessor(), WITH_SCRIPT);
 
         expect(out.code).toContain('__flare_reg__');
         expect(out.code).not.toContain('__flare_prof__');
     });
 
-    test('injects both calls for a matched file when tracking is on', () => {
+    test('injects both calls for a matched file when tracking is on', async () => {
         const pp = flarePreprocessor({ profileComponents: [/\+page$/] });
-        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(pp, WITH_SCRIPT, ROUTE_FILE);
 
         expect(out.code).toContain('__flareRegisterComponent as __flare_reg__');
         expect(out.code).toContain('__flareProfileComponent as __flare_prof__');
         expect(out.code).toContain("__flare_prof__('product/[id]/+page');");
     });
 
-    test('injects only the profile call when tracking is off', () => {
+    test('injects only the profile call when tracking is off', async () => {
         const pp = flarePreprocessor({ componentTracking: false, profileComponents: [/\+page$/] });
-        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(pp, WITH_SCRIPT, ROUTE_FILE);
 
         expect(out.code).toContain('__flare_prof__');
         expect(out.code).not.toContain('__flare_reg__');
     });
 
-    test('injects nothing for an unmatched file when tracking is off', () => {
+    test('injects nothing for an unmatched file when tracking is off', async () => {
         const pp = flarePreprocessor({ componentTracking: false, profileComponents: ['SomethingElse'] });
-        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(pp, WITH_SCRIPT, ROUTE_FILE);
 
         expect(out).toBeUndefined();
     });
 
-    test('matches on the route-aware name, not the basename', () => {
+    test('matches on the route-aware name, not the basename', async () => {
         const pp = flarePreprocessor({ profileComponents: ['product/[id]/+page'] });
-        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(pp, WITH_SCRIPT, ROUTE_FILE);
 
         expect(out.code).toContain('__flare_prof__');
     });
 
-    test('honors a custom routesDir', () => {
+    test('honors a custom routesDir', async () => {
         const pp = flarePreprocessor({ profileComponents: [/\+page$/], routesDir: 'source/pages' });
-        const out = (pp as any).script({
-            content: 'let x = 1;',
-            filename: '/app/source/pages/cart/+page.svelte',
-            attributes: SCRIPT_ATTRS,
-        });
+        const out = await runMarkup(pp, WITH_SCRIPT, '/app/source/pages/cart/+page.svelte');
 
         expect(out.code).toContain("__flare_prof__('cart/+page');");
     });
 
     // `exclude` kills everything, not just the component tree.
-    test('exclude suppresses the profile call as well as the registration', () => {
+    test('exclude suppresses the profile call as well as the registration', async () => {
         const pp = flarePreprocessor({ profileComponents: true, exclude: /routes/ });
-        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(pp, WITH_SCRIPT, ROUTE_FILE);
 
         expect(out).toBeUndefined();
     });
 
     // Whichever entry importSource names has to export the symbol, or the injected call is undefined
     // and throws at init.
-    test('emits the profile import from the inject entry when importSource is the inject entry', () => {
+    test('emits the profile import from the inject entry when importSource is the inject entry', async () => {
         const pp = flarePreprocessor({ importSource: '@flareapp/svelte/inject', profileComponents: true });
-        const out = (pp as any).script({ content: 'let x = 1;', filename: ROUTE_FILE, attributes: SCRIPT_ATTRS });
+        const out = await runMarkup(pp, WITH_SCRIPT, ROUTE_FILE);
 
         expect(out.code).toContain('__flareProfileComponent as __flare_prof__');
         expect(out.code).toContain("from '@flareapp/svelte/inject'");
     });
 
-    test('escapes a single quote in the profile name', () => {
+    test('escapes a single quote in the profile name', async () => {
         const pp = flarePreprocessor({ profileComponents: true });
-        const out = (pp as any).script({
-            content: 'let x = 1;',
-            filename: "/app/src/lib/Product's.svelte",
-            attributes: SCRIPT_ATTRS,
-        });
+        const out = await runMarkup(pp, WITH_SCRIPT, "/app/src/lib/Product's.svelte");
 
         expect(out.code).toContain("__flare_prof__('Product\\'s');");
     });
@@ -315,8 +298,6 @@ describe('flarePreprocessor — profile injection through the full pipeline', ()
         expect(() => compile(out.code, { filename: ROUTE_FILE })).not.toThrow();
     });
 
-    // Without the widened guard the script hook reprocesses the block markup just added, giving two
-    // __flare_prof__ calls.
     test('a scriptless profile-only component injects exactly once and compiles', async () => {
         const out = await preprocess(
             '<p>hello</p>',
@@ -339,9 +320,8 @@ describe('flarePreprocessor — profile injection through the full pipeline', ()
 });
 
 describe('withFlareConfig — profileComponents', () => {
-    function scriptOutOf(cfg: ReturnType<typeof withFlareConfig>, filename: string) {
-        const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
-        return (preprocessors[0] as any).script({ content: 'let x = 1;', filename, attributes: SCRIPT_ATTRS });
+    function outputOf(cfg: ReturnType<typeof withFlareConfig>, filename: string) {
+        return runMarkup(flareGroupOf(cfg), WITH_SCRIPT, filename);
     }
 
     test('returns the config untouched only when BOTH features are off', () => {
@@ -372,30 +352,30 @@ describe('withFlareConfig — profileComponents', () => {
         expect(Array.isArray(cfg.preprocess) && cfg.preprocess).toHaveLength(1);
     });
 
-    test('threads profileComponents through to the preprocessor', () => {
+    test('threads profileComponents through to the preprocessor', async () => {
         const cfg = withFlareConfig({}, { profileComponents: [/\+page$/] });
-        const out = scriptOutOf(cfg, '/app/src/routes/cart/+page.svelte');
+        const out = await outputOf(cfg, '/app/src/routes/cart/+page.svelte');
 
         expect(out.code).toContain("__flare_prof__('cart/+page');");
     });
 
-    test('reads routesDir from kit.files.routes', () => {
+    test('reads routesDir from kit.files.routes', async () => {
         const cfg = withFlareConfig({ kit: { files: { routes: 'source/pages' } } }, { profileComponents: true });
-        const out = scriptOutOf(cfg, '/app/source/pages/cart/+page.svelte');
+        const out = await outputOf(cfg, '/app/source/pages/cart/+page.svelte');
 
         expect(out.code).toContain("__flare_prof__('cart/+page');");
     });
 
-    test('defaults to src/routes when kit.files.routes is absent', () => {
+    test('defaults to src/routes when kit.files.routes is absent', async () => {
         const cfg = withFlareConfig({}, { profileComponents: true });
-        const out = scriptOutOf(cfg, '/app/src/routes/cart/+page.svelte');
+        const out = await outputOf(cfg, '/app/src/routes/cart/+page.svelte');
 
         expect(out.code).toContain("__flare_prof__('cart/+page');");
     });
 
-    test('does not profile anything by default', () => {
+    test('does not profile anything by default', async () => {
         const cfg = withFlareConfig({});
-        const out = scriptOutOf(cfg, '/app/src/routes/cart/+page.svelte');
+        const out = await outputOf(cfg, '/app/src/routes/cart/+page.svelte');
 
         expect(out.code).not.toContain('__flare_prof__');
     });
@@ -442,18 +422,11 @@ describe('flarePreprocessor — script tags that only look like component code',
         expect(() => compile(out.code, { filename: FAKE_FILE })).not.toThrow();
     });
 
-    test.each(['text/javascript', 'module'])('still injects into an instance script typed %s', (type) => {
-        const pp = flarePreprocessor();
-        const out = (pp as any).script({ content: 'let x = 1;', filename: FAKE_FILE, attributes: { type } });
+    test.each(['text/javascript', 'module'])('still injects into an instance script typed %s', async (type) => {
+        const source = `<script type="${type}">let x = 1;</script>\n<p>{x}</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: FAKE_FILE });
 
-        expect(out.code).toContain('__flare_reg__');
-    });
-
-    test.each(['application/ld+json', 'importmap', 'text/template'])('skips a %s script', (type) => {
-        const pp = flarePreprocessor();
-        const out = (pp as any).script({ content: '{"a":1}', filename: FAKE_FILE, attributes: { type } });
-
-        expect(out).toBeUndefined();
+        expectSingleInstanceInjection(out.code);
     });
 });
 

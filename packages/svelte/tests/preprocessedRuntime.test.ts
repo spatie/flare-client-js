@@ -44,8 +44,7 @@ describe('preprocessor output at runtime', () => {
         });
     });
 
-    // The markup hook adds a script block, then the script hook sees that same block. Without the
-    // guard we'd inject twice.
+    // The markup hook has to create an instance script for this component, since it has none of its own.
     it('injects exactly once into a component with no instance script', async () => {
         render(Harness);
         await tick();
