@@ -24,14 +24,46 @@ export function safeAbsolute(url: string, origin: string): URL | null {
     }
 }
 
-/** True when `absoluteUrl` targets one of Flare's own ingest endpoints (never traced). */
-export function isFlareIngestUrl(absoluteUrl: URL | null, config: Config): boolean {
+// Resolved ingest hrefs, memoised on the raw values plus origin. The wrappers call this per request,
+// and configure() can swap the URLs at any point, so this cannot be computed once at install time.
+let ingestCacheKey: string | null = null;
+let ingestCacheHrefs: string[] = [];
+
+function resolvedIngestHrefs(config: Config, origin: string): string[] {
+    const raw = [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl];
+    const key = `${origin} ${raw.join(' ')}`;
+    if (key !== ingestCacheKey) {
+        ingestCacheKey = key;
+        ingestCacheHrefs = raw
+            .filter((u): u is string => typeof u === 'string' && u.length > 0)
+            .map((u) => safeAbsolute(u, origin))
+            .filter((u): u is URL => u !== null)
+            .map((u) => u.href);
+    }
+    return ingestCacheHrefs;
+}
+
+// Prefix match with a path boundary, so an ingestUrl of `https://x.test/flare` does not also swallow
+// `https://x.test/flareapp-assets/app.js`.
+function matchesIngestHref(href: string, ingestHref: string): boolean {
+    if (!href.startsWith(ingestHref)) {
+        return false;
+    }
+    const next = href.charAt(ingestHref.length);
+    return next === '' || next === '/' || next === '?' || next === '#';
+}
+
+/**
+ * True when `absoluteUrl` targets one of Flare's own ingest endpoints (never traced). The configured
+ * URLs are resolved against `origin` first: a relative one (a customer proxying ingest through their
+ * own origin) would otherwise never match, so every flush POST would open a span that arms the next
+ * flush, forever.
+ */
+export function isFlareIngestUrl(absoluteUrl: URL | null, config: Config, origin: string): boolean {
     if (!absoluteUrl) {
         return false;
     }
-    return [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl].some(
-        (u) => typeof u === 'string' && u.length > 0 && absoluteUrl.href.startsWith(u),
-    );
+    return resolvedIngestHrefs(config, origin).some((ingestHref) => matchesIngestHref(absoluteUrl.href, ingestHref));
 }
 
 /**

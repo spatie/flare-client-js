@@ -41,7 +41,7 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
 
         const { method, url } = resolveRequest(input, init);
         const absoluteUrl = safeAbsolute(url, origin);
-        if (isFlareIngestUrl(absoluteUrl, config)) {
+        if (isFlareIngestUrl(absoluteUrl, config, origin)) {
             return call(init);
         }
 

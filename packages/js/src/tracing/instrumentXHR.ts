@@ -129,7 +129,7 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         }
 
         const absoluteUrl = safeAbsolute(state.url, origin);
-        if (isFlareIngestUrl(absoluteUrl, config)) {
+        if (isFlareIngestUrl(absoluteUrl, config, origin)) {
             return send();
         }
 

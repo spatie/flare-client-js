@@ -26,8 +26,29 @@ describe('httpRequestSpan helpers', () => {
     });
 
     it('isFlareIngestUrl matches configured ingest endpoints only', () => {
-        expect(isFlareIngestUrl(safeAbsolute('https://ingress.flareapp.io/v1/traces', ORIGIN), config)).toBe(true);
-        expect(isFlareIngestUrl(safeAbsolute('https://app.example/api/x', ORIGIN), config)).toBe(false);
+        expect(isFlareIngestUrl(safeAbsolute('https://ingress.flareapp.io/v1/traces', ORIGIN), config, ORIGIN)).toBe(
+            true,
+        );
+        expect(isFlareIngestUrl(safeAbsolute('https://app.example/api/x', ORIGIN), config, ORIGIN)).toBe(false);
+    });
+
+    it('resolves a relative ingest URL against the origin before comparing', () => {
+        const proxied = { ...config, tracesIngestUrl: '/flare/v1/traces' } as unknown as Config;
+        expect(isFlareIngestUrl(safeAbsolute('/flare/v1/traces', ORIGIN), proxied, ORIGIN)).toBe(true);
+    });
+
+    it('does not match a sibling path that merely shares a prefix', () => {
+        const prefixed = { ...config, ingestUrl: 'https://app.example/flare' } as unknown as Config;
+        expect(isFlareIngestUrl(safeAbsolute('https://app.example/flare', ORIGIN), prefixed, ORIGIN)).toBe(true);
+        expect(
+            isFlareIngestUrl(safeAbsolute('https://app.example/flareapp-assets/app.js', ORIGIN), prefixed, ORIGIN),
+        ).toBe(false);
+    });
+
+    it('picks up an ingest URL changed after a previous call (no install-time snapshot)', () => {
+        expect(isFlareIngestUrl(safeAbsolute('/flare/v1/traces', ORIGIN), config, ORIGIN)).toBe(false);
+        const proxied = { ...config, tracesIngestUrl: '/flare/v1/traces' } as unknown as Config;
+        expect(isFlareIngestUrl(safeAbsolute('/flare/v1/traces', ORIGIN), proxied, ORIGIN)).toBe(true);
     });
 
     it('requestSpanAttributes builds method/url/server attrs and redacts denylisted query', () => {

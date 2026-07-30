@@ -115,6 +115,15 @@ describe('createFetchWrapper', () => {
         expect(original).toHaveBeenCalledOnce();
     });
 
+    it('does not trace the flush POST when the traces ingest URL is relative', async () => {
+        const { tracer, startSpan } = makeTracer({ tracesIngestUrl: '/flare/v1/traces' });
+        const wrapped = createFetchWrapper(tracer, okFetch(), ORIGIN);
+
+        await wrapped('/flare/v1/traces', { method: 'POST' });
+
+        expect(startSpan).not.toHaveBeenCalled();
+    });
+
     it('passes through untouched when tracing is disabled', async () => {
         const { tracer, startSpan } = makeTracer({ enableTracing: false });
         const original = okFetch();
