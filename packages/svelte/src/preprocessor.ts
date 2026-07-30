@@ -76,12 +76,12 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
-            const start = await instanceScriptStart(content, filename);
-            if (start === undefined) {
+            const parsed = await instanceScriptStart(content, filename);
+            if (parsed === undefined) {
                 return;
             }
 
-            return injectWithMap(content, injection, filename, start);
+            return injectWithMap(content, injection, filename, parsed.start, parsed.hasBom);
         },
     };
 }
@@ -147,9 +147,13 @@ function warnOnce(filename: string, reason: string): void {
 /**
  * Where the instance script's body begins, `null` when the component has none, `undefined` when the
  * source cannot be parsed. Svelte hands a script hook every `<script>` in the file, nested ones
- * included, so only the parser can say which one belongs to the component.
+ * included, so only the parser can say which one belongs to the component. `hasBom` rides along
+ * because the null case still needs to know whether byte 0 is a BOM it must insert after.
  */
-async function instanceScriptStart(content: string, filename: string): Promise<number | null | undefined> {
+async function instanceScriptStart(
+    content: string,
+    filename: string,
+): Promise<{ start: number | null; hasBom: boolean } | undefined> {
     // parse() strips a leading BOM itself and reports offsets against the stripped source, so we
     // strip it before parsing too and add the character back onto whatever offset comes out.
     const hasBom = content.charCodeAt(0) === 0xfeff;
@@ -160,12 +164,12 @@ async function instanceScriptStart(content: string, filename: string): Promise<n
         const root = parse(blankStyleBodies(source), { modern: true, filename });
 
         if (!root.instance) {
-            return null;
+            return { start: null, hasBom };
         }
 
         const start = (root.instance.content as unknown as ScriptBody).start;
 
-        return hasBom ? start + 1 : start;
+        return { start: hasBom ? start + 1 : start, hasBom };
     } catch (error) {
         // Half-written source, or a template another preprocessor still has to turn into Svelte.
         // Skipping costs a registration; guessing corrupts the file.
@@ -176,11 +180,20 @@ async function instanceScriptStart(content: string, filename: string): Promise<n
 }
 
 /** The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints. */
-function injectWithMap(content: string, injection: string, filename: string, start: number | null) {
+function injectWithMap(content: string, injection: string, filename: string, start: number | null, hasBom: boolean) {
     const s = new MagicString(content);
 
     if (start === null) {
-        s.prepend(`<script>\n${injection}</script>\n`);
+        const scriptBlock = `<script>\n${injection}</script>\n`;
+
+        // prepend() inserts at offset 0, which would land ahead of the BOM and move it into the
+        // template. appendRight(1, ...) inserts right after it instead, keeping the BOM at byte 0
+        // so compile()'s own BOM stripping still fires.
+        if (hasBom) {
+            s.appendRight(1, scriptBlock);
+        } else {
+            s.prepend(scriptBlock);
+        }
     } else {
         s.appendLeft(start, `\n${injection}`);
     }

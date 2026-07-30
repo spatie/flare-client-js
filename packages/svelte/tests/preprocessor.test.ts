@@ -209,7 +209,7 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
         return originalPositionFor(tracer, { line, column: lines[line - 1]!.indexOf(needle) }).line;
     }
 
-    test('names the source the way Svelte looks it up', async () => {
+    test('names the emitted map source by basename so no absolute path leaks into it', async () => {
         const withScript = await preprocess(MARKUP_THEN_SCRIPT, flarePreprocessor(), { filename: FAKE_FILE });
         const scriptless = await preprocess(MARKUP_ONLY, flarePreprocessor(), { filename: FAKE_FILE });
 
@@ -626,5 +626,41 @@ describe('flarePreprocessor — byte order mark', () => {
         expect(out.code.charCodeAt(0)).toBe(0xfeff);
         expectSingleInstanceInjection(out.code.slice(1), file);
         expect(() => compile(out.code, { filename: file })).not.toThrow();
+    });
+
+    // With no instance script, the prepend path used to insert the fresh <script> ahead of the
+    // BOM instead of after it, so compile()'s BOM stripping never fired and the BOM leaked into
+    // the template as a rendered character.
+    test('a scriptless component keeps the BOM at byte 0, registers, and compiles', async () => {
+        const file = '/app/src/BomScriptless.svelte';
+        const source = `﻿<p>hello</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: file });
+
+        expect(out.code.charCodeAt(0)).toBe(0xfeff);
+        expect(out.code).toContain('__flare_reg__');
+        expect(() => compile(out.code, { filename: file })).not.toThrow();
+    });
+
+    // A module script does not populate root.instance, so this hits the same null-start path as
+    // the fully scriptless case above.
+    test('a component whose only script is a module script keeps the BOM, registers, and compiles', async () => {
+        const file = '/app/src/BomModuleOnly.svelte';
+        const source = `﻿<script module>\nexport const shared = 1;\n</script>\n<p>hi</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: file });
+
+        expect(out.code.charCodeAt(0)).toBe(0xfeff);
+        expect(out.code).toContain('__flare_reg__');
+        expect(() => compile(out.code, { filename: file })).not.toThrow();
+    });
+
+    // The relocated BOM's actual user-visible effect: a zero-width no-break space text node
+    // rendered into the DOM that the non-BOM twin never has.
+    test('a scriptless component does not leak the BOM into the compiled client template', async () => {
+        const file = '/app/src/BomClientOutput.svelte';
+        const source = `﻿<p>hello</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: file });
+        const compiled = compile(out.code, { filename: file });
+
+        expect(compiled.js.code).not.toContain('﻿');
     });
 });
