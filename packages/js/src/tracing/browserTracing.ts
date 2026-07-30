@@ -56,14 +56,16 @@ function ifRootLive(fn: () => void): void {
     withLiveController(() => fn());
 }
 
-function startRoot(
-    flare: BrowserTracingFlare,
-    spanType: BrowserSpanType,
-    startTimeUnixNano: number,
-    name: string = location.pathname,
-    urlOverride?: string,
-    hold?: boolean,
-): void {
+type StartRootOptions = {
+    spanType: BrowserSpanType;
+    startTimeUnixNano: number;
+    name?: string;
+    urlOverride?: string;
+    hold?: boolean;
+};
+
+function startRoot(flare: BrowserTracingFlare, options: StartRootOptions): void {
+    const { spanType, startTimeUnixNano, name = location.pathname, urlOverride, hold } = options;
     let root: Span | undefined;
     try {
         root = flare.startSpan(name, {
@@ -121,7 +123,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
         return;
     }
     withLiveController((live) => live.endNow());
-    startRoot(flare, BrowserSpanType.Navigation, defaultNowNano(), path);
+    startRoot(flare, { spanType: BrowserSpanType.Navigation, startTimeUnixNano: defaultNowNano(), name: path });
 }
 
 /**
@@ -148,7 +150,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
         pageloadTraced,
     );
     pageloadTraced = true;
-    startRoot(flare, BrowserSpanType.Pageload, pageloadStart);
+    startRoot(flare, { spanType: BrowserSpanType.Pageload, startTimeUnixNano: pageloadStart });
 
     const handle = (): void => {
         // A third party may wrap history.pushState/replaceState on top of ours, so unfill can't
@@ -276,7 +278,13 @@ export function registerNavigationSource(): NavigationSource {
             const path = opts?.path ?? currentPath();
             lastPath = path;
             withLiveController((live) => live.endNow());
-            startRoot(activeFlare, BrowserSpanType.Navigation, defaultNowNano(), path, opts?.url, opts?.hold);
+            startRoot(activeFlare, {
+                spanType: BrowserSpanType.Navigation,
+                startTimeUnixNano: defaultNowNano(),
+                name: path,
+                urlOverride: opts?.url,
+                hold: opts?.hold,
+            });
         },
         setActiveRouteName(route) {
             if (!active()) {
