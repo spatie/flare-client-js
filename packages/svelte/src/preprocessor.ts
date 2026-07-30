@@ -1,4 +1,4 @@
-import { createComponentMatcher, type ProfileComponentsOption } from '@flareapp/core/util';
+import { createComponentMatcher, withoutStatefulFlags, type ProfileComponentsOption } from '@flareapp/core/util';
 import MagicString from 'magic-string';
 import type { PreprocessorGroup } from 'svelte/compiler';
 
@@ -32,7 +32,7 @@ export interface FlarePreprocessorOptions {
 }
 
 export function flarePreprocessor(options?: FlarePreprocessorOptions): PreprocessorGroup {
-    const exclude = options?.exclude;
+    const exclude = withoutStatefulFlags(options?.exclude);
     const importSource = options?.importSource ?? '@flareapp/svelte';
     const componentTracking = options?.componentTracking ?? true;
     const routesDir = options?.routesDir ?? 'src/routes';

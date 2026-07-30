@@ -297,6 +297,15 @@ describe('flarePreprocessor — profile injection', () => {
         expect(out).toBeUndefined();
     });
 
+    // One preprocessor instance runs over every file in the build, so a /g/ exclude that advances
+    // lastIndex lets the next matching file through.
+    test('exclude keeps matching across files when the regex is global', async () => {
+        const pp = flarePreprocessor({ exclude: /node_modules/g });
+
+        expect(await runMarkup(pp, SCRIPTLESS, '/app/node_modules/a/A.svelte')).toBeUndefined();
+        expect(await runMarkup(pp, SCRIPTLESS, '/app/node_modules/b/B.svelte')).toBeUndefined();
+    });
+
     // Whichever entry importSource names has to export the symbol, or the injected call is undefined
     // and throws at init.
     test('emits the profile import from the inject entry when importSource is the inject entry', async () => {
