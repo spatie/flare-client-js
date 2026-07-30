@@ -43,9 +43,17 @@ function withLiveController(fn: (live: IdleRootController) => void): void {
     }
     try {
         fn(controller);
-    } catch {
+    } catch (error) {
         // instrumentation must never throw into the host app
+        if (activeFlare?.config.debug) {
+            console.error('Flare: browser tracing controller callback failed', error);
+        }
     }
+}
+
+/** Run `fn` only while the current root is still open. Swallows a throw, like `withLiveController`. */
+function ifRootLive(fn: () => void): void {
+    withLiveController(() => fn());
 }
 
 function startRoot(
@@ -211,9 +219,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
  * Page-global singleton: stops whatever session is active, not a per-Flare-instance one.
  */
 export function stopBrowserTracing(): void {
-    if (controller && !controller.isEnded) {
-        controller.endNow();
-    }
+    withLiveController((live) => live.endNow());
     controller = null;
     if (uninstall) {
         uninstall();
@@ -231,7 +237,7 @@ function applyRouteName(route: RouteName): void {
         return;
     }
 
-    withLiveController(() => {
+    ifRootLive(() => {
         root.name = route.name;
         root.setAttribute('flare.entry_point.handler.identifier', route.name);
         root.setAttribute('flare.route.source', route.source);

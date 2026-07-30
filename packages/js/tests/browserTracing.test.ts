@@ -251,4 +251,25 @@ describe('browserTracing', () => {
         window.history.pushState({}, '', '/after-stop');
         expect((flare.startSpan as ReturnType<typeof vi.fn>).mock.calls.length).toBe(before);
     });
+
+    it('stopBrowserTracing completes teardown even if ending the root throws', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/stop');
+        const { flare, startSpan, setActiveRoot } = fakeFlare();
+
+        startBrowserTracing(flare);
+        expect(startSpan).toHaveBeenCalledTimes(1);
+
+        setActiveRoot.mockImplementation((span?: Span) => {
+            if (span === undefined) {
+                throw new Error('boom');
+            }
+        });
+
+        expect(() => stopBrowserTracing()).not.toThrow();
+
+        // Teardown ran to the end, so the History patches came off: a further pushState opens no root.
+        window.history.pushState({}, '', '/after');
+        expect(startSpan).toHaveBeenCalledTimes(1);
+    });
 });
