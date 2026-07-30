@@ -86,7 +86,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
     };
 }
 
-/** Svelte's own `get_basename`, which is what its sourcemap chaining compares against. */
+/** Keeps the merged sourcemap's `sources` from carrying an absolute build-machine path. */
 function basename(filename: string): string {
     return filename.split(/[/\\]/).pop() ?? filename;
 }
