@@ -74,4 +74,35 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         // Unwind the third party so afterEach's unpatchXHR can fully restore natives.
         proto.send = flareSend;
     });
+
+    it('restores the prototype it patched even after XMLHttpRequest is replaced', () => {
+        const realXHR = globalThis.XMLHttpRequest;
+        const proto = realXHR.prototype as unknown as Record<string, unknown>;
+        const nativeSend = proto.send;
+        const { tracer } = makeTracer();
+
+        instrumentXHR(tracer);
+        expect(proto.send).not.toBe(nativeSend);
+
+        // A polyfill or test harness swaps the constructor after we installed.
+        class ReplacementXHR {
+            open(): void {}
+            setRequestHeader(): void {}
+            send(): void {}
+        }
+        globalThis.XMLHttpRequest = ReplacementXHR as unknown as typeof XMLHttpRequest;
+
+        try {
+            unpatchXHR();
+            expect(proto.send).toBe(nativeSend);
+
+            instrumentXHR(tracer);
+            expect(
+                (ReplacementXHR.prototype.send as unknown as { __flare_original__?: unknown }).__flare_original__,
+            ).toBeDefined();
+        } finally {
+            unpatchXHR();
+            globalThis.XMLHttpRequest = realXHR;
+        }
+    });
 });

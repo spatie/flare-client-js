@@ -197,6 +197,11 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
 // while the others go back to native, and `send` reads the state `open` records.
 const patcher = createPatcher();
 
+// uninstall must target the prototype we actually patched. Looking XMLHttpRequest up fresh means a
+// constructor swapped in after install sends uninstall at the wrong prototype, where the restorable
+// check fails and leaves `installed` true forever.
+let patchedPrototype: Record<string, unknown> | null = null;
+
 /**
  * Patch `XMLHttpRequest.prototype` (`open`, `setRequestHeader`, `send`) so outgoing
  * XHR requests are traced. No-op where `XMLHttpRequest` is absent (SSR). Idempotent
@@ -220,14 +225,18 @@ export function instrumentXHR(tracer: HttpTracer): void {
         { name: 'setRequestHeader', wrap: (o) => createXHRSetRequestHeader(o as XhrSetHeader) },
         { name: 'send', wrap: (o) => createXHRSend(tracer, o as XhrSend, origin) },
     ]);
+    patchedPrototype = prototype;
 }
 
 /** Restore the original `XMLHttpRequest.prototype` methods. Safe if never patched. */
 export function unpatchXHR(): void {
-    const globals = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
-    const xhrConstructor = globals.XMLHttpRequest;
-    if (typeof xhrConstructor !== 'function' || !xhrConstructor.prototype) {
+    if (!patchedPrototype) {
         return;
     }
-    patcher.uninstall(xhrConstructor.prototype as unknown as Record<string, unknown>);
+    patcher.uninstall(patchedPrototype);
+    // Only forget the target once it really came back; a blocked uninstall (a third party wrapped
+    // ours) must keep it so a later retry still aims at the right prototype.
+    if (!patcher.installed) {
+        patchedPrototype = null;
+    }
 }
