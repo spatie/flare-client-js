@@ -19,7 +19,6 @@ export function supportsNativeFetch(): boolean {
     }
 
     // Browser-only fallback: read an untouched fetch from a detached iframe.
-    // Not exercised by the node-env unit tests.
     let result = false;
     const document = globals.document;
     if (document && typeof document.createElement === 'function') {

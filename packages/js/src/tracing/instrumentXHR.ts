@@ -197,9 +197,8 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
 // while the others go back to native, and `send` reads the state `open` records.
 const patcher = createPatcher();
 
-// uninstall must target the prototype we actually patched. Looking XMLHttpRequest up fresh means a
-// constructor swapped in after install sends uninstall at the wrong prototype, where the restorable
-// check fails and leaves `installed` true forever.
+// Must target the patched prototype for uninstall; a swapped-in constructor would send
+// uninstall at the wrong prototype, leaving `installed` true forever.
 let patchedPrototype: Record<string, unknown> | null = null;
 
 /**
