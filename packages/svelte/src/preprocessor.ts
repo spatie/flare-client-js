@@ -81,7 +81,7 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
                 return;
             }
 
-            return injectWithMap(content, injection, filename, parsed.start, parsed.hasBom);
+            return injectWithMap(content, injection, filename, parsed.start, parsed.bomCount);
         },
     };
 }
@@ -144,32 +144,44 @@ function warnOnce(filename: string, reason: string): void {
     console.warn(`[flare] Skipped component tracking for ${filename}: ${reason}`);
 }
 
+/** How many BOM characters sit at the very start of the source, back to back. */
+function countLeadingBoms(content: string): number {
+    let count = 0;
+
+    while (content.charCodeAt(count) === 0xfeff) {
+        count++;
+    }
+
+    return count;
+}
+
 /**
  * Where the instance script's body begins, `null` when the component has none, `undefined` when the
  * source cannot be parsed. Svelte hands a script hook every `<script>` in the file, nested ones
- * included, so only the parser can say which one belongs to the component. `hasBom` rides along
- * because the null case still needs to know whether byte 0 is a BOM it must insert after.
+ * included, so only the parser can say which one belongs to the component. `bomCount` rides along
+ * because the null case still needs to know how many bytes of BOM it must insert after.
  */
 async function instanceScriptStart(
     content: string,
     filename: string,
-): Promise<{ start: number | null; hasBom: boolean } | undefined> {
-    // parse() strips a leading BOM itself and reports offsets against the stripped source, so we
-    // strip it before parsing too and add the character back onto whatever offset comes out.
-    const hasBom = content.charCodeAt(0) === 0xfeff;
-    const source = hasBom ? content.slice(1) : content;
+): Promise<{ start: number | null; bomCount: number } | undefined> {
+    // parse() strips exactly one leading BOM itself and reports offsets against the stripped source.
+    // Stripping every leading BOM here (not just one) before parsing means none are left for parse()'s
+    // own stripping to act on, so the count we add back is exact no matter how many there were.
+    const bomCount = countLeadingBoms(content);
+    const source = content.slice(bomCount);
 
     try {
         const { parse } = await loadCompiler();
         const root = parse(blankStyleBodies(source), { modern: true, filename });
 
         if (!root.instance) {
-            return { start: null, hasBom };
+            return { start: null, bomCount };
         }
 
         const start = (root.instance.content as unknown as ScriptBody).start;
 
-        return { start: hasBom ? start + 1 : start, hasBom };
+        return { start: start + bomCount, bomCount };
     } catch (error) {
         // Half-written source, or a template another preprocessor still has to turn into Svelte.
         // Skipping costs a registration; guessing corrupts the file.
@@ -180,17 +192,17 @@ async function instanceScriptStart(
 }
 
 /** The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints. */
-function injectWithMap(content: string, injection: string, filename: string, start: number | null, hasBom: boolean) {
+function injectWithMap(content: string, injection: string, filename: string, start: number | null, bomCount: number) {
     const s = new MagicString(content);
 
     if (start === null) {
         const scriptBlock = `<script>\n${injection}</script>\n`;
 
-        // prepend() inserts at offset 0, which would land ahead of the BOM and move it into the
-        // template. appendRight(1, ...) inserts right after it instead, keeping the BOM at byte 0
-        // so compile()'s own BOM stripping still fires.
-        if (hasBom) {
-            s.appendRight(1, scriptBlock);
+        // prepend() inserts at offset 0, which would land ahead of the BOM(s) and move them into the
+        // template. appendRight(bomCount, ...) inserts right after all of them instead, keeping every
+        // BOM at the front so compile()'s own BOM stripping still fires.
+        if (bomCount > 0) {
+            s.appendRight(bomCount, scriptBlock);
         } else {
             s.prepend(scriptBlock);
         }

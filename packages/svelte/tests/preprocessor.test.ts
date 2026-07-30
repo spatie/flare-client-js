@@ -663,4 +663,41 @@ describe('flarePreprocessor — byte order mark', () => {
 
         expect(compiled.js.code).not.toContain('﻿');
     });
+
+    // parse()'s own remove_bom strips exactly one BOM, so stripping only one here (and adding only
+    // one back onto the offset) leaves a second leading BOM unaccounted for and the offset one short.
+    test('two leading BOMs: injection lands inside the instance script body, both BOMs survive, and it compiles', async () => {
+        const file = '/app/src/Bom2.svelte';
+        const source = `﻿﻿<script>\nlet x = 1;\n</script>\n<p>{x}</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: file });
+
+        expect(out.code.charCodeAt(0)).toBe(0xfeff);
+        expect(out.code.charCodeAt(1)).toBe(0xfeff);
+        // An offset that is one short lands inside the opening `<script>` tag itself, which
+        // expectSingleInstanceInjection catches: parsing that corrupted output either throws or
+        // finds the injection outside the real instance script body's bounds.
+        expectSingleInstanceInjection(out.code.slice(2), file);
+        expect(() => compile(out.code, { filename: file })).not.toThrow();
+    });
+
+    // Scriptless path, doubled: appendRight(1, ...) only skipped past ONE BOM, so a second one used
+    // to end up stranded mid-file instead of surviving at the front.
+    test('two leading BOMs with no script: both survive at the front, registration is injected, and it compiles', async () => {
+        const file = '/app/src/Bom2Scriptless.svelte';
+        const source = `﻿﻿<p>hello</p>`;
+        const out = await preprocess(source, flarePreprocessor(), { filename: file });
+
+        expect(out.code.charCodeAt(0)).toBe(0xfeff);
+        expect(out.code.charCodeAt(1)).toBe(0xfeff);
+        expect(out.code).toContain('__flare_reg__');
+
+        const compiled = compile(out.code, { filename: file });
+
+        // compiler/index.js's remove_bom strips exactly one leading BOM, never more, so a second
+        // one is never ours to remove either: it survives into the template the same way it would
+        // for this same source with no preprocessor involved at all. What we must not do is add a
+        // SECOND leak on top of that pre-existing one.
+        const bomsInTemplate = (compiled.js.code.match(/﻿/g) || []).length;
+        expect(bomsInTemplate).toBe(1);
+    });
 });
