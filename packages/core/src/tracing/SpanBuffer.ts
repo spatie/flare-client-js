@@ -211,6 +211,10 @@ export class SpanBuffer {
     }
 
     private estimateBytes(span: BufferedSpan): number {
-        return flatJsonStringify(span).length;
+        // No safeClone: Tracer.onSpanEnd already ran every attribute through attributesToOpenTelemetry, so cycles are
+        // '[Circular]' and the exotic types are gone. The clone cannot change a byte here, and this doubles as the
+        // gate that makes every buffered span safe to stringify at flush: one that throws is dropped by onSpanEnd's
+        // try. .length is UTF-16 code units, not UTF-8 bytes, same soft-cap caveat as Logger.estimateBytes.
+        return JSON.stringify(span).length;
     }
 }

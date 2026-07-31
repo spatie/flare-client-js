@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { attributesToOpenTelemetry } from '../src/logging/otel';
 import { buildTracesEnvelope } from '../src/tracing/envelope';
 import type { BufferedSpan } from '../src/types';
+import { flatJsonStringify } from '../src/util';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/traces-envelope.json', import.meta.url), 'utf8'));
 
@@ -60,6 +62,38 @@ describe('buildTracesEnvelope', () => {
         ]);
         expect(env.resourceSpans[0].scopeSpans[0].scope.name).toBe('scope');
         expect('message' in env.resourceSpans[0].scopeSpans[0].spans[0].status).toBe(false);
+    });
+
+    // SpanBuffer.estimateBytes and Api.traces dropped safeClone on the strength of this: a BufferedSpan has been
+    // through attributesToOpenTelemetry, so cloning it cannot change a single byte. If a future field breaks that,
+    // the measured size and the shipped body silently stop agreeing, so pin it.
+    it('stringifies byte-identically with and without safeClone', () => {
+        const cyclic: Record<string, unknown> = { a: 1 };
+        cyclic.self = cyclic;
+        const tricky = span({
+            name: 'requête café',
+            status: { code: 2, message: 'failed "500" \\ café' },
+            recordAttributes: attributesToOpenTelemetry({
+                'user.naïve': 'Ünïcödé 日本語 → ∑',
+                'astral': '\u{1D11E}',
+                'nested': { a: { b: [1, 'two', false, 0.5] } },
+                'cyclic': cyclic as never,
+                'dropped': 10n as never,
+                'ctl': '\n\t\b',
+            }),
+            events: [
+                {
+                    name: 'exception',
+                    timeUnixNano: 5,
+                    attributes: attributesToOpenTelemetry({ 'exception.message': 'boom café' }),
+                    droppedAttributesCount: 1,
+                },
+            ],
+        });
+        const env = buildTracesEnvelope([tricky, span()], { 'service.name': 'café', 'nested': { a: [1] } }, 's', '2');
+
+        expect(JSON.stringify(tricky)).toBe(flatJsonStringify(tricky));
+        expect(JSON.stringify(env)).toBe(flatJsonStringify(env));
     });
 
     it('produces the full envelope matching the PHP OpenTelemetryJsonExporter golden fixture', () => {

@@ -56,7 +56,9 @@ export class Api {
         debug: boolean = false,
         keepalive: boolean = false,
     ): Promise<void> {
-        return this.send(url, this.ingestHeaders(key), flatJsonStringify(envelope), 'Flare traces', debug, keepalive);
+        // No safeClone: every span in here already passed SpanBuffer's JSON.stringify size gate and the resource block
+        // came out of attributesToOpenTelemetry. report() still clones, its context data is raw.
+        return this.send(url, this.ingestHeaders(key), JSON.stringify(envelope), 'Flare traces', debug, keepalive);
     }
 
     private ingestHeaders(key: string | null): Record<string, string> {

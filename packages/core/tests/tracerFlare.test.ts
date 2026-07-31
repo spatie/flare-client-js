@@ -50,6 +50,20 @@ describe('Flare tracing wiring', () => {
         expect(api.traceEnvelopes).toHaveLength(0);
     });
 
+    it('drops a span whose payload cannot be serialized, without throwing out of end()', async () => {
+        const api = new FakeApi();
+        const flare = makeFlare(api);
+        const cyclic: Record<string, unknown> = {};
+        cyclic.self = cyclic;
+
+        const span = flare.startSpan('op');
+        span.setStatus({ code: 2, message: cyclic as unknown as string });
+
+        expect(() => span.end()).not.toThrow();
+        await flare.flush();
+        expect(api.traceEnvelopes).toHaveLength(0);
+    });
+
     it('clamps tracesSampleRate to [0, 1]', () => {
         const flare = makeFlare();
         flare.configure({ tracesSampleRate: 5 });
