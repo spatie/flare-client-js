@@ -262,6 +262,27 @@ describe('registerNavigationSource', () => {
         expect(spans[0].attrs['flare.route.source']).not.toBe('route');
     });
 
+    // What makes the clear in stopBrowserTracing safe: a source that outlives a tracing-off/on toggle
+    // hands its name over again, and that one is held and applied. Re-enabling opens a second pageload
+    // root (not backdated, but a real root), so without this it would stay url-named for good.
+    it('names the pageload root of a re-enabled session from a name handed over while tracing was off', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare } = fakeFlare();
+        startBrowserTracing(flare);
+        const src = registerNavigationSource();
+        stopBrowserTracing();
+
+        src.setActiveRouteName({ name: '/product/:id', source: 'route' }); // no root open right now
+
+        const { flare: flare2, spans: spans2 } = fakeFlare();
+        startBrowserTracing(flare2);
+
+        expect(spans2[0].span.name).toBe('/product/:id');
+        expect(spans2[0].attrs['flare.route.source']).toBe('route');
+        src.unregister();
+    });
+
     it('stopBrowserTracing clears a held name so a later start does not apply it', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');

@@ -250,6 +250,9 @@ export function stopBrowserTracing(): void {
     }
     activeFlare = null;
     currentRoot = null;
+    // Safe to drop even though a source can outlive the stop: while tracing ran there was a root to
+    // name, so nothing was pending. A name handed over after this point pends again and still reaches
+    // the root a later start opens.
     pendingRouteName = null;
     pendingRouteNameOwner = null;
     lastPath = '';
