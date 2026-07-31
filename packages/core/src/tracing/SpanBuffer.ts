@@ -14,8 +14,15 @@ export type SpanBufferDeps = {
     scheduler: FlushScheduler;
 };
 
+// The size is measured once, when the span arrives. Tracer.onSpanEnd builds a fresh BufferedSpan nothing else
+// holds, and SpanImpl refuses every mutation after end(), so a cached size can never go stale.
+type BufferEntry = { span: BufferedSpan; bytes: number };
+
 export class SpanBuffer {
-    private buffer: BufferedSpan[] = [];
+    private buffer: BufferEntry[] = [];
+    // Running total of every entry's `bytes`. Kept in step at each mutation site: the push in add(), the drain
+    // and the keepalive residue in flush(), both drops in trim(), and clear().
+    private bufferedBytes = 0;
     private timer: ReturnType<typeof setTimeout> | undefined;
     private timerActive = false;
 
@@ -30,13 +37,19 @@ export class SpanBuffer {
 
     add(span: BufferedSpan): void {
         const config = this.deps.getConfig();
-        if (this.estimateBytes(span) > config.spanFlushMaxBytes) {
+        const bytes = this.estimateBytes(span);
+        // spanFlushMaxBytes is a request-size ceiling, not a batching trigger: 800_000 = 100 x 8000 bounds one
+        // POST for the outlier case of a customer putting large payloads in span attributes. Realistic spans
+        // measure ~727 B, so the count trigger fires first in every normal case. A single span over the ceiling
+        // could never ship, so drop it here instead of letting trim fail to shed it later.
+        if (bytes > config.spanFlushMaxBytes) {
             if (config.debug) {
                 console.error('Flare: dropping oversized span');
             }
             return;
         }
-        this.buffer.push(span);
+        this.buffer.push({ span, bytes });
+        this.bufferedBytes += bytes;
         this.evaluateTriggers(config);
         this.trim(config);
     }
@@ -59,24 +72,31 @@ export class SpanBuffer {
 
         const resource = this.resourceForFlush();
 
-        let spans: BufferedSpan[];
+        let entries: BufferEntry[];
         if (opts?.keepalive) {
-            spans = this.packForKeepalive(config, resource);
-            this.buffer = this.buffer.filter((s) => !spans.includes(s));
+            entries = this.packForKeepalive(config, resource);
+            this.buffer = this.buffer.filter((entry) => !entries.includes(entry));
+            // Summed from what is retained rather than subtracted, because summing cached numbers is cheap and
+            // cannot drift out of step with the filter.
+            this.bufferedBytes = this.buffer.reduce((sum, entry) => sum + entry.bytes, 0);
             if (this.buffer.length > 0) {
                 this.armTimer(config);
             }
         } else {
-            spans = this.buffer;
+            entries = this.buffer;
             this.buffer = [];
+            this.bufferedBytes = 0;
         }
-        if (spans.length === 0) {
+        if (entries.length === 0) {
             return;
         }
 
         this.deps.track(
             this.deps.api.traces(
-                this.buildEnvelope(spans, resource),
+                this.buildEnvelope(
+                    entries.map((entry) => entry.span),
+                    resource,
+                ),
                 config.tracesIngestUrl,
                 config.key,
                 config.debug,
@@ -87,6 +107,7 @@ export class SpanBuffer {
 
     clear(): void {
         this.buffer = [];
+        this.bufferedBytes = 0;
         this.clearTimer();
     }
 
@@ -95,7 +116,7 @@ export class SpanBuffer {
             this.flush();
             return;
         }
-        if (this.bufferBytes() >= config.spanFlushMaxBytes) {
+        if (this.bufferedBytes >= config.spanFlushMaxBytes) {
             this.flush();
             return;
         }
@@ -114,18 +135,31 @@ export class SpanBuffer {
 
     private trim(config: Config): void {
         if (this.buffer.length > config.maxSpanBufferSize) {
-            this.buffer = this.buffer.slice(this.buffer.length - config.maxSpanBufferSize);
+            const excess = this.buffer.length - config.maxSpanBufferSize;
+            for (let i = 0; i < excess; i++) {
+                this.bufferedBytes -= this.buffer[i].bytes;
+            }
+            this.buffer = this.buffer.slice(excess);
         }
-        while (this.buffer.length > 1 && this.bufferBytes() > config.spanFlushMaxBytes) {
-            this.buffer.shift();
+        // Never trim to empty: a lone span over the ceiling cannot be fixed by dropping it, and add() already
+        // refused anything that large on the way in.
+        while (this.buffer.length > 1 && this.bufferedBytes > config.spanFlushMaxBytes) {
+            const dropped = this.buffer.shift();
+            if (dropped) {
+                this.bufferedBytes -= dropped.bytes;
+            }
         }
     }
 
-    private packForKeepalive(config: Config, resource: Attributes): BufferedSpan[] {
-        let selected: BufferedSpan[] = [];
+    private packForKeepalive(config: Config, resource: Attributes): BufferEntry[] {
+        let selected: BufferEntry[] = [];
         for (let i = this.buffer.length - 1; i >= 0; i--) {
             const trial = [this.buffer[i], ...selected];
-            const bytes = new TextEncoder().encode(flatJsonStringify(this.buildEnvelope(trial, resource))).length;
+            const envelope = this.buildEnvelope(
+                trial.map((entry) => entry.span),
+                resource,
+            );
+            const bytes = new TextEncoder().encode(flatJsonStringify(envelope)).length;
             if (bytes <= config.keepaliveMaxBytes) {
                 selected = trial;
             } else if (config.debug) {
@@ -178,9 +212,5 @@ export class SpanBuffer {
 
     private estimateBytes(span: BufferedSpan): number {
         return flatJsonStringify(span).length;
-    }
-
-    private bufferBytes(): number {
-        return this.buffer.reduce((sum, s) => sum + this.estimateBytes(s), 0);
     }
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NoopFlushScheduler } from '../src/logging';
-import { SpanBuffer } from '../src/tracing/SpanBuffer';
+import { SpanBuffer, type SpanBufferDeps } from '../src/tracing/SpanBuffer';
 import type { BufferedSpan, Config, SdkInfo } from '../src/types';
 import { flatJsonStringify } from '../src/util';
 import { FakeApi } from './helpers/FakeApi';
@@ -33,16 +33,49 @@ const span = (id: string): BufferedSpan => ({
     events: [],
 });
 
-const makeBuffer = (config: Config, api = new FakeApi()) =>
-    new SpanBuffer({
-        api,
-        getConfig: () => config,
-        getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
-        getFramework: () => null,
-        getResourceAttributes: () => ({ 'service.name': 'web' }),
-        track: (p) => p,
-        scheduler: new NoopFlushScheduler(),
+const internals = (buffer: SpanBuffer) => buffer as unknown as { buffer: { bytes: number }[]; bufferedBytes: number };
+
+const runningTotal = (buffer: SpanBuffer): number => internals(buffer).bufferedBytes;
+
+const entrySum = (buffer: SpanBuffer): number => internals(buffer).buffer.reduce((sum, entry) => sum + entry.bytes, 0);
+
+// Throws instead of using expect() so it adds no JSON.stringify calls to the serialization-count test.
+const assertBytesInStep = (buffer: SpanBuffer): void => {
+    if (runningTotal(buffer) !== entrySum(buffer)) {
+        throw new Error(`bufferedBytes ${runningTotal(buffer)} drifted from the entry sum ${entrySum(buffer)}`);
+    }
+};
+
+// Re-checks the running total after every public call, so a mutation site that forgets to update it fails
+// whatever test touches it, not only the tests written with drift in mind.
+const guardBytes = (buffer: SpanBuffer): SpanBuffer =>
+    new Proxy(buffer, {
+        get(target, prop) {
+            const value = Reflect.get(target, prop) as unknown;
+            if (typeof value !== 'function') {
+                return value;
+            }
+            return (...args: unknown[]) => {
+                const result = (value as (...a: unknown[]) => unknown).apply(target, args);
+                assertBytesInStep(target);
+                return result;
+            };
+        },
     });
+
+const makeBuffer = (config: Config, api = new FakeApi(), over: Partial<SpanBufferDeps> = {}): SpanBuffer =>
+    guardBytes(
+        new SpanBuffer({
+            api,
+            getConfig: () => config,
+            getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
+            getFramework: () => null,
+            getResourceAttributes: () => ({ 'service.name': 'web' }),
+            track: (p) => p,
+            scheduler: new NoopFlushScheduler(),
+            ...over,
+        }),
+    );
 
 describe('SpanBuffer', () => {
     afterEach(() => vi.useRealTimers());
@@ -148,17 +181,68 @@ describe('SpanBuffer', () => {
         expect(buffer.length()).toBe(0);
     });
 
+    it('serializes a constant number of times per add(), whatever the buffer depth', () => {
+        // key null so flush() no-ops and the buffer keeps growing; the caps are set high enough that
+        // neither trigger nor trim fires, isolating the per-add serialization count.
+        const buffer = makeBuffer(baseConfig({ key: null, maxSpanBufferSize: 500 }));
+        const countOneAdd = (id: string): number => {
+            const spy = vi.spyOn(JSON, 'stringify');
+            buffer.add(span(id));
+            const calls = spy.mock.calls.length;
+            spy.mockRestore();
+            return calls;
+        };
+
+        const shallow = countOneAdd('first');
+        for (let i = 0; i < 100; i++) {
+            buffer.add(span(`fill-${i}`));
+        }
+        const deep = countOneAdd('last');
+
+        expect(deep).toBe(shallow);
+        expect(deep).toBe(1);
+    });
+
+    it('keeps the running byte total in step through trim, keepalive and drain', () => {
+        const api = new FakeApi();
+        const cfg = baseConfig({ key: null, maxSpanBufferSize: 3, keepaliveMaxBytes: 1_000_000 });
+        const buffer = makeBuffer(cfg, api);
+
+        // No key, so flush() no-ops and trim()'s slice is the only thing shrinking the buffer.
+        ['1', '2', '3', '4', '5'].forEach((id) => buffer.add(span(id)));
+        expect(buffer.length()).toBe(3);
+        expect(runningTotal(buffer)).toBe(entrySum(buffer));
+
+        cfg.key = 'k';
+        buffer.flush({ keepalive: true }); // packs everything, leaves an empty residue
+        expect(api.traceEnvelopes).toHaveLength(1);
+        expect(runningTotal(buffer)).toBe(entrySum(buffer));
+
+        buffer.add(span('6'));
+        buffer.flush(); // normal drain
+        expect(runningTotal(buffer)).toBe(0);
+        expect(entrySum(buffer)).toBe(0);
+
+        buffer.add(span('7'));
+        buffer.clear();
+        expect(runningTotal(buffer)).toBe(0);
+    });
+
+    it('subtracts the shifted span when trim drops one by weight', () => {
+        const oneSpanBytes = flatJsonStringify(span('1')).length;
+        const buffer = makeBuffer(baseConfig({ key: null, spanFlushMaxBytes: oneSpanBytes + 5 }));
+        buffer.add(span('1'));
+        buffer.add(span('2')); // over the ceiling, no key so flush no-ops and trim shifts the oldest
+
+        expect(buffer.length()).toBe(1);
+        expect(runningTotal(buffer)).toBe(oneSpanBytes);
+    });
+
     it('evaluates getResourceAttributes once per flush, even when keepalive packs multiple trial envelopes', () => {
         const api = new FakeApi();
         const getResourceAttributes = vi.fn(() => ({ 'host.name': 'h' }));
-        const buffer = new SpanBuffer({
-            api,
-            getConfig: () => baseConfig({ maxSpanBufferSize: 100, keepaliveMaxBytes: 1_000_000 }),
-            getSdkInfo: (): SdkInfo => ({ name: '@flareapp/core', version: '1.0.0' }),
-            getFramework: () => null,
+        const buffer = makeBuffer(baseConfig({ maxSpanBufferSize: 100, keepaliveMaxBytes: 1_000_000 }), api, {
             getResourceAttributes,
-            track: (p) => p,
-            scheduler: new NoopFlushScheduler(),
         });
         buffer.add(span('1'));
         buffer.add(span('2'));
