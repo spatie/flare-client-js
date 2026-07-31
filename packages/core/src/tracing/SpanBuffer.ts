@@ -15,8 +15,9 @@ export type SpanBufferDeps = {
 };
 
 // Measured once at add(), and it can go stale: status is held by reference, so a host mutating it after end()
-// drifts the cached number. Fine anyway: flush() already tolerates a stale/unserializable span, so a cache is
-// still correct; re-measuring every span on every flush is exactly the cost this task removes.
+// drifts the cached number. Harmless here: bytes only feeds bufferedBytes, which drives the spanFlushMaxBytes
+// and trim heuristics, where a few drifted bytes cannot corrupt anything. The one hard limit, keepaliveMaxBytes,
+// deliberately measures fresh in packForKeepalive and never reads this cache.
 type BufferEntry = { span: BufferedSpan; bytes: number };
 
 export class SpanBuffer {

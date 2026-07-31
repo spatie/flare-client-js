@@ -1,5 +1,6 @@
 import { attributesToOpenTelemetry } from '../logging/otel';
 import type { Attributes, BufferedSpan, OtelSpan, TracesEnvelope } from '../types';
+import { flatJsonStringify } from '../util';
 
 function toOtelSpan(span: BufferedSpan): OtelSpan {
     const status =
@@ -57,11 +58,14 @@ export function buildTracesEnvelope(
 const textEncoder = new TextEncoder();
 
 /**
- * UTF-8 bytes one span contributes to an envelope. Lives here so it tracks toOtelSpan's shape: a
- * BufferedSpan measures 27 bytes smaller for the same span, and keepaliveMaxBytes is a hard browser limit.
+ * UTF-8 bytes one span contributes to an envelope. Lives here to track toOtelSpan's shape rather than reuse
+ * the cached BufferedSpan estimate, since keepaliveMaxBytes is a hard browser limit.
+ *
+ * Uses flatJsonStringify, not JSON.stringify: status.message is a live caller reference and can go
+ * unserializable after end(), and this runs on a bare visibilitychange listener that must never throw.
  */
 export function otelSpanBytes(span: BufferedSpan): number {
-    return textEncoder.encode(JSON.stringify(toOtelSpan(span))).length;
+    return textEncoder.encode(flatJsonStringify(toOtelSpan(span))).length;
 }
 
 /** UTF-8 bytes of an envelope carrying no spans: everything a batch does not pay for per span. */

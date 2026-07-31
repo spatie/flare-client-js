@@ -267,6 +267,11 @@ describe('SpanBuffer', () => {
         const shipped = api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans.map((s) => s.name);
         expect(shipped).not.toContain(fatName);
         expect(shipped).toHaveLength(3); // the three older spans still fit and still ship
+
+        // The whole point of packing incrementally: the envelope that actually ships must respect the budget,
+        // not just contain the right span names.
+        const bytes = new TextEncoder().encode(JSON.stringify(api.traceEnvelopes[0])).length;
+        expect(bytes).toBeLessThanOrEqual(3000);
     });
 
     // Api.traces handles its own serialization failures, but buildEnvelope runs before it and encodes the
