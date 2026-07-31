@@ -161,7 +161,12 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     // plugin order dependent while the other four integrations are not.
     if (options?.router) {
         try {
-            traceVueRouter(options.router);
+            const stopRouterTracing = traceVueRouter(options.router);
+            // Vue 3.5 and up; the declared peer floor is ^3.0.0. Without this an SSR harness making one
+            // app per request leaves every previous router's guards attached with no way to remove them.
+            if (typeof app.onUnmount === 'function') {
+                app.onUnmount(stopRouterTracing);
+            }
         } catch {
             // never break plugin install
         }

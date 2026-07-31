@@ -164,6 +164,42 @@ describe('@flareapp/vue vue-router tracing entry', () => {
         );
     });
 
+    test('unmounting the app removes the router guards it attached', async () => {
+        const nav = navSpies();
+        mockBrowserSeam(vi.fn(() => nav));
+
+        const { flareVue } = await import('../src/inject');
+        const { createApp } = await import('vue');
+
+        const flareStub = {
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+            config: { enableTracing: true },
+        } as unknown as import('../src/types').FlareVueOptions['flare'];
+
+        const offBefore = vi.fn();
+        const offAfter = vi.fn();
+        const offError = vi.fn();
+        const router = {
+            currentRoute: { value: { path: '/', fullPath: '/', matched: [] } },
+            beforeEach: vi.fn(() => offBefore),
+            afterEach: vi.fn(() => offAfter),
+            onError: vi.fn(() => offError),
+        };
+
+        const app = createApp({ render: () => null });
+        app.use(flareVue, { flare: flareStub, router });
+        app.mount(document.createElement('div'));
+        app.unmount();
+
+        expect(offBefore).toHaveBeenCalledTimes(1);
+        expect(offAfter).toHaveBeenCalledTimes(1);
+        expect(offError).toHaveBeenCalledTimes(1);
+        expect(nav.unregister).toHaveBeenCalledTimes(1);
+    });
+
     test('installing flareVue without a router option does not touch the nav seam', async () => {
         const registerNavigationSource = vi.fn();
         mockBrowserSeam(registerNavigationSource);
