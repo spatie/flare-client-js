@@ -42,12 +42,10 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
     return {
         beforeMount(this: ComponentPublicInstance) {
             try {
-                const internal = this.$ as ProfiledInstance;
-                // Asked before the name is resolved: the mixin is global, so with no root open this
-                // check is the only work every mount in the app pays for.
-                const parent = resolveComponentParent(nearestMarker(internal), activeComponentRoot());
-                // tracing off, or no root open: record nothing
-                if (!parent) {
+                // First and on its own: the mixin is global, so with tracing off or no root open this
+                // one call is all every mount in the app pays for.
+                const live = activeComponentRoot();
+                if (!live) {
                     return;
                 }
 
@@ -56,6 +54,11 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                 if (!matches(name)) {
                     return;
                 }
+
+                const internal = this.$ as ProfiledInstance;
+                // The ?? cannot fire: with a live root, resolveComponentParent returns the ancestor's
+                // context or that root. It keeps the type non-null without a branch that never runs.
+                const parent = resolveComponentParent(nearestMarker(internal), live) ?? live;
 
                 const spanId = reserveSpanId();
                 internal[PROFILE] = {

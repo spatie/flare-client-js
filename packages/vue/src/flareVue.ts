@@ -169,7 +169,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
 
     // Register the mixin whenever an allowlist asked for it. An empty allowlist is the same as off,
     // rather than "an array was passed". Tracing being off is NOT gated here: configure() can turn it
-    // on later, and the hook's first act is to ask for a live root, so an idle mount costs one check.
+    // on later, and the hook does nothing past its first call while there is no root to record under.
     const profile = options?.profileComponents;
     const wantsProfiling = profile === true || (Array.isArray(profile) && profile.length > 0);
 
