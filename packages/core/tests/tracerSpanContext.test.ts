@@ -72,4 +72,18 @@ describe('span context is captured at start, not end (no drift)', () => {
         const rootSpan = spans.find((s) => s.name === 'root');
         expect(JSON.stringify(rootSpan)).toContain('/start');
     });
+
+    it('a late child of an ended root stays lean, it does not become a new local root', () => {
+        const { api, flare } = setup();
+        flare.addContext('page', '/start');
+        const root = flare.startSpan('root', {});
+        root.end(); // the trace state is pruned here
+        flare.startSpan('late', { parent: root, attributes: { 'http.request.method': 'GET' } }).end();
+        flare.flush();
+
+        const spans = api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans;
+        const lateSpan = spans.find((s) => s.name === 'late');
+        expect(JSON.stringify(lateSpan)).toContain('http.request.method');
+        expect(JSON.stringify(lateSpan)).not.toContain('context.custom');
+    });
 });

@@ -219,6 +219,34 @@ describe('Tracer.startSpan', () => {
         expect(child.parentSpanId).toBe(root.spanId);
         expect(child.traceId).toBe(root.traceId);
     });
+
+    it('the per-trace span cap survives a prune and re-seed', () => {
+        const tracer = makeTracer(config({ maxSpansPerTrace: 2 }));
+        const root = tracer.startSpan('root');
+        const a = tracer.startSpan('a', { parent: root });
+        a.end();
+        root.end(); // prunes; the cap of 2 is already spent
+
+        expect(tracer.startSpan('b', { parent: root }).isRecording).toBe(false);
+        expect(tracer.startSpan('c', { parent: root }).isRecording).toBe(false);
+    });
+
+    it('a span from an evicted generation does not prune the re-seeded trace state', () => {
+        const tracer = makeTracer(config(), () => 0, 2); // maxLiveTraces 2
+        const a = tracer.startSpan('a');
+        tracer.startSpan('a-child', { parent: a });
+        tracer.startSpan('b');
+        tracer.startSpan('c'); // evicts trace A while two of its spans are still open
+
+        const reseeded = tracer.startSpan('a-again', { parent: { traceId: a.traceId, spanId: a.spanId } });
+        const live = tracer.startSpan('still-open', { parent: reseeded });
+        a.end(); // evicted generation: must not touch the new state
+        reseeded.end();
+
+        expect(hasTrace(tracer, a.traceId)).toBe(true); // `live` is still open
+        live.end();
+        expect(hasTrace(tracer, a.traceId)).toBe(false);
+    });
 });
 
 describe('defaultNowNano', () => {

@@ -19,6 +19,7 @@ const init = (recording = true) => ({
     startTimeUnixNano: 1,
     recording,
     epoch: 0,
+    stateGeneration: 0,
 });
 
 describe('SpanImpl', () => {

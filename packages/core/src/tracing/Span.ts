@@ -8,6 +8,9 @@ export type SpanInit = {
     startTimeUnixNano: number;
     recording: boolean;
     epoch: number; // tracer generation at creation; stale after clear()
+    // TraceState generation this span was counted into. A state evicted and re-seeded under the same trace id
+    // gets a new one, so a late end() from the old generation cannot decrement the new state's open count.
+    stateGeneration: number;
     scopeAttributes: Attributes;
 };
 
@@ -28,6 +31,7 @@ export class SpanImpl implements Span {
     name: string;
     readonly isRecording: boolean;
     readonly epoch: number;
+    readonly stateGeneration: number;
     readonly startTimeUnixNano: number;
     readonly scopeAttributes: Attributes;
     endTimeUnixNano = 0;
@@ -49,6 +53,7 @@ export class SpanImpl implements Span {
         this.name = init.name;
         this.isRecording = init.recording;
         this.epoch = init.epoch;
+        this.stateGeneration = init.stateGeneration;
         this.startTimeUnixNano = init.startTimeUnixNano;
         this.scopeAttributes = init.scopeAttributes;
     }

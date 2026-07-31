@@ -39,7 +39,13 @@ type TraceState = {
     rootEnded: boolean;
     startedSpanCount: number;
     openSpanCount: number;
+    generation: number;
 };
+
+/** What survives a pruned trace: three primitives, no span reference, so an ended root is not held alive. */
+type ClosedTrace = { localRootSpanId: string; recording: boolean; startedSpanCount: number };
+
+const MAX_CLOSED_TRACES = 100;
 
 export type TracerDeps = {
     api: Api;
@@ -60,6 +66,8 @@ export class Tracer {
     private buffer: SpanBuffer;
     private holder: ActiveSpanHolder;
     private traceStates = new Map<string, TraceState>();
+    private closedTraces = new Map<string, ClosedTrace>();
+    private stateGeneration = 0;
     private now: () => number;
     private rng: () => number;
     private maxLiveTraces: number;
@@ -116,6 +124,7 @@ export class Tracer {
     clear(): void {
         this.buffer.clear();
         this.traceStates.clear();
+        this.closedTraces.clear();
         this.pendingContinuation = null;
         this.epoch++; // spans created before this point become stale (won't buffer on end)
     }
@@ -168,7 +177,15 @@ export class Tracer {
 
         if (!config.enableTracing) {
             const span = this.makeSpan(
-                { traceId: makeTraceId(), spanId, parentSpanId: null, name, recording: false, isLocalRoot: true },
+                {
+                    traceId: makeTraceId(),
+                    spanId,
+                    parentSpanId: null,
+                    name,
+                    recording: false,
+                    isLocalRoot: true,
+                    stateGeneration: 0,
+                },
                 opts,
                 config,
             );
@@ -192,7 +209,11 @@ export class Tracer {
         // "Local root" test: this span seeded (or is) its TraceState's local root. True for new, continued, and
         // foreign-parent roots; false for a child of an already-seen trace.
         const isLocalRoot = state.localRootSpanId === spanId;
-        const span = this.makeSpan({ traceId, spanId, parentSpanId, name, recording, isLocalRoot }, opts, config);
+        const span = this.makeSpan(
+            { traceId, spanId, parentSpanId, name, recording, isLocalRoot, stateGeneration: state.generation },
+            opts,
+            config,
+        );
         this.emitSpanEvent('start', span);
         return span;
     }
@@ -260,6 +281,16 @@ export class Tracer {
             this.traceStates.set(traceId, existing);
             return existing;
         }
+        // A trace that pruned is not a new trace. Re-seeding from its record keeps the original local root, so a
+        // late child stays lean, and keeps the spent span count, so maxSpansPerTrace is a durable per-trace cap.
+        const closed = this.closedTraces.get(traceId);
+        if (closed) {
+            this.closedTraces.delete(traceId);
+            const state = this.createState(traceId, closed.localRootSpanId, closed.recording);
+            state.startedSpanCount = closed.startedSpanCount;
+            state.rootEnded = true; // the original local root already ended and will never end again
+            return state;
+        }
         return this.createState(traceId, localRootSpanId, fallbackRecording());
     }
 
@@ -279,6 +310,7 @@ export class Tracer {
             rootEnded: false,
             startedSpanCount: 0,
             openSpanCount: 0,
+            generation: ++this.stateGeneration,
         };
         this.traceStates.set(traceId, state);
         return state;
@@ -292,6 +324,7 @@ export class Tracer {
             name: string;
             recording: boolean;
             isLocalRoot: boolean;
+            stateGeneration: number;
         },
         opts: SpanOptions,
         config: Config,
@@ -323,6 +356,21 @@ export class Tracer {
         return span;
     }
 
+    /** Bounded, LRU by insertion order, like traceStates. Holds primitives only, never a span. */
+    private rememberClosed(state: TraceState): void {
+        if (this.closedTraces.size >= MAX_CLOSED_TRACES) {
+            const lru = this.closedTraces.keys().next().value;
+            if (lru !== undefined) {
+                this.closedTraces.delete(lru);
+            }
+        }
+        this.closedTraces.set(state.traceId, {
+            localRootSpanId: state.localRootSpanId,
+            recording: state.recording,
+            startedSpanCount: state.startedSpanCount,
+        });
+    }
+
     private onSpanEnd(span: SpanImpl): void {
         this.emitSpanEvent('end', span);
         // stale: created before a clear(); never buffer
@@ -331,13 +379,16 @@ export class Tracer {
         }
 
         const state = this.traceStates.get(span.traceId);
-        if (state) {
+        // Generation check, not just a trace id match: after an LRU eviction and re-seed the id is the same but
+        // the state is not, and a stale decrement would prune a state with spans still open.
+        if (state && state.generation === span.stateGeneration) {
             state.openSpanCount--;
             if (span.spanId === state.localRootSpanId) {
                 state.rootEnded = true;
             }
             if (state.rootEnded && state.openSpanCount <= 0) {
                 this.traceStates.delete(span.traceId);
+                this.rememberClosed(state);
             }
         }
 
