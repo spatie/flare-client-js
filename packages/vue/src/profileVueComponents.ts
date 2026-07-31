@@ -35,8 +35,10 @@ function nearestMarker(instance: ComponentInternalInstance): ComponentTraceConte
 
 /**
  * Record one `browser_component` span per matched component mount. `beforeMount` reserves the span id
- * and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted`
- * bottom-up, so a parent's span encloses every descendant's both by time and by parent id.
+ * and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted` bottom-up,
+ * so a parent's span encloses its SYNCHRONOUS descendants in time. Async components and anything under
+ * `<Suspense>` are outside that contract: their span can start after the parent's ended, or be dropped
+ * entirely when the root closed in the meantime. Nesting by parent id always holds.
  */
 export function createComponentProfilerMixin(matches: (name: string) => boolean): ComponentOptions {
     return {

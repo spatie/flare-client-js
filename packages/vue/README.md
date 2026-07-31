@@ -82,6 +82,11 @@ A component that mounts later inside an already-mounted profiled ancestor still 
 own span closed when it finished mounting. The tree is correct, but the waterfall shows the child starting after
 its parent ended. A page body swapped inside a persistent layout is the usual way to see this.
 
+**Async components and `<Suspense>`:** Vue treats a component as mounted once its _synchronous_ children
+are mounted. A component with an async `setup()`, or one inside a `<Suspense>` boundary, therefore mounts
+after its profiled ancestor's span has closed, so it appears after its parent in the waterfall. If the
+whole trace closed by then, the span is dropped rather than attached to a finished trace.
+
 ### Naming with Inertia
 
 Inertia names navigation spans after the page component from its page object, so a root reads `Products/Show`.

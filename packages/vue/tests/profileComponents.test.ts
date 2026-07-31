@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createApp, defineComponent, h, type Component } from 'vue';
+import { createApp, defineComponent, h, Suspense, type Component } from 'vue';
 
 const seam = vi.hoisted(async () => (await import('@flareapp/test-helpers')).createComponentSeam());
 vi.mock('@flareapp/js/browser', async (importOriginal) =>
@@ -114,7 +114,7 @@ describe('nesting', () => {
         expect(fake.spans()[0]!.parent).toEqual({ traceId: 'T', parentSpanId: 'root' });
     });
 
-    it('encloses a descendant in time, not only by parent id', () => {
+    it('encloses a synchronous descendant in time, not only by parent id', () => {
         // The other tests here pin the tree by parent id. This one pins the half that makes the
         // waterfall render as a tree: beforeMount top-down puts the ancestor's start first, mounted
         // bottom-up puts its end last.
@@ -126,6 +126,36 @@ describe('nesting', () => {
         const layout = fake.spans().find((span) => span.name === 'Layout')!;
         expect(layout.startTimeUnixNano).toBeLessThan(gallery.startTimeUnixNano);
         expect(layout.endTimeUnixNano).toBeGreaterThan(gallery.endTimeUnixNano);
+    });
+
+    // A component with an async setup() is not part of its ancestor's mounted contract, so the ancestor
+    // records first and the child's span starts after the parent's ended. This is the exact inverse of
+    // the sync-tree assertion above, and it is the reason that one says "synchronous".
+    it('records an async setup() child after its ancestor has already ended', async () => {
+        fake.advanceClock();
+
+        const AsyncChild = defineComponent({
+            name: 'AsyncChild',
+            async setup() {
+                await Promise.resolve();
+                return () => h('span', 'child');
+            },
+        });
+        const Boundary = defineComponent({
+            name: 'Boundary',
+            render: () => h(Suspense, null, { default: () => h(AsyncChild), fallback: () => h('span', 'wait') }),
+        });
+
+        mount(Boundary, { global: { mixins: [profiler(['Boundary', 'AsyncChild'])] } });
+        await flushPromises();
+
+        const boundary = fake.spans().find((span) => span.name === 'Boundary')!;
+        const child = fake.spans().find((span) => span.name === 'AsyncChild')!;
+
+        expect(fake.spans().indexOf(boundary)).toBeLessThan(fake.spans().indexOf(child));
+        expect(child.startTimeUnixNano).toBeGreaterThan(boundary.endTimeUnixNano);
+        // Nesting by parent id still holds: the marker is published in beforeMount, before any of this.
+        expect(child.parent.parentSpanId).toBe(boundary.spanId);
     });
 });
 
