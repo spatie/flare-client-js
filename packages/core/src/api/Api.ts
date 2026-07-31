@@ -7,6 +7,8 @@ import { flatJsonStringify } from '../util';
 // would push it over. That request still ships on soft backgrounding, and on a real unload it is no worse off than
 // being rejected.
 const MAX_PENDING_KEEPALIVE_BYTES = 60_000;
+// Second, independent limit: many small keepalive fetches can stay under the byte budget and still exhaust the
+// browser's per-page in-flight allowance. 15 leaves room for the host application's own unload requests.
 const MAX_PENDING_KEEPALIVE_REQUESTS = 15;
 
 const textEncoder = new TextEncoder();
@@ -85,7 +87,9 @@ export class Api {
         debug: boolean,
         keepaliveRequested: boolean,
     ): Promise<void> {
-        const bytes = textEncoder.encode(body).length;
+        // Only the keepalive gate below reads this, and report() never requests keepalive. Encoding a large
+        // report body here allocated a Uint8Array of that size on the error path for nothing.
+        const bytes = keepaliveRequested ? textEncoder.encode(body).length : 0;
         const keepalive =
             keepaliveRequested &&
             this.pendingKeepaliveRequests < MAX_PENDING_KEEPALIVE_REQUESTS &&

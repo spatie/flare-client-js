@@ -60,4 +60,17 @@ describe('Api keepalive byte-budget gate', () => {
 
         expect(fetchMock.mock.calls[0][1].keepalive).toBe(false);
     });
+
+    it('downgrades keepalive once 15 requests are in flight, whatever their size', () => {
+        const fetchMock = vi.fn(() => new Promise(() => {})); // never settles, so nothing frees the budget
+        vi.stubGlobal('fetch', fetchMock);
+        const api = new Api();
+
+        for (let i = 0; i < 16; i++) {
+            void api.traces({ resourceSpans: [] }, URL_T, 'k', false, true); // tiny, the byte budget never binds
+        }
+
+        expect(fetchMock.mock.calls[14][1].keepalive).toBe(true);
+        expect(fetchMock.mock.calls[15][1].keepalive).toBe(false);
+    });
 });

@@ -130,6 +130,8 @@ export class Logger {
         if (this.buffer.length > config.maxLogBufferSize) {
             this.buffer = this.buffer.slice(this.buffer.length - config.maxLogBufferSize);
         }
+        // Never trim to empty: a lone record over the cap cannot be fixed by dropping it here, and record()
+        // already refused anything that large on the way in.
         while (this.buffer.length > 1 && this.bufferBytes() > config.logFlushMaxBytes) {
             this.buffer.shift();
         }

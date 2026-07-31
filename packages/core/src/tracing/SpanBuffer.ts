@@ -140,7 +140,13 @@ export class SpanBuffer {
             return;
         }
         this.timerActive = true;
-        this.timer = setTimeout(() => this.flush(), config.spanFlushIntervalMs);
+        this.timer = setTimeout(() => {
+            // Reset before flushing: flush()'s early returns skip clearTimer(), which would otherwise leave a
+            // dead handle behind and block armTimer for the rest of the buffer's life.
+            this.timerActive = false;
+            this.timer = undefined;
+            this.flush();
+        }, config.spanFlushIntervalMs);
         // Node's Timeout has unref(); the browser's number does not.
         (this.timer as { unref?: () => void }).unref?.();
     }
