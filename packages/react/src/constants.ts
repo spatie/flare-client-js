@@ -12,9 +12,12 @@ export const FIREFOX_SAFARI_STACK_REGEX = /^(\S+?)@(.+):(\d+):(\d+)$/;
  * React 16/17/18 synthetic component stack: `in ComponentName (at App.jsx:10)`; with an optional
  * column `in ComponentName (at App.jsx:10:5)`; no source: `in ComponentName`. These versions usually
  * emit a line only, so the column capture group is optional. The file capture is lazy so the trailing
- * `:line(:column)` binds to the numeric tail even when the file path itself contains colons.
+ * `:line(:column)` binds to the numeric tail even when the file path itself contains colons. Without
+ * `__source` React names the owner instead (`in App (created by Root)`), so that suffix is matched and
+ * discarded; the group is greedy because an owner name can carry brackets of its own (`Connect(Form)`).
  */
-export const REACT_LEGACY_STACK_REGEX = /^in\s+(\S+)(?:\s+\(at\s+(.+?):(\d+)(?::(\d+))?\))?$/;
+export const REACT_LEGACY_STACK_REGEX =
+    /^in\s+(\S+)(?:\s+\(at\s+(.+?):(\d+)(?::(\d+))?\))?(?:\s+\(created by\s+.+\))?$/;
 
 /** Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version). */
 export const PACKAGE_VERSION =

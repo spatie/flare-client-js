@@ -122,6 +122,20 @@ describe('parseComponentStack', () => {
                 { component: 'App', file: 'http://localhost:5173/src/App.tsx', line: 12, column: 9 },
             ]);
         });
+
+        test('parses a frame with an owner suffix instead of a source', () => {
+            // React 16/17 fall back to the owner when no __source is available, which is every
+            // production build without the JSX source plugin.
+            expect(parseComponentStack('in App (created by Root)')).toEqual([
+                { component: 'App', file: null, line: null, column: null },
+            ]);
+        });
+
+        test('parses an owner name that carries brackets of its own', () => {
+            expect(parseComponentStack('in Button (created by Connect(Form))')).toEqual([
+                { component: 'Button', file: null, line: null, column: null },
+            ]);
+        });
     });
 
     describe('dotted component names', () => {
