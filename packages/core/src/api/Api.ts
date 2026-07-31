@@ -56,9 +56,17 @@ export class Api {
         debug: boolean = false,
         keepalive: boolean = false,
     ): Promise<void> {
-        // Everything here is attributesToOpenTelemetry output, so safeClone cannot change a byte, unlike report()
-        // whose context data is raw. SpanBuffer.flush catches the throw if a host mutated a span after buffering.
-        return this.send(url, this.ingestHeaders(key), JSON.stringify(envelope), 'Flare traces', debug, keepalive);
+        let body: string;
+        try {
+            // Everything here is attributesToOpenTelemetry output, so safeClone cannot change a byte, unlike
+            // report() whose context data is raw. A try that does not throw costs nothing.
+            body = JSON.stringify(envelope);
+        } catch {
+            // status.message is held by reference, so a host can still mutate a span after it was buffered.
+            // Degrade to the old clone rather than break the never-throws contract report() and logs() also keep.
+            body = flatJsonStringify(envelope);
+        }
+        return this.send(url, this.ingestHeaders(key), body, 'Flare traces', debug, keepalive);
     }
 
     private ingestHeaders(key: string | null): Record<string, string> {

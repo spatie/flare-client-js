@@ -252,4 +252,29 @@ describe('SpanBuffer', () => {
         expect(getResourceAttributes).toHaveBeenCalledTimes(1);
         expect(api.traceEnvelopes).toHaveLength(1);
     });
+
+    // Api.traces handles its own serialization failures, but buildEnvelope runs before it and encodes the
+    // resource block, where a nested throwing getter still blows up. flush() is called from timers, so it must
+    // swallow that rather than let it reach window.onerror.
+    it('does not throw out of flush() when encoding the resource block fails', () => {
+        const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const api = new FakeApi();
+        const hostile = {
+            get boom(): string {
+                throw new Error('getter exploded');
+            },
+        };
+        // Nested, not top level: resourceForFlush spreads the bag, so a top-level getter would throw before flush
+        // even reaches the envelope build.
+        const buffer = makeBuffer(baseConfig({ debug: true }), api, {
+            getResourceAttributes: () => ({ nested: hostile }),
+        });
+        buffer.add(span('1'));
+
+        expect(() => buffer.flush()).not.toThrow();
+        expect(api.traceEnvelopes).toHaveLength(0);
+        expect(err).toHaveBeenCalledWith('Flare: failed to send buffered spans', expect.any(Error));
+
+        err.mockRestore();
+    });
 });

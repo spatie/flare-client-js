@@ -22,6 +22,20 @@ describe('Api.traces', () => {
         vi.unstubAllGlobals();
     });
 
+    // Api is a published export, so a caller can hand it an envelope the SpanBuffer never sized. Before the
+    // safeClone removal this could not throw, and it still must not: falling back keeps the old body.
+    it('falls back to the safeClone body instead of throwing on an unserializable envelope', async () => {
+        const fetchMock = stubFetch();
+        const cyclic = { resourceSpans: [] } as TracesEnvelope & { self?: unknown };
+        cyclic.self = cyclic;
+
+        await expect(new Api().traces(cyclic, 'https://x/v1/traces', 'k')).resolves.toBeUndefined();
+
+        expect(fetchMock.mock.calls[0][1].body).toContain('[Circular]');
+
+        vi.unstubAllGlobals();
+    });
+
     it('logs a non-201 response in debug mode', async () => {
         const fetchMock = vi.fn().mockResolvedValue({ status: 422 });
         vi.stubGlobal('fetch', fetchMock);

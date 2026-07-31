@@ -71,12 +71,11 @@ describe('Flare tracing wiring', () => {
         expect(api.traceEnvelopes).toHaveLength(0);
     });
 
-    // estimateBytes measures a snapshot but status.message is held by reference, so the host can still turn a
+    // estimateBytes sizes a snapshot but status.message is held by reference, so the host can still turn a
     // buffered span unserializable. flush() runs from a timer and a visibilitychange listener, so a throw here
     // would land in window.onerror and Flare would report its own instrumentation as a host error.
-    it('does not throw out of flush() when a buffered span is mutated unserializable after add()', async () => {
-        stubFetch();
-        const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it('still ships a buffered span that was mutated unserializable after add()', async () => {
+        const fetchMock = stubFetch();
         const flare = new Flare(new Api());
         flare.light('k');
         flare.configure({ enableTracing: true, debug: true });
@@ -89,7 +88,7 @@ describe('Flare tracing wiring', () => {
         message.self = message; // the host still holds the reference
 
         await expect(flare.flush()).resolves.toBeUndefined();
-        expect(err).toHaveBeenCalledWith('Flare: failed to send buffered spans', expect.any(TypeError));
+        expect(fetchMock.mock.calls[0][1].body).toContain('[Circular]');
     });
 
     it('clamps tracesSampleRate to [0, 1]', () => {
