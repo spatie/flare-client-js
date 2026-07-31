@@ -11,7 +11,7 @@ vi.mock('@flareapp/js/browser', async (importOriginal) =>
     (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
 );
 
-import { traceTanStackRouter } from '../src/tanstack-router';
+import { STALE_NAVIGATION_TIMEOUT_MS, traceTanStackRouter } from '../src/tanstack-router';
 import type { TsrMatch } from '../src/vendor/tanstackRouterTypes';
 
 const PRODUCT_MATCHES: TsrMatch[] = [{ routeId: '__root__' }, { routeId: '/product/$id', fullPath: '/product/$id' }];
@@ -33,6 +33,7 @@ function fakeRouter(opts: { matches?: TsrMatch[]; location?: { pathname: string;
 beforeEach(() => {
     nav.startNavigation.mockClear();
     nav.setActiveRouteName.mockClear();
+    nav.settleNavigation.mockClear();
     nav.unregister.mockClear();
 });
 
@@ -72,7 +73,7 @@ describe('traceTanStackRouter', () => {
         const from = { pathname: '/', search: {}, state: {} };
         const to = { pathname: '/product/p01', search: {}, state: {} };
         emit('onBeforeLoad', { fromLocation: from, toLocation: to });
-        expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01' });
+        expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', hold: true });
         expect(nav.setActiveRouteName).toHaveBeenCalledWith({
             name: '/product/$id',
             source: 'route',
@@ -84,6 +85,102 @@ describe('traceTanStackRouter', () => {
             source: 'route',
             url: u('/product/p01'),
         });
+    });
+
+    it('opens the nav root held and settles it on resolve', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        const from = { pathname: '/', search: {}, state: {} };
+        const to = { pathname: '/product/p01', search: {}, state: {} };
+
+        emit('onBeforeLoad', { fromLocation: from, toLocation: to });
+        expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', hold: true });
+
+        emit('onResolved', { fromLocation: from, toLocation: to });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
+    });
+
+    it('settles a navigation that never resolves, and accepts the next one', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            traceTanStackRouter(router);
+            const from = { pathname: '/', search: {}, state: {} };
+
+            // RouterProvider unmounted mid-navigation: onResolved comes from React's Transitioner,
+            // so nothing is left to settle this one.
+            emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/a', search: {}, state: {} } });
+            expect(nav.settleNavigation).not.toHaveBeenCalled();
+
+            vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS);
+            expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+
+            // inFlight is clear again, so a later navigation still opens its own root.
+            nav.startNavigation.mockClear();
+            emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
+            expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not settle twice when the router resolves before the stale timer', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            traceTanStackRouter(router);
+            const from = { pathname: '/', search: {}, state: {} };
+            const to = { pathname: '/product/p01', search: {}, state: {} };
+
+            emit('onBeforeLoad', { fromLocation: from, toLocation: to });
+            emit('onResolved', { fromLocation: from, toLocation: to });
+            vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS * 2);
+
+            expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // The stale timer is ours, so nothing else catches it: a throw here would surface as a window
+    // error and Flare would report it as an error of the host app's own.
+    it('swallows a throw from the stale-timer settle', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            traceTanStackRouter(router);
+            nav.settleNavigation.mockImplementationOnce(() => {
+                throw new Error('seam boom');
+            });
+            emit('onBeforeLoad', {
+                fromLocation: { pathname: '/', search: {}, state: {} },
+                toLocation: { pathname: '/a', search: {}, state: {} },
+            });
+            expect(() => vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS)).not.toThrow();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('clears the stale timer on cleanup', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            const stop = traceTanStackRouter(router);
+            emit('onBeforeLoad', {
+                fromLocation: { pathname: '/', search: {}, state: {} },
+                toLocation: { pathname: '/a', search: {}, state: {} },
+            });
+            stop();
+            vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS * 2);
+            expect(nav.settleNavigation).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('skips the initial pageload onBeforeLoad', () => {

@@ -13,6 +13,12 @@ import {
 import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
 
 /**
+ * How long a held navigation root waits for `onResolved` before settling itself. Exported so the suite
+ * drives it instead of hardcoding the number; not part of the supported surface.
+ */
+export const STALE_NAVIGATION_TIMEOUT_MS = 5_000;
+
+/**
  * Trace a TanStack Router instance: name the `browser_pageload` root from the
  * initial route and open a parameterized `browser_navigation` root per route
  * change. Returns a cleanup that unsubscribes and unregisters. Safe to call
@@ -51,7 +57,26 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
         // never break the host on wiring
     }
 
+    // onBeforeLoad comes from router-core, but onResolved is emitted only from React's Transitioner
+    // layout effect. A RouterProvider unmounted mid-navigation therefore never releases the hold, so
+    // recover on a timer rather than letting the root sit suppressed until the 30s finalTimeout.
     let inFlight = false;
+    let destination: TsrLocation | null = null;
+    let staleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearStaleTimer = (): void => {
+        if (staleTimer !== null) {
+            clearTimeout(staleTimer);
+            staleTimer = null;
+        }
+    };
+
+    const settle = (location: TsrLocation): void => {
+        clearStaleTimer();
+        inFlight = false;
+        destination = null;
+        nav.settleNavigation(routeNameFor(location));
+    };
 
     const offBeforeLoad = router.subscribe(
         'onBeforeLoad',
@@ -66,9 +91,26 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
             }
             if (!inFlight) {
                 inFlight = true;
-                nav.startNavigation({ path: event.toLocation.pathname });
+                // Held: the route's components mount after onResolved, and a cached or code-split route
+                // can produce no child span at all, so the idle window would close the root at its own
+                // start and drop every one of those spans.
+                nav.startNavigation({ path: event.toLocation.pathname, hold: true });
             }
+            destination = event.toLocation;
             nav.setActiveRouteName(routeNameFor(event.toLocation)); // set / re-set (redirect hops)
+
+            // Re-armed per redirect hop, so the window measures the gap since the last sign of life.
+            // Insulated on its own: this timer is ours, so a throw here reaches nothing but the window.
+            clearStaleTimer();
+            staleTimer = setTimeout(
+                insulate(() => {
+                    staleTimer = null;
+                    if (destination) {
+                        settle(destination);
+                    }
+                }),
+                STALE_NAVIGATION_TIMEOUT_MS,
+            );
         }),
     );
 
@@ -80,13 +122,13 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
                 return;
             }
             if (inFlight) {
-                inFlight = false;
-                nav.setActiveRouteName(routeNameFor(event.toLocation)); // finalize the navigation name
+                settle(event.toLocation); // finalize the navigation name and release the hold
             }
         }),
     );
 
     return () => {
+        clearStaleTimer();
         safeInvoke(offBeforeLoad);
         safeInvoke(offResolved);
         safeInvoke(() => nav.unregister());
