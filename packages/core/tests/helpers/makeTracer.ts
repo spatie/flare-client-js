@@ -51,3 +51,10 @@ export const traceCount = (tracer: Tracer): number =>
 
 export const hasTrace = (tracer: Tracer, traceId: string): boolean =>
     (tracer as unknown as { traceStates: Map<string, unknown> }).traceStates.has(traceId);
+
+export const closedTraceCount = (tracer: Tracer): number =>
+    (tracer as unknown as { closedTraces: Map<string, unknown> }).closedTraces.size;
+
+export const localRootSpanId = (tracer: Tracer, traceId: string): string | undefined =>
+    (tracer as unknown as { traceStates: Map<string, { localRootSpanId: string }> }).traceStates.get(traceId)
+        ?.localRootSpanId;

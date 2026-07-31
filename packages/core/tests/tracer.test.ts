@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultNowNano, Tracer } from '../src/tracing/Tracer';
-import { config, hasTrace, makeTracer, spyBuffer, traceCount } from './helpers/makeTracer';
+import {
+    closedTraceCount,
+    config,
+    hasTrace,
+    localRootSpanId,
+    makeTracer,
+    spyBuffer,
+    traceCount,
+} from './helpers/makeTracer';
 
 describe('Tracer.startSpan', () => {
     it('creates a root with fresh ids and a null parent', () => {
@@ -41,12 +49,15 @@ describe('Tracer.startSpan', () => {
         expect(child.isRecording).toBe(false); // inherited, not defaulted to recording
     });
 
-    it('re-seeds from parent.isRecording when the parent trace state was pruned', () => {
+    it('re-seeds a pruned trace from its closed record, not by making the child a new local root', () => {
         const tracer = makeTracer(config({ tracesSampleRate: 0 }));
         const root = tracer.startSpan('root'); // sampled out
-        root.end(); // prunes the trace state (rootEnded + openSpanCount 0)
+        root.end(); // prunes the trace state (rootEnded + openSpanCount 0); remembered in closedTraces
         const child = tracer.startSpan('child', { parent: root });
-        expect(child.isRecording).toBe(false); // not resurrected as recording
+        expect(child.isRecording).toBe(false); // closed.recording carried over, not re-sampled
+        // Pins the closed-record path: a fallbackRecording()-only reseed would have made `child` itself the new
+        // local root. The closed record keeps the original root's id instead.
+        expect(localRootSpanId(tracer, root.traceId)).toBe(root.spanId);
     });
 
     it('records exactly maxSpansPerTrace spans, root counted as #1', () => {
@@ -246,6 +257,22 @@ describe('Tracer.startSpan', () => {
         expect(hasTrace(tracer, a.traceId)).toBe(true); // `live` is still open
         live.end();
         expect(hasTrace(tracer, a.traceId)).toBe(false);
+    });
+
+    it('bounds closedTraces at 100 entries, evicting the oldest', () => {
+        const tracer = makeTracer(config());
+        for (let i = 0; i < 105; i++) {
+            tracer.startSpan(`root-${i}`).end(); // each is its own trace; closes and is remembered immediately
+        }
+        expect(closedTraceCount(tracer)).toBe(100);
+    });
+
+    it('clear() empties closedTraces', () => {
+        const tracer = makeTracer(config());
+        tracer.startSpan('root').end(); // closes and is remembered
+        expect(closedTraceCount(tracer)).toBe(1);
+        tracer.clear();
+        expect(closedTraceCount(tracer)).toBe(0);
     });
 });
 

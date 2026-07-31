@@ -45,6 +45,21 @@ type TraceState = {
 /** What survives a pruned trace: three primitives, no span reference, so an ended root is not held alive. */
 type ClosedTrace = { localRootSpanId: string; recording: boolean; startedSpanCount: number };
 
+/**
+ * Both trace maps cap their size the same way: insertion order is LRU, so the first key is the one to drop.
+ * Only evicts when `key` is not already in the map. A set() that overwrites an existing key does not grow the
+ * map, so it must not evict an unrelated entry to make room for it.
+ */
+function evictLruIfNew<V>(map: Map<string, V>, key: string, cap: number): void {
+    if (map.has(key) || map.size < cap) {
+        return;
+    }
+    const lru = map.keys().next().value;
+    if (lru !== undefined) {
+        map.delete(lru);
+    }
+}
+
 const MAX_CLOSED_TRACES = 100;
 
 export type TracerDeps = {
@@ -297,12 +312,7 @@ export class Tracer {
     private createState(traceId: string, localRootSpanId: string, recording: boolean): TraceState {
         // Bounded backstop: an app that never ends spans must not grow the map forever. The Map is kept in recency
         // order (getOrSeedState refreshes on access), so the first key is the LRU; evict it at the cap.
-        if (this.traceStates.size >= this.maxLiveTraces) {
-            const lru = this.traceStates.keys().next().value;
-            if (lru !== undefined) {
-                this.traceStates.delete(lru);
-            }
-        }
+        evictLruIfNew(this.traceStates, traceId, this.maxLiveTraces);
         const state: TraceState = {
             traceId,
             recording,
@@ -358,12 +368,7 @@ export class Tracer {
 
     /** Bounded, LRU by insertion order, like traceStates. Holds primitives only, never a span. */
     private rememberClosed(state: TraceState): void {
-        if (this.closedTraces.size >= MAX_CLOSED_TRACES) {
-            const lru = this.closedTraces.keys().next().value;
-            if (lru !== undefined) {
-                this.closedTraces.delete(lru);
-            }
-        }
+        evictLruIfNew(this.closedTraces, state.traceId, MAX_CLOSED_TRACES);
         this.closedTraces.set(state.traceId, {
             localRootSpanId: state.localRootSpanId,
             recording: state.recording,
