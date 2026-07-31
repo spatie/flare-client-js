@@ -27,7 +27,10 @@ let currentRoot: Span | null = null;
 // A route name a navigation source handed over while no root was open, kept for the next one. An app
 // that installs its router integration before calling configure() names its initial route before the
 // pageload root exists, and nothing would ever name that root a second time.
+// Stamped with the source's own token, so a source that unregisters or gets superseded before the
+// pageload root opens cannot still land its name on a root it no longer speaks for.
 let pendingRouteName: RouteName | null = null;
+let pendingRouteNameOwner: object | null = null;
 
 function resolveTimeouts(config: Config): IdleTimeouts {
     return {
@@ -158,10 +161,16 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
 
     // Named from the route the source already knows, so install order (router integration first,
     // configure second) does not decide whether the pageload root carries a url or a route name.
+    // Only applied while its owner is still the registered source: a name held by a source that has
+    // since unregistered or been superseded is dropped instead of mislabeling this root.
     if (pendingRouteName) {
         const route = pendingRouteName;
+        const owner = pendingRouteNameOwner;
         pendingRouteName = null;
-        applyRouteName(route);
+        pendingRouteNameOwner = null;
+        if (owner === navSource) {
+            applyRouteName(route);
+        }
     }
 
     const handle = (): void => {
@@ -242,17 +251,20 @@ export function stopBrowserTracing(): void {
     activeFlare = null;
     currentRoot = null;
     pendingRouteName = null;
+    pendingRouteNameOwner = null;
     lastPath = '';
 }
 
 /**
  * Rename the current root and update the attributes that go with the name. No-op once it closed.
  * With no root yet the name is held for the one that opens next, rather than dropped.
+ * `owner` stamps who is holding it, so a stale or superseded source cannot land its name later.
  */
-function applyRouteName(route: RouteName): void {
+function applyRouteName(route: RouteName, owner?: object): void {
     const root = currentRoot;
     if (!root) {
         pendingRouteName = route;
+        pendingRouteNameOwner = owner ?? null;
         return;
     }
 
@@ -307,13 +319,13 @@ export function registerNavigationSource(): NavigationSource {
             if (!active()) {
                 return;
             }
-            applyRouteName(route);
+            applyRouteName(route, token);
         },
         settleNavigation(route) {
             if (!active()) {
                 return;
             }
-            applyRouteName(route);
+            applyRouteName(route, token);
             withLiveController((live) => live.releaseHold());
         },
         unregister() {
@@ -327,6 +339,10 @@ export function registerNavigationSource(): NavigationSource {
             withLiveController((live) => live.releaseHold());
             navSource = null;
             lastPath = currentPath();
+            // A name this source handed over before any root picked it up is now for a page this
+            // source no longer traces; a later pageload root must not inherit it.
+            pendingRouteName = null;
+            pendingRouteNameOwner = null;
         },
     };
 }

@@ -229,6 +229,55 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
+    // The source unmounted (e.g. app.unmount()) before tracing ever started. Applying its name to a
+    // later pageload root would put an authoritative 'route' label, and a possibly stale url.full, on
+    // a page the dead source never saw.
+    it('drops a held name once its source unregisters, before any root ever picked it up', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const src = registerNavigationSource();
+        src.setActiveRouteName({ name: '/product/:id', source: 'route' });
+        src.unregister();
+
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+
+        expect(spans[0].span.name).not.toBe('/product/:id');
+        expect(spans[0].attrs['flare.route.source']).not.toBe('route');
+    });
+
+    // Last-wins: a second registration replaces the first without either side calling unregister().
+    // The first source's held name must not survive the handover either.
+    it('drops a held name from a source that was superseded before any root picked it up', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const first = registerNavigationSource();
+        first.setActiveRouteName({ name: '/product/:id', source: 'route' });
+        registerNavigationSource(); // supersedes `first`, last-wins
+
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+
+        expect(spans[0].span.name).not.toBe('/product/:id');
+        expect(spans[0].attrs['flare.route.source']).not.toBe('route');
+    });
+
+    it('stopBrowserTracing clears a held name so a later start does not apply it', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const src = registerNavigationSource();
+        src.setActiveRouteName({ name: '/product/:id', source: 'route' });
+
+        stopBrowserTracing();
+
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+
+        expect(spans[0].span.name).not.toBe('/product/:id');
+        expect(spans[0].attrs['flare.route.source']).not.toBe('route');
+        src.unregister();
+    });
+
     it('is last-wins: a stale handle cannot drive or tear down a newer registration', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/a');
