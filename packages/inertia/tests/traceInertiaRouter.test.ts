@@ -56,6 +56,21 @@ describe('traceInertiaRouter listener lifecycle', () => {
         expect(nav.unregister).toHaveBeenCalledTimes(1);
     });
 
+    it('releases the hold when cleanup runs mid-navigation', () => {
+        const router = createFakeInertiaRouter();
+        const cleanup = traceInertiaRouter(router);
+
+        router.pendingVisit({ url: '/checkout' });
+        expect(nav.startNavigation).toHaveBeenCalledWith(expect.objectContaining({ hold: true }));
+
+        cleanup();
+
+        // unregister is what releases a hold whose settle will never arrive. Without it the root stays
+        // idle-suppressed until the 30s finalTimeout.
+        expect(router.listenerCount()).toBe(0);
+        expect(nav.unregister).toHaveBeenCalledTimes(1);
+    });
+
     it('is inert for a value that is not an Inertia router', () => {
         expect(() => traceInertiaRouter({})()).not.toThrow();
         expect(() => traceInertiaRouter(null)()).not.toThrow();
@@ -110,6 +125,25 @@ describe('successful visits', () => {
             url: u('/products/42'),
         });
     });
+
+    // Regression pin, green today. `navigate` must NOT compare the page url against inFlightPath the
+    // way `success` and `finish` do: this visit's page is not the page it asked for, and `navigate` is
+    // the only event that carries the component name for it.
+    it('settles a redirected visit under the page that actually arrived', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        // POST /login -> the server redirects -> the Dashboard page arrives.
+        router.redirectedVisit({ url: '/login' }, { url: '/dashboard', component: 'Auth/Dashboard' });
+
+        expect(nav.startNavigation).toHaveBeenCalledWith(expect.objectContaining({ path: '/login', hold: true }));
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Auth/Dashboard',
+            source: 'route',
+            url: u('/dashboard'),
+        });
+    });
 });
 
 describe('background visits', () => {
@@ -143,6 +177,31 @@ describe('background visits', () => {
             path: '/cart',
             url: u('/cart'),
             hold: true,
+        });
+    });
+});
+
+describe('prefetch cache hits', () => {
+    it('opens and settles exactly one root for a prefetch cache hit', () => {
+        const router = createFakeInertiaRouter();
+        traceInertiaRouter(router);
+
+        // A first page has to have been seen, or this reads as the initial load.
+        router.visit({ url: '/', component: 'Home' });
+        nav.startNavigation.mockClear();
+        nav.settleNavigation.mockClear();
+
+        router.cachedVisit({ url: '/product/p01', component: 'Products/Show' });
+
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.startNavigation.mock.calls[0]![0]).toMatchObject({ path: '/product/p01' });
+        expect(nav.startNavigation.mock.calls[0]![0].hold).toBeFalsy();
+        // The trailing `success` must not settle a second time: `navigate` already cleared inFlight.
+        expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: 'Products/Show',
+            source: 'route',
+            url: u('/product/p01'),
         });
     });
 });

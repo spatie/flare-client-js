@@ -125,7 +125,9 @@ a second set of listeners, so Vite HMR does not accumulate them.
 ## Requirements
 
 - `@flareapp/js` with `enableTracing: true`
-- Inertia v1 or v2 (any adapter)
+- Inertia v2 (any adapter). v1 works, but it has no `prefetch` or `async` visit flags, so background work
+  driven by `router.reload()` (polling, deferred props, infinite scroll) cannot be told apart from a real
+  navigation, and each tick reports its own `browser_navigation` span.
 
 ## Documentation
 

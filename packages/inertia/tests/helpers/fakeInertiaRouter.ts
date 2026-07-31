@@ -37,6 +37,21 @@ export type FakeInertiaRouter = {
      * starts. The second visit then runs to completion.
      */
     supersededVisit(first: { url: string }, second: FakeVisit): void;
+    /**
+     * A visit whose response redirects, so the page that arrives is not the one the visit asked for.
+     * `POST /login` landing the user on `/dashboard` is the canonical Laravel shape. `finish` carries
+     * the ORIGINAL visit url: the redirect is followed by the HTTP client and Inertia never rewrites
+     * the visit's own params (v1 `finishVisit(this.activeVisit)`, v2 `fireFinishEvent(this.requestParams.all())`).
+     */
+    redirectedVisit(from: { url: string }, to: FakeVisit): void;
+    /** Only the `start` of a visit that has not come back yet, for mid-navigation assertions. */
+    pendingVisit(visit: { url: string }): void;
+    /**
+     * A `<Link prefetch>` click served from the prefetch cache: `navigate` then `success`, with no
+     * `start` and no `finish`. Indistinguishable on the wire from a back/forward step, which is why the
+     * span opens and settles in the same tick (README: "Prefetched navigations report near-zero duration").
+     */
+    cachedVisit(visit: FakeVisit): void;
     /** A visit cancelled outright (`router.cancelAll`, an `onCancelToken` cancel). No successor follows. */
     cancelledVisit(visit: { url: string }): void;
     /**
@@ -124,6 +139,19 @@ export function createFakeInertiaRouter(): FakeInertiaRouter {
             emit('navigate', pageDetail(second));
             emit('success', pageDetail(second));
             emit('finish', visitDetail(second.url));
+        },
+        redirectedVisit(from, to) {
+            emit('start', visitDetail(from.url));
+            emit('navigate', pageDetail(to));
+            emit('success', pageDetail(to));
+            emit('finish', visitDetail(from.url));
+        },
+        pendingVisit(visit) {
+            emit('start', visitDetail(visit.url));
+        },
+        cachedVisit(visit) {
+            emit('navigate', pageDetail(visit));
+            emit('success', pageDetail(visit));
         },
         cancelledVisit(visit) {
             emit('start', visitDetail(visit.url));

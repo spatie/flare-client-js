@@ -127,6 +127,11 @@ function install(router: InertiaRouterLike): () => void {
         insulate((event: InertiaEventLike) => {
             const page = event?.detail?.page;
 
+            // Deliberately unguarded, unlike `success` and `finish`. A redirected visit (POST /login
+            // landing on /dashboard) arrives here with a page url that does not match inFlightPath, and
+            // this is the only event carrying that page's component name. Comparing the path would push
+            // every redirect onto the `finish` backstop, which has no component name to use and reports
+            // a raw url instead.
             if (inFlight) {
                 settle(page);
                 return;
