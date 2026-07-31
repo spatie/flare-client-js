@@ -15,7 +15,9 @@ export type TsrLocation = {
     publicHref?: string;
     state?: unknown;
 };
-export type TsrNavEvent = { fromLocation?: TsrLocation; toLocation: TsrLocation };
+// `hrefChanged` is optional here and required upstream: these events are hand-built in the suite, and a
+// consumer on an older router version may not send it.
+export type TsrNavEvent = { fromLocation?: TsrLocation; toLocation: TsrLocation; hrefChanged?: boolean };
 export type TsrMatch = { routeId?: string; fullPath?: string };
 
 export type TsrRouter = {

@@ -49,6 +49,10 @@ export function routeNameFromMatches(matches: RRMatch[] | undefined): string | u
  * Calling it twice on the same router replaces the first instrumentation.
  */
 export function traceReactRouter(router: RRDataRouter): () => void {
+    if (typeof router?.subscribe !== 'function') {
+        return () => {}; // not a router: do nothing
+    }
+
     return instrumentOnce(router, () => install(router));
 }
 
@@ -69,18 +73,13 @@ function install(router: RRDataRouter): () => void {
     let inFlight = false;
     let lastLocationKey = keyOf(router.state.location);
 
-    const namePageload = (state: RRRouterState): void => {
-        lastLocationKey = keyOf(state.location);
-        nav.setActiveRouteName(routeNameFor(state));
-    };
-
     // RR populates state.matches at router creation, before initialization completes, so the pageload
     // can be named now rather than waiting on a subscribe fire. `sawInitialSettle` separately gates when
     // changes start counting as navigations: RR never dispatches one before initialization and always
     // notifies on completion, so the first `initialized` fire is the settle, never a navigation.
     try {
         if (router.state.matches.length > 0) {
-            namePageload(router.state);
+            nav.setActiveRouteName(routeNameFor(router.state));
         }
         sawInitialSettle = router.state.initialized === true;
     } catch {
@@ -90,8 +89,12 @@ function install(router: RRDataRouter): () => void {
     const onState = (state: RRRouterState): void => {
         // Until RR reports `initialized`, every fire belongs to the pageload root; open no navigation root.
         if (!sawInitialSettle) {
+            // Tracked on every fire, not only the ones that produce a name. A pre-init fire that lands
+            // unmatched would otherwise leave the key on the url the page started at, and the first idle
+            // fire afterwards would read as a location change and open a root for the same page.
+            lastLocationKey = keyOf(state.location);
             if (state.matches.length > 0) {
-                namePageload(state);
+                nav.setActiveRouteName(routeNameFor(state));
             }
             if (state.initialized) {
                 sawInitialSettle = true;

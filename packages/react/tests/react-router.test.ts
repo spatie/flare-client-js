@@ -154,6 +154,24 @@ describe('traceReactRouter', () => {
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
 
+    it('does not open a navigation root for the url the pageload already settled on', () => {
+        const { router, emit } = fakeRouter({ initialized: false, matches: [], location: { pathname: '/old' } });
+        traceReactRouter(router);
+
+        // Lazy route discovery (patchRoutesOnNavigation): RR reports initialized with the redirected
+        // location before anything has matched.
+        emit({ initialized: true, navigation: { state: 'idle' }, matches: [], location: { pathname: '/product/p01' } });
+        // The matches land on the next fire, on the same url.
+        emit({
+            initialized: true,
+            navigation: { state: 'idle' },
+            matches: PRODUCT_MATCHES,
+            location: { pathname: '/product/p01' },
+        });
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
     it('opens one held nav root on start and settles it with the route name', () => {
         const { router, emit } = fakeRouter({ matches: [{ route: { path: '/' }, pathname: '/' }] });
         traceReactRouter(router);
@@ -243,6 +261,14 @@ describe('traceReactRouter', () => {
         traceReactRouter(router);
         emit({ location: { pathname: '/' } }); // a non-navigation state change (e.g. revalidation/fetcher)
         expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('is inert for a value that is not a router', () => {
+        expect(() => traceReactRouter({} as never)()).not.toThrow();
+        expect(() => traceReactRouter(null as never)()).not.toThrow();
+        // Registering is not free: it takes navigation-root detection away from the built-in History
+        // listener for the whole page, so a value we cannot drive must never reach the seam.
+        expect(nav.setActiveRouteName).not.toHaveBeenCalled();
     });
 
     it('cleanup unsubscribes and unregisters', () => {

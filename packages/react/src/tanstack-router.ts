@@ -28,6 +28,10 @@ export const STALE_NAVIGATION_TIMEOUT_MS = 5_000;
  * stacking a second set of subscriptions.
  */
 export function traceTanStackRouter(router: TsrRouter): () => void {
+    if (typeof router?.subscribe !== 'function') {
+        return () => {}; // not a router: do nothing
+    }
+
     return instrumentOnce(router, () => install(router));
 }
 
@@ -92,7 +96,11 @@ function install(router: TsrRouter): () => void {
             if (event.fromLocation === undefined) {
                 return;
             }
-            // no-op reload (e.g. router.invalidate())
+            // no-op reload (e.g. router.invalidate()). The router's own flag first; the state-identity
+            // comparison stays as the fallback for an event built without the flags.
+            if (event.hrefChanged === false) {
+                return;
+            }
             if (event.toLocation.state === event.fromLocation.state) {
                 return;
             }

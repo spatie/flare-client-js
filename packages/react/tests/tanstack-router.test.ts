@@ -201,6 +201,17 @@ describe('traceTanStackRouter', () => {
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
 
+    it('skips a no-op reload reported by the router flag, even with distinct state objects', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/x', search: {}, state: {} },
+            toLocation: { pathname: '/x', search: {}, state: {} },
+            hrefChanged: false,
+        });
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
     it('a redirect chain produces exactly one navigation root, renamed per hop', () => {
         const { router, emit } = fakeRouter();
         traceTanStackRouter(router);
@@ -268,6 +279,14 @@ describe('traceTanStackRouter', () => {
             source: 'route',
             url: u('/product/p01?tab=specs'),
         });
+    });
+
+    it('is inert for a value that is not a router', () => {
+        expect(() => traceTanStackRouter({} as never)()).not.toThrow();
+        expect(() => traceTanStackRouter(null as never)()).not.toThrow();
+        // Registering is not free: it takes navigation-root detection away from the built-in History
+        // listener for the whole page, so a value we cannot drive must never reach the seam.
+        expect(nav.setActiveRouteName).not.toHaveBeenCalled();
     });
 
     it('cleanup unsubscribes and unregisters', () => {
