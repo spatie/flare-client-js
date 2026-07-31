@@ -194,6 +194,41 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
+    // An app that installs its router integration before calling configure({ enableTracing: true })
+    // names the initial route while there is no root yet. Dropping that name leaves the pageload root
+    // url-named for the life of the page, because nothing ever names it a second time.
+    it('names the pageload root from a route handed over before tracing started', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const src = registerNavigationSource();
+        src.setActiveRouteName({ name: '/product/:id', source: 'route' });
+
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+
+        expect(spans[0].span.name).toBe('/product/:id');
+        expect(spans[0].attrs['flare.entry_point.handler.identifier']).toBe('/product/:id');
+        expect(spans[0].attrs['flare.route.source']).toBe('route');
+        src.unregister();
+    });
+
+    // `attrs` only records setAttribute calls, so an absent key means the held name was applied once
+    // and let go, instead of following every root the page opens after it.
+    it('applies a handed-over name to the pageload root only', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const src = registerNavigationSource();
+        src.setActiveRouteName({ name: '/product/:id', source: 'route' });
+
+        const { flare, spans } = fakeFlare();
+        startBrowserTracing(flare);
+        src.startNavigation({ path: '/cart' });
+
+        expect(spans[1].span.name).toBe('/cart');
+        expect(spans[1].attrs['flare.route.source']).toBeUndefined();
+        src.unregister();
+    });
+
     it('is last-wins: a stale handle cannot drive or tear down a newer registration', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/a');

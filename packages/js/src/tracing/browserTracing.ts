@@ -24,6 +24,10 @@ let pageloadTraced = false;
 let navSource: object | null = null;
 let activeFlare: BrowserTracingFlare | null = null;
 let currentRoot: Span | null = null;
+// A route name a navigation source handed over while no root was open, kept for the next one. An app
+// that installs its router integration before calling configure() names its initial route before the
+// pageload root exists, and nothing would ever name that root a second time.
+let pendingRouteName: RouteName | null = null;
 
 function resolveTimeouts(config: Config): IdleTimeouts {
     return {
@@ -152,6 +156,14 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     pageloadTraced = true;
     startRoot(flare, { spanType: BrowserSpanType.Pageload, startTimeUnixNano: pageloadStart });
 
+    // Named from the route the source already knows, so install order (router integration first,
+    // configure second) does not decide whether the pageload root carries a url or a route name.
+    if (pendingRouteName) {
+        const route = pendingRouteName;
+        pendingRouteName = null;
+        applyRouteName(route);
+    }
+
     const handle = (): void => {
         // A third party may wrap history.pushState/replaceState on top of ours, so unfill can't
         // restore on stop and this closure is left behind. `uninstall` doubles as the installed flag,
@@ -229,13 +241,18 @@ export function stopBrowserTracing(): void {
     }
     activeFlare = null;
     currentRoot = null;
+    pendingRouteName = null;
     lastPath = '';
 }
 
-/** Rename the current root and update the attributes that go with the name. No-op once it closed. */
+/**
+ * Rename the current root and update the attributes that go with the name. No-op once it closed.
+ * With no root yet the name is held for the one that opens next, rather than dropped.
+ */
 function applyRouteName(route: RouteName): void {
     const root = currentRoot;
     if (!root) {
+        pendingRouteName = route;
         return;
     }
 
