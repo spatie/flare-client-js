@@ -56,8 +56,8 @@ export class Api {
         debug: boolean = false,
         keepalive: boolean = false,
     ): Promise<void> {
-        // No safeClone: every span in here already passed SpanBuffer's JSON.stringify size gate and the resource block
-        // came out of attributesToOpenTelemetry. report() still clones, its context data is raw.
+        // Everything here is attributesToOpenTelemetry output, so safeClone cannot change a byte, unlike report()
+        // whose context data is raw. SpanBuffer.flush catches the throw if a host mutated a span after buffering.
         return this.send(url, this.ingestHeaders(key), JSON.stringify(envelope), 'Flare traces', debug, keepalive);
     }
 

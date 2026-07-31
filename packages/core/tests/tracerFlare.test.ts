@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { stubFetch } from '@flareapp/test-helpers';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Api } from '../src/api';
 import { Flare } from '../src/Flare';
 import { InMemoryActiveSpanHolder } from '../src/tracing/context';
 import type { ActiveSpanHolder } from '../src/tracing/context';
@@ -11,6 +13,11 @@ const makeFlare = (api = new FakeApi(), holder?: ActiveSpanHolder) => {
     flare.configure({ enableTracing: true });
     return flare;
 };
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+});
 
 describe('Flare tracing wiring', () => {
     it('startSpan/withSpan are reachable and the tracer getter exists', () => {
@@ -62,6 +69,27 @@ describe('Flare tracing wiring', () => {
         expect(() => span.end()).not.toThrow();
         await flare.flush();
         expect(api.traceEnvelopes).toHaveLength(0);
+    });
+
+    // estimateBytes measures a snapshot but status.message is held by reference, so the host can still turn a
+    // buffered span unserializable. flush() runs from a timer and a visibilitychange listener, so a throw here
+    // would land in window.onerror and Flare would report its own instrumentation as a host error.
+    it('does not throw out of flush() when a buffered span is mutated unserializable after add()', async () => {
+        stubFetch();
+        const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const flare = new Flare(new Api());
+        flare.light('k');
+        flare.configure({ enableTracing: true, debug: true });
+
+        const message: Record<string, unknown> = { detail: 'timeout' };
+        const span = flare.startSpan('op');
+        span.setStatus({ code: 2, message: message as unknown as string });
+        span.end(); // JSON-safe here, so estimateBytes is happy and the span buffers
+
+        message.self = message; // the host still holds the reference
+
+        await expect(flare.flush()).resolves.toBeUndefined();
+        expect(err).toHaveBeenCalledWith('Flare: failed to send buffered spans', expect.any(TypeError));
     });
 
     it('clamps tracesSampleRate to [0, 1]', () => {

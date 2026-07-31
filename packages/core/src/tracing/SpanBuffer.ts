@@ -91,18 +91,28 @@ export class SpanBuffer {
             return;
         }
 
-        this.deps.track(
-            this.deps.api.traces(
-                this.buildEnvelope(
-                    entries.map((entry) => entry.span),
-                    resource,
+        // add() sizes a snapshot, but status.message is held by reference, so a host can still mutate a buffered
+        // span into something JSON.stringify rejects. flush() runs from a timer and a visibilitychange listener,
+        // where a throw would escape into window.onerror and Flare would report itself as a host error.
+        try {
+            this.deps.track(
+                this.deps.api.traces(
+                    this.buildEnvelope(
+                        entries.map((entry) => entry.span),
+                        resource,
+                    ),
+                    config.tracesIngestUrl,
+                    config.key,
+                    config.debug,
+                    !!opts?.keepalive,
                 ),
-                config.tracesIngestUrl,
-                config.key,
-                config.debug,
-                !!opts?.keepalive,
-            ),
-        );
+            );
+        } catch (error) {
+            // The buffer is already drained above, so this batch is gone either way.
+            if (config.debug) {
+                console.error('Flare: failed to send buffered spans', error);
+            }
+        }
     }
 
     clear(): void {
@@ -211,10 +221,8 @@ export class SpanBuffer {
     }
 
     private estimateBytes(span: BufferedSpan): number {
-        // No safeClone: Tracer.onSpanEnd already ran every attribute through attributesToOpenTelemetry, so cycles are
-        // '[Circular]' and the exotic types are gone. The clone cannot change a byte here, and this doubles as the
-        // gate that makes every buffered span safe to stringify at flush: one that throws is dropped by onSpanEnd's
-        // try. .length is UTF-16 code units, not UTF-8 bytes, same soft-cap caveat as Logger.estimateBytes.
+        // onSpanEnd already reduced every attribute to an OTLP primitive, so safeClone cannot change a byte here.
+        // .length is UTF-16 code units, not UTF-8 bytes, same soft-cap caveat as Logger.estimateBytes.
         return JSON.stringify(span).length;
     }
 }
