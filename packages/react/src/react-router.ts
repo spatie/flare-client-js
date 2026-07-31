@@ -3,6 +3,7 @@
 // consumed structurally (see ./vendor/reactRouterTypes).
 import {
     insulate,
+    instrumentOnce,
     registerNavigationSource,
     resolveHref,
     routeName,
@@ -45,8 +46,13 @@ export function routeNameFromMatches(matches: RRMatch[] | undefined): string | u
  * name the browser_pageload root from the initial route, and open a parameterized, held
  * browser_navigation root per route change, named once the router settles. Returns a cleanup that
  * unsubscribes and unregisters. Safe to call before or after tracing is enabled; no-ops when off.
+ * Calling it twice on the same router replaces the first instrumentation.
  */
 export function traceReactRouter(router: RRDataRouter): () => void {
+    return instrumentOnce(router, () => install(router));
+}
+
+function install(router: RRDataRouter): () => void {
     const nav = registerNavigationSource();
 
     const routeNameFor = (state: RRRouterState): RouteName =>

@@ -253,6 +253,15 @@ describe('traceReactRouter', () => {
         expect(nav.unregister).toHaveBeenCalled();
     });
 
+    it('replaces its own instrumentation rather than stacking a second subscription', () => {
+        const { router, unsub } = fakeRouter();
+        traceReactRouter(router);
+        traceReactRouter(router);
+
+        expect(router.subscribe).toHaveBeenCalledTimes(2);
+        expect(unsub).toHaveBeenCalledTimes(1);
+    });
+
     it('never escapes a tracing error into the router dispatch', () => {
         const { router, emit } = fakeRouter({ matches: [{ route: { path: '/' }, pathname: '/' }] });
         traceReactRouter(router);

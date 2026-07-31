@@ -3,6 +3,7 @@
 // @tanstack/react-router — the router is consumed structurally (see ./vendor).
 import {
     insulate,
+    instrumentOnce,
     registerNavigationSource,
     resolveHref,
     routeName,
@@ -22,9 +23,15 @@ export const STALE_NAVIGATION_TIMEOUT_MS = 5_000;
  * Trace a TanStack Router instance: name the `browser_pageload` root from the
  * initial route and open a parameterized `browser_navigation` root per route
  * change. Returns a cleanup that unsubscribes and unregisters. Safe to call
- * before or after tracing is enabled; no-ops when tracing is off.
+ * before or after tracing is enabled; no-ops when tracing is off. Calling it
+ * twice on the same router replaces the first instrumentation rather than
+ * stacking a second set of subscriptions.
  */
 export function traceTanStackRouter(router: TsrRouter): () => void {
+    return instrumentOnce(router, () => install(router));
+}
+
+function install(router: TsrRouter): () => void {
     const nav = registerNavigationSource();
 
     // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so

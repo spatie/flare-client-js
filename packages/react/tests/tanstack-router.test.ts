@@ -279,6 +279,17 @@ describe('traceTanStackRouter', () => {
         expect(nav.unregister).toHaveBeenCalled();
     });
 
+    it('replaces its own instrumentation rather than stacking a second subscription', () => {
+        const { router, unsub } = fakeRouter();
+        traceTanStackRouter(router);
+        traceTanStackRouter(router);
+
+        // Two event types per install. The first install's pair must have been unsubscribed.
+        expect(router.subscribe).toHaveBeenCalledTimes(4);
+        expect(unsub.onBeforeLoad).toHaveBeenCalledTimes(1);
+        expect(unsub.onResolved).toHaveBeenCalledTimes(1);
+    });
+
     it('falls back to the URL name when matchRoutes throws', () => {
         const { router, emit } = fakeRouter();
         traceTanStackRouter(router);
