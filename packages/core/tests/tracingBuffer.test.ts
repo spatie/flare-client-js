@@ -253,6 +253,22 @@ describe('SpanBuffer', () => {
         expect(api.traceEnvelopes).toHaveLength(1);
     });
 
+    it('keepalive packing skips an over-budget span and keeps packing older ones', () => {
+        const api = new FakeApi();
+        const cfg = baseConfig({ key: null, maxSpanBufferSize: 100, keepaliveMaxBytes: 3000 });
+        const buffer = makeBuffer(cfg, api);
+        const fatName = 'GET /'.padEnd(4000, 'x');
+        ['1', '2', '3'].forEach((id) => buffer.add(span(id)));
+        buffer.add({ ...span('fat'), name: fatName }); // newest, over the whole budget on its own
+
+        cfg.key = 'k';
+        buffer.flush({ keepalive: true });
+
+        const shipped = api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans.map((s) => s.name);
+        expect(shipped).not.toContain(fatName);
+        expect(shipped).toHaveLength(3); // the three older spans still fit and still ship
+    });
+
     // Api.traces handles its own serialization failures, but buildEnvelope runs before it and encodes the
     // resource block, where a nested throwing getter still blows up. flush() is called from timers, so it must
     // swallow that rather than let it reach window.onerror.

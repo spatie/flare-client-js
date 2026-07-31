@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { attributesToOpenTelemetry } from '../src/logging/otel';
-import { buildTracesEnvelope } from '../src/tracing/envelope';
+import { buildTracesEnvelope, emptyTracesEnvelopeBytes, otelSpanBytes } from '../src/tracing/envelope';
 import type { BufferedSpan } from '../src/types';
 import { flatJsonStringify } from '../src/util';
 
@@ -122,5 +122,27 @@ describe('buildTracesEnvelope', () => {
         };
         const env = buildTracesEnvelope([input], { 'service.name': 'web' }, '@flareapp/core', '1.0.0');
         expect(env).toEqual(fixture);
+    });
+});
+
+describe('envelope byte arithmetic', () => {
+    const encoder = new TextEncoder();
+    const resource = { 'service.name': 'web' };
+
+    it('an envelope is the empty envelope plus each span plus one comma per extra span', () => {
+        const spans = [
+            span(),
+            span({ spanId: 'c'.repeat(16), status: { code: 2, message: 'boom' } }),
+            span({ spanId: 'd'.repeat(16), name: 'GET /produits/日本語-café' }),
+        ];
+        const actual = encoder.encode(
+            JSON.stringify(buildTracesEnvelope(spans, resource, '@flareapp/core', '1.0.0')),
+        ).length;
+        const predicted =
+            emptyTracesEnvelopeBytes(resource, '@flareapp/core', '1.0.0') +
+            spans.reduce((sum, s) => sum + otelSpanBytes(s), 0) +
+            (spans.length - 1);
+
+        expect(predicted).toBe(actual);
     });
 });

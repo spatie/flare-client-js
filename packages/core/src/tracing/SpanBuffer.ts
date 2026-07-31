@@ -1,8 +1,8 @@
 import type { Api } from '../api';
 import type { FlushFn, FlushScheduler } from '../logging';
 import type { Attributes, BufferedSpan, Config, Framework, SdkInfo, TracesEnvelope } from '../types';
-import { assertKey, flatJsonStringify } from '../util';
-import { buildTracesEnvelope } from './envelope';
+import { assertKey } from '../util';
+import { buildTracesEnvelope, emptyTracesEnvelopeBytes, otelSpanBytes } from './envelope';
 
 export type SpanBufferDeps = {
     api: Api;
@@ -14,8 +14,9 @@ export type SpanBufferDeps = {
     scheduler: FlushScheduler;
 };
 
-// The size is measured once, when the span arrives. Tracer.onSpanEnd builds a fresh BufferedSpan nothing else
-// holds, and SpanImpl refuses every mutation after end(), so a cached size can never go stale.
+// Measured once at add(), and it can go stale: status is held by reference, so a host mutating it after end()
+// drifts the cached number. Fine anyway: flush() already tolerates a stale/unserializable span, so a cache is
+// still correct; re-measuring every span on every flush is exactly the cost this task removes.
 type BufferEntry = { span: BufferedSpan; bytes: number };
 
 export class SpanBuffer {
@@ -91,9 +92,9 @@ export class SpanBuffer {
             return;
         }
 
-        // add() sizes a snapshot, but status.message is held by reference, so a host can still mutate a buffered
-        // span into something JSON.stringify rejects. flush() runs from a timer and a visibilitychange listener,
-        // where a throw would escape into window.onerror and Flare would report itself as a host error.
+        // buildEnvelope runs attributesToOpenTelemetry over the resource block, which throws on a hostile
+        // attribute (e.g. a throwing getter). flush() runs from a timer and a visibilitychange listener, where a
+        // throw would escape into window.onerror and Flare would report itself as a host error.
         try {
             this.deps.track(
                 this.deps.api.traces(
@@ -161,17 +162,26 @@ export class SpanBuffer {
         }
     }
 
+    /**
+     * Newest-wins. An over-budget span is skipped, not a stop signal, so a smaller older span behind a fat one
+     * still ships. Runs on visibilitychange:hidden, which fires on plain backgrounding too, so the tail this
+     * leaves behind is retained and re-armed rather than dropped (see flush).
+     */
     private packForKeepalive(config: Config, resource: Attributes): BufferEntry[] {
-        let selected: BufferEntry[] = [];
+        // Sized from parts instead of rebuilding the envelope per candidate: fixed overhead once, each span's
+        // own UTF-8 length, plus one byte per span after the first for the JSON array comma.
+        const sdk = this.deps.getSdkInfo();
+        const fixedBytes = emptyTracesEnvelopeBytes(resource, sdk.name, sdk.version);
+        const selected: BufferEntry[] = [];
+        let spanBytes = 0;
+
         for (let i = this.buffer.length - 1; i >= 0; i--) {
-            const trial = [this.buffer[i], ...selected];
-            const envelope = this.buildEnvelope(
-                trial.map((entry) => entry.span),
-                resource,
-            );
-            const bytes = new TextEncoder().encode(flatJsonStringify(envelope)).length;
-            if (bytes <= config.keepaliveMaxBytes) {
-                selected = trial;
+            const entry = this.buffer[i];
+            const candidateBytes = otelSpanBytes(entry.span);
+            // selected.length is the comma count the array will have once this candidate joins it.
+            if (fixedBytes + spanBytes + candidateBytes + selected.length <= config.keepaliveMaxBytes) {
+                selected.unshift(entry);
+                spanBytes += candidateBytes;
             } else if (config.debug) {
                 console.error('Flare: dropping span from keepalive envelope (over budget)');
             }

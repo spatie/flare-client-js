@@ -52,3 +52,24 @@ export function buildTracesEnvelope(
         ],
     };
 }
+
+// Module scope: these run once per span during keepalive packing.
+const textEncoder = new TextEncoder();
+
+/**
+ * UTF-8 bytes one span contributes to an envelope. Lives here so it tracks toOtelSpan's shape: a
+ * BufferedSpan measures 27 bytes smaller for the same span, and keepaliveMaxBytes is a hard browser limit.
+ */
+export function otelSpanBytes(span: BufferedSpan): number {
+    return textEncoder.encode(JSON.stringify(toOtelSpan(span))).length;
+}
+
+/** UTF-8 bytes of an envelope carrying no spans: everything a batch does not pay for per span. */
+export function emptyTracesEnvelopeBytes(
+    resourceAttributes: Attributes,
+    scopeName: string,
+    scopeVersion: string,
+): number {
+    return textEncoder.encode(JSON.stringify(buildTracesEnvelope([], resourceAttributes, scopeName, scopeVersion)))
+        .length;
+}

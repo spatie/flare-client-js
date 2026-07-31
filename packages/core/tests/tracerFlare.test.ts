@@ -72,8 +72,8 @@ describe('Flare tracing wiring', () => {
     });
 
     // estimateBytes sizes a snapshot but status.message is held by reference, so the host can still turn a
-    // buffered span unserializable. flush() runs from a timer and a visibilitychange listener, so a throw here
-    // would land in window.onerror and Flare would report its own instrumentation as a host error.
+    // buffered span unserializable after add(). Api.traces catches that specific failure and falls back to
+    // flatJsonStringify, so the span still ships instead of tripping flush()'s own catch.
     it('still ships a buffered span that was mutated unserializable after add()', async () => {
         const fetchMock = stubFetch();
         const flare = new Flare(new Api());
