@@ -41,9 +41,11 @@ export class SpanBuffer {
         const config = this.deps.getConfig();
         const bytes = this.estimateBytes(span);
         // spanFlushMaxBytes is a request-size ceiling, not a batching trigger: 800_000 = 100 x 8000 bounds one
-        // POST for the outlier case of a customer putting large payloads in span attributes. Realistic spans
-        // measure ~727 B, so the count trigger fires first in every normal case. A single span over the ceiling
-        // could never ship, so drop it here instead of letting trim fail to shed it later.
+        // POST for the outlier case of a customer putting large payloads in span attributes. estimateBytes counts
+        // UTF-16 code units, not UTF-8 bytes, so that bound is exact for ASCII (800 KB) but stretches for
+        // multibyte content, up to roughly 2.4 MB UTF-8 for CJK-heavy attribute values. Realistic spans measure
+        // ~727 B, so the count trigger fires first in every normal case. A single span over the ceiling could
+        // never ship, so drop it here instead of letting trim fail to shed it later.
         if (bytes > config.spanFlushMaxBytes) {
             if (config.debug) {
                 console.error('Flare: dropping oversized span');
@@ -93,9 +95,10 @@ export class SpanBuffer {
             return;
         }
 
-        // buildEnvelope runs attributesToOpenTelemetry over the resource block, which throws on a hostile
-        // attribute (e.g. a throwing getter). flush() runs from a timer and a visibilitychange listener, where a
-        // throw would escape into window.onerror and Flare would report itself as a host error.
+        // Covers the non-keepalive path only: a throwing resource-attribute getter here would otherwise escape
+        // the timer into window.onerror. The keepalive path already sizes the resource block above, before
+        // this try opens, so the same throw there still escapes into visibilitychange until a drain-then-guard
+        // redesign lands.
         try {
             this.deps.track(
                 this.deps.api.traces(
@@ -181,6 +184,7 @@ export class SpanBuffer {
         const fixedBytes = emptyTracesEnvelopeBytes(resource, sdk.name, sdk.version);
         const selected: BufferEntry[] = [];
         let spanBytes = 0;
+        let droppedCount = 0;
 
         for (let i = this.buffer.length - 1; i >= 0; i--) {
             const entry = this.buffer[i];
@@ -190,8 +194,12 @@ export class SpanBuffer {
                 selected.unshift(entry);
                 spanBytes += candidateBytes;
             } else if (config.debug) {
-                console.error('Flare: dropping span from keepalive envelope (over budget)');
+                droppedCount++;
             }
+        }
+        // One line per flush, not one per span: a plain tab-switch can skip a whole buffer's worth of spans.
+        if (config.debug && droppedCount > 0) {
+            console.error(`Flare: dropped ${droppedCount} span(s) from keepalive envelope (over budget)`);
         }
         return selected;
     }

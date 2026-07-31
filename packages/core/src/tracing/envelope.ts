@@ -62,7 +62,9 @@ const textEncoder = new TextEncoder();
  * the cached BufferedSpan estimate, since keepaliveMaxBytes is a hard browser limit.
  *
  * Uses flatJsonStringify, not JSON.stringify: status.message is a live caller reference and can go
- * unserializable after end(), and this runs on a bare visibilitychange listener that must never throw.
+ * unserializable after end(), and this runs on a bare visibilitychange listener. flatJsonStringify's safeClone
+ * absorbs the common cases (circular refs, BigInt, a throwing getter on a plain object) but is not throw-proof:
+ * a class instance with a throwing getter passes through untouched and can still throw at JSON.stringify.
  */
 export function otelSpanBytes(span: BufferedSpan): number {
     return textEncoder.encode(flatJsonStringify(toOtelSpan(span))).length;

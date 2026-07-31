@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NoopFlushScheduler } from '../src/logging';
 import { SpanBuffer, type SpanBufferDeps } from '../src/tracing/SpanBuffer';
 import type { BufferedSpan, Config, SdkInfo } from '../src/types';
-import { flatJsonStringify } from '../src/util';
 import { FakeApi } from './helpers/FakeApi';
 
 const baseConfig = (over: Partial<Config> = {}): Config =>
@@ -102,7 +101,7 @@ describe('SpanBuffer', () => {
 
     it('flushes when the byte-weight trigger is reached', () => {
         const api = new FakeApi();
-        const oneSpanBytes = flatJsonStringify(span('1')).length;
+        const oneSpanBytes = JSON.stringify(span('1')).length;
         const buffer = makeBuffer(baseConfig({ maxSpanBufferSize: 1000, spanFlushMaxBytes: oneSpanBytes + 5 }), api);
         buffer.add(span('1')); // bytes == oneSpanBytes, below cap -> no flush
         expect(api.traceEnvelopes).toHaveLength(0);
@@ -229,7 +228,7 @@ describe('SpanBuffer', () => {
     });
 
     it('subtracts the shifted span when trim drops one by weight', () => {
-        const oneSpanBytes = flatJsonStringify(span('1')).length;
+        const oneSpanBytes = JSON.stringify(span('1')).length;
         const buffer = makeBuffer(baseConfig({ key: null, spanFlushMaxBytes: oneSpanBytes + 5 }));
         buffer.add(span('1'));
         buffer.add(span('2')); // over the ceiling, no key so flush no-ops and trim shifts the oldest
@@ -251,6 +250,25 @@ describe('SpanBuffer', () => {
         buffer.flush({ keepalive: true });
         expect(getResourceAttributes).toHaveBeenCalledTimes(1);
         expect(api.traceEnvelopes).toHaveLength(1);
+    });
+
+    it('logs one console.error for all keepalive-dropped spans, not one per span', () => {
+        const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const api = new FakeApi();
+        // keepaliveMaxBytes: 1 means nothing fits, so every buffered span is dropped by packForKeepalive.
+        const cfg = baseConfig({ debug: true, maxSpanBufferSize: 200, keepaliveMaxBytes: 1 });
+        const buffer = makeBuffer(cfg, api);
+        for (let i = 0; i < 100; i++) {
+            buffer.add(span(`s${i}`));
+        }
+
+        buffer.flush({ keepalive: true });
+
+        expect(api.traceEnvelopes).toHaveLength(0); // nothing fit the 1-byte budget
+        expect(err).toHaveBeenCalledTimes(1);
+        expect(err).toHaveBeenCalledWith(expect.stringContaining('100'));
+
+        err.mockRestore();
     });
 
     it('keepalive packing skips an over-budget span and keeps packing older ones', () => {
@@ -276,8 +294,9 @@ describe('SpanBuffer', () => {
 
     // Api.traces handles its own serialization failures, but buildEnvelope runs before it and encodes the
     // resource block, where a nested throwing getter still blows up. flush() is called from timers, so it must
-    // swallow that rather than let it reach window.onerror.
-    it('does not throw out of flush() when encoding the resource block fails', () => {
+    // swallow that rather than let it reach window.onerror. Non-keepalive only: the keepalive path sizes the
+    // resource block before this try opens (see the comment above flush()'s try), so it is not covered here.
+    it('does not throw out of a non-keepalive flush() when encoding the resource block fails', () => {
         const err = vi.spyOn(console, 'error').mockImplementation(() => {});
         const api = new FakeApi();
         const hostile = {
