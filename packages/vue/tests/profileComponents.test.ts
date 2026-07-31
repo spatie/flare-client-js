@@ -188,11 +188,9 @@ describe('cross-trace re-homing', () => {
 });
 
 describe('flareVue wiring', () => {
-    // The injected-flare stub shape is the one packages/vue/tests/flareVue.test.ts already uses, plus
-    // `config`, which is what flareVue reads to gate tracing features.
-    const install = (profileComponents?: ProfileComponentsOption, enableTracing = true) => {
+    // The injected-flare stub shape is the one packages/vue/tests/flareVue.test.ts already uses.
+    const install = (profileComponents?: ProfileComponentsOption) => {
         const injected = {
-            config: { enableTracing },
             reportSilently: vi.fn(),
             reportMessage: vi.fn(),
             setSdkInfo: vi.fn(),
@@ -212,12 +210,12 @@ describe('flareVue wiring', () => {
         expect(fake.spans()).toHaveLength(1);
     });
 
-    // Flipped deliberately. The mixin is no longer gated on enableTracing at install time (a consumer
-    // can call configure() afterwards), so what matters is the runtime answer: no live root, no span.
-    it('registers the mixin but records nothing while no root is live', () => {
+    // The mixin is no longer gated on enableTracing at install time (a consumer can call configure()
+    // afterwards), so what matters is the runtime answer: no live root, no span.
+    it('records nothing while no root is live', () => {
         fake.setRoot(null);
 
-        install(['ProductPage'], false);
+        install(['ProductPage']);
 
         expect(fake.spans()).toHaveLength(0);
         expect(fake.reserveSpanId).not.toHaveBeenCalled();

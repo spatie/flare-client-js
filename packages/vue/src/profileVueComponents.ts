@@ -38,7 +38,8 @@ function nearestMarker(instance: ComponentInternalInstance): ComponentTraceConte
  * and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted` bottom-up,
  * so a parent's span encloses its SYNCHRONOUS descendants in time. Async components and anything under
  * `<Suspense>` are outside that contract: their span can start after the parent's ended, or be dropped
- * entirely when the root closed in the meantime. Nesting by parent id always holds.
+ * entirely when the root closed in the meantime. Nesting by parent id holds while the trace is the
+ * same; a trace change re-homes a descendant to the live root instead of its dead-trace ancestor.
  */
 export function createComponentProfilerMixin(matches: (name: string) => boolean): ComponentOptions {
     return {

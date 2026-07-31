@@ -89,58 +89,70 @@ function install(router: TsrRouter): () => void {
         nav.settleNavigation(routeNameFor(location));
     };
 
-    const offBeforeLoad = router.subscribe(
-        'onBeforeLoad',
-        insulate((event: TsrNavEvent) => {
-            // initial pageload (handled via onResolved)
-            if (event.fromLocation === undefined) {
-                return;
-            }
-            // no-op reload (e.g. router.invalidate()). The router's own flag first; the state-identity
-            // comparison stays as the fallback for an event built without the flags.
-            if (event.hrefChanged === false) {
-                return;
-            }
-            if (event.toLocation.state === event.fromLocation.state) {
-                return;
-            }
-            if (!inFlight) {
-                inFlight = true;
-                // Held: the route's components mount after onResolved, and a cached or code-split route
-                // can produce no child span at all, so the idle window would close the root at its own
-                // start and drop every one of those spans.
-                nav.startNavigation({ path: event.toLocation.pathname, hold: true });
-            }
-            destination = event.toLocation;
-            nav.setActiveRouteName(routeNameFor(event.toLocation)); // set / re-set (redirect hops)
+    // subscribe() itself can throw (a hostile or misbehaving router), and install() runs unwrapped
+    // inside instrumentOnce, so that must not escape either. A partial failure (first call ok, second
+    // throws) tears down what already succeeded instead of leaking a live subscription.
+    let offBeforeLoad: (() => void) | undefined;
+    let offResolved: (() => void) | undefined;
+    try {
+        offBeforeLoad = router.subscribe(
+            'onBeforeLoad',
+            insulate((event: TsrNavEvent) => {
+                // initial pageload (handled via onResolved)
+                if (event.fromLocation === undefined) {
+                    return;
+                }
+                // no-op reload (e.g. router.invalidate()). The router's own flag first; the state-identity
+                // comparison stays as the fallback for an event built without the flags.
+                if (event.hrefChanged === false) {
+                    return;
+                }
+                if (event.toLocation.state === event.fromLocation.state) {
+                    return;
+                }
+                if (!inFlight) {
+                    inFlight = true;
+                    // Held: the route's components mount after onResolved, and a cached or code-split route
+                    // can produce no child span at all, so the idle window would close the root at its own
+                    // start and drop every one of those spans.
+                    nav.startNavigation({ path: event.toLocation.pathname, hold: true });
+                }
+                destination = event.toLocation;
+                nav.setActiveRouteName(routeNameFor(event.toLocation)); // set / re-set (redirect hops)
 
-            // Re-armed per redirect hop, so the window measures the gap since the last sign of life.
-            // Insulated on its own: this timer is ours, so a throw here reaches nothing but the window.
-            clearStaleTimer();
-            staleTimer = setTimeout(
-                insulate(() => {
-                    staleTimer = null;
-                    if (destination) {
-                        settle(destination);
-                    }
-                }),
-                STALE_NAVIGATION_TIMEOUT_MS,
-            );
-        }),
-    );
+                // Re-armed per redirect hop, so the window measures the gap since the last sign of life.
+                // Insulated on its own: this timer is ours, so a throw here reaches nothing but the window.
+                clearStaleTimer();
+                staleTimer = setTimeout(
+                    insulate(() => {
+                        staleTimer = null;
+                        if (destination) {
+                            settle(destination);
+                        }
+                    }),
+                    STALE_NAVIGATION_TIMEOUT_MS,
+                );
+            }),
+        );
 
-    const offResolved = router.subscribe(
-        'onResolved',
-        insulate((event: TsrNavEvent) => {
-            if (event.fromLocation === undefined) {
-                nav.setActiveRouteName(routeNameFor(event.toLocation)); // one-shot pageload correction
-                return;
-            }
-            if (inFlight) {
-                settle(event.toLocation); // finalize the navigation name and release the hold
-            }
-        }),
-    );
+        offResolved = router.subscribe(
+            'onResolved',
+            insulate((event: TsrNavEvent) => {
+                if (event.fromLocation === undefined) {
+                    nav.setActiveRouteName(routeNameFor(event.toLocation)); // one-shot pageload correction
+                    return;
+                }
+                if (inFlight) {
+                    settle(event.toLocation); // finalize the navigation name and release the hold
+                }
+            }),
+        );
+    } catch {
+        clearStaleTimer();
+        safeInvoke(offBeforeLoad);
+        safeInvoke(() => nav.unregister());
+        return () => {};
+    }
 
     return () => {
         clearStaleTimer();

@@ -136,7 +136,15 @@ function install(router: RRDataRouter): () => void {
         // else (inFlight && non-idle): a redirect / superseding hop -> keep the single held root.
     };
 
-    const unsubscribe = router.subscribe(insulate(onState));
+    // subscribe() itself can throw (a hostile or misbehaving router), and install() runs unwrapped
+    // inside instrumentOnce, so that must not escape either.
+    let unsubscribe: (() => void) | undefined;
+    try {
+        unsubscribe = router.subscribe(insulate(onState));
+    } catch {
+        safeInvoke(() => nav.unregister());
+        return () => {};
+    }
 
     return () => {
         safeInvoke(unsubscribe);

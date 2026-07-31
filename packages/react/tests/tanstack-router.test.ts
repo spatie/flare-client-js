@@ -80,7 +80,7 @@ describe('traceTanStackRouter', () => {
             url: u('/product/p01'),
         });
         emit('onResolved', { fromLocation: from, toLocation: to });
-        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
             name: '/product/$id',
             source: 'route',
             url: u('/product/p01'),
@@ -229,7 +229,7 @@ describe('traceTanStackRouter', () => {
         emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
         expect(nav.startNavigation).toHaveBeenCalledTimes(1);
         emit('onResolved', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
-        expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/b', source: 'route', url: u('/b') });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/b', source: 'route', url: u('/b') });
     });
 
     it('falls back to the URL name when only __root__ matches', () => {
@@ -296,6 +296,23 @@ describe('traceTanStackRouter', () => {
         expect(unsub.onBeforeLoad).toHaveBeenCalled();
         expect(unsub.onResolved).toHaveBeenCalled();
         expect(nav.unregister).toHaveBeenCalled();
+    });
+
+    // install() runs unwrapped inside instrumentOnce, so a throw from the router's own subscribe
+    // would otherwise escape straight into the host's bootstrap code.
+    it('never lets a throwing subscribe reach the host, and unwinds the first subscription plus the nav-source registration', () => {
+        const { router, unsub } = fakeRouter();
+        const realSubscribe = router.subscribe;
+        router.subscribe = vi.fn((type: 'onBeforeLoad' | 'onResolved', cb: (e: unknown) => void) => {
+            if (type === 'onResolved') {
+                throw new Error('subscribe boom');
+            }
+            return realSubscribe(type, cb);
+        });
+
+        expect(() => traceTanStackRouter(router)).not.toThrow();
+        expect(unsub.onBeforeLoad).toHaveBeenCalled(); // the successful first subscription is torn down
+        expect(nav.unregister).toHaveBeenCalled(); // and so is the nav-source registration
     });
 
     it('replaces its own instrumentation rather than stacking a second subscription', () => {

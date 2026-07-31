@@ -279,6 +279,18 @@ describe('traceReactRouter', () => {
         expect(nav.unregister).toHaveBeenCalled();
     });
 
+    // install() runs unwrapped inside instrumentOnce, so a throw from the router's own subscribe
+    // would otherwise escape straight into the host's bootstrap code.
+    it('never lets a throwing subscribe reach the host, and drops the nav-source registration', () => {
+        const { router } = fakeRouter({ matches: [{ route: { path: '/' }, pathname: '/' }] });
+        router.subscribe = vi.fn(() => {
+            throw new Error('subscribe boom');
+        });
+
+        expect(() => traceReactRouter(router)).not.toThrow();
+        expect(nav.unregister).toHaveBeenCalled();
+    });
+
     it('replaces its own instrumentation rather than stacking a second subscription', () => {
         const { router, unsub } = fakeRouter();
         traceReactRouter(router);

@@ -24,9 +24,9 @@ let pageloadTraced = false;
 let navSource: object | null = null;
 let activeFlare: BrowserTracingFlare | null = null;
 let currentRoot: Span | null = null;
-// A route name a navigation source handed over while no root was open, kept for the next one. An app
-// that installs its router integration before calling configure() names its initial route before the
-// pageload root exists, and nothing would ever name that root a second time.
+// A route name a navigation source handed over while no root was open, kept for the pageload root. An
+// app that installs its router integration before calling configure() names its initial route before
+// the pageload root exists, and nothing would ever name that root a second time.
 // Stamped with the source's own token, so a source that unregisters or gets superseded before the
 // pageload root opens cannot still land its name on a root it no longer speaks for.
 let pendingRouteName: RouteName | null = null;
@@ -257,7 +257,7 @@ export function stopBrowserTracing(): void {
 
 /**
  * Rename the current root and update the attributes that go with the name. No-op once it closed.
- * With no root yet the name is held for the one that opens next, rather than dropped.
+ * With no root yet the name is held for the pageload root that opens next, rather than dropped.
  * `owner` stamps who is holding it, so a stale or superseded source cannot land its name later.
  */
 function applyRouteName(route: RouteName, owner?: object): void {
