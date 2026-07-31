@@ -274,6 +274,29 @@ describe('Tracer.startSpan', () => {
         tracer.clear();
         expect(closedTraceCount(tracer)).toBe(0);
     });
+
+    it('clear() releases the active root instead of holding an ended span alive', () => {
+        const tracer = makeTracer(config());
+        const root = tracer.startSpan('root');
+        tracer.setActiveRoot(root);
+        expect(tracer.getActiveSpan()).toBe(root);
+
+        tracer.clear();
+
+        expect(tracer.getActiveSpan()).toBeUndefined();
+    });
+
+    it('logs the span cap once per trace, not once per dropped span', () => {
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const tracer = makeTracer(config({ debug: true, maxSpansPerTrace: 1 }));
+        const root = tracer.startSpan('root');
+        tracer.startSpan('a', { parent: root });
+        tracer.startSpan('b', { parent: root });
+        tracer.startSpan('c', { parent: root });
+
+        expect(errors).toHaveBeenCalledTimes(1);
+        errors.mockRestore();
+    });
 });
 
 describe('defaultNowNano', () => {

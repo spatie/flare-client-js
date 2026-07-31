@@ -40,6 +40,7 @@ type TraceState = {
     startedSpanCount: number;
     openSpanCount: number;
     generation: number;
+    loggedCap: boolean;
 };
 
 /** What survives a pruned trace: three primitives, no span reference, so an ended root is not held alive. */
@@ -140,6 +141,9 @@ export class Tracer {
         this.buffer.clear();
         this.traceStates.clear();
         this.closedTraces.clear();
+        // The holder outlives clear(): without this it keeps the last root and its scopeAttributes snapshot
+        // reachable until the browser layer happens to set a new one.
+        this.setActiveRoot(undefined);
         this.pendingContinuation = null;
         this.epoch++; // spans created before this point become stale (won't buffer on end)
     }
@@ -190,22 +194,10 @@ export class Tracer {
         const continuation = this.pendingContinuation;
         this.pendingContinuation = null;
 
+        // Deliberately below the consume above, not at the top of the method: hoisting it leaves a stale
+        // continuation pending for a later, unrelated root. tests/tracerContinuation.test.ts:50-59 pins that.
         if (!config.enableTracing) {
-            const span = this.makeSpan(
-                {
-                    traceId: makeTraceId(),
-                    spanId,
-                    parentSpanId: null,
-                    name,
-                    recording: false,
-                    isLocalRoot: true,
-                    stateGeneration: 0,
-                },
-                opts,
-                config,
-            );
-            this.emitSpanEvent('start', span);
-            return span;
+            return this.startInertSpan(name, spanId, opts, config);
         }
 
         const { traceId, parentSpanId, state } = this.resolveTrace(spanId, name, opts, config, continuation);
@@ -213,12 +205,16 @@ export class Tracer {
         let recording = state.recording;
         if (state.startedSpanCount >= config.maxSpansPerTrace) {
             recording = false;
-            if (config.debug) {
+            // Once per trace: a root that never closes would otherwise log on every span for the page's lifetime.
+            if (config.debug && !state.loggedCap) {
+                state.loggedCap = true;
                 console.error('Flare: maxSpansPerTrace reached, dropping span');
             }
         } else {
             state.startedSpanCount++;
         }
+        // Unconditional, including for spans the cap just made non-recording: they still call end(), so the count
+        // has to see both sides or the root's prune fires while they are open.
         state.openSpanCount++;
 
         // "Local root" test: this span seeded (or is) its TraceState's local root. True for new, continued, and
@@ -226,6 +222,25 @@ export class Tracer {
         const isLocalRoot = state.localRootSpanId === spanId;
         const span = this.makeSpan(
             { traceId, spanId, parentSpanId, name, recording, isLocalRoot, stateGeneration: state.generation },
+            opts,
+            config,
+        );
+        this.emitSpanEvent('start', span);
+        return span;
+    }
+
+    /** A real Span handle that records nothing, so callers never have to branch on whether tracing is on. */
+    private startInertSpan(name: string, spanId: string, opts: SpanOptions, config: Config): Span {
+        const span = this.makeSpan(
+            {
+                traceId: makeTraceId(),
+                spanId,
+                parentSpanId: null,
+                name,
+                recording: false,
+                isLocalRoot: true,
+                stateGeneration: 0,
+            },
             opts,
             config,
         );
@@ -321,6 +336,7 @@ export class Tracer {
             startedSpanCount: 0,
             openSpanCount: 0,
             generation: ++this.stateGeneration,
+            loggedCap: false,
         };
         this.traceStates.set(traceId, state);
         return state;
