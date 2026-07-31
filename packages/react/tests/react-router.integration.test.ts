@@ -13,7 +13,6 @@ vi.mock('@flareapp/js/browser', async (importOriginal) =>
 );
 
 import { traceReactRouter } from '../src/react-router';
-import type { RRDataRouter } from '../src/vendor/reactRouterTypes';
 
 const routes = [
     {
@@ -32,7 +31,7 @@ const routes = [
 
 function boot(initialEntries: string[] = ['/']) {
     const router = createMemoryRouter(routes, { initialEntries });
-    const stop = traceReactRouter(router as unknown as RRDataRouter);
+    const stop = traceReactRouter(router);
     // Loader-less initial index route: initialize() settles synchronously, and the pageload is
     // named at registration from sync matches. router.initialize() returns the router (not a
     // promise); navigations below await router.navigate(), which does return one.
@@ -175,7 +174,7 @@ describe('traceReactRouter against a real react-router data router', () => {
             },
         ];
         const router = createMemoryRouter(slowRoutes, { initialEntries: ['/'] });
-        traceReactRouter(router as unknown as RRDataRouter);
+        traceReactRouter(router);
         router.initialize(); // loader-less index settles synchronously
         await router.navigate('/slow');
         expect(nav.startNavigation.mock.calls.at(-1)![0]).toMatchObject({ hold: true });
@@ -193,7 +192,7 @@ describe('traceReactRouter url.full follows the router', () => {
     it('keeps the basename an app is served from', async () => {
         window.history.replaceState({}, '', '/app/');
         const router = createBrowserRouter(baseRoutes, { basename: '/app' });
-        traceReactRouter(router as unknown as RRDataRouter);
+        traceReactRouter(router);
         await router.navigate('/product/p01');
 
         expect(nav.settleNavigation).toHaveBeenLastCalledWith({
@@ -208,7 +207,7 @@ describe('traceReactRouter url.full follows the router', () => {
     it('keeps the # of a hash-router app', async () => {
         window.history.replaceState({}, '', '/#/');
         const router = createHashRouter(baseRoutes);
-        traceReactRouter(router as unknown as RRDataRouter);
+        traceReactRouter(router);
         await router.navigate('/product/p01');
 
         expect(nav.settleNavigation).toHaveBeenLastCalledWith({
@@ -225,7 +224,7 @@ describe('traceReactRouter url.full follows the router', () => {
     it('does not damage the pageload root of a hash-router app', () => {
         window.history.replaceState({}, '', '/#/product/p01');
         const router = createHashRouter(baseRoutes);
-        traceReactRouter(router as unknown as RRDataRouter);
+        traceReactRouter(router);
 
         expect(nav.setActiveRouteName).toHaveBeenCalledWith({
             name: '/product/:id',

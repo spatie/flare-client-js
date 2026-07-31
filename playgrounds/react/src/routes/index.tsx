@@ -1,6 +1,6 @@
 import { products, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
 import { withFlareProfiler } from '@flareapp/react/profiler';
-import { createRoute, Link, RouteComponent } from '@tanstack/react-router';
+import { createRoute, Link } from '@tanstack/react-router';
 
 import { cart } from '../cart';
 import { rootRoute } from './__root';
@@ -49,5 +49,5 @@ const ProductsPage = () => (
 export const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
-    component: withFlareProfiler(ProductsPage, { name: 'ProductsPage' }) as RouteComponent,
+    component: withFlareProfiler(ProductsPage, { name: 'ProductsPage' }),
 });

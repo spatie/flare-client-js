@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react';
-import { StrictMode, Suspense, type ReactNode } from 'react';
+import { createRef, StrictMode, Suspense, type ReactNode, type Ref } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const seam = vi.hoisted(async () => (await import('@flareapp/test-helpers')).createComponentSeam());
@@ -211,6 +211,30 @@ describe('FlareProfiler', () => {
         const span = calls()[0]!;
         expect(span.endTimeUnixNano).toBeGreaterThan(span.startTimeUnixNano);
     });
+
+    it('is transparent when it could not reserve a span: the descendant nests under the ancestor above', () => {
+        // A live root, but the id reservation fails for the middle one, so it publishes no context.
+        // It used to publish null and push the descendant back onto the root, skipping the ancestor.
+        fake.reserveSpanId
+            .mockImplementationOnce(() => 'a1')
+            .mockImplementationOnce(() => {
+                throw new Error('boom');
+            });
+
+        render(
+            <FlareProfiler name="Ancestor">
+                <FlareProfiler name="Middle">
+                    <FlareProfiler name="Leaf">
+                        <div>x</div>
+                    </FlareProfiler>
+                </FlareProfiler>
+            </FlareProfiler>,
+        );
+
+        const byName = Object.fromEntries(calls().map((c) => [c.name, c]));
+        expect(byName.Middle).toBeUndefined();
+        expect(byName.Leaf).toMatchObject({ parent: { parentSpanId: 'a1' } }); // Ancestor, not the root
+    });
 });
 
 describe('withFlareProfiler', () => {
@@ -241,5 +265,21 @@ describe('withFlareProfiler', () => {
         const WithAnon = withFlareProfiler(Anon);
         render(<WithAnon />);
         expect(calls()[0]!.name).toBe('Unknown'); // '' falls through via ||, not ??
+    });
+
+    it('sets a displayName that names the wrapped component', () => {
+        const Named = () => <div>n</div>;
+        expect(withFlareProfiler(Named).displayName).toBe('withFlareProfiler(Named)');
+        expect(withFlareProfiler(Named, { name: 'Explicit' }).displayName).toBe('withFlareProfiler(Explicit)');
+    });
+
+    it('forwards a ref through the wrapper on React 19, where ref is a normal prop', () => {
+        const Input = (props: { ref?: Ref<HTMLInputElement> }) => <input ref={props.ref} />;
+        const Profiled = withFlareProfiler(Input, { name: 'Input' });
+        const ref = createRef<HTMLInputElement>();
+
+        render(<Profiled ref={ref} />);
+
+        expect(ref.current).toBeInstanceOf(HTMLInputElement);
     });
 });

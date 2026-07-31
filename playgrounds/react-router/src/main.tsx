@@ -8,7 +8,7 @@ import { initFlare } from './flare';
 import { router } from './router';
 
 initFlare();
-traceReactRouter(router as unknown as Parameters<typeof traceReactRouter>[0]);
+traceReactRouter(router);
 
 const container = document.getElementById('root');
 if (!container) throw new Error('No #root element');

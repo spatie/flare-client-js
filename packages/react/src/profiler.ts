@@ -21,6 +21,7 @@ import {
     useLayoutEffect,
     useRef,
     type ComponentType,
+    type FunctionComponent,
     type ReactNode,
 } from 'react';
 
@@ -91,13 +92,18 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
         }
     }, []);
 
-    return createElement(FlareProfilerContext.Provider, { value: providedRef.current ?? null }, children ?? null);
+    if (providedRef.current === null) {
+        // Transparent: publish nothing rather than a null that shadows a real profiled ancestor.
+        return children ?? null;
+    }
+
+    return createElement(FlareProfilerContext.Provider, { value: providedRef.current }, children ?? null);
 }
 
 export function withFlareProfiler<P extends object>(
     Component: ComponentType<P>,
     options?: { name?: string },
-): ComponentType<P> {
+): FunctionComponent<P> {
     // || not ??: an anonymous/minified component can have name '', which must fall
     // through to 'Unknown' (matches Sentry).
     const name = options?.name || Component.displayName || Component.name || 'Unknown';

@@ -82,6 +82,7 @@ at [flareapp.io/docs/react/general/installation](https://flareapp.io/docs/react/
 
 - React 16, 17, 18, 19
 - `flareReactErrorHandler` requires React 19+
+- `withFlareProfiler` forwards `ref` on React 19 only
 
 ## License
 
@@ -128,3 +129,12 @@ mangle `Component.name`, so pass an explicit `name` or set `displayName` for pro
 parent span before a suspended child resumes, so the child may appear outside its parent
 in the waterfall, and its duration includes the data wait. If the wait outlasts the
 trace's idle window the child span is dropped rather than attached to a closed trace.
+
+**Render-phase start:** the span starts when the component first renders, not when React commits it. A
+render React defers or discards (`useDeferredValue`, an interrupted transition, an `<Activity mode="hidden">`
+prerender revealed later) bills that whole gap to the component.
+
+**Refs and statics:** the wrapper is a plain function component. It forwards no `ref` through `forwardRef`
+and hoists no statics. On React 19 `ref` is a normal prop and passes straight through, so this only affects
+the React 16-18 half of the peer range; there, wrap with `FlareProfiler` inside the component instead of
+applying `withFlareProfiler` to it.
