@@ -182,11 +182,53 @@ describe('flareVue wiring', () => {
         expect(fake.spans()).toHaveLength(1);
     });
 
-    it('registers no mixin when tracing is off', () => {
+    // Flipped deliberately. The mixin is no longer gated on enableTracing at install time (a consumer
+    // can call configure() afterwards), so what matters is the runtime answer: no live root, no span.
+    it('registers the mixin but records nothing while no root is live', () => {
+        fake.setRoot(null);
+
         install(['ProductPage'], false);
 
         expect(fake.spans()).toHaveLength(0);
         expect(fake.reserveSpanId).not.toHaveBeenCalled();
+    });
+
+    it('profiles a component that mounts after tracing was switched on post-install', async () => {
+        // The mixin installs while no root is live; a root appears later, and the next mount records.
+        fake.setRoot(null);
+
+        const Body = defineComponent({ name: 'Body', render: () => h('span', 'body') });
+        const Shell = defineComponent({
+            name: 'Shell',
+            data: () => ({ showBody: false }),
+            render(this: { showBody: boolean }) {
+                return h('div', this.showBody ? [h(Body)] : []);
+            },
+        });
+
+        const injected = {
+            config: { enableTracing: false },
+            reportSilently: vi.fn(),
+            reportMessage: vi.fn(),
+            setSdkInfo: vi.fn(),
+            setFramework: vi.fn(),
+        } as any;
+
+        const app = createApp(Shell);
+        app.use(flareVue, { flare: injected, profileComponents: ['Body'] });
+        const vm = app.mount(document.createElement('div')) as unknown as {
+            showBody: boolean;
+            $nextTick(): Promise<void>;
+        };
+        expect(fake.spans()).toHaveLength(0);
+
+        // flare.configure({ enableTracing: true }) has run: a root is live now.
+        fake.setRoot({ traceId: 'T2', parentSpanId: 'nav' });
+        vm.showBody = true;
+        await vm.$nextTick();
+
+        expect(fake.spans()).toHaveLength(1);
+        expect(fake.spans()[0]!.name).toBe('Body');
     });
 
     it('registers no mixin when profileComponents is absent', () => {

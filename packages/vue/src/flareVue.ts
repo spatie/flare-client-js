@@ -156,10 +156,10 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         };
     }
 
-    // Only wire router tracing when tracing is actually enabled. `enableTracing` is what gates
-    // `startBrowserTracing` at init, so without it `traceVueRouter` would attach guards and register a
-    // navigation source that can only no-op. Gate here to avoid that dead instrumentation on the router.
-    if (options?.router && flare.config?.enableTracing) {
+    // Wired unconditionally. `flare.configure({ enableTracing: true })` may come after app.use(flareVue),
+    // and browser.ts starts tracing from that call, so there is nothing to gate on here. Gating made the
+    // plugin order dependent while the other four integrations are not.
+    if (options?.router) {
         try {
             traceVueRouter(options.router);
         } catch {
@@ -167,13 +167,13 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         }
     }
 
-    // Only register the mixin when it can actually record. Without `enableTracing` the seam no-ops, so
-    // the mixin would run on every component in the app to do nothing. An empty allowlist is the same
-    // case, so it is treated as off rather than as "an array was passed".
+    // Register the mixin whenever an allowlist asked for it. An empty allowlist is the same as off,
+    // rather than "an array was passed". Tracing being off is NOT gated here: configure() can turn it
+    // on later, and the hook's first act is to ask for a live root, so an idle mount costs one check.
     const profile = options?.profileComponents;
     const wantsProfiling = profile === true || (Array.isArray(profile) && profile.length > 0);
 
-    if (!wantsProfiling || !flare.config?.enableTracing) {
+    if (!wantsProfiling) {
         return;
     }
 

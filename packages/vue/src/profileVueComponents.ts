@@ -42,16 +42,18 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
     return {
         beforeMount(this: ComponentPublicInstance) {
             try {
-                const name = getComponentName(this);
-                // unmatched components stay transparent: no state, no marker
-                if (!matches(name)) {
-                    return;
-                }
-
                 const internal = this.$ as ProfiledInstance;
+                // Asked before the name is resolved: the mixin is global, so with no root open this
+                // check is the only work every mount in the app pays for.
                 const parent = resolveComponentParent(nearestMarker(internal), activeComponentRoot());
                 // tracing off, or no root open: record nothing
                 if (!parent) {
+                    return;
+                }
+
+                const name = getComponentName(this);
+                // unmatched components stay transparent: no state, no marker
+                if (!matches(name)) {
                     return;
                 }
 

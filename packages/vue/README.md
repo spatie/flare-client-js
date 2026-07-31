@@ -66,6 +66,9 @@ app.use(flareVue, {
 });
 ```
 
+`app.use(flareVue, …)` and `flare.configure({ enableTracing: true })` can run in either order. Installing
+the plugin first is fine: the router guards and the profiler hook stay idle until tracing is on.
+
 Strings match the component name exactly. Regular expressions match by `test()`. `true` profiles every named
 component, which is useful when exploring but will hit the 1024 span per trace cap on a real page and bury the
 spans you care about.
