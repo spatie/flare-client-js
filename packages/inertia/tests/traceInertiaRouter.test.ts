@@ -82,6 +82,40 @@ describe('traceInertiaRouter listener lifecycle', () => {
         expect(registerNavigationSource).not.toHaveBeenCalled();
         expect(nav.unregister).not.toHaveBeenCalled();
     });
+
+    // install() runs unwrapped inside instrumentOnce, so a throw from the router's own `on()` would
+    // otherwise escape straight into the host's bootstrap code.
+    it('never lets a throwing on() reach the host, and unwinds the listeners already registered', () => {
+        const router = createFakeInertiaRouter();
+        const realOn = router.on;
+        router.on = ((event, callback) => {
+            if (event === 'success') {
+                throw new Error('on boom');
+            }
+            return realOn(event, callback);
+        }) as typeof router.on;
+
+        expect(() => traceInertiaRouter(router)).not.toThrow();
+
+        expect(router.listenerCount()).toBe(0); // the two that already registered are removed
+        expect(nav.unregister).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves no live listeners behind after a failed install', () => {
+        const router = createFakeInertiaRouter();
+        const realOn = router.on;
+        router.on = ((event, callback) => {
+            if (event === 'success') {
+                throw new Error('on boom');
+            }
+            return realOn(event, callback);
+        }) as typeof router.on;
+        traceInertiaRouter(router);
+
+        router.emit('start', { visit: { url: new URL('/products/42', window.location.href) } });
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
 });
 
 describe('successful visits', () => {

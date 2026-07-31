@@ -7,8 +7,8 @@ import {
     registerNavigationSource,
     resolveHref,
     routeName,
-    safeInvoke,
     type RouteName,
+    type TrackTeardown,
 } from '@flareapp/js/browser';
 
 import type { RRDataRouter, RRLocation, RRMatch, RRRouterState } from './vendor/reactRouterTypes';
@@ -53,11 +53,12 @@ export function traceReactRouter(router: RRDataRouter): () => void {
         return () => {}; // not a router: do nothing
     }
 
-    return instrumentOnce(router, () => install(router));
+    return instrumentOnce(router, (track) => install(router, track));
 }
 
-function install(router: RRDataRouter): () => void {
+function install(router: RRDataRouter, track: TrackTeardown): void {
     const nav = registerNavigationSource();
+    track(() => nav.unregister()); // tracked first so it unwinds last
 
     const routeNameFor = (state: RRRouterState): RouteName =>
         routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
@@ -136,18 +137,7 @@ function install(router: RRDataRouter): () => void {
         // else (inFlight && non-idle): a redirect / superseding hop -> keep the single held root.
     };
 
-    // subscribe() itself can throw (a hostile or misbehaving router), and install() runs unwrapped
-    // inside instrumentOnce, so that must not escape either.
-    let unsubscribe: (() => void) | undefined;
-    try {
-        unsubscribe = router.subscribe(insulate(onState));
-    } catch {
-        safeInvoke(() => nav.unregister());
-        return () => {};
-    }
-
-    return () => {
-        safeInvoke(unsubscribe);
-        safeInvoke(() => nav.unregister());
-    };
+    // subscribe() itself can throw (a hostile or misbehaving router); instrumentOnce keeps that off
+    // the host and drops the registration with it.
+    track(router.subscribe(insulate(onState)));
 }

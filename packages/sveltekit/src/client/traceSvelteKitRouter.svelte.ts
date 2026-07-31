@@ -106,6 +106,7 @@ export function traceSvelteKitRouter(): () => void {
     tracing = true;
 
     let dispose: (() => void) | undefined;
+    let installed = false;
     // hooks.client.ts calls this during module load, so a throw here takes down the whole client rather
     // than just tracing.
     safeInvoke(() => {
@@ -113,14 +114,25 @@ export function traceSvelteKitRouter(): () => void {
         inFlight = false;
         lastKey = location.pathname + location.search;
         dispose = startEffect();
+        installed = true;
     });
 
-    return () => {
+    const stop = (): void => {
         safeInvoke(dispose);
         safeInvoke(() => nav?.unregister());
         nav = null;
         tracing = false;
     };
+
+    // hooks.client.ts never calls the cleanup, so a half-done install has to undo itself. Left alone it
+    // keeps a source registered that observes nothing, which suppresses the built-in History detection
+    // for the whole page, and leaves `tracing` latched so nothing can install again.
+    if (!installed) {
+        stop();
+        return () => {};
+    }
+
+    return stop;
 }
 
 /** The reactive half: one `$effect.root` feeding what it sees to the state machine above. */

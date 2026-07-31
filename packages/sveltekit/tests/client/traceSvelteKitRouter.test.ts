@@ -10,10 +10,18 @@ const nav = vi.hoisted(() => ({
     unregister: vi.fn(),
 }));
 const registerNavigationSource = vi.hoisted(() => vi.fn(() => nav));
-vi.mock('@flareapp/js/browser', async (importOriginal) => ({
-    ...(await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
-    registerNavigationSource,
-}));
+// `insulate` is spied rather than replaced: it is the one call inside the `$effect.root` callback, so
+// making it throw is how a test reaches the "registered, but the effect never started" install failure.
+const insulate = vi.hoisted(() => vi.fn());
+vi.mock('@flareapp/js/browser', async (importOriginal) => {
+    const original = (await importOriginal()) as Record<string, unknown>;
+    insulate.mockImplementation(original.insulate as (...a: unknown[]) => unknown);
+    return {
+        ...(await import('@flareapp/test-helpers')).browserSeamMock(nav, original),
+        registerNavigationSource,
+        insulate,
+    };
+});
 
 const flareConfig = vi.hoisted(() => ({ enableTracing: true }));
 vi.mock('@flareapp/js', () => ({
@@ -87,6 +95,35 @@ test('cleanup disposes the effect and unregisters', async () => {
     flushSync();
     stop();
     expect(nav.unregister).toHaveBeenCalledTimes(1);
+});
+
+// hooks.client.ts never calls the returned cleanup, so a half-done install has to undo itself. Left
+// alone it keeps a navigation source registered that observes nothing, which suppresses the built-in
+// History detection for the whole page: no navigation roots at all.
+test('an install that fails after registering unregisters itself', async () => {
+    const { traceSvelteKitRouter } = await load();
+    insulate.mockImplementationOnce(() => {
+        throw new Error('effect boom');
+    });
+
+    expect(() => traceSvelteKitRouter()).not.toThrow();
+
+    expect(registerNavigationSource).toHaveBeenCalledTimes(1);
+    expect(nav.unregister).toHaveBeenCalledTimes(1);
+});
+
+test('a failed install does not latch the module on, so a retry still installs', async () => {
+    const { traceSvelteKitRouter, flushSync } = await load();
+    insulate.mockImplementationOnce(() => {
+        throw new Error('effect boom');
+    });
+    traceSvelteKitRouter();
+
+    const stop = traceSvelteKitRouter();
+    flushSync();
+
+    expect(registerNavigationSource).toHaveBeenCalledTimes(2);
+    stop();
 });
 
 const PRODUCT = new URL(location.origin + '/product/p01');

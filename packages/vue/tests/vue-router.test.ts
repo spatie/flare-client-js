@@ -120,3 +120,42 @@ describe('traceVueRouter edge cases', () => {
         });
     });
 });
+
+// install() runs unwrapped inside instrumentOnce, so a throw from the router's own guard registration
+// would otherwise escape straight into the host's bootstrap code.
+describe('traceVueRouter install failures', () => {
+    it('never lets a throwing afterEach reach the host, and unwinds the beforeEach guard plus the registration', () => {
+        const router = fakeRouter(home);
+        router.afterEach = (): (() => void) => {
+            throw new Error('afterEach boom');
+        };
+
+        expect(() => traceVueRouter(router)).not.toThrow();
+        expect(router.counts().before).toBe(0); // the guard that already registered is removed
+        expect(nav.unregister).toHaveBeenCalledTimes(1);
+    });
+
+    it('never lets a throwing onError reach the host, and unwinds both guards plus the registration', () => {
+        const router = fakeRouter(home);
+        router.onError = (): (() => void) => {
+            throw new Error('onError boom');
+        };
+
+        expect(() => traceVueRouter(router)).not.toThrow();
+        expect(router.counts()).toEqual({ before: 0, after: 0, error: 0 });
+        expect(nav.unregister).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves no live guards behind, so a later navigation reaches nothing', () => {
+        const router = fakeRouter(home);
+        router.afterEach = (): (() => void) => {
+            throw new Error('afterEach boom');
+        };
+        traceVueRouter(router);
+        nav.startNavigation.mockClear();
+
+        router.fireBefore(product, home);
+
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+});

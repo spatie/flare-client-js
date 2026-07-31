@@ -4,8 +4,8 @@ import {
     registerNavigationSource,
     resolveHref,
     routeName,
-    safeInvoke,
     type RouteName,
+    type TrackTeardown,
 } from '@flareapp/js/browser';
 
 import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from './vendor/vueRouterTypes';
@@ -23,7 +23,7 @@ export function traceVueRouter(router: unknown): () => void {
         return () => {}; // not a router: do nothing
     }
 
-    return instrumentOnce(router, () => install(router));
+    return instrumentOnce(router, (track) => install(router, track));
 }
 
 /** Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional. */
@@ -35,8 +35,12 @@ function isVueRouter(router: unknown): router is VueRouterLike {
     return typeof candidate.beforeEach === 'function' && typeof candidate.afterEach === 'function';
 }
 
-function install(router: VueRouterLike): () => void {
+function install(router: VueRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
+    // Tracked first so it unwinds last: releasing the hold has to happen once no guard can open a
+    // new root. Everything after it is tracked as it registers, so a throw from the next registration
+    // tears down the ones already attached instead of leaking them.
+    track(() => nav.unregister());
 
     const routeNameFor = (loc: VueRouteLocationLike): RouteName =>
         routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
@@ -70,81 +74,79 @@ function install(router: VueRouterLike): () => void {
         // never break the host on wiring
     }
 
-    const offBefore = router.beforeEach(
-        insulate((to: VueRouteLocationLike, from: VueRouteLocationLike) => {
-            // Initial navigation first: START_LOCATION.fullPath is '/', so an app whose initial route is
-            // '/' would otherwise be swallowed by the same-location skip below.
-            if (!sawInitial && isInitial(from)) {
-                nav.setActiveRouteName(routeNameFor(to)); // name the pageload root; open no nav root
-                return;
-            }
-
-            // Only a `force: true` re-navigation reaches beforeEach with to.fullPath === from.fullPath: a
-            // plain duplicate nav is stopped before the guards run and shows up only as an afterEach
-            // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
-            // no navigation root.
-            if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) {
-                return;
-            }
-
-            if (!inFlight) {
-                inFlight = true;
-                nav.startNavigation({ path: to.path, url: hrefOf(to), hold: true });
-            }
-            nav.setActiveRouteName(routeNameFor(to)); // set / re-set across redirect hops
-        }),
-    );
-
-    const offAfter = router.afterEach(
-        insulate((to: VueRouteLocationLike, from: VueRouteLocationLike, failure?: NavigationFailureLike) => {
-            if (!sawInitial && isInitial(from)) {
-                if (!failure) {
-                    sawInitial = true;
-                    nav.setActiveRouteName(routeNameFor(to)); // finalize pageload name
+    track(
+        router.beforeEach(
+            insulate((to: VueRouteLocationLike, from: VueRouteLocationLike) => {
+                // Initial navigation first: START_LOCATION.fullPath is '/', so an app whose initial route is
+                // '/' would otherwise be swallowed by the same-location skip below.
+                if (!sawInitial && isInitial(from)) {
+                    nav.setActiveRouteName(routeNameFor(to)); // name the pageload root; open no nav root
+                    return;
                 }
-                return;
-            }
 
-            if (!inFlight) {
-                return;
-            }
+                // Only a `force: true` re-navigation reaches beforeEach with to.fullPath === from.fullPath: a
+                // plain duplicate nav is stopped before the guards run and shows up only as an afterEach
+                // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
+                // no navigation root.
+                if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) {
+                    return;
+                }
 
-            if (!failure) {
-                inFlight = false;
-                nav.settleNavigation(routeNameFor(to)); // success: name + release hold
-                return;
-            }
-
-            // A redirect never reaches afterEach (vue-router starts a new navigation instead), so a failure
-            // here is the end of the road. `cancelled` (a newer nav replaced this one) keeps the held root
-            // for that newer nav's afterEach; `aborted` / `duplicated` / unknown release it to the current
-            // location, so a blocked navigation can't leave a root held open until the finalTimeout backstop.
-            if (failure.type === NAVIGATION_CANCELLED) {
-                return;
-            }
-            inFlight = false;
-            nav.settleNavigation(routeNameFor(from));
-        }),
+                if (!inFlight) {
+                    inFlight = true;
+                    nav.startNavigation({ path: to.path, url: hrefOf(to), hold: true });
+                }
+                nav.setActiveRouteName(routeNameFor(to)); // set / re-set across redirect hops
+            }),
+        ),
     );
 
-    const offError =
-        typeof router.onError === 'function'
-            ? router.onError(
-                  insulate(() => {
-                      if (!inFlight) {
-                          return;
-                      }
-                      inFlight = false;
-                      const current = router.currentRoute?.value;
-                      nav.settleNavigation(current ? routeNameFor(current) : { name: '', source: 'url' });
-                  }),
-              )
-            : undefined;
+    track(
+        router.afterEach(
+            insulate((to: VueRouteLocationLike, from: VueRouteLocationLike, failure?: NavigationFailureLike) => {
+                if (!sawInitial && isInitial(from)) {
+                    if (!failure) {
+                        sawInitial = true;
+                        nav.setActiveRouteName(routeNameFor(to)); // finalize pageload name
+                    }
+                    return;
+                }
 
-    return () => {
-        safeInvoke(offBefore);
-        safeInvoke(offAfter);
-        safeInvoke(offError);
-        safeInvoke(() => nav.unregister());
-    };
+                if (!inFlight) {
+                    return;
+                }
+
+                if (!failure) {
+                    inFlight = false;
+                    nav.settleNavigation(routeNameFor(to)); // success: name + release hold
+                    return;
+                }
+
+                // A redirect never reaches afterEach (vue-router starts a new navigation instead), so a failure
+                // here is the end of the road. `cancelled` (a newer nav replaced this one) keeps the held root
+                // for that newer nav's afterEach; `aborted` / `duplicated` / unknown release it to the current
+                // location, so a blocked navigation can't leave a root held open until the finalTimeout backstop.
+                if (failure.type === NAVIGATION_CANCELLED) {
+                    return;
+                }
+                inFlight = false;
+                nav.settleNavigation(routeNameFor(from));
+            }),
+        ),
+    );
+
+    if (typeof router.onError === 'function') {
+        track(
+            router.onError(
+                insulate(() => {
+                    if (!inFlight) {
+                        return;
+                    }
+                    inFlight = false;
+                    const current = router.currentRoute?.value;
+                    nav.settleNavigation(current ? routeNameFor(current) : { name: '', source: 'url' });
+                }),
+            ),
+        );
+    }
 }

@@ -7,8 +7,8 @@ import {
     registerNavigationSource,
     resolveHref,
     routeName,
-    safeInvoke,
     type RouteName,
+    type TrackTeardown,
 } from '@flareapp/js/browser';
 
 import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
@@ -32,11 +32,12 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
         return () => {}; // not a router: do nothing
     }
 
-    return instrumentOnce(router, () => install(router));
+    return instrumentOnce(router, (track) => install(router, track));
 }
 
-function install(router: TsrRouter): () => void {
+function install(router: TsrRouter, track: TrackTeardown): void {
     const nav = registerNavigationSource();
+    track(() => nav.unregister()); // tracked first so it unwinds last
 
     // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so
     // an app served from `/app/` has it stripped from `href` but kept on `publicHref`. Falling back
@@ -89,13 +90,13 @@ function install(router: TsrRouter): () => void {
         nav.settleNavigation(routeNameFor(location));
     };
 
-    // subscribe() itself can throw (a hostile or misbehaving router), and install() runs unwrapped
-    // inside instrumentOnce, so that must not escape either. A partial failure (first call ok, second
-    // throws) tears down what already succeeded instead of leaking a live subscription.
-    let offBeforeLoad: (() => void) | undefined;
-    let offResolved: (() => void) | undefined;
-    try {
-        offBeforeLoad = router.subscribe(
+    // Every subscription is tracked as it registers: subscribe() itself can throw (a hostile or
+    // misbehaving router), and instrumentOnce then unwinds the one that already succeeded, plus this
+    // timer, instead of leaking them.
+    track(clearStaleTimer);
+
+    track(
+        router.subscribe(
             'onBeforeLoad',
             insulate((event: TsrNavEvent) => {
                 // initial pageload (handled via onResolved)
@@ -133,9 +134,11 @@ function install(router: TsrRouter): () => void {
                     STALE_NAVIGATION_TIMEOUT_MS,
                 );
             }),
-        );
+        ),
+    );
 
-        offResolved = router.subscribe(
+    track(
+        router.subscribe(
             'onResolved',
             insulate((event: TsrNavEvent) => {
                 if (event.fromLocation === undefined) {
@@ -146,18 +149,6 @@ function install(router: TsrRouter): () => void {
                     settle(event.toLocation); // finalize the navigation name and release the hold
                 }
             }),
-        );
-    } catch {
-        clearStaleTimer();
-        safeInvoke(offBeforeLoad);
-        safeInvoke(() => nav.unregister());
-        return () => {};
-    }
-
-    return () => {
-        clearStaleTimer();
-        safeInvoke(offBeforeLoad);
-        safeInvoke(offResolved);
-        safeInvoke(() => nav.unregister());
-    };
+        ),
+    );
 }

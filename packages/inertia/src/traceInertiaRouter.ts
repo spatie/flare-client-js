@@ -5,11 +5,17 @@ import {
     instrumentOnce,
     registerNavigationSource,
     routeName,
-    safeInvoke,
     type RouteName,
+    type TrackTeardown,
 } from '@flareapp/js/browser';
 
-import type { InertiaEventLike, InertiaPageLike, InertiaRouterLike, InertiaVisitLike } from './vendor/inertiaTypes';
+import type {
+    InertiaEventLike,
+    InertiaEventName,
+    InertiaPageLike,
+    InertiaRouterLike,
+    InertiaVisitLike,
+} from './vendor/inertiaTypes';
 
 /** Resolve a router-reported location (a `URL` on visits, a relative string on pages) to a full href
  *  plus its path. Both are undefined outside a browser or for an unparseable value. */
@@ -62,15 +68,18 @@ export function traceInertiaRouter(router: unknown): () => void {
         return () => {}; // not a router: do nothing
     }
 
-    return instrumentOnce(router, () => install(router));
+    return instrumentOnce(router, (track) => install(router, track));
 }
 
 function isInertiaRouter(router: unknown): router is InertiaRouterLike {
     return !!router && typeof (router as Partial<InertiaRouterLike>).on === 'function';
 }
 
-function install(router: InertiaRouterLike): () => void {
+function install(router: InertiaRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
+    // Tracked first so it unwinds last: releasing the hold has to happen once no listener can open a
+    // new root.
+    track(() => nav.unregister());
 
     let inFlight = false;
     let inFlightPath: string | undefined;
@@ -97,85 +106,83 @@ function install(router: InertiaRouterLike): () => void {
         nav.settleNavigation(nameFor(page));
     };
 
-    const offStart = router.on(
-        'start',
-        insulate((event: InertiaEventLike) => {
-            const visit = event?.detail?.visit;
-            if (isBackgroundVisit(visit)) {
-                return;
-            }
-            const { href, path } = locationOf(visit?.url);
+    // Every listener is tracked as it registers, so a throw from the next `on()` tears down the ones
+    // already attached rather than leaving them on a router nothing is tracing any more.
+    const on = (event: InertiaEventName, handler: (event: InertiaEventLike) => void): void =>
+        track(router.on(event, insulate(handler)));
 
-            if (inFlight) {
-                // The successor of an interrupted visit. Re-point the root the first click opened
-                // rather than opening a second one. The name is url-sourced only until the page
-                // arrives and settles it under the component name.
-                inFlightPath = path;
-                nav.setActiveRouteName({ name: path ?? currentPath(), source: 'url', url: href });
-                return;
-            }
+    on('start', (event: InertiaEventLike) => {
+        const visit = event?.detail?.visit;
+        if (isBackgroundVisit(visit)) {
+            return;
+        }
+        const { href, path } = locationOf(visit?.url);
 
-            sawInitial = true;
-            inFlight = true;
+        if (inFlight) {
+            // The successor of an interrupted visit. Re-point the root the first click opened
+            // rather than opening a second one. The name is url-sourced only until the page
+            // arrives and settles it under the component name.
             inFlightPath = path;
-            nav.startNavigation({ path, url: href, hold: true });
-        }),
-    );
+            nav.setActiveRouteName({ name: path ?? currentPath(), source: 'url', url: href });
+            return;
+        }
 
-    const offNavigate = router.on(
-        'navigate',
-        insulate((event: InertiaEventLike) => {
-            const page = event?.detail?.page;
+        sawInitial = true;
+        inFlight = true;
+        inFlightPath = path;
+        nav.startNavigation({ path, url: href, hold: true });
+    });
 
-            // Deliberately unguarded, unlike `success` and `finish`. A redirected visit (POST /login
-            // landing on /dashboard) arrives here with a page url that does not match inFlightPath, and
-            // this is the only event carrying that page's component name. Comparing the path would push
-            // every redirect onto the `finish` backstop, which has no component name to use and reports
-            // a raw url instead.
-            if (inFlight) {
-                settle(page);
-                return;
-            }
+    on('navigate', (event: InertiaEventLike) => {
+        const page = event?.detail?.page;
 
-            // The initial page load fires navigate with no preceding start: page.set() suppresses it
-            // (the initial load forces replace), but InitialVisit.handle() fires it directly. The
-            // pageload root already covers that window, so name it rather than open a second root.
-            if (!sawInitial) {
-                sawInitial = true;
-                nav.setActiveRouteName(nameFor(page));
-                return;
-            }
-
-            // Back/forward fires navigate alone, with no start to open the root, so do both here.
-            // No hold: there is no pending wait to suppress, and settling in the same tick would
-            // force-close a held root at zero duration before any child span could attach.
-            const { href, path } = locationOf(page?.url);
-            nav.startNavigation({ path, url: href });
+        // Deliberately unguarded, unlike `success` and `finish`. A redirected visit (POST /login
+        // landing on /dashboard) arrives here with a page url that does not match inFlightPath, and
+        // this is the only event carrying that page's component name. Comparing the path would push
+        // every redirect onto the `finish` backstop, which has no component name to use and reports
+        // a raw url instead.
+        if (inFlight) {
             settle(page);
-        }),
-    );
-    const offSuccess = router.on(
-        'success',
-        insulate((event: InertiaEventLike) => {
-            // This is where a same-url visit and a `replace: true` one settle: page.set() fires navigate
-            // only when replace is false, and it forces replace for a visit landing on the url it started
-            // on. A normal visit already cleared inFlight in navigate, so this is a no-op for those.
-            if (!inFlight) {
-                return;
-            }
-            const page = event?.detail?.page;
-            // A background reload's success fires on the async stream while a navigation runs on the sync
-            // one, so only the response for the page this root opened for may settle it.
-            //
-            // A visit redirected to a different path also fails this check. `success` carries no visit, so
-            // a redirect back to the page the user was on is indistinguishable from a background poll of
-            // it. Not a leak: `finish` compares the stable `visit.url` and settles through its backstop.
-            if (locationOf(page?.url).path !== inFlightPath) {
-                return;
-            }
-            settle(page);
-        }),
-    );
+            return;
+        }
+
+        // The initial page load fires navigate with no preceding start: page.set() suppresses it
+        // (the initial load forces replace), but InitialVisit.handle() fires it directly. The
+        // pageload root already covers that window, so name it rather than open a second root.
+        if (!sawInitial) {
+            sawInitial = true;
+            nav.setActiveRouteName(nameFor(page));
+            return;
+        }
+
+        // Back/forward fires navigate alone, with no start to open the root, so do both here.
+        // No hold: there is no pending wait to suppress, and settling in the same tick would
+        // force-close a held root at zero duration before any child span could attach.
+        const { href, path } = locationOf(page?.url);
+        nav.startNavigation({ path, url: href });
+        settle(page);
+    });
+
+    on('success', (event: InertiaEventLike) => {
+        // This is where a same-url visit and a `replace: true` one settle: page.set() fires navigate
+        // only when replace is false, and it forces replace for a visit landing on the url it started
+        // on. A normal visit already cleared inFlight in navigate, so this is a no-op for those.
+        if (!inFlight) {
+            return;
+        }
+        const page = event?.detail?.page;
+        // A background reload's success fires on the async stream while a navigation runs on the sync
+        // one, so only the response for the page this root opened for may settle it.
+        //
+        // A visit redirected to a different path also fails this check. `success` carries no visit, so
+        // a redirect back to the page the user was on is indistinguishable from a background poll of
+        // it. Not a leak: `finish` compares the stable `visit.url` and settles through its backstop.
+        if (locationOf(page?.url).path !== inFlightPath) {
+            return;
+        }
+        settle(page);
+    });
+
     /** Whether `visit` is the one that opened the currently held root, i.e. `finish` may settle it. */
     const belongsToThisNavigation = (visit: InertiaVisitLike | undefined): boolean => {
         // Background work fires the same finish a real visit does, and can share the in-flight path: a
@@ -197,33 +204,22 @@ function install(router: InertiaRouterLike): () => void {
         return true;
     };
 
-    const offFinish = router.on(
-        'finish',
-        insulate((event: InertiaEventLike) => {
-            // An errored, cancelled or non-Inertia response fires neither navigate nor success. Without
-            // this the held root stays idle-suppressed until the 30s finalTimeout. Settle to where the
-            // browser actually is, since the visit never landed on its destination.
-            if (!inFlight) {
-                return;
-            }
-            if (!belongsToThisNavigation(event?.detail?.visit)) {
-                return;
-            }
-            inFlight = false;
-            inFlightPath = undefined;
-            const { href, path } = locationOf(currentPath());
-            // Name it after that page when we know it, which is the usual case for a failed form post:
-            // it re-renders the page it was sent from, and we were told that page's name on arrival.
-            const known = lastComponent?.path === path ? lastComponent?.name : undefined;
-            nav.settleNavigation(routeName(() => known, path ?? currentPath(), href));
-        }),
-    );
-
-    return () => {
-        safeInvoke(offStart);
-        safeInvoke(offNavigate);
-        safeInvoke(offSuccess);
-        safeInvoke(offFinish);
-        safeInvoke(() => nav.unregister());
-    };
+    on('finish', (event: InertiaEventLike) => {
+        // An errored, cancelled or non-Inertia response fires neither navigate nor success. Without
+        // this the held root stays idle-suppressed until the 30s finalTimeout. Settle to where the
+        // browser actually is, since the visit never landed on its destination.
+        if (!inFlight) {
+            return;
+        }
+        if (!belongsToThisNavigation(event?.detail?.visit)) {
+            return;
+        }
+        inFlight = false;
+        inFlightPath = undefined;
+        const { href, path } = locationOf(currentPath());
+        // Name it after that page when we know it, which is the usual case for a failed form post:
+        // it re-renders the page it was sent from, and we were told that page's name on arrival.
+        const known = lastComponent?.path === path ? lastComponent?.name : undefined;
+        nav.settleNavigation(routeName(() => known, path ?? currentPath(), href));
+    });
 }
