@@ -281,6 +281,9 @@ export class Tracer {
 
         // A Span created before a clear() is stale: must not parent or re-seed live state. Plain {traceId, spanId}
         // objects have no epoch and are never stale.
+        //
+        // hasEpoch must stay a genuine refinement: epoch is on neither SpanParent member. A shared discriminator
+        // like 'traceId' in parent would narrow the untouched branch to never and break every later read of parent.
         if (parent && hasEpoch(parent) && parent.epoch !== this.epoch) {
             parent = undefined;
         }
