@@ -146,6 +146,14 @@ describe('withFlareSourcemaps', () => {
             expect(FlareWebpackPlugin).toHaveBeenCalledWith(expect.objectContaining({ removeSourcemaps: false }));
         });
 
+        test('does not remove sourcemaps on the server build', () => {
+            const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
+
+            config.webpack!({ plugins: [] } as any, { isServer: true, dev: false } as any);
+
+            expect(FlareWebpackPlugin).toHaveBeenCalledWith(expect.objectContaining({ removeSourcemaps: false }));
+        });
+
         test('uses the same generated version for client and server builds', () => {
             const config = withFlareSourcemaps({}, { apiKey: 'test-key' });
 

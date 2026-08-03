@@ -6,9 +6,11 @@ export type FlareNextjsPluginOptions = {
     /**
      * Delete the generated `.map` files from the build output after they are uploaded to Flare.
      *
-     * Defaults to true. The wrapper force-enables `productionBrowserSourceMaps`, so the browser
-     * `.map` files would otherwise be publicly served and leak the app's original client source.
-     * Set this to false only if you intentionally want the maps to remain in the served output.
+     * Defaults to true, and only ever touches the client build: the wrapper force-enables
+     * `productionBrowserSourceMaps`, so those `.map` files would otherwise be publicly served and leak
+     * the app's original client source. Server and edge maps always stay on disk, since nothing serves
+     * them to a browser and removing them costs local stack debugging. `@flareapp/webpack` and
+     * `@flareapp/vite` default to false instead, because they never enable emission on your behalf.
      */
     removeSourcemaps?: boolean;
     publicPath?: string;
