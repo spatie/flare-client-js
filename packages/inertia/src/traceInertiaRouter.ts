@@ -57,7 +57,7 @@ function routeNameFor(page: InertiaPageLike | undefined): RouteName {
 /**
  * Trace an Inertia router: open a held `browser_navigation` root per visit, settled once the page
  * arrives. Call it before Inertia boots, so the initial `navigate` is seen. Returns a cleanup that
- * removes the listeners and unregisters. Does nothing for a non-router value; never throws into the host.
+ * removes the listeners and unregisters. The runtime guard protects untyped JavaScript callers.
  */
 export function traceInertiaRouter(router: InertiaRouterLike): () => void {
     if (!isInertiaRouter(router)) {
