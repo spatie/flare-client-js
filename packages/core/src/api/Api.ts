@@ -24,20 +24,20 @@ export class Api {
         reportBrowserExtensionErrors: boolean,
         debug: boolean = false,
     ): Promise<void> {
-        return this.send(
+        return this.send({
             url,
-            {
+            headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'X-Api-Token': key ?? '',
                 'X-Report-Browser-Extension-Errors': JSON.stringify(reportBrowserExtensionErrors),
                 'X-Flare-Client-Version': '2',
             },
-            flatJsonStringify(report),
-            'Flare',
+            body: flatJsonStringify(report),
+            label: 'Flare',
             debug,
-            false,
-        );
+            keepalive: false,
+        });
     }
 
     logs(
@@ -47,7 +47,14 @@ export class Api {
         debug: boolean = false,
         keepalive: boolean = false,
     ): Promise<void> {
-        return this.send(url, this.ingestHeaders(key), flatJsonStringify(envelope), 'Flare logs', debug, keepalive);
+        return this.send({
+            url,
+            headers: this.ingestHeaders(key),
+            body: flatJsonStringify(envelope),
+            label: 'Flare logs',
+            debug,
+            keepalive,
+        });
     }
 
     traces(
@@ -67,7 +74,14 @@ export class Api {
             // Degrade to the old clone rather than break the never-throws contract report() and logs() also keep.
             body = flatJsonStringify(envelope);
         }
-        return this.send(url, this.ingestHeaders(key), body, 'Flare traces', debug, keepalive);
+        return this.send({
+            url,
+            headers: this.ingestHeaders(key),
+            body,
+            label: 'Flare traces',
+            debug,
+            keepalive,
+        });
     }
 
     private ingestHeaders(key: string | null): Record<string, string> {
@@ -78,14 +92,15 @@ export class Api {
         };
     }
 
-    private send(
-        url: string,
-        headers: Record<string, string>,
-        body: string,
-        label: string,
-        debug: boolean,
-        keepaliveRequested: boolean,
-    ): Promise<void> {
+    private send(request: {
+        url: string;
+        headers: Record<string, string>;
+        body: string;
+        label: string;
+        debug: boolean;
+        keepalive: boolean;
+    }): Promise<void> {
+        const { url, headers, body, label, debug, keepalive: keepaliveRequested } = request;
         // Only the keepalive gate below reads this, and report() never requests keepalive. Encoding a large
         // report body here allocated a Uint8Array of that size on the error path for nothing.
         const bytes = keepaliveRequested ? utf8Bytes(body) : 0;

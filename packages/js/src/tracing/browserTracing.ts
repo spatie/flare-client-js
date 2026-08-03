@@ -282,8 +282,8 @@ function applyRouteName(route: RouteName, owner?: object): void {
             return;
         }
         const urlAttrs = browserSpanUrlAttributes(activeFlare.config, route.url);
-        for (const key of Object.keys(urlAttrs)) {
-            root.setAttribute(key, urlAttrs[key]);
+        for (const [key, value] of Object.entries(urlAttrs)) {
+            root.setAttribute(key, value);
         }
     });
 }
