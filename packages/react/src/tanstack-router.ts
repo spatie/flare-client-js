@@ -42,13 +42,14 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
     // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so
     // an app served from `/app/` has it stripped from `href` but kept on `publicHref`. Falling back
     // to `href` costs the basepath, which is what we reported before, so it never makes things worse.
-    const hrefOf = (loc: TanStackLocationLike): string | undefined =>
-        resolveHref(() => loc.publicHref ?? loc.href, loc.pathname);
+    function hrefOf(loc: TanStackLocationLike): string | undefined {
+        return resolveHref(() => loc.publicHref ?? loc.href, loc.pathname);
+    }
 
     // Roots here open without a url of their own (TanStack reports the destination only as a parsed
     // location), so without the url a nav root would keep the url of the page it left.
-    const routeNameFor = (loc: TanStackLocationLike): RouteName =>
-        routeName(
+    function routeNameFor(loc: TanStackLocationLike): RouteName {
+        return routeName(
             () => {
                 const matches = router.matchRoutes(loc.pathname, loc.search, { preload: false, throwOnError: false });
                 const matched = matches.some((m) => m.routeId !== '__root__');
@@ -61,6 +62,7 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
             loc.pathname,
             hrefOf(loc),
         );
+    }
 
     // Enrich the pageload root immediately from the current (already-resolved) location.
     try {
@@ -76,19 +78,19 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
     let destination: TanStackLocationLike | null = null;
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const clearStaleTimer = (): void => {
+    function clearStaleTimer(): void {
         if (staleTimer !== null) {
             clearTimeout(staleTimer);
             staleTimer = null;
         }
-    };
+    }
 
-    const settle = (location: TanStackLocationLike): void => {
+    function settle(location: TanStackLocationLike): void {
         clearStaleTimer();
         inFlight = false;
         destination = null;
         nav.settleNavigation(routeNameFor(location));
-    };
+    }
 
     // Every subscription is tracked as it registers: subscribe() itself can throw (a hostile or
     // misbehaving router), and instrumentOnce then unwinds the one that already succeeded, plus this

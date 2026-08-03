@@ -14,13 +14,13 @@ import request from './request';
  * commits. Only the URL-derived keys come from it; the rest always reflect the live document. An
  * unparseable override falls back to the live location instead of throwing into root creation.
  */
-export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride?: string): Attributes => {
+export function collectBrowserSpanContext(config: Readonly<Config>, hrefOverride?: string): Attributes {
     if (typeof window === 'undefined') {
         return {};
     }
     const url = absoluteUrl(hrefOverride);
     return { ...browserEntryPoint(config, url), ...request(config.urlDenylist, url?.href) };
-};
+}
 
 /**
  * Re-stamps a root's url after a redirect, or when a newer navigation replaces this one: the root opened
@@ -29,7 +29,7 @@ export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride
  * Leaves `flare.entry_point.handler.identifier` alone. The route template owns that, and deriving it from
  * the href would turn `/product/[id]` back into `/product/p01`.
  */
-export const browserSpanUrlAttributes = (config: Readonly<Config>, href: string): Attributes => {
+export function browserSpanUrlAttributes(config: Readonly<Config>, href: string): Attributes {
     if (typeof window === 'undefined') {
         return {};
     }
@@ -39,4 +39,4 @@ export const browserSpanUrlAttributes = (config: Readonly<Config>, href: string)
     }
     const redacted = redactUrlQuery(resolved.href, config.urlDenylist);
     return { 'url.full': redacted, 'flare.entry_point.value': redacted };
-};
+}

@@ -107,7 +107,9 @@ export function withFlareProfiler<P extends object>(
     // || not ??: an anonymous/minified component can have name '', which must fall
     // through to 'Unknown' (matches Sentry).
     const name = options?.name || Component.displayName || Component.name || 'Unknown';
-    const Profiled = (props: P): ReactNode => createElement(FlareProfiler, { name }, createElement(Component, props));
+    function Profiled(props: P): ReactNode {
+        return createElement(FlareProfiler, { name }, createElement(Component, props));
+    }
     Profiled.displayName = `withFlareProfiler(${name})`;
     return Profiled;
 }

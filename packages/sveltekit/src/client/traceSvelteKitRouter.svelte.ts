@@ -24,10 +24,13 @@ let lastKey = '';
 
 // The hash is left out on purpose. A hash change updates `page.url` without a real navigation, so
 // including it would open a root for a page that never moved.
-const keyOf = (url: URL): string => url.pathname + url.search;
+function keyOf(url: URL): string {
+    return url.pathname + url.search;
+}
 
-const routeNameFor = (routeId: string | null | undefined, url: URL): RouteName =>
-    routeName(() => routeId ?? undefined, url.pathname, url.href);
+function routeNameFor(routeId: string | null | undefined, url: URL): RouteName {
+    return routeName(() => routeId ?? undefined, url.pathname, url.href);
+}
 
 /** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
 export function syncNavigation(snapshot: NavSnapshot): void {
@@ -117,12 +120,12 @@ export function traceSvelteKitRouter(): () => void {
         installed = true;
     });
 
-    const stop = (): void => {
+    function stop(): void {
         safeInvoke(dispose);
         safeInvoke(() => nav?.unregister());
         nav = null;
         tracing = false;
-    };
+    }
 
     // hooks.client.ts never calls the cleanup, so a half-done install has to undo itself. Left alone it
     // keeps a source registered that observes nothing, which suppresses the built-in History detection

@@ -65,17 +65,20 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
 
-    const routeNameFor = (state: ReactRouterStateLike): RouteName =>
-        routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
+    function routeNameFor(state: ReactRouterStateLike): RouteName {
+        return routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
+    }
 
     // `createHref` is what puts the router's `basename` back on, and what turns a hash router's
     // location into the `#`-prefixed URL the address bar actually shows. `location.pathname` has
     // both stripped.
-    const hrefOf = (loc: ReactRouterLocationLike): string | undefined =>
-        resolveHref(() => router.createHref?.(loc), keyOf(loc));
+    function hrefOf(loc: ReactRouterLocationLike): string | undefined {
+        return resolveHref(() => router.createHref?.(loc), keyOf(loc));
+    }
 
-    const keyOf = (loc: ReactRouterLocationLike): string =>
-        (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
+    function keyOf(loc: ReactRouterLocationLike): string {
+        return (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
+    }
 
     let sawInitialSettle = false;
     let inFlight = false;
@@ -94,7 +97,7 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
         // never break the host on wiring
     }
 
-    const onState = (state: ReactRouterStateLike): void => {
+    function onState(state: ReactRouterStateLike): void {
         // Until RR reports `initialized`, every fire belongs to the pageload root; open no navigation root.
         if (!sawInitialSettle) {
             // Tracked on every fire, not only the ones that produce a name. A pre-init fire that lands
@@ -142,7 +145,7 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
             }
         }
         // else (inFlight && non-idle): a redirect / superseding hop -> keep the single held root.
-    };
+    }
 
     // subscribe() itself can throw (a hostile or misbehaving router); instrumentOnce keeps that off
     // the host and drops the registration with it.

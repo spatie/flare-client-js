@@ -42,11 +42,11 @@ export function instrumentOnce<T extends object>(target: T, install: (track: Tra
     instrumented.get(target)?.();
 
     const teardowns: Array<(() => void) | null | undefined> = [];
-    const unwind = (): void => {
+    function unwind(): void {
         for (let i = teardowns.length - 1; i >= 0; i--) {
             safeInvoke(teardowns[i]);
         }
-    };
+    }
 
     try {
         install((teardown) => {
@@ -57,12 +57,12 @@ export function instrumentOnce<T extends object>(target: T, install: (track: Tra
         return () => {};
     }
 
-    const cleanup = (): void => {
+    function cleanup(): void {
         unwind();
         if (instrumented.get(target) === cleanup) {
             instrumented.delete(target);
         }
-    };
+    }
 
     instrumented.set(target, cleanup);
     return cleanup;

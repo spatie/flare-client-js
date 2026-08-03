@@ -39,7 +39,7 @@ function hasEpoch(parent: SpanParent): parent is SpanParent & { epoch: number } 
     return 'epoch' in parent && typeof (parent as { epoch?: unknown }).epoch === 'number';
 }
 
-export const defaultNowNano = (): number => {
+export function defaultNowNano(): number {
     const performanceApi = (globalThis as { performance?: Performance }).performance;
     // timeOrigin is missing in some environments (older Safari, some Hermes builds/polyfills); undefined + now() would
     // yield NaN timestamps on every span. Fall back to Date.now().
@@ -48,7 +48,7 @@ export const defaultNowNano = (): number => {
             ? performanceApi.timeOrigin + performanceApi.now()
             : Date.now();
     return Math.round(ms * 1e6);
-};
+}
 
 export type SpanPhase = 'start' | 'end';
 export type SpanLifecycleEvent = { phase: SpanPhase; span: Span };

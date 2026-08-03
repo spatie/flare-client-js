@@ -19,6 +19,10 @@ export function randomHex(bytes: number): string {
     return out;
 }
 
-export const traceId = (): string => randomHex(16); // 32 hex chars
+export function traceId(): string {
+    return randomHex(16); // 32 hex chars
+}
 
-export const spanId = (): string => randomHex(8); // 16 hex chars
+export function spanId(): string {
+    return randomHex(8); // 16 hex chars
+}

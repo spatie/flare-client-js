@@ -203,7 +203,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     // On page teardown the open root must be force-ended and then keepalive-flushed from here:
     // BrowserFlushScheduler's own visibilitychange listener registered earlier, so when it flushed
     // the just-ended root was not buffered yet. Re-flushing an empty buffer is a no-op.
-    const endRootAndFlush = (): void => {
+    function endRootAndFlush(): void {
         if (controller && !controller.isEnded) {
             try {
                 controller.endNow();
@@ -220,7 +220,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
                 console.error('Flare: failed to flush spans on page hide', error);
             }
         }
-    };
+    }
     const onPageHide = (): void => endRootAndFlush();
     const onVisibilityChange = (): void => {
         if (document.visibilityState === 'hidden') {
@@ -302,7 +302,9 @@ export function registerNavigationSource(): NavigationSource {
         console.debug('Flare: navigation source replaced');
     }
     navSource = token;
-    const active = (): boolean => navSource === token;
+    function active(): boolean {
+        return navSource === token;
+    }
 
     return {
         startNavigation(opts) {

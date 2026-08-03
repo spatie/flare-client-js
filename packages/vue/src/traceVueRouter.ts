@@ -46,22 +46,24 @@ function install(router: VueRouterLike, track: TrackTeardown): void {
     // tears down the ones already attached instead of leaking them.
     track(() => nav.unregister());
 
-    const routeNameFor = (loc: VueRouteLocationLike): RouteName =>
-        routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
+    function routeNameFor(loc: VueRouteLocationLike): RouteName {
+        return routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
+    }
 
     // `resolve` is what puts the app's base path or `#` prefix back on: `fullPath` has them
     // stripped, so an app served from `/app/` would report `/product/p01` for the real
     // `/app/product/p01`.
-    const hrefOf = (loc: VueRouteLocationLike): string | undefined => {
+    function hrefOf(loc: VueRouteLocationLike): string | undefined {
         const path = loc.fullPath ?? loc.path;
         if (!path) {
             return undefined;
         }
         return resolveHref(() => router.resolve?.(path)?.href, path);
-    };
+    }
 
-    const isInitial = (from: VueRouteLocationLike | undefined): boolean =>
-        !from || !from.matched || from.matched.length === 0; // START_LOCATION
+    function isInitial(from: VueRouteLocationLike | undefined): boolean {
+        return !from || !from.matched || from.matched.length === 0; // START_LOCATION
+    }
 
     let sawInitial = false;
     let inFlight = false;
