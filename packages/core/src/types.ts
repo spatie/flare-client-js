@@ -183,7 +183,14 @@ export type BufferedLog = {
 
 // Tracing
 
-export type SpanStatusCode = 0 | 1 | 2; // Unset | Ok | Error (OTel)
+/** OTel status codes. Wire format: these numbers ship in the span envelope, so the values never change. */
+export const SpanStatusCode = {
+    Unset: 0,
+    Ok: 1,
+    Error: 2,
+} as const;
+
+export type SpanStatusCode = (typeof SpanStatusCode)[keyof typeof SpanStatusCode];
 
 export type SpanStatus = { code: SpanStatusCode; message?: string };
 
@@ -251,7 +258,7 @@ export type OtelSpan = {
     name: string;
     startTimeUnixNano: number;
     endTimeUnixNano: number;
-    status: { code: number; message?: string };
+    status: SpanStatus;
     attributes: KeyValue[];
     events: BufferedSpanEvent[];
     droppedAttributesCount: number;

@@ -5,6 +5,7 @@ import {
     redactUrlQuery,
     type Span,
     type SpanOptions,
+    SpanStatusCode,
 } from '@flareapp/core';
 
 import { shouldPropagate } from './propagation';
@@ -88,14 +89,14 @@ export function requestSpanAttributes(method: string, resolved: URL | null, url:
 export function endHttpRequestSpan(span: Span, status: number, opts?: { zeroIsError?: boolean }): void {
     span.setAttribute('http.response.status_code', status);
     if (status >= 500 || (opts?.zeroIsError && status === 0)) {
-        span.setStatus({ code: 2 });
+        span.setStatus({ code: SpanStatusCode.Error });
     }
     span.end();
 }
 
 /** Error-finish shared by fetch and XHR: mark the span an error and end it. */
 export function finishHttpSpanError(span: Span, error: unknown): void {
-    span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
+    span.setStatus({ code: SpanStatusCode.Error, message: error instanceof Error ? error.message : String(error) });
     span.end();
 }
 

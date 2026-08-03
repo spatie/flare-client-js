@@ -1,4 +1,4 @@
-import { type Span } from '@flareapp/core';
+import { type Span, SpanStatusCode } from '@flareapp/core';
 
 import { createPatcher } from './createPatcher';
 import {
@@ -9,6 +9,10 @@ import {
     traceparentFor,
 } from './httpRequestSpan';
 import { BrowserSpanType } from './spanTypes';
+
+// XMLHttpRequest.DONE, spelled out: the unit suite runs in the node environment against a hand-built
+// XHR stand-in, where the global constructor does not exist.
+const XHR_DONE = 4;
 
 type XhrOpen = XMLHttpRequest['open'];
 type XhrSend = XMLHttpRequest['send'];
@@ -55,7 +59,7 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
                 this.removeEventListener('readystatechange', prior.onDone);
             }
             try {
-                prior.span.setStatus({ code: 2 }); // aborted: no HTTP response was received
+                prior.span.setStatus({ code: SpanStatusCode.Error }); // aborted: no HTTP response was received
                 prior.span.end();
             } catch {
                 // Instrumentation must never throw into the host app.
@@ -143,7 +147,7 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         }
 
         const onDone = (): void => {
-            if (this.readyState !== 4) {
+            if (this.readyState !== XHR_DONE) {
                 return;
             }
             this.removeEventListener('readystatechange', onDone);

@@ -21,7 +21,6 @@ export type {
     SpanEvent,
     SpanOptions,
     SpanStatus,
-    SpanStatusCode,
     StackFrame,
     TracesEnvelope,
     TracesSampler,
@@ -52,6 +51,7 @@ export {
 export type { RejectionReporter, SafeCloneOptions, SdkTaggable } from './util';
 
 export { FrameworkName } from './framework';
+export { SpanStatusCode } from './types';
 
 export { Api } from './api';
 
@@ -67,6 +67,7 @@ export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';
 export {
     Tracer,
     defaultNowNano,
+    DEFAULT_MAX_LIVE_TRACES,
     InMemoryActiveSpanHolder,
     buildTracesEnvelope,
     buildTraceparent,

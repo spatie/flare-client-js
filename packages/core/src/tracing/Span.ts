@@ -1,4 +1,4 @@
-import type { Attributes, AttributeValue, Span, SpanStatus } from '../types';
+import { SpanStatusCode, type Attributes, type AttributeValue, type Span, type SpanStatus } from '../types';
 
 export type SpanInit = {
     traceId: string;
@@ -35,7 +35,7 @@ export class SpanImpl implements Span {
     readonly startTimeUnixNano: number;
     readonly scopeAttributes: Attributes;
     endTimeUnixNano = 0;
-    status: SpanStatus = { code: 0 };
+    status: SpanStatus = { code: SpanStatusCode.Unset };
     attributes: Attributes = {};
     droppedAttributesCount = 0;
     events: RawEvent[] = [];

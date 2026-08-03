@@ -1,4 +1,4 @@
-export { Tracer, defaultNowNano } from './Tracer';
+export { Tracer, defaultNowNano, DEFAULT_MAX_LIVE_TRACES } from './Tracer';
 export type { TracerDeps } from './Tracer';
 export { SpanBuffer } from './SpanBuffer';
 export type { SpanBufferDeps } from './SpanBuffer';

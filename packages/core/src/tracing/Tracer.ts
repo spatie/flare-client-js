@@ -1,6 +1,7 @@
 import type { Api } from '../api';
 import type { FlushScheduler } from '../logging';
 import { attributesToOpenTelemetry } from '../logging/otel';
+import { SpanStatusCode } from '../types';
 import type {
     Attributes,
     BufferedSpan,
@@ -83,6 +84,9 @@ function evictLruIfNew<V>(map: Map<string, V>, key: string, cap: number): void {
 
 const MAX_CLOSED_TRACES = 100;
 
+/** Bounded backstop for the live TraceState map: an app that never ends spans must not grow it forever. */
+export const DEFAULT_MAX_LIVE_TRACES = 1000;
+
 export type TracerDeps = {
     api: Api;
     getConfig: () => Config;
@@ -95,7 +99,7 @@ export type TracerDeps = {
     activeSpanHolder?: ActiveSpanHolder;
     now?: () => number;
     rng?: () => number;
-    maxLiveTraces?: number; // bounded backstop; default 1000
+    maxLiveTraces?: number;
 };
 
 export class Tracer {
@@ -124,7 +128,7 @@ export class Tracer {
         this.holder = deps.activeSpanHolder ?? new InMemoryActiveSpanHolder();
         this.now = deps.now ?? defaultNowNano;
         this.rng = deps.rng ?? Math.random;
-        this.maxLiveTraces = deps.maxLiveTraces ?? 1000;
+        this.maxLiveTraces = deps.maxLiveTraces ?? DEFAULT_MAX_LIVE_TRACES;
     }
 
     getActiveSpan(): Span | undefined {
@@ -176,7 +180,10 @@ export class Tracer {
         const span = this.startSpan(name, opts);
 
         const finishError = (error: unknown): void => {
-            span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
+            span.setStatus({
+                code: SpanStatusCode.Error,
+                message: error instanceof Error ? error.message : String(error),
+            });
             span.end();
         };
 
