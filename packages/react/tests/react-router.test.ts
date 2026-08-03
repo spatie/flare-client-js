@@ -12,17 +12,17 @@ vi.mock('@flareapp/js/browser', async (importOriginal) =>
 );
 
 import { routeNameFromMatches, traceReactRouter } from '../src/react-router';
-import type { RRMatch, RRRouterState } from '../src/vendor/reactRouterTypes';
+import type { ReactRouterMatchLike, ReactRouterStateLike } from '../src/vendor/reactRouterTypes';
 
-const PRODUCT_MATCHES: RRMatch[] = [
+const PRODUCT_MATCHES: ReactRouterMatchLike[] = [
     { route: { path: '/' }, pathname: '/' },
     { route: { path: 'product/:id' }, pathname: '/product/p01' },
 ];
 
-function fakeRouter(initial: Partial<RRRouterState> = {}) {
-    let cb: ((s: RRRouterState) => void) | null = null;
+function fakeRouter(initial: Partial<ReactRouterStateLike> = {}) {
+    let cb: ((s: ReactRouterStateLike) => void) | null = null;
     const unsub = vi.fn();
-    const state: RRRouterState = {
+    const state: ReactRouterStateLike = {
         location: { pathname: '/' },
         matches: [],
         navigation: { state: 'idle' },
@@ -31,7 +31,7 @@ function fakeRouter(initial: Partial<RRRouterState> = {}) {
     };
     const router = {
         state,
-        subscribe: vi.fn((fn: (s: RRRouterState) => void) => {
+        subscribe: vi.fn((fn: (s: ReactRouterStateLike) => void) => {
             cb = fn;
             return unsub;
         }),
@@ -40,7 +40,7 @@ function fakeRouter(initial: Partial<RRRouterState> = {}) {
         router,
         unsub,
         // Mutate the shared state object (as RR does) then notify.
-        emit: (next: Partial<RRRouterState>) => {
+        emit: (next: Partial<ReactRouterStateLike>) => {
             Object.assign(state, next);
             cb?.(state);
         },

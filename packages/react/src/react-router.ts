@@ -11,14 +11,19 @@ import {
     type TrackTeardown,
 } from '@flareapp/js/browser';
 
-import type { RRDataRouter, RRLocation, RRMatch, RRRouterState } from './vendor/reactRouterTypes';
+import type {
+    ReactRouterLike,
+    ReactRouterLocationLike,
+    ReactRouterMatchLike,
+    ReactRouterStateLike,
+} from './vendor/reactRouterTypes';
 
 /**
  * Rebuild the parameterized template (`/product/:id`) by joining each match's declared `route.path`.
  * Follows Sentry's getNormalizedName, but reads the router's already-resolved `state.matches` rather
  * than matching again.
  */
-export function routeNameFromMatches(matches: RRMatch[] | undefined): string | undefined {
+export function routeNameFromMatches(matches: ReactRouterMatchLike[] | undefined): string | undefined {
     if (!matches || matches.length === 0) {
         return undefined;
     }
@@ -48,7 +53,7 @@ export function routeNameFromMatches(matches: RRMatch[] | undefined): string | u
  * unsubscribes and unregisters. Safe to call before or after tracing is enabled; no-ops when off.
  * Calling it twice on the same router replaces the first instrumentation.
  */
-export function traceReactRouter(router: RRDataRouter): () => void {
+export function traceReactRouter(router: ReactRouterLike): () => void {
     if (typeof router?.subscribe !== 'function') {
         return () => {}; // not a router: do nothing
     }
@@ -56,19 +61,21 @@ export function traceReactRouter(router: RRDataRouter): () => void {
     return instrumentOnce(router, (track) => install(router, track));
 }
 
-function install(router: RRDataRouter, track: TrackTeardown): void {
+function install(router: ReactRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
 
-    const routeNameFor = (state: RRRouterState): RouteName =>
+    const routeNameFor = (state: ReactRouterStateLike): RouteName =>
         routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
 
     // `createHref` is what puts the router's `basename` back on, and what turns a hash router's
     // location into the `#`-prefixed URL the address bar actually shows. `location.pathname` has
     // both stripped.
-    const hrefOf = (loc: RRLocation): string | undefined => resolveHref(() => router.createHref?.(loc), keyOf(loc));
+    const hrefOf = (loc: ReactRouterLocationLike): string | undefined =>
+        resolveHref(() => router.createHref?.(loc), keyOf(loc));
 
-    const keyOf = (loc: RRLocation): string => (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
+    const keyOf = (loc: ReactRouterLocationLike): string =>
+        (loc.pathname || '') + (loc.search || '') + (loc.hash || '');
 
     let sawInitialSettle = false;
     let inFlight = false;
@@ -87,7 +94,7 @@ function install(router: RRDataRouter, track: TrackTeardown): void {
         // never break the host on wiring
     }
 
-    const onState = (state: RRRouterState): void => {
+    const onState = (state: ReactRouterStateLike): void => {
         // Until RR reports `initialized`, every fire belongs to the pageload root; open no navigation root.
         if (!sawInitialSettle) {
             // Tracked on every fire, not only the ones that produce a name. A pre-init fire that lands
@@ -143,10 +150,10 @@ function install(router: RRDataRouter, track: TrackTeardown): void {
 }
 
 export type {
-    RRDataRouter,
-    RRLocation,
-    RRMatch,
-    RRNavigation,
-    RRRoute,
-    RRRouterState,
+    ReactRouterLike,
+    ReactRouterLocationLike,
+    ReactRouterMatchLike,
+    ReactRouterNavigationLike,
+    ReactRouterRouteLike,
+    ReactRouterStateLike,
 } from './vendor/reactRouterTypes';

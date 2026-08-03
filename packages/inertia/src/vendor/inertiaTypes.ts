@@ -1,6 +1,9 @@
 // Minimal duck-typed shapes for Inertia's global event API. Vendored rather than imported so the
 // package carries no @inertiajs/* dependency and no coupling to Inertia's release cadence. Only the
 // fields the integration actually reads are declared. Mirrors packages/vue/src/vendor/vueRouterTypes.ts.
+// Read from Inertia v2's router event API. No @inertiajs package is installed anywhere in this repo,
+// so there is no lockfile pin for an exact minor/patch; the README's Requirements section is the
+// evidence for v2 (v1 lacks the prefetch/async visit flags InertiaVisitLike relies on).
 
 /** The page object Inertia ships with every response. `component` is the page component name
  *  ('Products/Show'), `url` a relative string ('/products/42'). */

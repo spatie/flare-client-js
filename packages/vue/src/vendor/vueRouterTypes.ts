@@ -1,6 +1,7 @@
 // Structural subset of vue-router the tracing integration reads. Vendored (not imported) so this needs
-// no runtime vue-router dependency and non-router consumers of @flareapp/vue type-check cleanly. Verify
-// against the peer floor (vue-router 4.0.0) if these shapes drift.
+// no runtime vue-router dependency and non-router consumers of @flareapp/vue type-check cleanly. Read
+// from vue-router 5.x (installed 5.1.0, peer floor ^4.0.0 || ^5.0.0); verify against that floor if
+// these shapes drift.
 
 export type VueRouteLocationLike = {
     path: string;

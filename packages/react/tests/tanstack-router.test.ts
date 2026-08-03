@@ -12,11 +12,14 @@ vi.mock('@flareapp/js/browser', async (importOriginal) =>
 );
 
 import { STALE_NAVIGATION_TIMEOUT_MS, traceTanStackRouter } from '../src/tanstack-router';
-import type { TsrMatch } from '../src/vendor/tanstackRouterTypes';
+import type { TanStackMatchLike } from '../src/vendor/tanstackRouterTypes';
 
-const PRODUCT_MATCHES: TsrMatch[] = [{ routeId: '__root__' }, { routeId: '/product/$id', fullPath: '/product/$id' }];
+const PRODUCT_MATCHES: TanStackMatchLike[] = [
+    { routeId: '__root__' },
+    { routeId: '/product/$id', fullPath: '/product/$id' },
+];
 
-function fakeRouter(opts: { matches?: TsrMatch[]; location?: { pathname: string; search: unknown } } = {}) {
+function fakeRouter(opts: { matches?: TanStackMatchLike[]; location?: { pathname: string; search: unknown } } = {}) {
     const subs: Record<string, (e: unknown) => void> = {};
     const unsub = { onBeforeLoad: vi.fn(), onResolved: vi.fn() };
     const router = {

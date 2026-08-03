@@ -11,7 +11,7 @@ import {
     type TrackTeardown,
 } from '@flareapp/js/browser';
 
-import type { TsrLocation, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
+import type { TanStackLocationLike, TanStackNavEventLike, TanStackRouterLike } from './vendor/tanstackRouterTypes';
 
 /**
  * How long a held navigation root waits for `onResolved` before settling itself. Exported so the suite
@@ -27,7 +27,7 @@ export const STALE_NAVIGATION_TIMEOUT_MS = 5_000;
  * twice on the same router replaces the first instrumentation rather than
  * stacking a second set of subscriptions.
  */
-export function traceTanStackRouter(router: TsrRouter): () => void {
+export function traceTanStackRouter(router: TanStackRouterLike): () => void {
     if (typeof router?.subscribe !== 'function') {
         return () => {}; // not a router: do nothing
     }
@@ -35,19 +35,19 @@ export function traceTanStackRouter(router: TsrRouter): () => void {
     return instrumentOnce(router, (track) => install(router, track));
 }
 
-function install(router: TsrRouter, track: TrackTeardown): void {
+function install(router: TanStackRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
 
     // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so
     // an app served from `/app/` has it stripped from `href` but kept on `publicHref`. Falling back
     // to `href` costs the basepath, which is what we reported before, so it never makes things worse.
-    const hrefOf = (loc: TsrLocation): string | undefined =>
+    const hrefOf = (loc: TanStackLocationLike): string | undefined =>
         resolveHref(() => loc.publicHref ?? loc.href, loc.pathname);
 
     // Roots here open without a url of their own (TanStack reports the destination only as a parsed
     // location), so without the url a nav root would keep the url of the page it left.
-    const routeNameFor = (loc: TsrLocation): RouteName =>
+    const routeNameFor = (loc: TanStackLocationLike): RouteName =>
         routeName(
             () => {
                 const matches = router.matchRoutes(loc.pathname, loc.search, { preload: false, throwOnError: false });
@@ -73,7 +73,7 @@ function install(router: TsrRouter, track: TrackTeardown): void {
     // layout effect. A RouterProvider unmounted mid-navigation therefore never releases the hold, so
     // recover on a timer rather than letting the root sit suppressed until the 30s finalTimeout.
     let inFlight = false;
-    let destination: TsrLocation | null = null;
+    let destination: TanStackLocationLike | null = null;
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const clearStaleTimer = (): void => {
@@ -83,7 +83,7 @@ function install(router: TsrRouter, track: TrackTeardown): void {
         }
     };
 
-    const settle = (location: TsrLocation): void => {
+    const settle = (location: TanStackLocationLike): void => {
         clearStaleTimer();
         inFlight = false;
         destination = null;
@@ -98,7 +98,7 @@ function install(router: TsrRouter, track: TrackTeardown): void {
     track(
         router.subscribe(
             'onBeforeLoad',
-            insulate((event: TsrNavEvent) => {
+            insulate((event: TanStackNavEventLike) => {
                 // initial pageload (handled via onResolved)
                 if (event.fromLocation === undefined) {
                     return;
@@ -140,7 +140,7 @@ function install(router: TsrRouter, track: TrackTeardown): void {
     track(
         router.subscribe(
             'onResolved',
-            insulate((event: TsrNavEvent) => {
+            insulate((event: TanStackNavEventLike) => {
                 if (event.fromLocation === undefined) {
                     nav.setActiveRouteName(routeNameFor(event.toLocation)); // one-shot pageload correction
                     return;
@@ -153,4 +153,9 @@ function install(router: TsrRouter, track: TrackTeardown): void {
     );
 }
 
-export type { TsrLocation, TsrMatch, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
+export type {
+    TanStackLocationLike,
+    TanStackMatchLike,
+    TanStackNavEventLike,
+    TanStackRouterLike,
+} from './vendor/tanstackRouterTypes';
