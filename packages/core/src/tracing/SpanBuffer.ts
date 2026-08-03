@@ -1,5 +1,6 @@
 import type { Api } from '../api';
 import type { FlushFn, FlushScheduler } from '../logging';
+import { buildResourceIdentity } from '../telemetry';
 import type { Attributes, BufferedSpan, Config, Framework, SdkInfo, TracesEnvelope } from '../types';
 import { assertKey } from '../util';
 import { buildTracesEnvelope, emptyTracesEnvelopeBytes, otelSpanBytes } from './envelope';
@@ -210,31 +211,12 @@ export class SpanBuffer {
     }
 
     private resourceForFlush(): Attributes {
-        const config = this.deps.getConfig();
-        const sdk = this.deps.getSdkInfo();
-        const framework = this.deps.getFramework();
-        const identity: Attributes = {
-            'telemetry.sdk.language': 'javascript',
-            'telemetry.sdk.name': sdk.name,
-            'telemetry.sdk.version': sdk.version,
-            'flare.language.name': 'javascript',
-        };
-        if (config.serviceName) {
-            identity['service.name'] = config.serviceName;
-        }
-        if (config.version) {
-            identity['service.version'] = config.version;
-        }
-        if (config.stage) {
-            identity['service.stage'] = config.stage;
-        }
-        if (framework?.name) {
-            identity['flare.framework.name'] = framework.name;
-        }
-        if (framework?.version) {
-            identity['flare.framework.version'] = framework.version;
-        }
-        return { ...this.deps.getResourceAttributes(), ...identity };
+        return buildResourceIdentity(
+            this.deps.getResourceAttributes(),
+            this.deps.getConfig(),
+            this.deps.getSdkInfo(),
+            this.deps.getFramework(),
+        );
     }
 
     private clearTimer(): void {

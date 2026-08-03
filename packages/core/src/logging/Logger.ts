@@ -1,4 +1,5 @@
 import type { Api } from '../api';
+import { buildResourceIdentity } from '../telemetry';
 import type { Attributes, BufferedLog, Config, Framework, LogsEnvelope, MessageLevel, SdkInfo } from '../types';
 import { assertKey, flatJsonStringify } from '../util';
 import { buildLogsEnvelope } from './envelope';
@@ -210,31 +211,12 @@ export class Logger {
     }
 
     private resourceForFlush(): Attributes {
-        const config = this.deps.getConfig();
-        const sdk = this.deps.getSdkInfo();
-        const framework = this.deps.getFramework();
-        const identity: Attributes = {
-            'telemetry.sdk.language': 'javascript',
-            'telemetry.sdk.name': sdk.name,
-            'telemetry.sdk.version': sdk.version,
-            'flare.language.name': 'javascript',
-        };
-        if (config.serviceName) {
-            identity['service.name'] = config.serviceName;
-        }
-        if (config.version) {
-            identity['service.version'] = config.version;
-        }
-        if (config.stage) {
-            identity['service.stage'] = config.stage;
-        }
-        if (framework?.name) {
-            identity['flare.framework.name'] = framework.name;
-        }
-        if (framework?.version) {
-            identity['flare.framework.version'] = framework.version;
-        }
-        return { ...this.resourceAttributes, ...identity };
+        return buildResourceIdentity(
+            this.resourceAttributes,
+            this.deps.getConfig(),
+            this.deps.getSdkInfo(),
+            this.deps.getFramework(),
+        );
     }
 
     private clearTimer(): void {
