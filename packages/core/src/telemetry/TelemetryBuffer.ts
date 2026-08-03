@@ -136,10 +136,15 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
             return;
         }
 
-        // Covers the non-keepalive path only: a throwing resource-attribute getter here would otherwise escape
-        // the timer into window.onerror. The keepalive path already sizes the resource block above, before this
-        // try opens, so the same throw there still escapes into visibilitychange until a drain-then-guard
-        // redesign lands.
+        // resourceForFlush() above runs before the drain and outside this try, on both paths, so a throwing
+        // resource-attribute getter there escapes uncaught (window.onerror for a timer-driven flush, the
+        // visibilitychange handler for a keepalive one). The keepalive path adds its own pre-drain exposure on
+        // top: packForKeepalive calls policy.emptyEnvelopeBytes, and per candidate policy.recordBytes, also
+        // before the entries are drained.
+        //
+        // Widening this try to also cover those calls is the wrong fix: the buffer would still be undrained
+        // when it throws, so a poison-pill attribute retries forever instead of throwing once. Closing this
+        // needs a drain-then-guard redesign, deliberately out of scope here.
         try {
             this.policy.send(
                 this.policy.buildEnvelope(
