@@ -233,13 +233,16 @@ npm run release -- --dry-run # preview without changing anything
 ### Pre-flight before running `release-it`
 
 `release-it` only verifies a clean tree and the branch. It does not run type-checks, builds, or cross-package tests.
-Before running `npm run release`, do these from the repo root:
+Before running `npm run release`, do these from the repo root, in this order:
 
 ```bash
+npm run build                # confirm tsdown builds clean
 npm run typescript           # type-check all packages
 npm run test                 # vitest across workspaces
-npm run build                # confirm tsdown builds clean
 ```
+
+`npm run typescript` needs a prior build because most packages resolve their siblings through
+built output, not source.
 
 If any of those fail, fix first; do not release.
 
