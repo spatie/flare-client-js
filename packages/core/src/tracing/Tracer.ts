@@ -50,8 +50,12 @@ export const defaultNowNano = (): number => {
     return Math.round(ms * 1e6);
 };
 
-export type SpanLifecycleEvent = { phase: 'start' | 'end'; span: Span };
+export type SpanPhase = 'start' | 'end';
+export type SpanLifecycleEvent = { phase: SpanPhase; span: Span };
 export type SpanLifecycleListener = (event: SpanLifecycleEvent) => void;
+
+/** A trace picked up from an inbound `traceparent`, pending its next root span. */
+export type TraceContinuation = { traceId: string; parentSpanId: string; sampled: boolean };
 
 type TraceState = {
     traceId: string;
@@ -112,7 +116,7 @@ export class Tracer {
     private rng: () => number;
     private maxLiveTraces: number;
     private epoch = 0;
-    private pendingContinuation: { traceId: string; parentSpanId: string; sampled: boolean } | null = null;
+    private pendingContinuation: TraceContinuation | null = null;
     private spanListeners = new Set<SpanLifecycleListener>();
 
     constructor(private deps: TracerDeps) {
@@ -147,7 +151,7 @@ export class Tracer {
         };
     }
 
-    private emitSpanEvent(phase: 'start' | 'end', span: Span): void {
+    private emitSpanEvent(phase: SpanPhase, span: Span): void {
         for (const fn of this.spanListeners) {
             try {
                 fn({ phase, span });
@@ -280,7 +284,7 @@ export class Tracer {
         name: string,
         opts: SpanOptions,
         config: Config,
-        continuation: { traceId: string; parentSpanId: string; sampled: boolean } | null,
+        continuation: TraceContinuation | null,
     ): { traceId: string; parentSpanId: string | null; state: TraceState } {
         // forceRoot: never inherit the ambient active span. A navigation root started inside withSpan(...) must not
         // become a mid-trace child.

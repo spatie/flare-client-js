@@ -51,6 +51,8 @@ export {
 export type { RejectionReporter, SafeCloneOptions, SdkTaggable } from './util';
 
 export { FrameworkName } from './framework';
+export { BrowserSpanType } from './spanTypes';
+export type { SpanTypeName } from './spanTypes';
 export { SpanStatusCode } from './types';
 
 export { Api } from './api';
@@ -74,7 +76,7 @@ export {
     parseTraceparent,
     spanId,
 } from './tracing';
-export type { TracerDeps, ActiveSpanHolder } from './tracing';
+export type { TracerDeps, ActiveSpanHolder, SpanPhase, SpanLifecycleEvent, SpanLifecycleListener } from './tracing';
 
 export { NullFileReader } from './stacktrace/NullFileReader';
 export type { FileReader } from './stacktrace/fileReader';

@@ -1,4 +1,5 @@
 import type { FrameworkName } from './framework';
+import type { SpanTypeName } from './spanTypes';
 
 export type MessageLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
 
@@ -198,7 +199,7 @@ export type SpanOptions = {
     parent?: Span | { traceId: string; spanId: string };
     attributes?: Attributes;
     startTimeUnixNano?: number;
-    spanType?: string;
+    spanType?: SpanTypeName;
     /**
      * Start this span as a new trace root, ignoring any ambient active span, so a
      * root opened inside `withSpan(...)` does not become a mid-trace child.
@@ -225,7 +226,7 @@ export type SamplingContext = {
     name: string;
     parentSampled?: boolean;
     attributes: Attributes;
-    spanType?: string;
+    spanType?: SpanTypeName;
 };
 
 export type TracesSampler = (ctx: SamplingContext) => number | boolean;

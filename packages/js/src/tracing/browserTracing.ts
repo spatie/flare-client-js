@@ -2,7 +2,7 @@ import { defaultNowNano, type Config, type Span, type SpanOptions, type Tracer }
 
 import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
 import { fill, unfill } from './fill';
-import { IdleRootController, type IdleTimeouts } from './IdleRootController';
+import { DEFAULT_IDLE_TIMEOUTS, IdleRootController, type IdleTimeouts } from './IdleRootController';
 import { currentPath, type NavigationSource, type RouteName } from './navigation';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 import { BrowserSpanType } from './spanTypes';
@@ -34,9 +34,9 @@ let pendingRouteNameOwner: object | null = null;
 
 function resolveTimeouts(config: Config): IdleTimeouts {
     return {
-        idleTimeout: config.idleTimeout ?? 1000,
-        finalTimeout: config.finalTimeout ?? 30000,
-        childSpanTimeout: config.childSpanTimeout ?? 15000,
+        idleTimeout: config.idleTimeout ?? DEFAULT_IDLE_TIMEOUTS.idleTimeout,
+        finalTimeout: config.finalTimeout ?? DEFAULT_IDLE_TIMEOUTS.finalTimeout,
+        childSpanTimeout: config.childSpanTimeout ?? DEFAULT_IDLE_TIMEOUTS.childSpanTimeout,
     };
 }
 

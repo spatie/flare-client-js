@@ -1,4 +1,4 @@
-import type { Span } from '@flareapp/core';
+import type { Span, SpanLifecycleListener, SpanPhase } from '@flareapp/core';
 
 export type IdleTimeouts = {
     idleTimeout: number;
@@ -6,9 +6,16 @@ export type IdleTimeouts = {
     childSpanTimeout: number;
 };
 
+/** Browser defaults for the three idle-root timeouts, in ms. Overridable per Config. */
+export const DEFAULT_IDLE_TIMEOUTS: IdleTimeouts = {
+    idleTimeout: 1000,
+    finalTimeout: 30000,
+    childSpanTimeout: 15000,
+};
+
 export type IdleRootDeps = {
     root: Span;
-    addSpanListener: (fn: (e: { phase: 'start' | 'end'; span: Span }) => void) => () => void;
+    addSpanListener: (fn: SpanLifecycleListener) => () => void;
     setActiveRoot: (span: Span | undefined) => void;
     now: () => number; // unix nanos
     setTimeout: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
@@ -87,7 +94,7 @@ export class IdleRootController {
         this.armIdle();
     }
 
-    private onSpanEvent(phase: 'start' | 'end', span: Span): void {
+    private onSpanEvent(phase: SpanPhase, span: Span): void {
         if (this.ended) {
             return;
         }
