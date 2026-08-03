@@ -9,6 +9,11 @@ type Callbacks = {
  * Owns the `uncaughtException` and `unhandledRejection` listeners that feed fatal failures to Flare.
  * Separate from `NodeFlare` because it is pure `process`-event plumbing with no Flare semantics, which
  * keeps it trivially testable.
+ *
+ * Deliberately kept separate from electron's ProcessHandlerManager, not a shared module. @flareapp/electron
+ * does not depend on @flareapp/node, and the only package both import is @flareapp/core, which ships in
+ * every browser bundle and touches `process` only behind a typeof guard. A shared manager belongs in a new
+ * package, not in core, and one method does not pay for one.
  */
 export class ProcessHandlerManager {
     private uncaughtHandler: ((err: unknown, origin: string) => void) | null = null;
@@ -64,9 +69,10 @@ export class ProcessHandlerManager {
     ): void {
         const current = get();
         const wants = mode !== 'off';
+        const attached = current !== null;
 
-        if (wants === (current !== null)) {
-            return;
+        if (wants === attached) {
+            return; // already in the desired state
         }
         if (!wants) {
             process.off(event, current as any);
