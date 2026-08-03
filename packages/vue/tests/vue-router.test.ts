@@ -8,10 +8,9 @@ const nav = vi.hoisted(() => ({
     unregister: vi.fn(),
 }));
 const registerNavigationSource = vi.hoisted(() => vi.fn(() => nav));
-vi.mock('@flareapp/js/browser', async (importOriginal) => ({
-    ...(await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
-    registerNavigationSource,
-}));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal(), registerNavigationSource),
+);
 
 import { traceVueRouter } from '../src/traceVueRouter';
 

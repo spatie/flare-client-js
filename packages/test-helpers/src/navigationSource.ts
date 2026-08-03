@@ -7,6 +7,9 @@ export type FakeNavigationSource = {
     unregister: ReturnType<typeof vi.fn>;
 };
 
+/** The `browserSeamMock` return shape: the real module's exports, plus a known, typed registration spy. */
+export type BrowserSeamMock = Record<string, unknown> & { registerNavigationSource: ReturnType<typeof vi.fn> };
+
 /**
  * The `@flareapp/js/browser` mock used by every nav-seam suite. Only the seam itself is faked; pass
  * the real module as `original` and everything else stays real, so a suite cannot pass against a
@@ -16,12 +19,20 @@ export type FakeNavigationSource = {
  *
  *     vi.mock('@flareapp/js/browser', async (importOriginal) =>
  *         (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()));
+ *
+ * Pass a hoisted spy as the third argument when a test needs registration itself assertable, not
+ * just what the returned handle is used for:
+ *
+ *     const registerNavigationSource = vi.hoisted(() => vi.fn(() => nav));
+ *     vi.mock('@flareapp/js/browser', async (importOriginal) =>
+ *         (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal(), registerNavigationSource));
  */
-export function browserSeamMock(nav: FakeNavigationSource, original: Record<string, unknown>): Record<string, unknown> {
-    return {
-        ...original,
-        registerNavigationSource: vi.fn(() => nav),
-    };
+export function browserSeamMock(
+    nav: FakeNavigationSource,
+    original: Record<string, unknown>,
+    registerNavigationSource: ReturnType<typeof vi.fn> = vi.fn(() => nav),
+): BrowserSeamMock {
+    return { ...original, registerNavigationSource };
 }
 
 /**

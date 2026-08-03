@@ -11,7 +11,7 @@ import {
     startHttpRequestSpan,
     traceparentFor,
 } from '../src/tracing/httpRequestSpan';
-import { fakeSpan } from './helpers';
+import { fakeRecordingSpan } from './helpers';
 
 const ORIGIN = 'https://app.example';
 const config = {
@@ -66,7 +66,7 @@ describe('httpRequestSpan helpers', () => {
 
     describe('endHttpRequestSpan', () => {
         it('records the status code and leaves status Unset on a 2xx', () => {
-            const { span, calls } = fakeSpan();
+            const { span, calls } = fakeRecordingSpan();
             endHttpRequestSpan(span, 204);
             expect(calls.attrs['http.response.status_code']).toBe(204);
             expect(calls.status).toBeUndefined();
@@ -74,21 +74,21 @@ describe('httpRequestSpan helpers', () => {
         });
 
         it('marks an error status on >= 500', () => {
-            const { span, calls } = fakeSpan();
+            const { span, calls } = fakeRecordingSpan();
             endHttpRequestSpan(span, 503);
             expect(calls.status).toEqual({ code: 2 });
             expect(calls.ended).toBe(true);
         });
 
         it('status 0 without zeroIsError is NOT an error (opaque no-cors fetch response)', () => {
-            const { span, calls } = fakeSpan();
+            const { span, calls } = fakeRecordingSpan();
             endHttpRequestSpan(span, 0);
             expect(calls.attrs['http.response.status_code']).toBe(0);
             expect(calls.status).toBeUndefined();
         });
 
         it('status 0 WITH zeroIsError is an error (XHR network/CORS failure)', () => {
-            const { span, calls } = fakeSpan();
+            const { span, calls } = fakeRecordingSpan();
             endHttpRequestSpan(span, 0, { zeroIsError: true });
             expect(calls.status).toEqual({ code: 2 });
         });
@@ -96,14 +96,14 @@ describe('httpRequestSpan helpers', () => {
 
     describe('finishHttpSpanError', () => {
         it('maps an Error to a code:2 status carrying its message', () => {
-            const { span, calls } = fakeSpan();
+            const { span, calls } = fakeRecordingSpan();
             finishHttpSpanError(span, new Error('boom'));
             expect(calls.status).toEqual({ code: 2, message: 'boom' });
             expect(calls.ended).toBe(true);
         });
 
         it('maps a non-Error value via String()', () => {
-            const { span, calls } = fakeSpan();
+            const { span, calls } = fakeRecordingSpan();
             finishHttpSpanError(span, 'nope');
             expect(calls.status).toEqual({ code: 2, message: 'nope' });
             expect(calls.ended).toBe(true);
@@ -112,7 +112,7 @@ describe('httpRequestSpan helpers', () => {
 
     describe('traceparentFor', () => {
         it('returns a traceparent header value when the URL is propagation-eligible', () => {
-            const { span } = fakeSpan();
+            const { span } = fakeRecordingSpan();
             const url = 'https://app.example/api/x';
             expect(traceparentFor(span, safeAbsolute(url, ORIGIN), url, ORIGIN, config)).toBe(
                 `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`,
@@ -120,7 +120,7 @@ describe('httpRequestSpan helpers', () => {
         });
 
         it('returns null when shouldPropagate rejects the URL (cross-origin, no targets)', () => {
-            const { span } = fakeSpan();
+            const { span } = fakeRecordingSpan();
             const url = 'https://other.example/api';
             expect(traceparentFor(span, safeAbsolute(url, ORIGIN), url, ORIGIN, config)).toBeNull();
         });

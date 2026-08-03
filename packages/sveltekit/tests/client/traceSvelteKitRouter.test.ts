@@ -17,8 +17,7 @@ vi.mock('@flareapp/js/browser', async (importOriginal) => {
     const original = (await importOriginal()) as Record<string, unknown>;
     insulate.mockImplementation(original.insulate as (...a: unknown[]) => unknown);
     return {
-        ...(await import('@flareapp/test-helpers')).browserSeamMock(nav, original),
-        registerNavigationSource,
+        ...(await import('@flareapp/test-helpers')).browserSeamMock(nav, original, registerNavigationSource),
         insulate,
     };
 });

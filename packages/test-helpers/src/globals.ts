@@ -15,8 +15,3 @@ export function frozenClock(date: Date = FIXED_TEST_DATE): void {
     vi.useFakeTimers();
     vi.setSystemTime(date);
 }
-
-/** The `{ setSdkInfo, setFramework }` Flare stub used by every framework's identify test. */
-export function fakeIdentity(): { setSdkInfo: Mock; setFramework: Mock } {
-    return { setSdkInfo: vi.fn(), setFramework: vi.fn() };
-}

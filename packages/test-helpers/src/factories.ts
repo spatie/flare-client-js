@@ -1,4 +1,5 @@
 import type { Report } from '@flareapp/core';
+import { type Mock, vi } from 'vitest';
 
 /** A minimal valid Report; override any field per test. Mirrors the old inline `minimalReport` literal. */
 export function makeReport(overrides: Partial<Report> = {}): Report {
@@ -11,4 +12,9 @@ export function makeReport(overrides: Partial<Report> = {}): Report {
         attributes: {},
         ...overrides,
     };
+}
+
+/** The `{ setSdkInfo, setFramework }` Flare stub used by every framework's identify test. */
+export function fakeIdentity(): { setSdkInfo: Mock; setFramework: Mock } {
+    return { setSdkInfo: vi.fn(), setFramework: vi.fn() };
 }

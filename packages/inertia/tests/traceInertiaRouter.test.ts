@@ -7,13 +7,12 @@ const nav = vi.hoisted(() => ({
     settleNavigation: vi.fn(),
     unregister: vi.fn(),
 }));
-// Held separately from browserSeamMock's own so registration itself is assertable, not just what the
-// handle is used for. Same shape as packages/vue/tests/vue-router.test.ts.
+// Passed into browserSeamMock so registration itself is assertable, not just what the handle is used
+// for. Same shape as packages/vue/tests/vue-router.test.ts.
 const registerNavigationSource = vi.hoisted(() => vi.fn(() => nav));
-vi.mock('@flareapp/js/browser', async (importOriginal) => ({
-    ...(await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
-    registerNavigationSource,
-}));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal(), registerNavigationSource),
+);
 
 import { traceInertiaRouter } from '../src/traceInertiaRouter';
 import { createFakeInertiaRouter } from './helpers';

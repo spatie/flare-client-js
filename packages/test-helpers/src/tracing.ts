@@ -2,7 +2,7 @@ import type { Span } from '@flareapp/core';
 
 export type FakeSpan = { span: Span; calls: { attrs: Record<string, unknown>; status: unknown; ended: boolean } };
 
-export function fakeSpan(): FakeSpan {
+export function fakeRecordingSpan(): FakeSpan {
     const calls = { attrs: {} as Record<string, unknown>, status: undefined as unknown, ended: false };
     const span: Span = {
         traceId: 'a'.repeat(32),

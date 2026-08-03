@@ -1,10 +1,10 @@
 import type { Config, SpanOptions } from '@flareapp/core';
-import { fakeSpan } from '@flareapp/test-helpers';
+import { fakeRecordingSpan } from '@flareapp/test-helpers';
 import { vi } from 'vitest';
 
 import type { HttpTracer } from '../../src/tracing/httpRequestSpan';
 
-export { fakeSpan };
+export { fakeRecordingSpan };
 
 /**
  * `startSpan` creates a fresh fake span per call (each with its own `calls`), pushing every one's
@@ -12,8 +12,8 @@ export { fakeSpan };
  * and `calls` still point at the first span so single-request tests keep using them unchanged.
  */
 export function makeTracer(overrides: Partial<Config> = {}) {
-    const first = fakeSpan();
-    const spans: Array<ReturnType<typeof fakeSpan>['calls']> = [];
+    const first = fakeRecordingSpan();
+    const spans: Array<ReturnType<typeof fakeRecordingSpan>['calls']> = [];
     const config = {
         enableTracing: true,
         ingestUrl: 'https://ingress.flareapp.io/v1/errors',
@@ -22,7 +22,7 @@ export function makeTracer(overrides: Partial<Config> = {}) {
         ...overrides,
     } as unknown as Config;
     const startSpan = vi.fn((_name: string, _opts?: SpanOptions) => {
-        const { span, calls } = spans.length === 0 ? first : fakeSpan();
+        const { span, calls } = spans.length === 0 ? first : fakeRecordingSpan();
         spans.push(calls);
         return span;
     });
