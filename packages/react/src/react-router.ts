@@ -141,3 +141,12 @@ function install(router: RRDataRouter, track: TrackTeardown): void {
     // the host and drops the registration with it.
     track(router.subscribe(insulate(onState)));
 }
+
+export type {
+    RRDataRouter,
+    RRLocation,
+    RRMatch,
+    RRNavigation,
+    RRRoute,
+    RRRouterState,
+} from './vendor/reactRouterTypes';

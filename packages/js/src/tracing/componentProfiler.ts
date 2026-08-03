@@ -1,6 +1,6 @@
 // Side-effect-free seam shared by @flareapp/react/profiler and the @flareapp/vue mixin. Keeps every
 // reference to the tracer on this side, the same rule registerNavigationSource follows.
-import { defaultNowNano, spanId as makeSpanId } from '@flareapp/core';
+import { defaultNowNano, spanId as makeSpanId, type Attributes } from '@flareapp/core';
 
 import { activeTracingFlare } from './browserTracing';
 import { BrowserSpanType } from './spanTypes';
@@ -43,37 +43,40 @@ export function resolveComponentParent(
     return live;
 }
 
-/**
- * Records only while the reserved root is still the live recording root, and drops the span otherwise.
- * Dropping avoids starting a fresh TraceState for a dead trace, which would re-run the sampler, and
- * avoids adding a child to a root that already shipped.
- */
-export function recordComponentSpan(span: {
+/** What a profiler hands back for one component mount. */
+export type ComponentSpanRecord = {
     name: string;
     spanId: string;
     parent: ComponentTraceContext;
     startTimeUnixNano: number;
     endTimeUnixNano: number;
-    attributes?: Record<string, unknown>;
-}): void {
+    attributes?: Attributes;
+};
+
+/**
+ * Records only while the reserved root is still the live recording root, and drops the span otherwise.
+ * Dropping avoids starting a fresh TraceState for a dead trace, which would re-run the sampler, and
+ * avoids adding a child to a root that already shipped.
+ */
+export function recordComponentSpan(record: ComponentSpanRecord): void {
     try {
         const flare = activeTracingFlare();
         if (!flare) {
             return;
         }
         const root = flare.tracer.getActiveSpan();
-        if (!root || root.traceId !== span.parent.traceId || !root.isRecording) {
+        if (!root || root.traceId !== record.parent.traceId || !root.isRecording) {
             return;
         }
         flare
-            .startSpan(span.name, {
-                spanId: span.spanId,
-                parent: { traceId: span.parent.traceId, spanId: span.parent.parentSpanId },
+            .startSpan(record.name, {
+                spanId: record.spanId,
+                parent: { traceId: record.parent.traceId, spanId: record.parent.parentSpanId },
                 spanType: BrowserSpanType.Component,
-                startTimeUnixNano: span.startTimeUnixNano,
-                attributes: { ...span.attributes, 'flare.component.name': span.name },
+                startTimeUnixNano: record.startTimeUnixNano,
+                attributes: { ...record.attributes, 'flare.component.name': record.name },
             })
-            .end(span.endTimeUnixNano);
+            .end(record.endTimeUnixNano);
     } catch {
         // instrumentation must never throw into the host app
     }

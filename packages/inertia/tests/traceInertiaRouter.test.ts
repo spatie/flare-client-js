@@ -72,8 +72,8 @@ describe('traceInertiaRouter listener lifecycle', () => {
     });
 
     it('is inert for a value that is not an Inertia router', () => {
-        expect(() => traceInertiaRouter({})()).not.toThrow();
-        expect(() => traceInertiaRouter(null)()).not.toThrow();
+        expect(() => traceInertiaRouter({} as never)()).not.toThrow();
+        expect(() => traceInertiaRouter(null as never)()).not.toThrow();
 
         // Registering is not a free act: it takes navigation-root detection away from the built-in
         // History listener for the whole page. A value we cannot drive must not reach it, or an app

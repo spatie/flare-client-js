@@ -59,7 +59,7 @@ function routeNameFor(page: InertiaPageLike | undefined): RouteName {
  * arrives. Call it before Inertia boots, so the initial `navigate` is seen. Returns a cleanup that
  * removes the listeners and unregisters. Does nothing for a non-router value; never throws into the host.
  */
-export function traceInertiaRouter(router: unknown): () => void {
+export function traceInertiaRouter(router: InertiaRouterLike): () => void {
     if (!isInertiaRouter(router)) {
         return () => {}; // not a router: do nothing
     }

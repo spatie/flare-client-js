@@ -72,6 +72,7 @@ export {
     recordComponentSpan,
     resolveComponentParent,
     nowNano,
+    type ComponentSpanRecord,
     type ComponentTraceContext,
 } from './tracing/componentProfiler';
 export { BrowserSpanType } from './tracing/spanTypes';

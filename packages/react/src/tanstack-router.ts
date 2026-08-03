@@ -152,3 +152,5 @@ function install(router: TsrRouter, track: TrackTeardown): void {
         ),
     );
 }
+
+export type { TsrLocation, TsrMatch, TsrNavEvent, TsrRouter } from './vendor/tanstackRouterTypes';
