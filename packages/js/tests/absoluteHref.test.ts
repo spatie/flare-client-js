@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { absoluteHref } from '../src/tracing/absoluteHref';
+import { absoluteHref, absoluteUrl } from '../src/tracing/absoluteHref';
 
 beforeEach(() => {
     window.history.replaceState({}, '', '/');
@@ -37,5 +37,19 @@ describe('absoluteHref', () => {
         expect(absoluteHref('http://[')).toBeUndefined();
         expect(absoluteHref(undefined)).toBeUndefined();
         expect(absoluteHref(null)).toBeUndefined();
+    });
+});
+
+describe('absoluteUrl', () => {
+    it('returns a URL, so the caller gets href and pathname without parsing twice', () => {
+        const url = absoluteUrl('/product/p01?tab=specs');
+        expect(url?.href).toBe(`${window.location.origin}/product/p01?tab=specs`);
+        expect(url?.pathname).toBe('/product/p01');
+    });
+
+    it('is undefined for an unparseable or absent href, matching absoluteHref', () => {
+        expect(absoluteUrl('http://[')).toBeUndefined();
+        expect(absoluteUrl(undefined)).toBeUndefined();
+        expect(absoluteUrl(null)).toBeUndefined();
     });
 });

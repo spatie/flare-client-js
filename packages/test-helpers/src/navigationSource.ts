@@ -43,6 +43,8 @@ export function browserSeamStub(overrides: Record<string, unknown> = {}) {
         safeInvoke: (fn?: () => void) => fn?.(),
         absoluteHref: (href: string | null | undefined) =>
             href == null ? undefined : new URL(href, window.location.href).href,
+        absoluteUrl: (href: string | null | undefined) =>
+            href == null ? undefined : new URL(href, window.location.href),
         ...overrides,
     };
 }

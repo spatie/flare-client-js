@@ -1,6 +1,7 @@
 import type { Attributes, Config } from '@flareapp/core';
 import { redactUrlQuery } from '@flareapp/core';
 
+import { absoluteUrl } from '../../tracing/absoluteHref';
 import { browserEntryPoint } from './collectBrowser';
 import request from './request';
 
@@ -17,8 +18,8 @@ export const collectBrowserSpanContext = (config: Readonly<Config>, hrefOverride
     if (typeof window === 'undefined') {
         return {};
     }
-    const href = resolveHref(hrefOverride);
-    return { ...browserEntryPoint(config, href), ...request(config.urlDenylist, href) };
+    const url = absoluteUrl(hrefOverride);
+    return { ...browserEntryPoint(config, url), ...request(config.urlDenylist, url?.href) };
 };
 
 /**
@@ -32,22 +33,10 @@ export const browserSpanUrlAttributes = (config: Readonly<Config>, href: string)
     if (typeof window === 'undefined') {
         return {};
     }
-    const resolved = resolveHref(href);
-    if (resolved === undefined) {
+    const resolved = absoluteUrl(href);
+    if (!resolved) {
         return {};
     }
-    const redacted = redactUrlQuery(resolved, config.urlDenylist);
+    const redacted = redactUrlQuery(resolved.href, config.urlDenylist);
     return { 'url.full': redacted, 'flare.entry_point.value': redacted };
 };
-
-/** Normalize an override href once; undefined (fall back to live location) when unparseable. */
-function resolveHref(hrefOverride?: string): string | undefined {
-    if (hrefOverride === undefined) {
-        return undefined;
-    }
-    try {
-        return new URL(hrefOverride, window.location.href).href;
-    } catch {
-        return undefined;
-    }
-}

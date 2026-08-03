@@ -1,5 +1,5 @@
 import {
-    absoluteHref,
+    absoluteUrl,
     currentPath,
     insulate,
     instrumentOnce,
@@ -23,15 +23,11 @@ function locationOf(raw: URL | string | null | undefined): { href?: string; path
     if (raw == null) {
         return {};
     }
-    const href = absoluteHref(String(raw));
-    if (!href) {
+    const url = absoluteUrl(String(raw));
+    if (!url) {
         return {};
     }
-    try {
-        return { href, path: new URL(href).pathname };
-    } catch {
-        return { href };
-    }
+    return { href: url.href, path: url.pathname };
 }
 
 /** Background work fires the same `start` and `finish` a real visit does, so opening a root for one both

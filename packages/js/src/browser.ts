@@ -65,7 +65,7 @@ export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 export { registerNavigationSource } from './tracing/browserTracing';
 export { currentPath, resolveHref, routeName, type NavigationSource, type RouteName } from './tracing/navigation';
 export { insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/instrumentationGuard';
-export { absoluteHref } from './tracing/absoluteHref';
+export { absoluteHref, absoluteUrl } from './tracing/absoluteHref';
 export {
     activeComponentRoot,
     reserveSpanId,
