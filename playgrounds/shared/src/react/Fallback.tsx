@@ -1,5 +1,6 @@
-import { testIds } from '@flareapp/playgrounds-shared';
 import type { FlareErrorBoundaryFallbackProps } from '@flareapp/react';
+
+import { testIds } from '../testIds';
 
 export const Fallback = ({ error, resetErrorBoundary }: FlareErrorBoundaryFallbackProps) => (
     <div data-testid={testIds.boundaryFallback} className="p-8 text-center">
