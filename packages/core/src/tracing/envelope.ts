@@ -1,6 +1,7 @@
 import { attributesToOpenTelemetry } from '../logging/otel';
 import type { Attributes, BufferedSpan, OtelSpan, TracesEnvelope } from '../types';
 import { flatJsonStringify } from '../util';
+import { utf8Bytes } from '../util/utf8Bytes';
 
 function toOtelSpan(span: BufferedSpan): OtelSpan {
     const status =
@@ -54,9 +55,6 @@ export function buildTracesEnvelope(
     };
 }
 
-// Module scope: these run once per span during keepalive packing.
-const textEncoder = new TextEncoder();
-
 /**
  * UTF-8 bytes one span contributes to an envelope. Lives here to track toOtelSpan's shape rather than reuse
  * the cached BufferedSpan estimate, since keepaliveMaxBytes is a hard browser limit.
@@ -67,7 +65,7 @@ const textEncoder = new TextEncoder();
  * a class instance with a throwing getter passes through untouched and can still throw at JSON.stringify.
  */
 export function otelSpanBytes(span: BufferedSpan): number {
-    return textEncoder.encode(flatJsonStringify(toOtelSpan(span))).length;
+    return utf8Bytes(flatJsonStringify(toOtelSpan(span)));
 }
 
 /** UTF-8 bytes of an envelope carrying no spans: everything a batch does not pay for per span. */
@@ -76,6 +74,5 @@ export function emptyTracesEnvelopeBytes(
     scopeName: string,
     scopeVersion: string,
 ): number {
-    return textEncoder.encode(JSON.stringify(buildTracesEnvelope([], resourceAttributes, scopeName, scopeVersion)))
-        .length;
+    return utf8Bytes(JSON.stringify(buildTracesEnvelope([], resourceAttributes, scopeName, scopeVersion)));
 }
