@@ -54,33 +54,28 @@ function matchesIngestHref(href: string, ingestHref: string): boolean {
 }
 
 /**
- * True when `absoluteUrl` targets one of Flare's own ingest endpoints (never traced). The configured
+ * True when `resolved` targets one of Flare's own ingest endpoints (never traced). The configured
  * URLs are resolved against `origin` first: a relative one (a customer proxying ingest through their
  * own origin) would otherwise never match, so every flush POST would open a span that arms the next
  * flush, forever.
  */
-export function isFlareIngestUrl(absoluteUrl: URL | null, config: Config, origin: string): boolean {
-    if (!absoluteUrl) {
+export function isFlareIngestUrl(resolved: URL | null, config: Config, origin: string): boolean {
+    if (!resolved) {
         return false;
     }
-    return resolvedIngestHrefs(config, origin).some((ingestHref) => matchesIngestHref(absoluteUrl.href, ingestHref));
+    return resolvedIngestHrefs(config, origin).some((ingestHref) => matchesIngestHref(resolved.href, ingestHref));
 }
 
 /**
  * Shared request-span attributes for a fetch/XHR call. `url.full` is redacted the same way error
  * reports are, so tokens/reset codes never leak.
  */
-export function requestSpanAttributes(
-    method: string,
-    absoluteUrl: URL | null,
-    url: string,
-    config: Config,
-): Attributes {
+export function requestSpanAttributes(method: string, resolved: URL | null, url: string, config: Config): Attributes {
     return {
         'http.request.method': method,
-        'url.full': redactUrlQuery(absoluteUrl ? absoluteUrl.href : url, config.urlDenylist),
-        ...(absoluteUrl ? { 'server.address': absoluteUrl.hostname } : {}),
-        ...(absoluteUrl && absoluteUrl.port ? { 'server.port': Number(absoluteUrl.port) } : {}),
+        'url.full': redactUrlQuery(resolved ? resolved.href : url, config.urlDenylist),
+        ...(resolved ? { 'server.address': resolved.hostname } : {}),
+        ...(resolved && resolved.port ? { 'server.port': Number(resolved.port) } : {}),
     };
 }
 
@@ -110,13 +105,13 @@ export function finishHttpSpanError(span: Span, error: unknown): void {
  */
 export function traceparentFor(
     span: Span,
-    absoluteUrl: URL | null,
+    resolved: URL | null,
     url: string,
     origin: string,
     config: Config,
 ): string | null {
-    const resolved = absoluteUrl ? absoluteUrl.href : url;
-    if (!shouldPropagate(resolved, absoluteUrl, origin, config.tracePropagationTargets)) {
+    const resolvedHref = resolved ? resolved.href : url;
+    if (!shouldPropagate(resolvedHref, resolved, origin, config.tracePropagationTargets)) {
         return null;
     }
     return buildTraceparent(span.traceId, span.spanId, span.isRecording);
@@ -136,16 +131,16 @@ export function startHttpRequestSpan(
     const { method, url, origin, spanType } = request;
     const config = tracer.config;
 
-    const absoluteUrl = safeAbsolute(url, origin);
-    if (isFlareIngestUrl(absoluteUrl, config, origin)) {
+    const resolved = safeAbsolute(url, origin);
+    if (isFlareIngestUrl(resolved, config, origin)) {
         return null;
     }
 
-    const pathname = absoluteUrl ? absoluteUrl.pathname : url;
+    const pathname = resolved ? resolved.pathname : url;
     const span = tracer.startSpan(`${method} ${pathname}`, {
         spanType,
-        attributes: requestSpanAttributes(method, absoluteUrl, url, config),
+        attributes: requestSpanAttributes(method, resolved, url, config),
     });
 
-    return { span, absoluteUrl };
+    return { span, absoluteUrl: resolved };
 }
