@@ -18,6 +18,26 @@ import { SpanImpl } from './Span';
 import { SpanBuffer } from './SpanBuffer';
 import { parseTraceparent } from './traceparent';
 
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+    return (
+        (typeof value === 'object' || typeof value === 'function') &&
+        value !== null &&
+        typeof (value as { then?: unknown }).then === 'function'
+    );
+}
+
+type SpanParent = NonNullable<SpanOptions['parent']>;
+
+/** `SpanOptions.parent` is a structurally overlapping union; `isRecording` is what tells a real Span apart. */
+function isSpan(parent: SpanParent): parent is Span {
+    return 'isRecording' in parent;
+}
+
+/** A SpanImpl carries the epoch it was created under; a hand-stitched `{traceId, spanId}` parent does not. */
+function hasEpoch(parent: SpanParent): parent is SpanParent & { epoch: number } {
+    return 'epoch' in parent && typeof (parent as { epoch?: unknown }).epoch === 'number';
+}
+
 export const defaultNowNano = (): number => {
     const perf = (globalThis as { performance?: Performance }).performance;
     // timeOrigin is missing in some environments (older Safari, some Hermes builds/polyfills); undefined + now() would
@@ -163,8 +183,8 @@ export class Tracer {
         return this.holder.withActive(span, () => {
             try {
                 const result = fn(span);
-                if (result && typeof (result as { then?: unknown }).then === 'function') {
-                    return (result as unknown as Promise<unknown>).then(
+                if (isPromiseLike(result)) {
+                    return result.then(
                         (value) => {
                             span.end();
                             return value;
@@ -173,7 +193,7 @@ export class Tracer {
                             finishError(error);
                             throw error;
                         },
-                    ) as unknown as T;
+                    ) as T;
                 }
                 span.end();
                 return result;
@@ -261,7 +281,7 @@ export class Tracer {
 
         // A Span created before a clear() is stale: must not parent or re-seed live state. Plain {traceId, spanId}
         // objects have no epoch and are never stale.
-        if (parent && 'epoch' in parent && (parent as { epoch: number }).epoch !== this.epoch) {
+        if (parent && hasEpoch(parent) && parent.epoch !== this.epoch) {
             parent = undefined;
         }
 
@@ -271,8 +291,8 @@ export class Tracer {
             // not. Run the sampler instead of assuming recording, so tracesSampleRate 0 does not still buffer and ship.
             // Lazy so the sampler (side effects, rng consumption) only runs when new state is actually seeded.
             const fallbackRecording = (): boolean =>
-                'isRecording' in parent
-                    ? (parent as Span).isRecording
+                isSpan(parent)
+                    ? parent.isRecording
                     : resolveSampling(
                           { name, attributes: opts.attributes ?? {}, spanType: opts.spanType },
                           config,

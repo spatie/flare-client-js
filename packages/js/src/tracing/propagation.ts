@@ -37,6 +37,17 @@ function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
     }
 }
 
+/** Fetch accepts any iterable of string pairs as HeadersInit (Map, URLSearchParams, cross-realm Headers). */
+function isIterable(value: unknown): value is Iterable<unknown> {
+    return (
+        value !== null &&
+        (typeof value === 'object' || typeof value === 'function') &&
+        typeof (value as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function'
+    );
+}
+
+type RequestInitWithDuplex = RequestInit & { duplex?: 'half' };
+
 /**
  * A new `RequestInit` carrying `traceparent`, without mutating the caller's `Request` or `init`.
  * Caller-wins: a `traceparent` the caller already set is left alone, matching XHR's
@@ -66,11 +77,10 @@ export function mergeTraceparentHeader(
             return init;
         }
         headers = [...source, ['traceparent', traceparent]];
-    } else if (source && typeof (source as Partial<Iterable<unknown>>)[Symbol.iterator] === 'function') {
-        // Fetch accepts any iterable of string pairs as HeadersInit (Map, URLSearchParams, cross-realm
-        // Headers). Those have no enumerable own props, so the record branch below would see an empty
-        // object and drop every caller header.
-        const pairs = headerPairsFrom(source as unknown as Iterable<unknown>);
+    } else if (isIterable(source)) {
+        // Those have no enumerable own props, so the record branch below would see an empty object and
+        // drop every caller header.
+        const pairs = headerPairsFrom(source);
         if (pairs === null) {
             headers = source; // throwing/malformed -> passthrough (inject nothing)
         } else if (pairs.some(([k]) => k.toLowerCase() === 'traceparent')) {
@@ -90,7 +100,7 @@ export function mergeTraceparentHeader(
     // Descriptors, not a spread: a spread copies only enumerable properties, and SvelteKit marks the
     // init it hands a `load` function with a hidden `__sveltekit_fetch__` flag. Drop that and Kit's
     // dev-mode wrapper tells the developer to use the `fetch` they were already using.
-    const result: RequestInit = { headers };
+    const result: RequestInitWithDuplex = { headers };
     if (init) {
         const descriptors = Object.getOwnPropertyDescriptors(init);
         delete descriptors.headers; // the merged headers above win
@@ -99,12 +109,12 @@ export function mergeTraceparentHeader(
     // A Request with a ReadableStream body needs `duplex` when re-issued with an init, or fetch throws
     // and breaks a host request that worked before tracing.
     if (
-        (result as RequestInit & { duplex?: string }).duplex === undefined &&
+        result.duplex === undefined &&
         typeof Request !== 'undefined' &&
         input instanceof Request &&
         input.body != null
     ) {
-        (result as RequestInit & { duplex?: string }).duplex = 'half';
+        result.duplex = 'half';
     }
     return result;
 }

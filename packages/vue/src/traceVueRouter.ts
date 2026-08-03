@@ -28,11 +28,15 @@ export function traceVueRouter(router: unknown): () => void {
 
 /** Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional. */
 function isVueRouter(router: unknown): router is VueRouterLike {
-    const candidate = router as Partial<VueRouterLike> | null;
-    if (!candidate) {
+    if (typeof router !== 'object' || router === null) {
         return false;
     }
-    return typeof candidate.beforeEach === 'function' && typeof candidate.afterEach === 'function';
+    return (
+        'beforeEach' in router &&
+        typeof router.beforeEach === 'function' &&
+        'afterEach' in router &&
+        typeof router.afterEach === 'function'
+    );
 }
 
 function install(router: VueRouterLike, track: TrackTeardown): void {
