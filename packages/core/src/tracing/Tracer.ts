@@ -40,12 +40,12 @@ function hasEpoch(parent: SpanParent): parent is SpanParent & { epoch: number } 
 }
 
 export const defaultNowNano = (): number => {
-    const perf = (globalThis as { performance?: Performance }).performance;
+    const performanceApi = (globalThis as { performance?: Performance }).performance;
     // timeOrigin is missing in some environments (older Safari, some Hermes builds/polyfills); undefined + now() would
     // yield NaN timestamps on every span. Fall back to Date.now().
     const ms =
-        perf && typeof perf.now === 'function' && typeof perf.timeOrigin === 'number'
-            ? perf.timeOrigin + perf.now()
+        performanceApi && typeof performanceApi.now === 'function' && typeof performanceApi.timeOrigin === 'number'
+            ? performanceApi.timeOrigin + performanceApi.now()
             : Date.now();
     return Math.round(ms * 1e6);
 };
@@ -409,8 +409,8 @@ export class Tracer {
             span.setAttribute('flare.span_type', opts.spanType);
         }
         if (opts.attributes) {
-            for (const [k, v] of Object.entries(opts.attributes)) {
-                span.setAttribute(k, v);
+            for (const [key, value] of Object.entries(opts.attributes)) {
+                span.setAttribute(key, value);
             }
         }
         return span;
@@ -470,11 +470,11 @@ export class Tracer {
                 recordAttributes: attributesToOpenTelemetry(record),
                 droppedAttributesCount: span.droppedAttributesCount,
                 droppedEventsCount: span.droppedEventsCount,
-                events: span.events.map((e) => ({
-                    name: e.name,
-                    timeUnixNano: e.timeUnixNano,
-                    attributes: attributesToOpenTelemetry(e.attributes),
-                    droppedAttributesCount: e.droppedAttributesCount,
+                events: span.events.map((event) => ({
+                    name: event.name,
+                    timeUnixNano: event.timeUnixNano,
+                    attributes: attributesToOpenTelemetry(event.attributes),
+                    droppedAttributesCount: event.droppedAttributesCount,
                 })),
             };
             this.buffer.add(buffered);

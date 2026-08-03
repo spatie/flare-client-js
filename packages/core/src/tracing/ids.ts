@@ -1,20 +1,20 @@
 export function randomHex(bytes: number): string {
-    const buf = new Uint8Array(bytes);
-    const c = (globalThis as { crypto?: Crypto }).crypto;
-    if (c && typeof c.getRandomValues === 'function') {
-        c.getRandomValues(buf);
+    const randomBytes = new Uint8Array(bytes);
+    const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;
+    if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+        cryptoApi.getRandomValues(randomBytes);
     } else {
         for (let i = 0; i < bytes; i++) {
-            buf[i] = Math.floor(Math.random() * 256);
+            randomBytes[i] = Math.floor(Math.random() * 256);
         }
     }
     // W3C: all-zeroes forbidden
-    if (buf.every((b) => b === 0)) {
-        buf[bytes - 1] = 1;
+    if (randomBytes.every((b) => b === 0)) {
+        randomBytes[bytes - 1] = 1;
     }
     let out = '';
     for (let i = 0; i < bytes; i++) {
-        out += buf[i].toString(16).padStart(2, '0');
+        out += randomBytes[i].toString(16).padStart(2, '0');
     }
     return out;
 }

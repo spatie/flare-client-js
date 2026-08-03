@@ -193,7 +193,7 @@ async function instanceScriptStart(
 
 /** The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints. */
 function injectWithMap(content: string, injection: string, filename: string, start: number | null, bomCount: number) {
-    const s = new MagicString(content);
+    const magicSource = new MagicString(content);
 
     if (start === null) {
         const scriptBlock = `<script>\n${injection}</script>\n`;
@@ -202,18 +202,18 @@ function injectWithMap(content: string, injection: string, filename: string, sta
         // template. appendRight(bomCount, ...) inserts right after all of them instead, keeping every
         // BOM at the front so compile()'s own BOM stripping still fires.
         if (bomCount > 0) {
-            s.appendRight(bomCount, scriptBlock);
+            magicSource.appendRight(bomCount, scriptBlock);
         } else {
-            s.prepend(scriptBlock);
+            magicSource.prepend(scriptBlock);
         }
     } else {
-        s.appendLeft(start, `\n${injection}`);
+        magicSource.appendLeft(start, `\n${injection}`);
     }
 
     return {
-        code: s.toString(),
+        code: magicSource.toString(),
         // Basename, not the full path: the merged map inherits `sources` from the oldest map in
         // the chain, which is ours, so an absolute path here ships in every built sourcemap.
-        map: s.generateMap({ hires: true, source: basename(filename) }),
+        map: magicSource.generateMap({ hires: true, source: basename(filename) }),
     };
 }

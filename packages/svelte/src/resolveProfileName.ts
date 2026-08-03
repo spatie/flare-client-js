@@ -18,11 +18,11 @@ export function resolveProfileName(filename: string, routesDir = 'src/routes'): 
     }
 
     // Users can write `./src/routes` or `src/routes/`, both legal, so flatten before searching.
-    const segments = routesDir
+    const normalizedRoutesDir = routesDir
         .replace(/\\/g, '/')
         .replace(/^\.\//, '')
         .replace(/^\/+|\/+$/g, '');
-    const start = routeDirStart(normalized, segments);
+    const start = routeDirStart(normalized, normalizedRoutesDir);
     if (start === -1) {
         return name;
     }
@@ -36,13 +36,13 @@ export function resolveProfileName(filename: string, routesDir = 'src/routes'): 
  * Index just past the routes directory, or -1 when the path isn't in there. Anchors on the last
  * occurrence, so a project checked out under something like /home/src/routes/ still works.
  */
-function routeDirStart(normalized: string, segments: string): number {
-    const nested = normalized.lastIndexOf(`/${segments}/`);
+function routeDirStart(normalized: string, normalizedRoutesDir: string): number {
+    const nested = normalized.lastIndexOf(`/${normalizedRoutesDir}/`);
     if (nested !== -1) {
-        return nested + segments.length + 2;
+        return nested + normalizedRoutesDir.length + 2;
     }
 
-    const prefix = `${segments}/`;
+    const prefix = `${normalizedRoutesDir}/`;
 
     return normalized.startsWith(prefix) ? prefix.length : -1;
 }

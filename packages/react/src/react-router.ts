@@ -28,14 +28,14 @@ export function routeNameFromMatches(matches: ReactRouterMatchLike[] | undefined
         return undefined;
     }
     let path = '';
-    for (const m of matches) {
-        const p = m.route?.path;
+    for (const match of matches) {
+        const routePath = match.route?.path;
         // pathless layout route, or an index route's empty contribution
-        if (!p) {
+        if (!routePath) {
             continue;
         }
         // An absolute child path resets the accumulator; a relative one appends.
-        path = p[0] === '/' ? p : (path.endsWith('/') ? path : path + '/') + p;
+        path = routePath[0] === '/' ? routePath : (path.endsWith('/') ? path : path + '/') + routePath;
     }
     if (!path) {
         return undefined;
@@ -116,8 +116,8 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
         // destination for the url: the committed one is still the page being left.
         if (!inFlight && navState !== 'idle') {
             inFlight = true;
-            const dest = state.navigation.location ?? state.location;
-            nav.startNavigation({ path: dest.pathname, url: hrefOf(dest), hold: true });
+            const destination = state.navigation.location ?? state.location;
+            nav.startNavigation({ path: destination.pathname, url: hrefOf(destination), hold: true });
             return;
         }
 
@@ -134,9 +134,9 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
         // see. The changed location is the only signal. No hold: the normal idle lifecycle still catches
         // fetches fired from effects.
         if (!inFlight && navState === 'idle') {
-            const locKey = keyOf(state.location);
-            if (locKey !== lastLocationKey) {
-                lastLocationKey = locKey;
+            const locationKey = keyOf(state.location);
+            if (locationKey !== lastLocationKey) {
+                lastLocationKey = locationKey;
                 nav.startNavigation({ path: state.location.pathname, url: hrefOf(state.location) });
                 nav.settleNavigation(routeNameFor(state));
             }

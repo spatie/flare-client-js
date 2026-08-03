@@ -68,10 +68,10 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
         }
 
         if (method && url != null) {
-            const urlStr = String(url);
+            const urlString = String(url);
             xhrState.set(this, {
                 method: String(method).toUpperCase(),
-                url: urlStr,
+                url: urlString,
                 hasAppTraceparent: false,
                 ended: false,
             });

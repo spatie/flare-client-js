@@ -3,9 +3,9 @@
 
 /** For a callback the host invokes: a router guard, a store subscriber, ... */
 export function insulate<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
-    return (...a: A): void => {
+    return (...args: A): void => {
         try {
-            fn(...a);
+            fn(...args);
         } catch {
             // instrumentation never breaks the host
         }

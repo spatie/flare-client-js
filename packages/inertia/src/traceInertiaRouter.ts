@@ -215,7 +215,7 @@ function install(router: InertiaRouterLike, track: TrackTeardown): void {
         const { href, path } = locationOf(currentPath());
         // Name it after that page when we know it, which is the usual case for a failed form post:
         // it re-renders the page it was sent from, and we were told that page's name on arrival.
-        const known = lastComponent?.path === path ? lastComponent?.name : undefined;
-        nav.settleNavigation(routeName(() => known, path ?? currentPath(), href));
+        const knownComponentName = lastComponent?.path === path ? lastComponent?.name : undefined;
+        nav.settleNavigation(routeName(() => knownComponentName, path ?? currentPath(), href));
     });
 }

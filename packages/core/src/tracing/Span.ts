@@ -87,12 +87,12 @@ export class SpanImpl implements Span {
         }
         const capped: Attributes = {};
         let dropped = 0;
-        for (const [k, v] of Object.entries(attributes)) {
+        for (const [key, value] of Object.entries(attributes)) {
             if (Object.keys(capped).length >= this.deps.maxAttributesPerSpanEvent) {
                 dropped++;
                 continue;
             }
-            capped[k] = v;
+            capped[key] = value;
         }
         this.events.push({ name, timeUnixNano: this.deps.now(), attributes: capped, droppedAttributesCount: dropped });
         return this;

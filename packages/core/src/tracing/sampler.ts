@@ -3,19 +3,19 @@ import type { SamplingContext, TracesSampler } from '../types';
 export type { SamplingContext, TracesSampler } from '../types';
 
 export function resolveSampling(
-    ctx: SamplingContext,
+    samplingContext: SamplingContext,
     config: { tracesSampler?: TracesSampler; tracesSampleRate: number; debug?: boolean },
     rng: () => number = Math.random,
 ): boolean {
-    if (ctx.parentSampled !== undefined) {
-        return ctx.parentSampled;
+    if (samplingContext.parentSampled !== undefined) {
+        return samplingContext.parentSampled;
     }
 
     let rate: number;
     if (config.tracesSampler) {
         let result: number | boolean;
         try {
-            result = config.tracesSampler(ctx);
+            result = config.tracesSampler(samplingContext);
         } catch (error) {
             // A throwing customer sampler must never propagate out of startSpan (it would break instrumented host calls
             // like fetch). Fail closed.
