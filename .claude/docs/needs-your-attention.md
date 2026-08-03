@@ -6,7 +6,7 @@ not spread across nine plan files and a chat log.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-03, at branch tip `ec98c45` (plans 1 to 6 complete, plans 7 to 9 not started).
+Last updated 2026-08-03, at branch tip `927464d` (plans 1 to 7 complete, plans 8 and 9 not started).
 
 **For agents:** you may append to this file. See the house rules at the bottom.
 
@@ -47,11 +47,12 @@ upload settled rejected, so a failing upload would make the check pass for the w
 
 None of these can be automated here. Each names what would go wrong and what evidence already exists.
 
-| Check                                                                                                    | Why no suite covers it                                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Drive 500 fetches in a playground with `debug: true`, confirm no visible main-thread stall               | Nothing in the suite measures main-thread time. The baseline to beat is 116ms of blocking across those calls, now 1.7ms by measurement.                                                                                            |
-| With a full buffer, switch tabs and confirm the traces POST still ships under 60KB                       | The keepalive budget is asserted in unit tests at a loose ceiling, not against a real browser's limit.                                                                                                                             |
-| Boot both React playgrounds, add to cart, watch the count badge, and trigger a render error on `/broken` | The e2e suite never reads the numeric cart badge (`testIds.cartCount` is unused in `e2e/`). A stale-count regression from the shared-store move would not be caught. Risk is low: it was a pure `git mv` with zero content change. |
+| Check                                                                                                                            | Why no suite covers it                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drive 500 fetches in a playground with `debug: true`, confirm no visible main-thread stall                                       | Nothing in the suite measures main-thread time. The baseline to beat is 116ms of blocking across those calls, now 1.7ms by measurement.                                                                                                                                                                                                                                                                                                                                      |
+| With a full buffer, switch tabs and confirm the traces POST still ships under 60KB                                               | The keepalive budget is asserted in unit tests at a loose ceiling, not against a real browser's limit.                                                                                                                                                                                                                                                                                                                                                                       |
+| Boot both React playgrounds, add to cart, watch the count badge, and trigger a render error on `/broken`                         | The e2e suite never reads the numeric cart badge (`testIds.cartCount` is unused in `e2e/`). A stale-count regression from the shared-store move would not be caught. Risk is low: it was a pure `git mv` with zero content change.                                                                                                                                                                                                                                           |
+| Compile the two `@flareapp/inertia` README snippets in a scratch project with `@inertiajs/vue3` and `@inertiajs/react` installed | `traceInertiaRouter`'s parameter was narrowed from `unknown` to a typed shape, but **there is no `@inertiajs` package anywhere in this repo or its lockfile**, so a clean `npm run typescript` proves nothing about whether a real `import { router } from '@inertiajs/vue3'` still assigns. Reading Inertia v2's own `on()` signature suggests it does, but nobody has compiled it. The README blocks are JavaScript fences, so JavaScript users are unaffected either way. |
 
 ---
 
@@ -66,6 +67,16 @@ None of these can be automated here. Each names what would go wrong and what evi
 - **`Logger.flush()` now catches errors** from the envelope build and send, surfacing them only under
   `debug`. This is correct under the never-throw-into-the-host rule, but `Logger` is public API and this is a
   behaviour change. Three sibling changes are already named in commit `79b4404`'s body; this one is not.
+
+- **Two technically-breaking type narrowings on the public surface.** Both are safe in this repo but a
+  consumer compiling against the types could see an error.
+    - `recordComponentSpan`'s `attributes` parameter, on the `@flareapp/js/browser` export map. Deliberately
+      accepted and planned. Verified: none of the three in-repo profilers passes `attributes`.
+    - `OtelSpan.status`, exported from `packages/core`, went from `{ code: number }` to `SpanStatus`, which
+      narrows `code` to `0 | 1 | 2`. **This one was not on anyone's accepted list; it was found by the final
+      review.** Reading is unaffected, since `0 | 1 | 2` is assignable to `number`. Only _constructing_ an
+      `OtelSpan` or `TracesEnvelope` literal with some other numeric status now fails to compile. In-repo blast
+      radius is zero: the only consumer builds it from a `BufferedSpan` whose `status` was already `SpanStatus`.
 
 ---
 
@@ -102,7 +113,18 @@ real exposure accurately, so start there.
 `traceStates.set`, so a colliding inbound `traceparent` replaces a live trace's state. Plan 4's generation
 gate made this better, not worse.
 
-### 4.5 Type-checking gaps
+### 4.5 A trap that makes end-to-end results lie
+
+A playground dev server left running from an earlier session keeps its port. Playwright's `reuseExistingServer`
+then picks it up instead of starting a fresh one, so the suite runs against whatever code that process was
+started with. This survives a `git checkout`, which means it looks exactly like a real regression and it
+reproduces under bisection.
+
+It cost real time once already: 16 `react-router` failures that looked like a code regression were a stale
+server on port 5185. Before trusting any end-to-end failure, check
+`lsof -ti tcp:5180,5181,5182,5183,5185,7765` and kill anything left over.
+
+### 4.6 Type-checking gaps
 
 - Test files are not type-checked in **10 of 15 packages** (`"include": ["src"]`), including `core` and `js`.
   Every "typescript clean" claim on this branch says nothing about test files.
@@ -111,9 +133,12 @@ gate made this better, not worse.
   Plan 6 moved those specs onto typed helpers, which raises the value of closing this. Expect a pile of
   pre-existing errors when the include is widened.
 
-Both belong to plan 7.
+**Plan 7 has now finished and did NOT close either of these.** It cleaned up types and naming inside the code
+that already gets checked; widening the check itself was never one of its tasks. So both are still open, and
+the second one got more valuable to close, because plan 6 moved the end-to-end specs onto typed helpers that
+no compiler currently reads.
 
-### 4.6 Two small repo inconsistencies
+### 4.7 Two small repo inconsistencies
 
 - `packages/node/package.json` has **no `contributors` field at all**, which is inconsistent under either
   convention. It is the one manifest that needs an edit whichever way you eventually go.
