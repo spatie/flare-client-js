@@ -1,9 +1,9 @@
 import type { Api } from '../api';
-import { buildResourceIdentity } from '../telemetry';
+import { buildResourceIdentity, TelemetryBuffer } from '../telemetry';
 import type { Attributes, BufferedLog, Config, Framework, LogsEnvelope, MessageLevel, SdkInfo } from '../types';
-import { assertKey, flatJsonStringify } from '../util';
-import { buildLogsEnvelope } from './envelope';
-import type { FlushFn, FlushScheduler } from './FlushScheduler';
+import { flatJsonStringify } from '../util';
+import { buildLogsEnvelope, emptyLogsEnvelopeBytes, otelLogRecordBytes } from './envelope';
+import type { FlushScheduler } from './FlushScheduler';
 import { attributesToOpenTelemetry } from './otel';
 import { isAtOrAboveMinimum, severityNumber, severityText } from './severity';
 
@@ -21,14 +21,47 @@ export type LoggerDeps = {
 };
 
 export class Logger {
-    private buffer: BufferedLog[] = [];
+    private inner: TelemetryBuffer<BufferedLog, LogsEnvelope>;
     private resourceAttributes: Attributes = {};
-    private timer: ReturnType<typeof setTimeout> | undefined;
-    private timerActive = false;
 
     constructor(private deps: LoggerDeps) {
-        const flush: FlushFn = (opts) => this.flush(opts);
-        this.deps.scheduler.register(flush);
+        this.inner = new TelemetryBuffer<BufferedLog, LogsEnvelope>(
+            { getConfig: deps.getConfig, scheduler: deps.scheduler },
+            {
+                limits: (config) => ({
+                    maxSize: config.maxLogBufferSize,
+                    maxBytes: config.logFlushMaxBytes,
+                    flushIntervalMs: config.logFlushIntervalMs,
+                }),
+                enabled: (config) => config.enableLogs,
+                estimateBytes: (record) => this.estimateBytes(record),
+                emptyEnvelopeBytes: (resource) => {
+                    const sdk = deps.getSdkInfo();
+                    return emptyLogsEnvelopeBytes(resource, sdk.name, sdk.version);
+                },
+                recordBytes: (record) => otelLogRecordBytes(record),
+                oversizedMessage: 'Flare: dropping oversized log record',
+                keepaliveDropMessage: (count) =>
+                    `Flare: dropped ${count} log record(s) from keepalive envelope (over budget)`,
+                sendFailureMessage: 'Flare: failed to send buffered log records',
+                resourceForFlush: () => this.resourceForFlush(),
+                buildEnvelope: (records, resource) => {
+                    const sdk = deps.getSdkInfo();
+                    return buildLogsEnvelope(records, resource, sdk.name, sdk.version);
+                },
+                send: (envelope, config, keepalive) => {
+                    deps.track(deps.api.logs(envelope, config.logsIngestUrl, config.key, config.debug, keepalive));
+                },
+                onRecordBuffered: (record) => {
+                    // Last-write-wins: the envelope stamps ALL batched records with this single most-recent resource
+                    // map. Correct ONLY because every resource-prefixed key in the partition allowlist is
+                    // instance-static for the process lifetime (the one varying key, process.uptime, is held to
+                    // record-level via the partition's exception set). A future collector emitting a request-varying
+                    // resource key would silently mis-stamp batched records.
+                    this.resourceAttributes = record.resourceAttributes;
+                },
+            },
+        );
     }
 
     debug(message: string, context: Attributes = {}, attributes: Attributes = {}): void {
@@ -57,7 +90,15 @@ export class Logger {
     }
 
     bufferLength(): number {
-        return this.buffer.length;
+        return this.inner.length();
+    }
+
+    flush(opts?: { keepalive?: boolean }): void {
+        this.inner.flush(opts);
+    }
+
+    clear(): void {
+        this.inner.clear();
     }
 
     // Mirrors PHP's Logger::record: everyday `context` nests under `log.context` (Flare's "Context" section), while
@@ -74,140 +115,14 @@ export class Logger {
         const userAttributes: Attributes = { 'log.context': context, ...attributes };
         const { record, resource } = this.deps.buildLogAttributes(userAttributes);
 
-        const buffered: BufferedLog = {
+        this.inner.add({
             timeUnixNano: String(Date.now()) + '000000',
             severityNumber: severityNumber(level),
             severityText: severityText(level),
             message,
             recordAttributes: attributesToOpenTelemetry(record),
             resourceAttributes: resource,
-        };
-
-        // Oversized-record guard: a single record over the byte cap can never ship, and the trim loop
-        // could never get the buffer back under the cap while it sits there. Drop it at capture.
-        if (this.estimateBytes(buffered) > config.logFlushMaxBytes) {
-            if (config.debug) {
-                console.error('Flare: dropping oversized log record');
-            }
-            return;
-        }
-
-        this.buffer.push(buffered);
-        // Last-write-wins: the envelope stamps ALL batched records with this single most-recent resource map. Correct
-        // ONLY because every resource-prefixed key in the partition allowlist is instance-static for the process
-        // lifetime (the one varying key, process.uptime, is held to record-level via the partition's exception set). A
-        // future collector emitting a request-varying resource key would silently mis-stamp batched records.
-        this.resourceAttributes = resource;
-
-        // Triggers run BEFORE the trim: a keyed over-cap push flushes-and-clears here (data shipped); the trim is only
-        // the safety net when the flush no-ops (no key).
-        this.evaluateTriggers(config);
-        this.trim(config);
-    }
-
-    private evaluateTriggers(config: Config): void {
-        if (this.buffer.length >= config.maxLogBufferSize) {
-            this.flush();
-            return;
-        }
-        if (this.bufferBytes() >= config.logFlushMaxBytes) {
-            this.flush();
-            return;
-        }
-        this.armTimer(config);
-    }
-
-    private armTimer(config: Config): void {
-        if (this.timerActive) {
-            return;
-        }
-        this.timerActive = true;
-        this.timer = setTimeout(() => this.flush(), config.logFlushIntervalMs);
-        // Node's Timeout has unref(); the browser's number does not.
-        (this.timer as { unref?: () => void }).unref?.();
-    }
-
-    private trim(config: Config): void {
-        if (this.buffer.length > config.maxLogBufferSize) {
-            this.buffer = this.buffer.slice(this.buffer.length - config.maxLogBufferSize);
-        }
-        // Never trim to empty: a lone record over the cap cannot be fixed by dropping it here, and record()
-        // already refused anything that large on the way in.
-        while (this.buffer.length > 1 && this.bufferBytes() > config.logFlushMaxBytes) {
-            this.buffer.shift();
-        }
-    }
-
-    flush(opts?: { keepalive?: boolean }): void {
-        const config = this.deps.getConfig();
-        if (!config.enableLogs) {
-            return;
-        }
-        if (this.buffer.length === 0) {
-            return;
-        }
-
-        // Key gate: never send unauthenticated. assertKey (not bare truthiness) so debug mode logs the same missing-key
-        // diagnostic reports get. Reset the timer but keep the buffer so records survive until a key is set.
-        if (!assertKey(config.key, config.debug)) {
-            this.clearTimer();
-            return;
-        }
-
-        this.clearTimer();
-
-        // keepalive fires on visibilitychange:hidden, which also fires on mere backgrounding (not just unload).
-        // packForKeepalive ships only what fits the browser's ~64KB keepalive budget, so the over-budget tail is
-        // retained (a resumed tab can still send it normally). A real unload discards the buffer with the page anyway.
-        let records: BufferedLog[];
-        if (opts?.keepalive) {
-            records = this.packForKeepalive(config);
-            this.buffer = this.buffer.filter((log) => !records.includes(log));
-            // Re-arm the interval so retained records flush on resume without waiting for the next captured log.
-            if (this.buffer.length > 0) {
-                this.armTimer(config);
-            }
-        } else {
-            records = this.buffer;
-            this.buffer = [];
-        }
-        if (records.length === 0) {
-            return;
-        }
-
-        this.deps.track(
-            this.deps.api.logs(
-                this.buildEnvelope(records),
-                config.logsIngestUrl,
-                config.key,
-                config.debug,
-                !!opts?.keepalive,
-            ),
-        );
-    }
-
-    clear(): void {
-        this.buffer = [];
-        this.clearTimer();
-    }
-
-    private packForKeepalive(config: Config): BufferedLog[] {
-        let selected: BufferedLog[] = [];
-        for (let i = this.buffer.length - 1; i >= 0; i--) {
-            const trial = [this.buffer[i], ...selected];
-            const bytes = new TextEncoder().encode(flatJsonStringify(this.buildEnvelope(trial))).length;
-            if (bytes <= config.keepaliveMaxBytes) {
-                selected = trial;
-            } else if (config.debug) {
-                console.error('Flare: dropping log record from keepalive envelope (over budget)');
-            }
-        }
-        return selected;
-    }
-
-    private buildEnvelope(records: BufferedLog[]): LogsEnvelope {
-        const sdk = this.deps.getSdkInfo();
-        return buildLogsEnvelope(records, this.resourceForFlush(), sdk.name, sdk.version);
+        });
     }
 
     private resourceForFlush(): Attributes {
@@ -219,26 +134,13 @@ export class Logger {
         );
     }
 
-    private clearTimer(): void {
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = undefined;
-        }
-        this.timerActive = false;
-    }
-
     private estimateBytes(log: BufferedLog): number {
         // A rough estimate, used ONLY for the soft batching caps (weight-flush, oversized-record drop, trim loop). It
         // is wrong in two known ways: (1) .length counts UTF-16 code units, not UTF-8 bytes; (2) resourceAttributes
         // move to the envelope and are sent once per request, but are counted once per record here. Both are fine:
         // these caps are soft and /v1/logs has no hard per-request byte limit. The HARD keepalive cap is measured
-        // separately in packForKeepalive, with exact UTF-8 bytes (~64 KB, enforced by the browser). flatJsonStringify
-        // rather than JSON.stringify, because record attributes are raw user data that can contain cycles.
+        // separately, with exact UTF-8 bytes (~64 KB, enforced by the browser). flatJsonStringify rather than
+        // JSON.stringify, because record attributes are raw user data that can contain cycles.
         return flatJsonStringify(log).length;
-    }
-
-    private bufferBytes(): number {
-        // Uses estimateBytes(); see its comment for the deliberate approximations.
-        return this.buffer.reduce((sum, log) => sum + this.estimateBytes(log), 0);
     }
 }

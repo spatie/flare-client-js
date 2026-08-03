@@ -32,11 +32,13 @@ const span = (id: string): BufferedSpan => ({
     events: [],
 });
 
-const internals = (buffer: SpanBuffer) => buffer as unknown as { buffer: { bytes: number }[]; bufferedBytes: number };
+// SpanBuffer delegates to the shared TelemetryBuffer, so the byte bookkeeping under test lives one level in.
+const internals = (buffer: SpanBuffer) =>
+    (buffer as unknown as { inner: { entries: { bytes: number }[]; bufferedBytes: number } }).inner;
 
 const runningTotal = (buffer: SpanBuffer): number => internals(buffer).bufferedBytes;
 
-const entrySum = (buffer: SpanBuffer): number => internals(buffer).buffer.reduce((sum, entry) => sum + entry.bytes, 0);
+const entrySum = (buffer: SpanBuffer): number => internals(buffer).entries.reduce((sum, entry) => sum + entry.bytes, 0);
 
 // Throws instead of using expect() so it adds no JSON.stringify calls to the serialization-count test.
 const assertBytesInStep = (buffer: SpanBuffer): void => {

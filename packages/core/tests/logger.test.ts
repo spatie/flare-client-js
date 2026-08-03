@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Api } from '../src/api';
 import { NoopFlushScheduler } from '../src/logging/FlushScheduler';
-import { Logger } from '../src/logging/Logger';
+import { Logger, type LoggerDeps } from '../src/logging/Logger';
 import type { Attributes, Config, Framework, SdkInfo } from '../src/types';
 import { FakeApi } from './helpers/FakeApi';
 
@@ -31,7 +31,7 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
     };
 }
 
-function makeLogger(config: Config, api: Api = new Api()) {
+function makeLogger(config: Config, api: Api = new Api(), over: Partial<LoggerDeps> = {}) {
     const sdkInfo: SdkInfo = { name: '@flareapp/core', version: '0.0.0' };
     const framework: Framework | null = null;
     return new Logger({
@@ -42,6 +42,7 @@ function makeLogger(config: Config, api: Api = new Api()) {
         buildLogAttributes: (userAttributes: Attributes) => ({ record: { ...userAttributes }, resource: {} }),
         track: (p) => p,
         scheduler: new NoopFlushScheduler(),
+        ...over,
     });
 }
 
@@ -238,6 +239,56 @@ describe('Logger triggers', () => {
         vi.advanceTimersByTime(5000);
         expect(api.logEnvelopes).toHaveLength(1); // the re-armed timer fired
         vi.useRealTimers();
+    });
+
+    it('re-arms the flush timer after a flush that no-ops on a disabled signal', () => {
+        // The disabled early return skips clearTimer() on purpose (the buffer survives a temporary disable), so the
+        // timer callback has to reset its own state first. Before it did, a no-op timer flush left timerActive true
+        // with a spent handle and armTimer refused to arm again for the rest of the Logger's life.
+        vi.useFakeTimers();
+        const api = new FakeApi();
+        const config = makeConfig({ logFlushIntervalMs: 5000 });
+        const logger = makeLogger(config, api);
+
+        logger.info('a'); // arms the timer
+        config.enableLogs = false;
+        vi.advanceTimersByTime(5000); // fires, and flush no-ops on the enable gate
+        expect(api.logEnvelopes).toHaveLength(0);
+        expect(logger.bufferLength()).toBe(1); // retained, not dropped
+
+        config.enableLogs = true;
+        logger.info('b'); // has to be able to arm a fresh timer
+        vi.advanceTimersByTime(5000);
+        expect(api.logEnvelopes).toHaveLength(1);
+        expect(api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(2);
+        vi.useRealTimers();
+    });
+
+    it('sizes the keepalive envelope without rebuilding it per candidate', () => {
+        // The old packer built and serialized a whole trial envelope per candidate, so envelope construction grew
+        // with buffer depth. Sizing from parts builds it a fixed three times per flush, whatever the depth:
+        // once for the resource identity, once for the empty envelope, once for the batch that ships.
+        const sdkReadsForKeepaliveFlush = (recordCount: number): number => {
+            const getSdkInfo = vi.fn((): SdkInfo => ({ name: '@flareapp/core', version: '0.0.0' }));
+            const api = new FakeApi();
+            const logger = makeLogger(
+                makeConfig({ keepaliveMaxBytes: 1_000_000, logFlushMaxBytes: 1_000_000, logFlushIntervalMs: 999_999 }),
+                api,
+                { getSdkInfo },
+            );
+            for (let i = 0; i < recordCount; i++) {
+                logger.info(`m${i}`);
+            }
+            getSdkInfo.mockClear();
+            logger.flush({ keepalive: true });
+
+            // Everything fit the budget, so depth is the only variable left.
+            expect(api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(recordCount);
+            return getSdkInfo.mock.calls.length;
+        };
+
+        expect(sdkReadsForKeepaliveFlush(2)).toBe(3);
+        expect(sdkReadsForKeepaliveFlush(50)).toBe(3);
     });
 
     it('reads SDK identity lazily at flush (not snapshotted at construction)', () => {

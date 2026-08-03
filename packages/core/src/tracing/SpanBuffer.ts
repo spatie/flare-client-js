@@ -1,8 +1,7 @@
 import type { Api } from '../api';
-import type { FlushFn, FlushScheduler } from '../logging';
-import { buildResourceIdentity } from '../telemetry';
+import type { FlushScheduler } from '../logging';
+import { buildResourceIdentity, TelemetryBuffer } from '../telemetry';
 import type { Attributes, BufferedSpan, Config, Framework, SdkInfo, TracesEnvelope } from '../types';
-import { assertKey } from '../util';
 import { buildTracesEnvelope, emptyTracesEnvelopeBytes, otelSpanBytes } from './envelope';
 
 export type SpanBufferDeps = {
@@ -15,199 +14,59 @@ export type SpanBufferDeps = {
     scheduler: FlushScheduler;
 };
 
-// Measured once at add(), and it can go stale: status is held by reference, so a host mutating it after end()
-// drifts the cached number. Harmless here: bytes only feeds bufferedBytes, which drives the spanFlushMaxBytes
-// and trim heuristics, where a few drifted bytes cannot corrupt anything. The one hard limit, keepaliveMaxBytes,
-// deliberately measures fresh in packForKeepalive and never reads this cache.
-type BufferEntry = { span: BufferedSpan; bytes: number };
-
+/** The span half of the shared telemetry buffer: names the config keys, the envelope and the ingest call. */
 export class SpanBuffer {
-    private buffer: BufferEntry[] = [];
-    // Running total of every entry's `bytes`. Kept in step at each mutation site: the push in add(), the drain
-    // and the keepalive residue in flush(), both drops in trim(), and clear().
-    private bufferedBytes = 0;
-    private timer: ReturnType<typeof setTimeout> | undefined;
-    private timerActive = false;
+    private inner: TelemetryBuffer<BufferedSpan, TracesEnvelope>;
 
     constructor(private deps: SpanBufferDeps) {
-        const flush: FlushFn = (opts) => this.flush(opts);
-        this.deps.scheduler.register(flush);
+        this.inner = new TelemetryBuffer<BufferedSpan, TracesEnvelope>(
+            { getConfig: deps.getConfig, scheduler: deps.scheduler },
+            {
+                // spanFlushMaxBytes is a request-size ceiling, not a batching trigger: 800_000 = 100 x 8000 bounds
+                // one POST for the outlier case of a customer putting large payloads in span attributes. Realistic
+                // spans measure ~727 B, so the count trigger fires first in every normal case.
+                limits: (config) => ({
+                    maxSize: config.maxSpanBufferSize,
+                    maxBytes: config.spanFlushMaxBytes,
+                    flushIntervalMs: config.spanFlushIntervalMs,
+                }),
+                enabled: (config) => config.enableTracing,
+                estimateBytes: (span) => this.estimateBytes(span),
+                emptyEnvelopeBytes: (resource) => {
+                    const sdk = deps.getSdkInfo();
+                    return emptyTracesEnvelopeBytes(resource, sdk.name, sdk.version);
+                },
+                recordBytes: (span) => otelSpanBytes(span),
+                oversizedMessage: 'Flare: dropping oversized span',
+                keepaliveDropMessage: (count) =>
+                    `Flare: dropped ${count} span(s) from keepalive envelope (over budget)`,
+                sendFailureMessage: 'Flare: failed to send buffered spans',
+                resourceForFlush: () => this.resourceForFlush(),
+                buildEnvelope: (spans, resource) => {
+                    const sdk = deps.getSdkInfo();
+                    return buildTracesEnvelope(spans, resource, sdk.name, sdk.version);
+                },
+                send: (envelope, config, keepalive) => {
+                    deps.track(deps.api.traces(envelope, config.tracesIngestUrl, config.key, config.debug, keepalive));
+                },
+            },
+        );
     }
 
     length(): number {
-        return this.buffer.length;
+        return this.inner.length();
     }
 
     add(span: BufferedSpan): void {
-        const config = this.deps.getConfig();
-        const bytes = this.estimateBytes(span);
-        // spanFlushMaxBytes is a request-size ceiling, not a batching trigger: 800_000 = 100 x 8000 bounds one
-        // POST for the outlier case of a customer putting large payloads in span attributes. estimateBytes counts
-        // UTF-16 code units, not UTF-8 bytes, so that bound is exact for ASCII (800 KB) but stretches for
-        // multibyte content, up to roughly 2.4 MB UTF-8 for CJK-heavy attribute values. Realistic spans measure
-        // ~727 B, so the count trigger fires first in every normal case. A single span over the ceiling could
-        // never ship, so drop it here instead of letting trim fail to shed it later.
-        if (bytes > config.spanFlushMaxBytes) {
-            if (config.debug) {
-                console.error('Flare: dropping oversized span');
-            }
-            return;
-        }
-        this.buffer.push({ span, bytes });
-        this.bufferedBytes += bytes;
-        this.evaluateTriggers(config);
-        this.trim(config);
+        this.inner.add(span);
     }
 
     flush(opts?: { keepalive?: boolean }): void {
-        const config = this.deps.getConfig();
-        // parity with Logger gating on enableLogs
-        if (!config.enableTracing) {
-            return;
-        }
-        if (this.buffer.length === 0) {
-            return;
-        }
-
-        if (!assertKey(config.key, config.debug)) {
-            this.clearTimer();
-            return;
-        }
-        this.clearTimer();
-
-        const resource = this.resourceForFlush();
-
-        let entries: BufferEntry[];
-        if (opts?.keepalive) {
-            entries = this.packForKeepalive(config, resource);
-            this.buffer = this.buffer.filter((entry) => !entries.includes(entry));
-            // Summed from what is retained rather than subtracted, because summing cached numbers is cheap and
-            // cannot drift out of step with the filter.
-            this.bufferedBytes = this.buffer.reduce((sum, entry) => sum + entry.bytes, 0);
-            if (this.buffer.length > 0) {
-                this.armTimer(config);
-            }
-        } else {
-            entries = this.buffer;
-            this.buffer = [];
-            this.bufferedBytes = 0;
-        }
-        if (entries.length === 0) {
-            return;
-        }
-
-        // Covers the non-keepalive path only: a throwing resource-attribute getter here would otherwise escape
-        // the timer into window.onerror. The keepalive path already sizes the resource block above, before
-        // this try opens, so the same throw there still escapes into visibilitychange until a drain-then-guard
-        // redesign lands.
-        try {
-            this.deps.track(
-                this.deps.api.traces(
-                    this.buildEnvelope(
-                        entries.map((entry) => entry.span),
-                        resource,
-                    ),
-                    config.tracesIngestUrl,
-                    config.key,
-                    config.debug,
-                    !!opts?.keepalive,
-                ),
-            );
-        } catch (error) {
-            // The buffer is already drained above, so this batch is gone either way.
-            if (config.debug) {
-                console.error('Flare: failed to send buffered spans', error);
-            }
-        }
+        this.inner.flush(opts);
     }
 
     clear(): void {
-        this.buffer = [];
-        this.bufferedBytes = 0;
-        this.clearTimer();
-    }
-
-    private evaluateTriggers(config: Config): void {
-        if (this.buffer.length >= config.maxSpanBufferSize) {
-            this.flush();
-            return;
-        }
-        if (this.bufferedBytes >= config.spanFlushMaxBytes) {
-            this.flush();
-            return;
-        }
-        this.armTimer(config);
-    }
-
-    private armTimer(config: Config): void {
-        if (this.timerActive) {
-            return;
-        }
-        this.timerActive = true;
-        this.timer = setTimeout(() => {
-            // Reset before flushing: flush()'s early returns skip clearTimer(), which would otherwise leave a
-            // dead handle behind and block armTimer for the rest of the buffer's life.
-            this.timerActive = false;
-            this.timer = undefined;
-            this.flush();
-        }, config.spanFlushIntervalMs);
-        // Node's Timeout has unref(); the browser's number does not.
-        (this.timer as { unref?: () => void }).unref?.();
-    }
-
-    private trim(config: Config): void {
-        if (this.buffer.length > config.maxSpanBufferSize) {
-            const excess = this.buffer.length - config.maxSpanBufferSize;
-            for (let i = 0; i < excess; i++) {
-                this.bufferedBytes -= this.buffer[i].bytes;
-            }
-            this.buffer = this.buffer.slice(excess);
-        }
-        // Never trim to empty: a lone span over the ceiling cannot be fixed by dropping it, and add() already
-        // refused anything that large on the way in.
-        while (this.buffer.length > 1 && this.bufferedBytes > config.spanFlushMaxBytes) {
-            const dropped = this.buffer.shift();
-            if (dropped) {
-                this.bufferedBytes -= dropped.bytes;
-            }
-        }
-    }
-
-    /**
-     * Newest-wins. An over-budget span is skipped, not a stop signal, so a smaller older span behind a fat one
-     * still ships. Runs on visibilitychange:hidden, which fires on plain backgrounding too, so the tail this
-     * leaves behind is retained and re-armed rather than dropped (see flush).
-     */
-    private packForKeepalive(config: Config, resource: Attributes): BufferEntry[] {
-        // Sized from parts instead of rebuilding the envelope per candidate: fixed overhead once, each span's
-        // own UTF-8 length, plus one byte per span after the first for the JSON array comma.
-        const sdk = this.deps.getSdkInfo();
-        const fixedBytes = emptyTracesEnvelopeBytes(resource, sdk.name, sdk.version);
-        const selected: BufferEntry[] = [];
-        let spanBytes = 0;
-        let droppedCount = 0;
-
-        for (let i = this.buffer.length - 1; i >= 0; i--) {
-            const entry = this.buffer[i];
-            const candidateBytes = otelSpanBytes(entry.span);
-            // selected.length is the comma count the array will have once this candidate joins it.
-            if (fixedBytes + spanBytes + candidateBytes + selected.length <= config.keepaliveMaxBytes) {
-                selected.unshift(entry);
-                spanBytes += candidateBytes;
-            } else if (config.debug) {
-                droppedCount++;
-            }
-        }
-        // One line per flush, not one per span: a plain tab-switch can skip a whole buffer's worth of spans.
-        if (config.debug && droppedCount > 0) {
-            console.error(`Flare: dropped ${droppedCount} span(s) from keepalive envelope (over budget)`);
-        }
-        return selected;
-    }
-
-    private buildEnvelope(spans: BufferedSpan[], resource: Attributes): TracesEnvelope {
-        const sdk = this.deps.getSdkInfo();
-        return buildTracesEnvelope(spans, resource, sdk.name, sdk.version);
+        this.inner.clear();
     }
 
     private resourceForFlush(): Attributes {
@@ -219,17 +78,10 @@ export class SpanBuffer {
         );
     }
 
-    private clearTimer(): void {
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = undefined;
-        }
-        this.timerActive = false;
-    }
-
     private estimateBytes(span: BufferedSpan): number {
         // onSpanEnd already reduced every attribute to an OTLP primitive, so safeClone cannot change a byte here.
-        // .length is UTF-16 code units, not UTF-8 bytes, same soft-cap caveat as Logger.estimateBytes.
+        // .length is UTF-16 code units, not UTF-8 bytes, same soft-cap caveat as Logger.estimateBytes: exact for
+        // ASCII, but a CJK-heavy attribute value stretches the real UTF-8 ceiling to roughly 3x.
         return JSON.stringify(span).length;
     }
 }
