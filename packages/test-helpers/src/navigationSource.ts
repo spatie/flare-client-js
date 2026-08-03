@@ -32,6 +32,17 @@ export function browserSeamMock(nav: FakeNavigationSource, original: Record<stri
  *     vi.doMock('@flareapp/js/browser', () => browserSeamStub());
  */
 export function browserSeamStub(overrides: Record<string, unknown> = {}) {
+    const absoluteUrl = (href: string | null | undefined): URL | undefined => {
+        if (href == null) {
+            return undefined;
+        }
+        try {
+            return new URL(href, window.location.href);
+        } catch {
+            return undefined;
+        }
+    };
+
     return {
         registerNavigationSource: () => ({
             startNavigation() {},
@@ -41,10 +52,8 @@ export function browserSeamStub(overrides: Record<string, unknown> = {}) {
         }),
         insulate: (fn: (...a: unknown[]) => void) => fn,
         safeInvoke: (fn?: () => void) => fn?.(),
-        absoluteHref: (href: string | null | undefined) =>
-            href == null ? undefined : new URL(href, window.location.href).href,
-        absoluteUrl: (href: string | null | undefined) =>
-            href == null ? undefined : new URL(href, window.location.href),
+        absoluteUrl,
+        absoluteHref: (href: string | null | undefined) => absoluteUrl(href)?.href,
         ...overrides,
     };
 }
