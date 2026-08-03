@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
-import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, spansOf } from './otlp';
+import { logScenariosFor, runLogScenario, waitForLogMessage } from './logShared';
+import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, waitForSpanType } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('js playground', () => {
@@ -46,14 +46,10 @@ test.describe('js playground', () => {
 
         await page.getByTestId('trace-fetch').click();
 
-        const trace = await fakeFlare.waitForTrace({
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
-        });
+        const fetchSpan = await waitForSpanType(fakeFlare, 'browser_fetch');
 
-        const body = JSON.stringify(trace.bodyJson);
-        expect(body).toContain('browser_fetch');
-        expect(body).toContain('http.request.method');
-        expect(body).toContain('http.response.status_code');
+        expect(stringAttr(fetchSpan, 'http.request.method')).toBe('GET');
+        expect(attr(fetchSpan, 'http.response.status_code')).toEqual({ intValue: 200 });
 
         expect(outgoingTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/);
     });
@@ -62,13 +58,8 @@ test.describe('js playground', () => {
         await page.goto('/broken');
         await page.waitForLoadState('networkidle');
 
-        const trace = await fakeFlare.waitForTrace({
-            timeout: 9000,
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_pageload'),
-        });
-        const pageload = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
-        expect(pageload).toBeTruthy();
-        expect(pageload && attr(pageload, 'flare.entry_point.type')).toEqual({ stringValue: 'web' });
+        const pageload = await waitForSpanType(fakeFlare, 'browser_pageload');
+        expect(attr(pageload, 'flare.entry_point.type')).toEqual({ stringValue: 'web' });
     });
 
     test('fetch span nests under the active navigation root', async ({ page, fakeFlare }) => {
@@ -83,15 +74,10 @@ test.describe('js playground', () => {
         await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
-        const fetchTrace = await fakeFlare.waitForTrace({
-            timeout: 9000,
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
-        });
-        const fetchSpan = spansOf(fetchTrace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
-        expect(fetchSpan).toBeTruthy();
+        const fetchSpan = await waitForSpanType(fakeFlare, 'browser_fetch');
         // The key assertion: the fetch is not its own root, it nests under the active root.
         // Root spans always serialize parentSpanId as null; a nested span carries the parent's spanId.
-        expect(fetchSpan?.parentSpanId).toBeTruthy();
+        expect(fetchSpan.parentSpanId).toBeTruthy();
 
         // And the parent is specifically the browser_navigation root of the same trace. The
         // root only ends after its idle window, so it arrives in a later envelope than the
@@ -100,12 +86,12 @@ test.describe('js playground', () => {
             timeout: 9000,
             predicate: (r) =>
                 spansOf(r.bodyJson).some(
-                    (s) => hasSpanType(s, 'browser_navigation') && s.spanId === fetchSpan?.parentSpanId,
+                    (s) => hasSpanType(s, 'browser_navigation') && s.spanId === fetchSpan.parentSpanId,
                 ),
         });
-        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === fetchSpan?.parentSpanId);
+        const root = spansOf(rootTrace.bodyJson).find((s) => s.spanId === fetchSpan.parentSpanId);
         expect(root).toBeTruthy();
-        expect(root?.traceId).toBe(fetchSpan?.traceId);
+        expect(root?.traceId).toBe(fetchSpan.traceId);
         expect(root?.parentSpanId ?? null).toBeNull();
     });
 
@@ -115,11 +101,7 @@ test.describe('js playground', () => {
         // Click a data-link nav anchor (triggers history.pushState).
         await page.getByTestId('cart-count').click();
 
-        const trace = await fakeFlare.waitForTrace({
-            timeout: 9000,
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_navigation'),
-        });
-        expect(spansOf(trace.bodyJson).some((s) => hasSpanType(s, 'browser_navigation'))).toBe(true);
+        await waitForSpanType(fakeFlare, 'browser_navigation');
     });
 
     test('navigation root url reflects the page it represents (no drift)', async ({ page, fakeFlare }) => {
@@ -130,18 +112,17 @@ test.describe('js playground', () => {
         // The /cart navigation root must carry /cart, not whatever page is current when it idles out.
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => {
-                const nav = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
-                return !!nav && JSON.stringify(attr(nav, 'url.full') ?? '').includes('/cart');
+            predicate: (trace) => {
+                const nav = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
+                return !!nav && (stringAttr(nav, 'url.full') ?? '').includes('/cart');
             },
         });
         const nav = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
         expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({ stringValue: '/cart' });
         // no manual context.* leakage
-        expect(JSON.stringify(nav)).not.toContain('context.route');
-        expect(JSON.stringify(nav)).not.toContain('context.url');
-        expect(JSON.stringify(nav)).not.toContain('context.user_agent');
-        expect(JSON.stringify(nav)).not.toContain('context.viewport');
+        for (const leaked of ['context.route', 'context.url', 'context.user_agent', 'context.viewport']) {
+            expect(attributeKeys(nav).some((key) => key.includes(leaked))).toBe(false);
+        }
     });
 
     test('fetch child is lean (no cookies, no page context) and resource has host.name', async ({
@@ -155,26 +136,27 @@ test.describe('js playground', () => {
         await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
-        const trace = await fakeFlare.waitForTrace({
-            timeout: 9000,
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('browser_fetch'),
-        });
-        const fetchSpan = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_fetch'));
-        expect(fetchSpan).toBeTruthy();
-        expect(fetchSpan?.parentSpanId).toBeTruthy(); // a child, not its own root
+        const fetchSpan = await waitForSpanType(fakeFlare, 'browser_fetch');
+        expect(fetchSpan.parentSpanId).toBeTruthy(); // a child, not its own root
         // lean: carries its own http.* but not cookies or referrer/ready_state page context
-        expect(attr(fetchSpan!, 'http.request.method')).toBeTruthy();
-        expect(JSON.stringify(fetchSpan)).not.toContain('http.request.cookies');
-        expect(JSON.stringify(fetchSpan)).not.toContain('document.ready_state');
+        expect(attr(fetchSpan, 'http.request.method')).toBeTruthy();
+        for (const leaked of ['http.request.cookies', 'document.ready_state']) {
+            expect(attributeKeys(fetchSpan).some((key) => key.includes(leaked))).toBe(false);
+        }
 
-        // resource has host.name (sourced stably, present even though children are lean)
+        // resource has host.name (sourced stably, present even though children are lean). Find the
+        // envelope that carried fetchSpan rather than re-waiting: waitForSpanType already confirmed
+        // it landed, so it is in fakeFlare's history by now.
+        const trace = (await fakeFlare.traces()).find((t) =>
+            spansOf(t.bodyJson).some((s) => s.spanId === fetchSpan.spanId),
+        )!;
         const resourceAttrs =
             (
                 trace.bodyJson as {
                     resourceSpans?: Array<{ resource?: { attributes?: Array<{ key: string }> } }>;
                 }
             ).resourceSpans?.[0]?.resource?.attributes ?? [];
-        expect(resourceAttrs.some((a) => a.key === 'host.name')).toBe(true);
+        expect(resourceAttrs.some((attribute) => attribute.key === 'host.name')).toBe(true);
     });
 });
 
@@ -201,9 +183,7 @@ test.describe('js logging', () => {
 
         await page.goto('about:blank');
 
-        const log = await fakeFlare.waitForLog({
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('e2e-unload-log'),
-        });
+        const log = await waitForLogMessage(fakeFlare, 'e2e-unload-log');
 
         expect(log.endpoint).toBe('logs');
         expect(log.headers['x-api-token']).toBeTruthy();
@@ -241,9 +221,7 @@ test.describe('js logging', () => {
             return (globalThis as { __flare?: any }).__flare.flush();
         });
 
-        const log = await fakeFlare.waitForLog({
-            predicate: (r) => JSON.stringify(r.bodyJson).includes('e2e-bg-resume-'),
-        });
+        const log = await waitForLogMessage(fakeFlare, 'e2e-bg-resume-');
         expect(log.endpoint).toBe('logs');
     });
 });

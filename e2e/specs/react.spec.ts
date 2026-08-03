@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, spansOf } from './otlp';
+import { attr, hasSpanType, spansOf, stringAttr } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('react playground', () => {
@@ -36,12 +36,12 @@ test.describe('react playground', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => {
-                const pl = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
-                return !!pl && JSON.stringify(attr(pl, 'flare.route.source') ?? '').includes('route');
+            predicate: (record) => {
+                const pl = spansOf(record.bodyJson).find((span) => hasSpanType(span, 'browser_pageload'));
+                return !!pl && stringAttr(pl, 'flare.route.source') === 'route';
             },
         });
-        const pageload = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
+        const pageload = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_pageload'));
         expect(pageload && attr(pageload, 'flare.entry_point.handler.identifier')).toEqual({
             stringValue: '/product/$id',
         });
@@ -56,15 +56,12 @@ test.describe('react playground', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => {
-                const nav = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
-                return (
-                    !!nav &&
-                    JSON.stringify(attr(nav, 'flare.entry_point.handler.identifier') ?? '').includes('/product/$id')
-                );
+            predicate: (record) => {
+                const nav = spansOf(record.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
+                return !!nav && stringAttr(nav, 'flare.entry_point.handler.identifier') === '/product/$id';
             },
         });
-        const nav = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
+        const nav = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
         expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({ stringValue: '/product/$id' });
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
 
@@ -74,8 +71,8 @@ test.describe('react playground', () => {
         // URL-named root opens and ends BEFORE the integration's parameterized one, so by the
         // time waitForTrace matched above, the duplicate would already have arrived.)
         const navSpans = (await fakeFlare.traces())
-            .flatMap((t) => spansOf(t.bodyJson))
-            .filter((s) => hasSpanType(s, 'browser_navigation'));
+            .flatMap((record) => spansOf(record.bodyJson))
+            .filter((span) => hasSpanType(span, 'browser_navigation'));
         expect(navSpans).toHaveLength(1);
     });
 });

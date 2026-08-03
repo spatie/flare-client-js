@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, parentOf, spansOf, urlOf } from './otlp';
+import { attr, hasSpanType, parentOf, spansOf, stringAttr, urlOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('svelte playground', () => {
@@ -50,12 +50,12 @@ test.describe('svelte tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => {
-                const pl = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
-                return !!pl && JSON.stringify(attr(pl, 'flare.route.source') ?? '').includes('route');
+            predicate: (record) => {
+                const pl = spansOf(record.bodyJson).find((span) => hasSpanType(span, 'browser_pageload'));
+                return !!pl && stringAttr(pl, 'flare.route.source') === 'route';
             },
         });
-        const pageload = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_pageload'));
+        const pageload = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_pageload'));
         expect(pageload && attr(pageload, 'flare.entry_point.handler.identifier')).toEqual({
             stringValue: '/product/[id]',
         });
@@ -70,27 +70,24 @@ test.describe('svelte tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => {
-                const nav = spansOf(r.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
-                return (
-                    !!nav &&
-                    JSON.stringify(attr(nav, 'flare.entry_point.handler.identifier') ?? '').includes('/product/[id]')
-                );
+            predicate: (record) => {
+                const nav = spansOf(record.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
+                return !!nav && stringAttr(nav, 'flare.entry_point.handler.identifier') === '/product/[id]';
             },
         });
-        const nav = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_navigation'));
+        const nav = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
         expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({
             stringValue: '/product/[id]',
         });
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
         // The nav root's url.full has to be where the navigation went, even though Kit tells us
         // before the URL changes. This is what proves the url override is wired up.
-        expect(JSON.stringify((nav && attr(nav, 'url.full')) ?? '')).toContain('/product/p01');
+        expect(nav && stringAttr(nav, 'url.full')).toContain('/product/p01');
 
         // registerNavigationSource suppresses the History-based root, so one click => one root.
         const navSpans = (await fakeFlare.traces())
-            .flatMap((t) => spansOf(t.bodyJson))
-            .filter((s) => hasSpanType(s, 'browser_navigation'));
+            .flatMap((record) => spansOf(record.bodyJson))
+            .filter((span) => hasSpanType(span, 'browser_navigation'));
         expect(navSpans).toHaveLength(1);
     });
 
@@ -130,15 +127,15 @@ test.describe('svelte tracing', () => {
         // add 500ms margin for that POST to reach the fake server.
         await page.waitForTimeout(3000);
 
-        const all = (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson));
-        const pageload = all.find((s) => hasSpanType(s, 'browser_pageload'));
+        const all = (await fakeFlare.traces()).flatMap((record) => spansOf(record.bodyJson));
+        const pageload = all.find((span) => hasSpanType(span, 'browser_pageload'));
         // Positive control: browser_pageload roots are opened by the framework-agnostic browser
         // tracer regardless of traceSvelteKitRouter, so merely finding one proves nothing. Its
         // route.source only flips from the default 'url' to 'route' once traceSvelteKitRouter's
         // effect names it, so this is what actually proves the SvelteKit integration is wired and
         // the zero-navigation assertion below is meaningful rather than vacuous.
         expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
-        expect(all.filter((s) => hasSpanType(s, 'browser_navigation'))).toHaveLength(0);
+        expect(all.filter((span) => hasSpanType(span, 'browser_navigation'))).toHaveLength(0);
     });
 });
 
@@ -152,10 +149,10 @@ test.describe('svelte http tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch')),
+            predicate: (record) => spansOf(record.bodyJson).some((span) => hasSpanType(span, 'browser_fetch')),
         });
         const spans = spansOf(trace.bodyJson);
-        const fetchSpan = spans.find((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-ok'));
+        const fetchSpan = spans.find((span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('fetch-ok'));
         expect(fetchSpan).toBeTruthy();
         expect(attr(fetchSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
 
@@ -178,11 +175,13 @@ test.describe('svelte http tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) =>
-                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-404')),
+            predicate: (record) =>
+                spansOf(record.bodyJson).some(
+                    (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('fetch-404'),
+                ),
         });
         const span = spansOf(trace.bodyJson).find(
-            (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-404'),
+            (candidate) => hasSpanType(candidate, 'browser_fetch') && urlOf(candidate).includes('fetch-404'),
         );
         expect(span).toBeTruthy();
         // httpRequestSpan.ts's endHttpRequestSpan records the response status on every completion
@@ -202,11 +201,13 @@ test.describe('svelte http tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) =>
-                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500')),
+            predicate: (record) =>
+                spansOf(record.bodyJson).some(
+                    (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('fetch-500'),
+                ),
         });
         const span = spansOf(trace.bodyJson).find(
-            (s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('fetch-500'),
+            (candidate) => hasSpanType(candidate, 'browser_fetch') && urlOf(candidate).includes('fetch-500'),
         );
         expect(span).toBeTruthy();
         // The 404 test above covers the non-error side. This covers the other half: a status of 500
@@ -224,10 +225,10 @@ test.describe('svelte http tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr')),
+            predicate: (record) => spansOf(record.bodyJson).some((span) => hasSpanType(span, 'browser_xhr')),
         });
         const spans = spansOf(trace.bodyJson);
-        const xhrSpan = spans.find((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-ok'));
+        const xhrSpan = spans.find((span) => hasSpanType(span, 'browser_xhr') && urlOf(span).includes('xhr-ok'));
         expect(xhrSpan).toBeTruthy();
         expect(attr(xhrSpan!, 'http.request.method')).toEqual({ stringValue: 'GET' });
 
@@ -249,10 +250,14 @@ test.describe('svelte http tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) =>
-                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-404')),
+            predicate: (record) =>
+                spansOf(record.bodyJson).some(
+                    (span) => hasSpanType(span, 'browser_xhr') && urlOf(span).includes('xhr-404'),
+                ),
         });
-        const span = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-404'));
+        const span = spansOf(trace.bodyJson).find(
+            (candidate) => hasSpanType(candidate, 'browser_xhr') && urlOf(candidate).includes('xhr-404'),
+        );
         expect(span).toBeTruthy();
         expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 404 });
         expect(span!.status?.code ?? 0).toBe(0);
@@ -296,11 +301,15 @@ test.describe('svelte http tracing', () => {
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (r) =>
-                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('kit-load-fetch')),
+            predicate: (record) =>
+                spansOf(record.bodyJson).some(
+                    (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('kit-load-fetch'),
+                ),
         });
         const spans = spansOf(trace.bodyJson);
-        const loadFetch = spans.find((s) => hasSpanType(s, 'browser_fetch') && urlOf(s).includes('kit-load-fetch'));
+        const loadFetch = spans.find(
+            (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('kit-load-fetch'),
+        );
         expect(loadFetch).toBeTruthy();
 
         // It fired during the navigation, so it must nest under the navigation root, not the pageload.
