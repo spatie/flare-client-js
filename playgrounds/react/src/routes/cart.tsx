@@ -1,7 +1,7 @@
 import { productById, testIds } from '@flareapp/playgrounds-shared';
+import { cart, useCart } from '@flareapp/playgrounds-shared/react';
 import { createRoute, Link } from '@tanstack/react-router';
 
-import { cart, useCart } from '../cart';
 import { rootRoute } from './__root';
 
 const CartPage = () => {

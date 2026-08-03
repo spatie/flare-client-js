@@ -1,8 +1,8 @@
 import { testIds } from '@flareapp/playgrounds-shared';
+import { cart } from '@flareapp/playgrounds-shared/react';
 import { createRoute, useNavigate } from '@tanstack/react-router';
 import type { FormEvent } from 'react';
 
-import { cart } from '../cart';
 import { rootRoute } from './__root';
 
 const CheckoutPage = () => {

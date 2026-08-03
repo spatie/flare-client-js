@@ -1,9 +1,8 @@
 import { products, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
+import { cart } from '@flareapp/playgrounds-shared/react';
 import { withFlareProfiler } from '@flareapp/react/profiler';
 import type { RouteObject } from 'react-router';
 import { Link } from 'react-router';
-
-import { cart } from '../cart';
 
 const ProductsPage = () => (
     <section data-testid={testIds.productGrid}>

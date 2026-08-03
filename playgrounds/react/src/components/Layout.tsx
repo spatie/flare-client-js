@@ -1,7 +1,6 @@
 import { testIds } from '@flareapp/playgrounds-shared';
+import { useCartCount } from '@flareapp/playgrounds-shared/react';
 import { Link, Outlet } from '@tanstack/react-router';
-
-import { useCartCount } from '../cart';
 
 export const Layout = () => {
     const count = useCartCount();

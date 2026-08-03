@@ -1,9 +1,8 @@
 import { testIds } from '@flareapp/playgrounds-shared';
+import { cart } from '@flareapp/playgrounds-shared/react';
 import type { FormEvent } from 'react';
 import type { RouteObject } from 'react-router';
 import { useNavigate } from 'react-router';
-
-import { cart } from '../cart';
 
 const CheckoutPage = () => {
     const navigate = useNavigate();

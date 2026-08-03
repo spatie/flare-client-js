@@ -1,8 +1,8 @@
 import { productById, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
+import { cart } from '@flareapp/playgrounds-shared/react';
 import { withFlareProfiler } from '@flareapp/react/profiler';
 import { createRoute } from '@tanstack/react-router';
 
-import { cart } from '../cart';
 import { flare } from '../flare';
 import { rootRoute } from './__root';
 

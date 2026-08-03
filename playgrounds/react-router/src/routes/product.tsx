@@ -1,9 +1,9 @@
 import { productById, testIds, unsplashUrl, type Product } from '@flareapp/playgrounds-shared';
+import { cart } from '@flareapp/playgrounds-shared/react';
 import { withFlareProfiler } from '@flareapp/react/profiler';
 import type { LoaderFunctionArgs, RouteObject } from 'react-router';
 import { useLoaderData } from 'react-router';
 
-import { cart } from '../cart';
 import { flare } from '../flare';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

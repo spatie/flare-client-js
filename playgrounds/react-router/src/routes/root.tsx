@@ -1,10 +1,10 @@
 import { testIds } from '@flareapp/playgrounds-shared';
+import { useCartCount } from '@flareapp/playgrounds-shared/react';
 import { FlareErrorBoundary } from '@flareapp/react';
 import { withFlareProfiler } from '@flareapp/react/profiler';
 import type { RouteObject } from 'react-router';
 import { Link, Outlet, useLocation } from 'react-router';
 
-import { useCartCount } from '../cart';
 import { Fallback } from '../components/Fallback';
 import { brokenRoute } from './broken';
 import { cartRoute } from './cart';

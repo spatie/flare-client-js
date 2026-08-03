@@ -1,8 +1,7 @@
 import { productById, testIds } from '@flareapp/playgrounds-shared';
+import { cart, useCart } from '@flareapp/playgrounds-shared/react';
 import type { RouteObject } from 'react-router';
 import { Link } from 'react-router';
-
-import { cart, useCart } from '../cart';
 
 const CartPage = () => {
     const lines = useCart();
