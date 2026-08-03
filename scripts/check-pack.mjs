@@ -17,7 +17,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -138,7 +138,9 @@ export function checkPack(names = PUBLISHED_PACKAGES) {
 }
 
 // Run directly: `node scripts/check-pack.mjs [pkg ...]`
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL, not a `file://` template: argv[1] is a raw path, so any repo path that
+// percent-encodes (a space, for one) would never match and the whole script would no-op.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const args = process.argv.slice(2);
     const names = args.length > 0 ? args : PUBLISHED_PACKAGES;
     const failures = checkPack(names);
