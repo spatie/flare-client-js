@@ -4,7 +4,7 @@ import { installGlobalErrorHandler } from '../src/handlers/globalErrorHandler';
 import { stubErrorUtils } from './helpers/stubErrorUtils';
 
 afterEach(() => {
-    delete (globalThis as Record<string, unknown>).ErrorUtils;
+    vi.unstubAllGlobals();
 });
 
 describe('installGlobalErrorHandler', () => {

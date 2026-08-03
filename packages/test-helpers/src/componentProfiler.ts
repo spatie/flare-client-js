@@ -91,7 +91,10 @@ export function createComponentSeam(): FakeComponentSeam {
  *     vi.mock('@flareapp/js/browser', async (importOriginal) =>
  *         (await import('@flareapp/test-helpers')).componentProfilerMock(seam, await importOriginal()));
  */
-export function componentProfilerMock(seam: FakeComponentSeam, original: Record<string, unknown>) {
+export function componentProfilerMock(
+    seam: FakeComponentSeam,
+    original: Record<string, unknown>,
+): Record<string, unknown> {
     return {
         ...original,
         activeComponentRoot: seam.activeComponentRoot,

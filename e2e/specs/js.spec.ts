@@ -112,8 +112,8 @@ test.describe('js playground', () => {
         // The /cart navigation root must carry /cart, not whatever page is current when it idles out.
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
-            predicate: (trace) => {
-                const nav = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
+            predicate: (record) => {
+                const nav = spansOf(record.bodyJson).find((span) => hasSpanType(span, 'browser_navigation'));
                 return !!nav && (stringAttr(nav, 'url.full') ?? '').includes('/cart');
             },
         });

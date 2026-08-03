@@ -13,7 +13,7 @@ function withFakeApi(flare: ReactNativeFlare): FakeApi {
 }
 
 afterEach(() => {
-    delete (globalThis as Record<string, unknown>).ErrorUtils;
+    vi.unstubAllGlobals();
     AppState.__reset();
     vi.restoreAllMocks();
 });

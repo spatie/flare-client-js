@@ -1,5 +1,5 @@
 import { createComponentMatcher, withoutStatefulFlags, type ProfileComponentsOption } from '@flareapp/core/util';
-import MagicString from 'magic-string';
+import MagicString, { type SourceMap } from 'magic-string';
 import type { PreprocessorGroup } from 'svelte/compiler';
 
 import { resolveProfileName } from './resolveProfileName.js';
@@ -192,7 +192,13 @@ async function instanceScriptStart(
 }
 
 /** The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints. */
-function injectWithMap(content: string, injection: string, filename: string, start: number | null, bomCount: number) {
+function injectWithMap(
+    content: string,
+    injection: string,
+    filename: string,
+    start: number | null,
+    bomCount: number,
+): { code: string; map: SourceMap } {
     const magicSource = new MagicString(content);
 
     if (start === null) {

@@ -17,7 +17,7 @@ export type FakeNavigationSource = {
  *     vi.mock('@flareapp/js/browser', async (importOriginal) =>
  *         (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()));
  */
-export function browserSeamMock(nav: FakeNavigationSource, original: Record<string, unknown>) {
+export function browserSeamMock(nav: FakeNavigationSource, original: Record<string, unknown>): Record<string, unknown> {
     return {
         ...original,
         registerNavigationSource: vi.fn(() => nav),
@@ -31,7 +31,7 @@ export function browserSeamMock(nav: FakeNavigationSource, original: Record<stri
  *
  *     vi.doMock('@flareapp/js/browser', () => browserSeamStub());
  */
-export function browserSeamStub(overrides: Record<string, unknown> = {}) {
+export function browserSeamStub(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     const absoluteUrl = (href: string | null | undefined): URL | undefined => {
         if (href == null) {
             return undefined;
