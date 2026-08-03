@@ -188,14 +188,16 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
             }
         }
     };
-    const wrap = (original: unknown) =>
-        function (this: unknown, ...args: unknown[]): unknown {
-            const result = (original as (...a: unknown[]) => unknown).apply(this, args);
+    function wrapHistoryMethod<F extends (...args: never[]) => unknown>(original: F): F {
+        return function (this: unknown, ...args: Parameters<F>): unknown {
+            const result = original.apply(this, args);
             handle();
             return result;
-        };
-    fill(history as unknown as Record<string, unknown>, 'pushState', wrap);
-    fill(history as unknown as Record<string, unknown>, 'replaceState', wrap);
+        } as F;
+    }
+
+    fill(history, 'pushState', wrapHistoryMethod);
+    fill(history, 'replaceState', wrapHistoryMethod);
     window.addEventListener('popstate', handle);
 
     // On page teardown the open root must be force-ended and then keepalive-flushed from here:
@@ -229,8 +231,8 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     uninstall = () => {
-        unfill(history as unknown as Record<string, unknown>, 'pushState');
-        unfill(history as unknown as Record<string, unknown>, 'replaceState');
+        unfill(history, 'pushState');
+        unfill(history, 'replaceState');
         window.removeEventListener('popstate', handle);
         window.removeEventListener('pagehide', onPageHide);
         document.removeEventListener('visibilitychange', onVisibilityChange);

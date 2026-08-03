@@ -72,10 +72,12 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
     };
 }
 
+type FetchGlobals = { fetch?: typeof fetch; location?: { origin?: string } };
+
 // Owns the installed flag for the single `fetch` method. A wrapper left behind by a failed unpatch
 // stays live and checks enableTracing per call, so one wrapper in the chain is always enough.
 // See createPatcher for how install and uninstall stay in step.
-const patcher = createPatcher();
+const patcher = createPatcher<FetchGlobals>();
 
 /**
  * Patch the global `fetch` so outgoing requests are traced. No-op when there is no `fetch` or it
@@ -87,7 +89,7 @@ export function instrumentFetch(tracer: HttpTracer): void {
         return;
     }
 
-    const globals = globalThis as { fetch?: typeof fetch; location?: { origin?: string } };
+    const globals = globalThis as FetchGlobals;
     if (typeof globals.fetch !== 'function') {
         return;
     }
@@ -96,12 +98,10 @@ export function instrumentFetch(tracer: HttpTracer): void {
     }
 
     const origin = globals.location?.origin ?? '';
-    patcher.install(globals as unknown as Record<string, unknown>, [
-        { name: 'fetch', wrap: (original) => createFetchWrapper(tracer, original as typeof fetch, origin) },
-    ]);
+    patcher.install(globals, { fetch: (original) => createFetchWrapper(tracer, original, origin) });
 }
 
 /** Restore the original global `fetch`. Safe if never patched. */
 export function unpatchFetch(): void {
-    patcher.uninstall(globalThis as unknown as Record<string, unknown>);
+    patcher.uninstall(globalThis as FetchGlobals);
 }

@@ -193,11 +193,11 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
 // One installed flag across all three methods, so they always install and restore together. A flag
 // per method would let a third party wrapping just one of them (say `send`) leave that one patched
 // while the others go back to native, and `send` reads the state `open` records.
-const patcher = createPatcher();
+const patcher = createPatcher<XMLHttpRequest>();
 
 // Must target the patched prototype for uninstall; a swapped-in constructor would send
 // uninstall at the wrong prototype, leaving `installed` true forever.
-let patchedPrototype: Record<string, unknown> | null = null;
+let patchedPrototype: XMLHttpRequest | null = null;
 
 /**
  * Patch `XMLHttpRequest.prototype` (`open`, `setRequestHeader`, `send`) so outgoing
@@ -216,13 +216,12 @@ export function instrumentXHR(tracer: HttpTracer): void {
     }
 
     const origin = globals.location?.origin ?? '';
-    const prototype = xhrConstructor.prototype as unknown as Record<string, unknown>;
-    patcher.install(prototype, [
-        { name: 'open', wrap: (o) => createXHROpen(o as XhrOpen) },
-        { name: 'setRequestHeader', wrap: (o) => createXHRSetRequestHeader(o as XhrSetHeader) },
-        { name: 'send', wrap: (o) => createXHRSend(tracer, o as XhrSend, origin) },
-    ]);
-    patchedPrototype = prototype;
+    patcher.install(xhrConstructor.prototype, {
+        open: (original) => createXHROpen(original),
+        setRequestHeader: (original) => createXHRSetRequestHeader(original),
+        send: (original) => createXHRSend(tracer, original, origin),
+    });
+    patchedPrototype = xhrConstructor.prototype;
 }
 
 /** Restore the original `XMLHttpRequest.prototype` methods. Safe if never patched. */

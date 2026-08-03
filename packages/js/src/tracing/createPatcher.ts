@@ -2,7 +2,14 @@ import { fill, unfill } from './fill';
 
 type Wrapped<F> = F & { __flare_original__?: F };
 
-export type MethodPatch = { name: string; wrap: (original: unknown) => unknown };
+/** One wrapper factory per patched method, each typed against that method alone. */
+export type MethodPatches<T> = { [K in keyof T]?: (original: NonNullable<T[K]>) => T[K] };
+
+export type Patcher<T extends object> = {
+    readonly installed: boolean;
+    install(target: T, patches: MethodPatches<T>): void;
+    uninstall(target: T): void;
+};
 
 /**
  * One `installed` flag across a set of methods on the same target, so a multi-method patch (XHR's
@@ -13,23 +20,31 @@ export type MethodPatch = { name: string; wrap: (original: unknown) => unknown }
  * Target is passed per call rather than captured, because callers look it up fresh
  * (`globalThis.fetch` may not exist yet under SSR).
  */
-export function createPatcher() {
+export function createPatcher<T extends object>(): Patcher<T> {
     let installed = false;
-    let names: string[] = [];
+    let names: (keyof T)[] = [];
 
     return {
         get installed(): boolean {
             return installed;
         },
 
-        install(target: Record<string, unknown>, patches: readonly MethodPatch[]): void {
+        install(target: T, patches: MethodPatches<T>): void {
             if (installed) {
                 return;
             }
-            for (const { name, wrap } of patches) {
-                fill(target, name, wrap);
+            // Generic over one key at a time: that is what keeps each wrapper correlated with its
+            // own method instead of the union of all of them.
+            function applyOne<K extends keyof T>(name: K): void {
+                const wrap = patches[name];
+                if (wrap) {
+                    fill(target, name, wrap);
+                }
             }
-            names = patches.map((p) => p.name);
+            names = Object.keys(patches) as (keyof T)[];
+            for (const name of names) {
+                applyOne(name);
+            }
             installed = true;
         },
 
@@ -39,7 +54,7 @@ export function createPatcher() {
          * wrappers stay in place but do nothing, thanks to their own `enableTracing` check, so the next
          * `install` is a no-op instead of adding a second layer of wrapping.
          */
-        uninstall(target: Record<string, unknown>): void {
+        uninstall(target: T): void {
             if (!installed) {
                 return;
             }
