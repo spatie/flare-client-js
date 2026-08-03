@@ -121,3 +121,31 @@ export function traceparentFor(
     }
     return buildTraceparent(span.traceId, span.spanId, span.isRecording);
 }
+
+/**
+ * Open a request span for one outgoing fetch or XHR call. Null means the URL is one of Flare's own
+ * ingest endpoints, so the caller passes the request through untraced.
+ *
+ * `absoluteUrl` comes back with the span because both callers need it afterwards: for the traceparent
+ * gate, and for XHR's http(s)-only status-0 rule.
+ */
+export function startHttpRequestSpan(
+    tracer: HttpTracer,
+    request: { method: string; url: string; origin: string; spanType: string },
+): { span: Span; absoluteUrl: URL | null } | null {
+    const { method, url, origin, spanType } = request;
+    const config = tracer.config;
+
+    const absoluteUrl = safeAbsolute(url, origin);
+    if (isFlareIngestUrl(absoluteUrl, config, origin)) {
+        return null;
+    }
+
+    const pathname = absoluteUrl ? absoluteUrl.pathname : url;
+    const span = tracer.startSpan(`${method} ${pathname}`, {
+        spanType,
+        attributes: requestSpanAttributes(method, absoluteUrl, url, config),
+    });
+
+    return { span, absoluteUrl };
+}

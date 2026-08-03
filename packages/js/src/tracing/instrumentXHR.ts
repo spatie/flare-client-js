@@ -5,9 +5,7 @@ import {
     endHttpRequestSpan,
     finishHttpSpanError,
     type HttpTracer,
-    isFlareIngestUrl,
-    requestSpanAttributes,
-    safeAbsolute,
+    startHttpRequestSpan,
     traceparentFor,
 } from './httpRequestSpan';
 import { BrowserSpanType } from './spanTypes';
@@ -128,16 +126,16 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             return send();
         }
 
-        const absoluteUrl = safeAbsolute(state.url, origin);
-        if (isFlareIngestUrl(absoluteUrl, config, origin)) {
+        const started = startHttpRequestSpan(tracer, {
+            method: state.method,
+            url: state.url,
+            origin,
+            spanType: BrowserSpanType.Xhr,
+        });
+        if (!started) {
             return send();
         }
-
-        const pathname = absoluteUrl ? absoluteUrl.pathname : state.url;
-        const span = tracer.startSpan(`${state.method} ${pathname}`, {
-            spanType: BrowserSpanType.Xhr,
-            attributes: requestSpanAttributes(state.method, absoluteUrl, state.url, config),
-        });
+        const { span, absoluteUrl } = started;
         state.span = span;
 
         if (!state.hasAppTraceparent) {

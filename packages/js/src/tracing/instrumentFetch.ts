@@ -3,9 +3,7 @@ import {
     endHttpRequestSpan,
     finishHttpSpanError,
     type HttpTracer,
-    isFlareIngestUrl,
-    requestSpanAttributes,
-    safeAbsolute,
+    startHttpRequestSpan,
     traceparentFor,
 } from './httpRequestSpan';
 import { type FetchInput, mergeTraceparentHeader } from './propagation';
@@ -40,17 +38,11 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
         }
 
         const { method, url } = resolveRequest(input, init);
-        const absoluteUrl = safeAbsolute(url, origin);
-        if (isFlareIngestUrl(absoluteUrl, config, origin)) {
+        const started = startHttpRequestSpan(tracer, { method, url, origin, spanType: BrowserSpanType.Fetch });
+        if (!started) {
             return call(init);
         }
-
-        const pathname = absoluteUrl ? absoluteUrl.pathname : url;
-
-        const span = tracer.startSpan(`${method} ${pathname}`, {
-            spanType: BrowserSpanType.Fetch,
-            attributes: requestSpanAttributes(method, absoluteUrl, url, config),
-        });
+        const { span, absoluteUrl } = started;
 
         let finalInit = init;
         const traceparent = traceparentFor(span, absoluteUrl, url, origin, config);
