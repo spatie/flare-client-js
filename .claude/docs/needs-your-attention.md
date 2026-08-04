@@ -6,7 +6,12 @@ not spread across nine plan files and a chat log.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-04, at branch tip `24ff360` (plans 1 to 8 complete, plan 9 not started).
+Last updated 2026-08-04, at branch tip `d702e80`. **All nine plans are complete.** Gate at that commit:
+build and type check exit 0, oxlint 21 warnings (all pre-existing), 197 test files / 1636 tests,
+134 end-to-end tests passing, pack check clean on all 12 published packages, working tree clean.
+
+What is left is in this file: two backend agreements, four manual checks, three release-note items, and a
+handful of findings deliberately left alone.
 
 **For agents:** you may append to this file. See the house rules at the bottom.
 
@@ -28,6 +33,24 @@ The release cannot run until these are confirmed, and confirmed as **deployed**,
   `packages/js/src/tracing/spanTypes.ts` states these are wire format and can never change, so a rename after
   release is not available.
 
+    For that last one you no longer have to describe the shape from the code. This is what the client actually
+    put on the wire, captured from the fake ingest server during an end-to-end run:
+
+    ```json
+    {
+        "name": "ProductsPage",
+        "parentSpanId": "ce3e24af421139e9",
+        "attributes": [
+            { "key": "flare.span_type", "value": { "stringValue": "browser_component" } },
+            { "key": "flare.component.name", "value": { "stringValue": "ProductsPage" } }
+        ]
+    }
+    ```
+
+    The nesting is the part worth flagging to whoever owns ingest: `parentSpanId` points at the nearest
+    **profiled ancestor**, not at the root. The observed chain was `ProductsPage` under `Layout` under the
+    pageload root. So component spans arrive as a tree, not flat.
+
 The aliasing item is what makes this a hard gate rather than a parallel conversation. You chose the **2.7.0
 minor** on the explicit condition that aliasing ships first. Without it, a minor bump silently breaks
 `flare.framework.name` grouping for everyone who upgrades. If aliasing cannot ship in time, the fallback is
@@ -47,12 +70,12 @@ upload settled rejected, so a failing upload would make the check pass for the w
 
 None of these can be automated here. Each names what would go wrong and what evidence already exists.
 
-| Check                                                                                                                            | Why no suite covers it                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Drive 500 fetches in a playground with `debug: true`, confirm no visible main-thread stall                                       | Nothing in the suite measures main-thread time. The baseline to beat is 116ms of blocking across those calls, now 1.7ms by measurement.                                                                                                                                                                                                                                                                                                                                      |
-| With a full buffer, switch tabs and confirm the traces POST still ships under 60KB                                               | The keepalive budget is asserted in unit tests at a loose ceiling, not against a real browser's limit.                                                                                                                                                                                                                                                                                                                                                                       |
-| Boot both React playgrounds, add to cart, watch the count badge, and trigger a render error on `/broken`                         | The e2e suite never reads the numeric cart badge (`testIds.cartCount` is unused in `e2e/`). A stale-count regression from the shared-store move would not be caught. Risk is low: it was a pure `git mv` with zero content change.                                                                                                                                                                                                                                           |
-| Compile the two `@flareapp/inertia` README snippets in a scratch project with `@inertiajs/vue3` and `@inertiajs/react` installed | `traceInertiaRouter`'s parameter was narrowed from `unknown` to a typed shape, but **there is no `@inertiajs` package anywhere in this repo or its lockfile**, so a clean `npm run typescript` proves nothing about whether a real `import { router } from '@inertiajs/vue3'` still assigns. Reading Inertia v2's own `on()` signature suggests it does, but nobody has compiled it. The README blocks are JavaScript fences, so JavaScript users are unaffected either way. |
+| Check                                                                                                    | Why no suite covers it                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Drive 500 fetches in a playground with `debug: true`, confirm no visible main-thread stall               | Nothing in the suite measures main-thread time. The baseline to beat is 116ms of blocking across those calls, now 1.7ms by measurement.                                                                                                                                                                                                    |
+| With a full buffer, switch tabs and confirm the traces POST still ships under 60KB                       | The keepalive budget is asserted in unit tests at a loose ceiling, not against a real browser's limit.                                                                                                                                                                                                                                     |
+| Boot both React playgrounds, add to cart, watch the count badge, and trigger a render error on `/broken` | The e2e suite never reads the numeric cart badge (`testIds.cartCount` is unused in `e2e/`). A stale-count regression from the shared-store move would not be caught. Risk is low: it was a pure `git mv` with zero content change.                                                                                                         |
+| Nothing further owed on Inertia typing                                                                   | **This one is closed.** `@inertiajs/core@2.3.27` is now a devDependency of `packages/inertia`, and `traceInertiaRouter`'s narrowed parameter compiles against the real `Router` class with no cast (`tsc --noEmit`, exit 0). Only v2 is proven, which is what the README claims; v3 dropped axios so the test approach would not transfer. |
 
 ---
 
@@ -152,7 +175,16 @@ command-line flag references, so that rule needs to allow those.
 This is a decision, not a defect: it is your call whether the standard is worth enforcing mechanically or
 whether a periodic manual pass is good enough.
 
-### 4.8 Two small repo inconsistencies
+### 4.8 `npm run format` is not idempotent
+
+Running it repo-wide produces drift in files nobody touched, so a formatting run cannot be trusted to be a
+no-op on an already-formatted tree. This surfaced when a task ran it, saw unrelated files change, and had to
+revert them by hand to keep its commit clean.
+
+It is a nuisance rather than a defect: it makes "just run the formatter" an unsafe instruction, because the
+result has to be inspected before committing. Worth tracking down whichever rule is unstable.
+
+### 4.9 Two small repo inconsistencies
 
 - `packages/node/package.json` has **no `contributors` field at all**, which is inconsistent under either
   convention. It is the one manifest that needs an edit whichever way you eventually go.
