@@ -19,8 +19,10 @@ const REACT_PROD_PORT = 5191;
 
 const devProjects = [
     {
+        // Anchored on a path boundary so this only matches js.spec.ts, not nextjs.spec.ts
+        // (which also ends in "js.spec.ts" and would otherwise run under this project too).
         name: 'js',
-        testMatch: /js\.spec\.ts$/,
+        testMatch: /(^|\/)js\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5180', browserName: 'chromium' as const },
     },
     {
@@ -42,6 +44,11 @@ const devProjects = [
         name: 'react-router',
         testMatch: /react-router\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5185', browserName: 'chromium' as const },
+    },
+    {
+        name: 'nextjs',
+        testMatch: /nextjs\.spec\.ts$/,
+        use: { baseURL: 'http://localhost:5184', browserName: 'chromium' as const },
     },
 ];
 
@@ -88,6 +95,20 @@ const devWebServers = [
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,
         env: { ...sharedEnv, VITE_FLARE_KEY: 'test-key-react-router' },
+    },
+    // Can't reuse sharedEnv: that carries VITE_FLARE_URL, which Next ignores. It reads
+    // NEXT_PUBLIC_FLARE_URL / NEXT_PUBLIC_FLARE_KEY instead (see playgrounds/nextjs/src/flare.ts).
+    // Timeout is higher than the Vite playgrounds because next dev compiles a route on first request.
+    {
+        command: 'npm run dev --workspace=@flareapp/playgrounds-nextjs',
+        url: 'http://localhost:5184',
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+        env: {
+            FAKE_FLARE_PORT,
+            NEXT_PUBLIC_FLARE_URL: FAKE_FLARE_INGEST_URL,
+            NEXT_PUBLIC_FLARE_KEY: 'test-key-nextjs',
+        },
     },
 ];
 
