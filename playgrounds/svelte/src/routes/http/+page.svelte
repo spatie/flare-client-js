@@ -1,13 +1,19 @@
 <script lang="ts">
-    import { testIds } from '@flareapp/playgrounds-shared';
+    import { sameOriginHttpScenarios, testIds } from '@flareapp/playgrounds-shared';
 
     let { data } = $props();
     let result = $state<string>('idle');
 
+    // fetch-ok and xhr-ok take their id and label from the shared list so this list and the SPA
+    // playgrounds' can't drift apart. They still hit /api/echo, not httpScenarioUrl: this playground
+    // has a real server and keeps its own URLs so the 404/500 scenarios below can drive status codes.
+    const fetchOk = sameOriginHttpScenarios.find((scenario) => scenario.id === 'fetch-ok')!;
+    const xhrOk = sameOriginHttpScenarios.find((scenario) => scenario.id === 'xhr-ok')!;
+
     const scenarios: Array<{ id: string; label: string; run: () => Promise<void> }> = [
         {
-            id: 'fetch-ok',
-            label: 'fetch: GET 200',
+            id: fetchOk.id,
+            label: fetchOk.label,
             run: async () => {
                 const res = await fetch('/api/echo?scenario=fetch-ok&delay=50');
                 result = `fetch-ok:${res.status}`;
@@ -30,8 +36,8 @@
             },
         },
         {
-            id: 'xhr-ok',
-            label: 'XHR: GET 200',
+            id: xhrOk.id,
+            label: xhrOk.label,
             run: () =>
                 new Promise((resolve) => {
                     const xhr = new XMLHttpRequest();

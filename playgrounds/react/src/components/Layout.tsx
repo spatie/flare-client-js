@@ -22,6 +22,9 @@ export const Layout = () => {
                         <Link to="/broken" className="text-sm font-medium hover:text-brand">
                             Broken
                         </Link>
+                        <Link to="/http" className="text-sm font-medium hover:text-brand">
+                            HTTP
+                        </Link>
                         <Link
                             to="/cart"
                             data-testid={testIds.cartCount}

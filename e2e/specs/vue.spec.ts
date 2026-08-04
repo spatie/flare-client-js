@@ -1,5 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, hasSpanType, spansOf, stringAttr } from './otlp';
 import { runScenario, scenariosFor } from './shared';
@@ -76,6 +77,23 @@ test.describe('vue-router tracing', () => {
             .flatMap((record) => spansOf(record.bodyJson))
             .filter((span) => hasSpanType(span, 'browser_navigation'));
         expect(navSpans).toHaveLength(1);
+    });
+});
+
+test.describe('vue http tracing', () => {
+    test('a fetch fires a browser_fetch span nested under the active root', async ({ page, fakeFlare }) => {
+        await openHttpPage(page);
+        await assertNestedHttpSpan(page, fakeFlare, { scenario: 'fetch-ok', spanType: 'browser_fetch' });
+    });
+
+    test('an XHR fires a browser_xhr span nested under the active root', async ({ page, fakeFlare }) => {
+        await openHttpPage(page);
+        await assertNestedHttpSpan(page, fakeFlare, { scenario: 'xhr-ok', spanType: 'browser_xhr' });
+    });
+
+    test('a request fired during the navigation nests under the navigation root', async ({ page, fakeFlare }) => {
+        await openHttpPage(page); // the route guard fetches while the nav root is held
+        await assertNavigationRequestNests(page, fakeFlare);
     });
 });
 

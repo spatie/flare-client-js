@@ -23,6 +23,7 @@ const onBoundaryReset = (): void => {
                     <RouterLink to="/" class="text-sm font-medium hover:text-brand">Shop</RouterLink>
                     <RouterLink to="/cart" class="text-sm font-medium hover:text-brand">Cart</RouterLink>
                     <RouterLink to="/broken" class="text-sm font-medium hover:text-brand">Broken</RouterLink>
+                    <RouterLink to="/http" class="text-sm font-medium hover:text-brand">HTTP</RouterLink>
                     <RouterLink
                         to="/cart"
                         class="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white"

@@ -9,6 +9,7 @@ import { brokenRoute } from './broken';
 import { cartRoute } from './cart';
 import { checkoutRoute } from './checkout';
 import { confirmationRoute } from './confirmation';
+import { httpRoute } from './http';
 import { productRoute } from './product';
 import { productsRoute } from './products';
 
@@ -33,6 +34,9 @@ const RootLayout = () => {
                         <Link to="/broken" className="text-sm font-medium hover:text-brand">
                             Broken
                         </Link>
+                        <Link to="/http" className="text-sm font-medium hover:text-brand">
+                            HTTP
+                        </Link>
                         <Link
                             to="/cart"
                             data-testid={testIds.cartCount}
@@ -55,5 +59,5 @@ const RootLayout = () => {
 export const rootRoute: RouteObject = {
     path: '/',
     Component: withFlareProfiler(RootLayout, { name: 'Layout' }),
-    children: [productsRoute, productRoute, cartRoute, checkoutRoute, confirmationRoute, brokenRoute],
+    children: [productsRoute, productRoute, cartRoute, checkoutRoute, confirmationRoute, brokenRoute, httpRoute],
 };
