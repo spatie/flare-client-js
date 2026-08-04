@@ -17,37 +17,40 @@ const prod = !!process.env.E2E_PROD;
 
 const REACT_PROD_PORT = 5191;
 
+// Every testMatch below is anchored on a path boundary (start of string or a preceding "/"), not just
+// a suffix. A bare suffix regex silently matches more than its own spec file - e.g. /js\.spec\.ts$/ also
+// matches nextjs.spec.ts, and /react\.spec\.ts$/ also matches preact.spec.ts - which runs that project's
+// tests against the wrong playground instead of failing loudly. This fired for real once already (the
+// js project was picking up nextjs.spec.ts); every project gets the same guard now, not just that one.
 const devProjects = [
     {
-        // Anchored on a path boundary so this only matches js.spec.ts, not nextjs.spec.ts
-        // (which also ends in "js.spec.ts" and would otherwise run under this project too).
         name: 'js',
         testMatch: /(^|\/)js\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5180', browserName: 'chromium' as const },
     },
     {
         name: 'react',
-        testMatch: /react\.spec\.ts$/,
+        testMatch: /(^|\/)react\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5181', browserName: 'chromium' as const },
     },
     {
         name: 'vue',
-        testMatch: /vue\.spec\.ts$/,
+        testMatch: /(^|\/)vue\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5182', browserName: 'chromium' as const },
     },
     {
         name: 'svelte',
-        testMatch: /svelte\.spec\.ts$/,
+        testMatch: /(^|\/)svelte\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5183', browserName: 'chromium' as const },
     },
     {
         name: 'react-router',
-        testMatch: /react-router\.spec\.ts$/,
+        testMatch: /(^|\/)react-router\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5185', browserName: 'chromium' as const },
     },
     {
         name: 'nextjs',
-        testMatch: /nextjs\.spec\.ts$/,
+        testMatch: /(^|\/)nextjs\.spec\.ts$/,
         use: { baseURL: 'http://localhost:5184', browserName: 'chromium' as const },
     },
 ];
@@ -55,7 +58,7 @@ const devProjects = [
 const prodProjects = [
     {
         name: 'react-prod',
-        testMatch: /react-prod\.spec\.ts$/,
+        testMatch: /(^|\/)react-prod\.spec\.ts$/,
         use: { baseURL: `http://localhost:${REACT_PROD_PORT}`, browserName: 'chromium' as const },
     },
 ];
