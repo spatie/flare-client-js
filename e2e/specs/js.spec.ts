@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario, waitForLogMessage } from './logShared';
-import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, waitForSpanType } from './otlp';
+import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, urlOf, waitForSpanType } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('js playground', () => {
@@ -52,6 +52,66 @@ test.describe('js playground', () => {
         expect(attr(fetchSpan, 'http.response.status_code')).toEqual({ intValue: 200 });
 
         expect(outgoingTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/);
+    });
+
+    test('an XHR carries a traceparent whose ids are the span it opened', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        const traceparents: string[] = [];
+        page.on('request', (req) => {
+            if (req.resourceType() === 'xhr') {
+                const header = req.headers()['traceparent'];
+                if (header) {
+                    traceparents.push(header);
+                }
+            }
+        });
+
+        // Navigate first, so the XHR lands inside a fresh root instead of racing the pageload idle window.
+        await page.getByRole('link', { name: 'Broken' }).click();
+        await page.getByTestId('trace-xhr').click();
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) => spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr')),
+        });
+        const xhrSpan = spansOf(trace.bodyJson).find((s) => hasSpanType(s, 'browser_xhr'));
+        expect(xhrSpan).toBeTruthy();
+
+        expect(traceparents).toHaveLength(1);
+        const [version, traceId, spanId, flags] = traceparents[0].split('-');
+        expect(version).toBe('00');
+        expect(flags).toMatch(/^0[01]$/);
+        // Stronger than the fetch assertion above: the header must identify the span we actually opened,
+        // not just be well formed.
+        expect(traceId).toBe(xhrSpan!.traceId);
+        expect(spanId).toBe(xhrSpan!.spanId);
+    });
+
+    test('tracesSampleRate 0 stops new roots from reaching the ingest', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        // Positive control first: with sampling on, a navigation produces a root. Without this the
+        // assertion below could pass because tracing never worked at all.
+        await page.getByTestId(testIds.cartCount).click(); // pushState to /cart
+        await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_navigation') && urlOf(s).includes('/cart')),
+        });
+
+        // configure() merges into the existing config and clamps the rate; it does not restart tracing,
+        // so the patches and listeners stay installed and only the sampler decision changes.
+        await page.evaluate(() => (globalThis as { __flare?: any }).__flare.configure({ tracesSampleRate: 0 }));
+
+        await page.getByRole('link', { name: 'Broken' }).click();
+        // idleTimeout (2000) + flush timer (500) + margin, the same budget svelte.spec.ts:130 uses.
+        await page.waitForTimeout(3000);
+
+        const all = (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson));
+        expect(all.filter((s) => hasSpanType(s, 'browser_navigation') && urlOf(s).includes('/broken'))).toHaveLength(0);
     });
 
     test('emits a browser_pageload root on load', async ({ page, fakeFlare }) => {
