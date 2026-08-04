@@ -33,6 +33,8 @@ function hasStack(reason: unknown): reason is { stack: string } {
 }
 
 /**
+ * Routes by whether `reason` carries a stack: stack-bearing reasons go to `reportSilently`, stackless
+ * ones to `reportUnhandledRejection`.
  * The `.catch` is what stops a transport failure from surfacing as a second unhandled rejection.
  * `reportSilently` is assumed async and left unwrapped, so a synchronous throw there still propagates.
  */

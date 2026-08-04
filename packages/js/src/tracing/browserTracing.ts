@@ -14,6 +14,8 @@ export type BrowserTracingFlare = {
     tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
 };
 
+// Module state, not per-Flare-instance: one browser tracing session runs at a time for the whole
+// document, no matter how many Flare instances are configured on the page.
 let controller: IdleRootController | null = null;
 let uninstall: (() => void) | null = null;
 let lastPath = '';
@@ -232,7 +234,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     };
 }
 
-/** Idempotent. Page-global: stops whatever session is active, not a per-Flare-instance one. */
+/** Idempotent. */
 export function stopBrowserTracing(): void {
     withLiveController((live) => live.endNow());
     controller = null;

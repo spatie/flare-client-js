@@ -22,6 +22,8 @@ const EVENT_PATTERNS = [
     /\.ontouch/i,
     /addEventListener/,
     /dispatchEvent/,
+    // The rest match the native frame a browser inserts for the DOM call that invoked the listener
+    // (e.g. `HTMLButtonElement.onclick (native)`), not application code calling that API.
     /EventTarget\./,
     /HTMLElement\./,
     /HTMLButtonElement\./,
