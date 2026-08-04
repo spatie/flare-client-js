@@ -179,6 +179,10 @@ export class Tracer {
         this.pendingContinuation = parseTraceparent(header);
     }
 
+    /**
+     * Runs `fn` with the span active, so spans started inside auto-parent to it, then ends it.
+     * Records an error status first if `fn` throws or its returned promise rejects.
+     */
     withSpan<T>(name: string, fn: (span: Span) => T, opts: SpanOptions = {}): T {
         const span = this.startSpan(name, opts);
 
@@ -214,6 +218,8 @@ export class Tracer {
         });
     }
 
+    /** Starts a span the caller must end. Unlike `withSpan`, it does not become the active span,
+     *  so spans started after it do not auto-parent to it. */
     startSpan(name: string, opts: SpanOptions = {}): Span {
         const config = this.deps.getConfig();
         const spanId = opts.spanId ?? makeSpanId();

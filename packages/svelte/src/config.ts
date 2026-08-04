@@ -22,6 +22,11 @@ export interface WithFlareConfigOptions {
     importSource?: string;
 }
 
+/**
+ * Wraps a SvelteKit config with Flare's preprocessor, passing through `kit.files.routes` for
+ * route-aware profile names. Returns `config` unchanged if nothing was requested, or a Flare
+ * preprocessor is already installed.
+ */
 export function withFlareConfig(config: SvelteConfig, options?: WithFlareConfigOptions): SvelteConfig {
     const { componentTracking = true, profileComponents = false, exclude, importSource } = options ?? {};
 

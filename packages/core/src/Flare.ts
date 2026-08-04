@@ -170,10 +170,16 @@ export class Flare {
         return this._tracer;
     }
 
+    /** Starts a span the caller must end. Unlike `withSpan`, it does not become the active span,
+     *  so spans started after it do not auto-parent to it. */
     startSpan(name: string, opts?: SpanOptions): Span {
         return this._tracer.startSpan(name, opts);
     }
 
+    /**
+     * Runs `fn` with the span active, so spans started inside auto-parent to it, then ends it.
+     * Records an error status first if `fn` throws or its returned promise rejects.
+     */
     withSpan<T>(name: string, fn: (span: Span) => T, opts?: SpanOptions): T {
         return this._tracer.withSpan(name, fn, opts);
     }

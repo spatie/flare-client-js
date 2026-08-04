@@ -40,10 +40,7 @@ function resolveTimeouts(config: Config): IdleTimeouts {
     };
 }
 
-/**
- * Run `fn` against the current root's controller while that root is still open. Swallows a throwing
- * controller: neither ending a prior root nor releasing a hold may stop what the caller does next.
- */
+/** A throwing controller must never stop what the caller does next, so this swallows. */
 function withLiveController(fn: (live: IdleRootController) => void): void {
     if (!controller || controller.isEnded) {
         return;
@@ -133,11 +130,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
     startRoot(flare, { spanType: BrowserSpanType.Navigation, startTimeUnixNano: defaultNowNano(), name: path });
 }
 
-/**
- * Start framework-agnostic browser tracing: a backdated `browser_pageload` root, plus
- * `browser_navigation` roots on SPA route changes (History API `pushState`/`replaceState` patch
- * plus `popstate`). No-op outside a browser. Idempotent.
- */
+/** Opens a backdated pageload root, then a navigation root per History change. No-op outside a browser. */
 export function startBrowserTracing(flare: BrowserTracingFlare): void {
     if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') {
         return;
@@ -239,10 +232,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     };
 }
 
-/**
- * Stop browser tracing: end the active root and restore the History API. Idempotent.
- * Page-global singleton: stops whatever session is active, not a per-Flare-instance one.
- */
+/** Idempotent. Page-global: stops whatever session is active, not a per-Flare-instance one. */
 export function stopBrowserTracing(): void {
     withLiveController((live) => live.endNow());
     controller = null;
@@ -289,12 +279,9 @@ function applyRouteName(route: RouteName, owner?: object): void {
 }
 
 /**
- * Register the caller as the page's navigation source. While registered, the
- * built-in History-based navigation detection opens no roots (it still keeps
- * `lastPath` current); the caller drives navigation via the returned handle.
- * Last-wins: a second registration replaces the first, and a stale handle's
- * methods (including `unregister`) no-op — so an HMR-replaced bootstrap cannot
- * tear down a newer registration.
+ * While registered, the built-in History detection opens no roots and the caller drives navigation
+ * through the returned handle. Last-wins, and a stale handle no-ops, so an HMR-replaced bootstrap
+ * cannot tear down a newer registration.
  */
 export function registerNavigationSource(): NavigationSource {
     const token = {};
@@ -354,10 +341,7 @@ export function registerNavigationSource(): NavigationSource {
     };
 }
 
-/**
- * Internal accessor for sibling tracing modules (the component-profiler seam) that
- * need the live tracer. Returns the Flare currently driving browser tracing, or null.
- */
+/** For sibling tracing modules (the component-profiler seam) that need the live tracer. */
 export function activeTracingFlare(): BrowserTracingFlare | null {
     return activeFlare;
 }

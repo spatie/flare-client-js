@@ -30,6 +30,10 @@ export interface FlarePreprocessorOptions {
     routesDir?: string;
 }
 
+/**
+ * Injects component-tree registration and, where configured, mount profiling into each `.svelte`
+ * file. Wire it into `svelte.config.js`'s `preprocess`, or use `withFlareConfig` to do that for you.
+ */
 export function flarePreprocessor(options?: FlarePreprocessorOptions): PreprocessorGroup {
     const exclude = withoutStatefulFlags(options?.exclude);
     const importSource = options?.importSource ?? '@flareapp/svelte';

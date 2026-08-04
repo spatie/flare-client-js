@@ -12,12 +12,8 @@ import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from 
 
 const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED — a newer nav superseded this one
 
-/**
- * Trace a vue-router instance: name the `browser_pageload` root from the initial route, and open a
- * parameterized, held `browser_navigation` root per route change, settled once the navigation confirms.
- * Returns a cleanup that removes the guards and unregisters. Consumed by `flareVue({ router })`; internal
- * (not part of the public entry). Does nothing for a non-router value; never throws into the host.
- */
+/** Internal, wired through `flareVue({ router })`. Opens a held navigation root per route change,
+ *  settled when the navigation confirms. */
 export function traceVueRouter(router: unknown): () => void {
     if (!isVueRouter(router)) {
         return () => {};

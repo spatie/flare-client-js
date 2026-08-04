@@ -20,9 +20,8 @@ type PendingSpan = { name: string; spanId: string; startNano: number; parent: Co
 type ProfileState = { marker: ComponentTraceContext; pending: PendingSpan | null };
 type ProfiledInstance = ComponentInternalInstance & { [PROFILE]?: ProfileState };
 
-/** The nearest profiled ancestor's marker, walking the internal parent chain. Only matched components
- *  store a marker, so unmatched ones (and functional components, which get no hooks at all) are
- *  skipped without any code for them. */
+/** Only matched components store a marker, so unmatched ones, and functional components, which get
+ *  no lifecycle hooks at all, need no code of their own. */
 function nearestMarker(instance: ComponentInternalInstance): ComponentTraceContext | null {
     for (let node = instance.parent; node; node = node.parent) {
         const state = (node as ProfiledInstance)[PROFILE];

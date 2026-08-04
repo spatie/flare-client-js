@@ -1,8 +1,5 @@
 // @flareapp/react/profiler is Electron-safe, so it imports only React and the side-effect-free
 // @flareapp/js/browser seam. No @flareapp/js root import (same rule as ./tanstack-router).
-//
-// Each <FlareProfiler> records one browser_component span for its mount, nested under the nearest
-// profiled ancestor or the active browser_pageload / browser_navigation root.
 import {
     activeComponentRoot,
     nowNano,
@@ -29,8 +26,14 @@ const useMountEffect = typeof window === 'undefined' ? useEffect : useLayoutEffe
 
 const FlareProfilerContext = createContext<ComponentTraceContext | null>(null);
 
-export type FlareProfilerProps = { name: string; children?: ReactNode };
+export type FlareProfilerProps = {
+    /** The span's name, as it appears in the trace. */
+    name: string;
+    children?: ReactNode;
+};
 
+/** Records one `browser_component` span for its mount, nested under the nearest profiled ancestor
+ *  or the active `browser_pageload` / `browser_navigation` root. */
 export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode {
     const context = useContext(FlareProfilerContext);
 
@@ -93,6 +96,8 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     return createElement(FlareProfilerContext.Provider, { value: providedRef.current }, children ?? null);
 }
 
+/** Wraps `Component` in a `FlareProfiler`, naming it from `options.name`, its `displayName`, or its
+ *  function name, falling back to `'Unknown'`. */
 export function withFlareProfiler<P extends object>(
     Component: ComponentType<P>,
     options?: { name?: string },
