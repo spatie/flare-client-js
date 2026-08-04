@@ -130,7 +130,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
     startRoot(flare, { spanType: BrowserSpanType.Navigation, startTimeUnixNano: defaultNowNano(), name: path });
 }
 
-/** Opens a backdated pageload root, then a navigation root per History change. No-op outside a browser. */
+/** Opens a backdated pageload root, then a navigation root per History change. No-op outside a browser. Idempotent. */
 export function startBrowserTracing(flare: BrowserTracingFlare): void {
     if (typeof window === 'undefined' || typeof history === 'undefined' || typeof location === 'undefined') {
         return;
