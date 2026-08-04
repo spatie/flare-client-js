@@ -6,7 +6,7 @@ not spread across nine plan files and a chat log.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-03, at branch tip `927464d` (plans 1 to 7 complete, plans 8 and 9 not started).
+Last updated 2026-08-04, at branch tip `24ff360` (plans 1 to 8 complete, plan 9 not started).
 
 **For agents:** you may append to this file. See the house rules at the bottom.
 
@@ -138,7 +138,21 @@ that already gets checked; widening the check itself was never one of its tasks.
 the second one got more valuable to close, because plan 6 moved the end-to-end specs onto typed helpers that
 no compiler currently reads.
 
-### 4.7 Two small repo inconsistencies
+### 4.7 The comment standard has nothing holding it
+
+Plan 8 applied the comment standard by hand: em dashes in `packages/*/src` went from 6 to 0, shouty capitals
+came down, and over-long comments were cut. **Nothing in continuous integration holds any of that.** The next
+feature branch reintroduces all of it, and the next person doing this pass starts from scratch.
+
+A single grep for the em dash character under `packages/*/src`, wired into the lint step, is roughly a
+ten-minute change and is the only part of that work that survives contact with the next contributor. The same
+trick works for the `--` sequence, though note that all current `--` matches in `src` comments are legitimate
+command-line flag references, so that rule needs to allow those.
+
+This is a decision, not a defect: it is your call whether the standard is worth enforcing mechanically or
+whether a periodic manual pass is good enough.
+
+### 4.8 Two small repo inconsistencies
 
 - `packages/node/package.json` has **no `contributors` field at all**, which is inconsistent under either
   convention. It is the one manifest that needs an edit whichever way you eventually go.
