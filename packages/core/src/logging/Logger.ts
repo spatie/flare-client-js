@@ -136,7 +136,9 @@ export class Logger {
 
     private estimateBytes(log: BufferedLog): number {
         // Rough, and only for the soft batching caps: UTF-16 code units rather than UTF-8 bytes, and resource
-        // attributes counted per record though they ship once. flatJsonStringify: record attributes can cycle.
+        // attributes counted per record though they ship once. Safe: /v1/logs has no hard per-request limit,
+        // and the real ~64 KB keepalive cap is measured exactly by otelLogRecordBytes. flatJsonStringify:
+        // record attributes can cycle.
         return flatJsonStringify(log).length;
     }
 }

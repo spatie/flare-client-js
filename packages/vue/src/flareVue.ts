@@ -58,7 +58,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     }
 
     // Resolve before marking the app installed, so a throw does not leave a half-installed app in
-    // installedApps. Only reachable through a direct flareVue(app, opts) call; app.use blocks the retry itself.
+    // installedApps. Only reachable through a direct flareVue(app, opts) call: app.use blocks the retry
+    // itself, since Vue adds the plugin to its own installed set before calling install.
     const flare = resolveFlare(options?.flare);
 
     installedApps.add(app);
