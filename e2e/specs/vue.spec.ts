@@ -1,5 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import { assertComponentTree } from './componentShared';
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, hasSpanType, spansOf, stringAttr } from './otlp';
@@ -77,6 +78,20 @@ test.describe('vue-router tracing', () => {
             .flatMap((record) => spansOf(record.bodyJson))
             .filter((span) => hasSpanType(span, 'browser_navigation'));
         expect(navSpans).toHaveLength(1);
+    });
+});
+
+test.describe('vue component profiling', () => {
+    test('a pageload records a browser_component tree rooted on the pageload span', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        // profileComponents in main.ts:13 names Layout and ProductsPage; Layout is the app root.
+        await assertComponentTree(page, fakeFlare, {
+            outer: 'Layout',
+            inner: 'ProductsPage',
+            rootType: 'browser_pageload',
+        });
     });
 });
 

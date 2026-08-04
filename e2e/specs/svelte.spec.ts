@@ -1,5 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import { assertComponentTree } from './componentShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, hasSpanType, parentOf, spansOf, stringAttr, urlOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
@@ -316,5 +317,20 @@ test.describe('svelte http tracing', () => {
         expect(loadFetch!.parentSpanId).toBeTruthy();
         const root = await parentOf(fakeFlare, loadFetch!);
         expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
+    });
+});
+
+test.describe('svelte component profiling', () => {
+    test('a pageload records a browser_component tree rooted on the pageload span', async ({ page, fakeFlare }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        // svelte.config.js profiles anything matching /\+(page|layout)(@[^/]*)?$/, and the
+        // preprocessor records the route-relative id: '+layout' wraps '+page'.
+        await assertComponentTree(page, fakeFlare, {
+            outer: '+layout',
+            inner: '+page',
+            rootType: 'browser_pageload',
+        });
     });
 });
