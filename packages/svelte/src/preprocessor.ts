@@ -37,7 +37,6 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
     const routesDir = options?.routesDir ?? 'src/routes';
     const matchesProfile = createComponentMatcher(options?.profileComponents ?? false);
 
-    /** What to inject for one file, or null when this file gets nothing. */
     function buildInjection(filename: string): string | null {
         const profileName = resolveProfileName(filename, routesDir);
         const shouldProfile = matchesProfile(profileName);

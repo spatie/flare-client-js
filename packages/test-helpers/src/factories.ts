@@ -1,7 +1,7 @@
 import type { Report } from '@flareapp/core';
 import { type Mock, vi } from 'vitest';
 
-/** A minimal valid Report; override any field per test. Mirrors the old inline `minimalReport` literal. */
+/** A minimal valid Report; override any field per test. */
 export function makeReport(overrides: Partial<Report> = {}): Report {
     return {
         exceptionClass: 'Error',

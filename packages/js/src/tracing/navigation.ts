@@ -34,9 +34,7 @@ export function routeName(derive: () => string | undefined, fallbackPath: string
         if (name) {
             return { name, source: 'route', url };
         }
-    } catch {
-        // an unreadable match chain falls back to the url name
-    }
+    } catch {}
     return { name: fallbackPath, source: 'url', url };
 }
 

@@ -42,10 +42,8 @@ export function getErrorOrigin(frames: ErrorStackParser.StackFrame[]): SvelteErr
         return 'unknown';
     }
 
-    // Flatten each frame into one searchable string for regex matching.
     const frameStrings = frames.map((f) => `${f.functionName ?? ''} ${f.fileName ?? ''} ${f.source ?? ''}`);
 
-    // Event patterns first (highest priority).
     if (frameStrings.some((s) => EVENT_PATTERNS.some((p) => p.test(s)))) {
         return 'event';
     }

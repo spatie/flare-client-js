@@ -140,7 +140,6 @@ export class Tracer {
     }
 
     setActiveRoot(span?: Span): void {
-        // setActiveRoot is optional on the holder interface; a holder without active-root support ignores it.
         this.holder.setActiveRoot?.(span);
     }
 
@@ -329,7 +328,6 @@ export class Tracer {
             return { traceId: continuation.traceId, parentSpanId: continuation.parentSpanId, state };
         }
 
-        // New root.
         const traceId = makeTraceId();
         const ctx: SamplingContext = { name, attributes: opts.attributes ?? {}, spanType: opts.spanType };
         const recording = resolveSampling(ctx, config, this.rng);

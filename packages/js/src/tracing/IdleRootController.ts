@@ -136,7 +136,6 @@ export class IdleRootController {
 
     private armIdle(): void {
         this.clearIdle();
-        // hold suppresses idle-close until releaseHold()
         if (this.held) {
             return;
         }

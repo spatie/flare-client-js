@@ -48,8 +48,6 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     }
     const parent = parentRef.current;
 
-    // Reserve this component's own span id and capture its mount start, once, only
-    // when it actually has a parent to nest under.
     const ownRef = useRef<{ spanId: string; startNano: number } | null>(null);
     if (parent && ownRef.current === null) {
         try {

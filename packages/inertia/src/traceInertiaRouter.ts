@@ -61,7 +61,7 @@ function routeNameFor(page: InertiaPageLike | undefined): RouteName {
  */
 export function traceInertiaRouter(router: InertiaRouterLike): () => void {
     if (!isInertiaRouter(router)) {
-        return () => {}; // not a router: do nothing
+        return () => {};
     }
 
     return instrumentOnce(router, (track) => install(router, track));

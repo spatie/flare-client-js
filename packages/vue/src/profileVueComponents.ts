@@ -53,7 +53,6 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                 }
 
                 const name = getComponentName(this);
-                // unmatched components stay transparent: no state, no marker
                 if (!matches(name)) {
                     return;
                 }

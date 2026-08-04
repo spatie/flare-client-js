@@ -20,7 +20,7 @@ const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED — a newer n
  */
 export function traceVueRouter(router: unknown): () => void {
     if (!isVueRouter(router)) {
-        return () => {}; // not a router: do nothing
+        return () => {};
     }
 
     return instrumentOnce(router, (track) => install(router, track));
@@ -86,7 +86,7 @@ function install(router: VueRouterLike, track: TrackTeardown): void {
                 // Initial navigation first: START_LOCATION.fullPath is '/', so an app whose initial route is
                 // '/' would otherwise be swallowed by the same-location skip below.
                 if (!sawInitial && isInitial(from)) {
-                    nav.setActiveRouteName(routeNameFor(to)); // name the pageload root; open no nav root
+                    nav.setActiveRouteName(routeNameFor(to)); // no nav root here
                     return;
                 }
 
@@ -113,7 +113,7 @@ function install(router: VueRouterLike, track: TrackTeardown): void {
                 if (!sawInitial && isInitial(from)) {
                     if (!failure) {
                         sawInitial = true;
-                        nav.setActiveRouteName(routeNameFor(to)); // finalize pageload name
+                        nav.setActiveRouteName(routeNameFor(to));
                     }
                     return;
                 }
@@ -124,7 +124,7 @@ function install(router: VueRouterLike, track: TrackTeardown): void {
 
                 if (!failure) {
                     inFlight = false;
-                    nav.settleNavigation(routeNameFor(to)); // success: name + release hold
+                    nav.settleNavigation(routeNameFor(to));
                     return;
                 }
 

@@ -64,7 +64,6 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
         );
     }
 
-    // Enrich the pageload root immediately from the current (already-resolved) location.
     try {
         nav.setActiveRouteName(routeNameFor(router.state.location));
     } catch {

@@ -24,7 +24,6 @@ export type FakeComponentSeam = {
     advanceClock(stepNano?: number): void;
     /** The spans the seam was asked to record, in order. */
     spans(): RecordedComponentSpan[];
-    /** Back to a single recording root, a frozen clock, an empty span log and a span-id counter at zero. */
     reset(): void;
 };
 

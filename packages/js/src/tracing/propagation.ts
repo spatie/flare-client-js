@@ -84,13 +84,13 @@ export function mergeTraceparentHeader(
         if (pairs === null) {
             headers = source; // throwing/malformed -> passthrough (inject nothing)
         } else if (pairs.some(([k]) => k.toLowerCase() === 'traceparent')) {
-            return init; // caller-wins
+            return init;
         } else {
             headers = [...pairs, ['traceparent', traceparent]];
         }
     } else if (source) {
         if (Object.keys(source as Record<string, string>).some((k) => k.toLowerCase() === 'traceparent')) {
-            return init; // caller-wins
+            return init;
         }
         headers = { ...(source as Record<string, string>), traceparent };
     } else {

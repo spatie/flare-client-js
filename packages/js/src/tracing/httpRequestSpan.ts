@@ -94,7 +94,6 @@ export function endHttpRequestSpan(span: Span, status: number, opts?: { zeroIsEr
     span.end();
 }
 
-/** Error-finish shared by fetch and XHR: mark the span an error and end it. */
 export function finishHttpSpanError(span: Span, error: unknown): void {
     span.setStatus({ code: SpanStatusCode.Error, message: error instanceof Error ? error.message : String(error) });
     span.end();
