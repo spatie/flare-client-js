@@ -96,8 +96,7 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     return createElement(FlareProfilerContext.Provider, { value: providedRef.current }, children ?? null);
 }
 
-/** Wraps `Component` in a `FlareProfiler`, naming it from `options.name`, its `displayName`, or its
- *  function name, falling back to `'Unknown'`. */
+/** Wraps `Component` in a `FlareProfiler`. Name it explicitly when the component is anonymous or minified. */
 export function withFlareProfiler<P extends object>(
     Component: ComponentType<P>,
     options?: { name?: string },

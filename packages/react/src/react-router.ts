@@ -115,7 +115,7 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
 
         const navState = state.navigation.state;
 
-        // RR publishes a non-idle state while loaders run, BEFORE the URL commits. Hence the pending
+        // RR publishes a non-idle state while loaders run, before the URL commits. Hence the pending
         // destination for the url: the committed one is still the page being left.
         if (!inFlight && navState !== 'idle') {
             inFlight = true;

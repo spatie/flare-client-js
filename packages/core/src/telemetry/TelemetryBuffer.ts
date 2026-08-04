@@ -90,7 +90,7 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
         this.bufferedBytes += bytes;
         this.policy.onRecordBuffered?.(record);
 
-        // Triggers run BEFORE the trim: a keyed over-cap push flushes-and-clears here (data shipped); the trim is
+        // Triggers run before the trim: a keyed over-cap push flushes-and-clears here (data shipped); the trim is
         // only the safety net when the flush no-ops (no key).
         this.evaluateTriggers(config, limits);
         this.trim(limits);

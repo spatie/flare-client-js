@@ -12,7 +12,7 @@ import { getComponentName } from './getComponentName';
 
 export { createComponentMatcher, type ProfileComponentsOption } from '@flareapp/core/util';
 
-// Profiler state lives on the INTERNAL instance under a Symbol, never through Vue's public-instance
+// Profiler state lives on the internal instance under a Symbol, never through Vue's public-instance
 // proxy: no devtools noise, no `$`-prefix warnings, and no chance of colliding with a user property.
 const PROFILE = Symbol('flareComponentProfile');
 

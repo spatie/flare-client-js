@@ -5,7 +5,7 @@ import type { Attributes } from '../types';
 // record-level is the safe default.
 const RESOURCE_PREFIXES = ['service.', 'telemetry.', 'host.', 'os.', 'process.', 'flare.framework.', 'flare.language.'];
 
-// Keys matching a resource prefix but NOT instance-static, so they stay record-level. process.uptime changes every
+// Keys matching a resource prefix but not instance-static, so they stay record-level. process.uptime changes every
 // read; promoting it to the shared resource would tag batched records with the flush-time value.
 const RECORD_LEVEL_EXCEPTIONS = new Set(['process.uptime']);
 

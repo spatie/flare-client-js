@@ -42,7 +42,8 @@ function resolveTimeouts(config: Config): IdleTimeouts {
     };
 }
 
-/** A throwing controller must never stop what the caller does next, so this swallows. */
+/** No-ops once the controller has ended: it can close itself asynchronously via a timer, before this
+ *  module's `controller` reference is cleared. */
 function withLiveController(fn: (live: IdleRootController) => void): void {
     if (!controller || controller.isEnded) {
         return;
