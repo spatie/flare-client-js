@@ -1,6 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { assertComponentTree } from './componentShared';
+import { openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, hasSpanType, parentOf, spansOf, stringAttr, urlOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
@@ -322,8 +323,7 @@ test.describe('svelte http tracing', () => {
     // The unit suite fakes completion with fireDone(0), which is the same call an abort and a network
     // failure both make. This is the only place a real xhr.abort() runs through the real patch.
     test('an aborted XHR ends its span once and releases the root', async ({ page, fakeFlare }) => {
-        await page.goto('/http');
-        await page.waitForLoadState('networkidle');
+        await openHttpPage(page);
 
         await page.getByTestId(testIds.httpTrigger('xhr-abort')).click();
         await expect(page.getByTestId(testIds.httpResult)).toHaveText('xhr-abort:0');

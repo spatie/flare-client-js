@@ -1,15 +1,8 @@
+import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/tracing/instrumentFetch';
-
-// A bound function reports "[native code]" from Function.prototype.toString, so isNativeFetch
-// detects it as native. An own-property toString override does not work: isNativeFetch uses
-// Function.prototype.toString.call, which ignores own toString.
-function nativeFetchStub(): typeof fetch {
-    // oxlint-disable-next-line no-extra-bind
-    return (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
-}
 
 describe('js Flare tracing auto-wiring', () => {
     const g = globalThis as { fetch: typeof fetch };

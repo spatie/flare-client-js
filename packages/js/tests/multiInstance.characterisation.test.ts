@@ -4,6 +4,7 @@
 // docs/superpowers/plans/2026-07-30-pr80-review-index.md. When ownership is fixed, these assertions
 // are expected to flip, and flipping them is the point.
 
+import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
@@ -11,14 +12,6 @@ import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { createPatcher } from '../src/tracing/createPatcher';
 import { unpatchFetch } from '../src/tracing/instrumentFetch';
 import { unpatchXHR } from '../src/tracing/instrumentXHR';
-
-// isNativeFetch checks Function.prototype.toString for "native code". A bound function reports
-// that from the prototype method (an own toString override would not), so this stands in for the
-// browser's real fetch without needing a DOM fetch implementation.
-function nativeFetchStub(): typeof fetch {
-    // oxlint-disable-next-line no-extra-bind
-    return (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
-}
 
 describe('multi-instance tracing (characterisation)', () => {
     describe('two Flare instances share one module-level fetch patch', () => {

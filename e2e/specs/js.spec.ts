@@ -102,6 +102,11 @@ test.describe('js playground', () => {
                 spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_navigation') && urlOf(s).includes('/cart')),
         });
 
+        // Clears the positive control's own envelope, plus any keepalive flush still in flight from a
+        // prior test's open root (e.g. the XHR traceparent test leaves /broken open on teardown). Without
+        // this, a late-arriving envelope from either source could land before the negative check below.
+        await fakeFlare.reset();
+
         // configure() merges into the existing config and clamps the rate; it does not restart tracing,
         // so the patches and listeners stay installed and only the sampler decision changes.
         await page.evaluate(() => (globalThis as { __flare?: any }).__flare.configure({ tracesSampleRate: 0 }));

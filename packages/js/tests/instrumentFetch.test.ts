@@ -1,4 +1,5 @@
 import type { SpanOptions } from '@flareapp/core';
+import { nativeFetchStub } from '@flareapp/test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createFetchWrapper, instrumentFetch, unpatchFetch } from '../src/tracing/instrumentFetch';
@@ -166,11 +167,7 @@ describe('createFetchWrapper', () => {
 describe('instrumentFetch / unpatchFetch on globalThis', () => {
     it('patches global fetch when native, then restores it', async () => {
         const g = globalThis as { fetch: typeof fetch };
-        // `isNativeFetch` uses `Function.prototype.toString.call(fn)`, ignoring an own `fn.toString`
-        // override. A bound function reports `[native code]` from that prototype method, so it's
-        // detected as native without global mutation. The `.bind` is load-bearing, not redundant.
-        // oxlint-disable-next-line no-extra-bind
-        const native = (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
+        const native = nativeFetchStub();
         const before = g.fetch;
         g.fetch = native;
 
@@ -192,8 +189,7 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
 
     it('does not double-wrap on re-enable when a third party wrapped fetch after Flare', async () => {
         const g = globalThis as { fetch: typeof fetch };
-        // oxlint-disable-next-line no-extra-bind
-        const native = (async () => new Response(null, { status: 200 })).bind(null) as unknown as typeof fetch;
+        const native = nativeFetchStub();
         const before = g.fetch;
         g.fetch = native;
 
