@@ -1,6 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
-import { assertComponentTree, waitForComponentSpan } from './componentShared';
+import { assertComponentTree, componentSpanCount, waitForComponentSpan } from './componentShared';
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, hasSpanType, parentOf, spansOf, stringAttr } from './otlp';
@@ -123,11 +123,15 @@ test.describe('react-router component profiling', () => {
 
         await page.locator('a[href="/product/p01"]').first().click();
 
-        // Layout survives the navigation, so it does not re-mount and records no second span. The
-        // component that does mount is ProductPage, and its parent is the navigation root itself.
+        // The component that mounts on navigation is ProductPage, and its parent is the navigation
+        // root itself.
         const productPage = await waitForComponentSpan(fakeFlare, 'ProductPage');
         const root = await parentOf(fakeFlare, productPage);
         expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
+
+        // Layout survives the navigation rather than unmounting and remounting, so its span count
+        // stays at one from the pageload; a re-mount bug would show up as a second Layout span.
+        expect(await componentSpanCount(fakeFlare, 'Layout')).toBe(1);
     });
 });
 

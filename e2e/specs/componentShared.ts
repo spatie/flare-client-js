@@ -1,11 +1,10 @@
 import { expect, type Page } from '@playwright/test';
 
 import type { FakeFlare } from '../fixtures/fake-flare';
-import { attr, hasSpanType, parentOf, spansOf, type OtlpSpan } from './otlp';
+import { hasSpanType, parentOf, spansOf, stringAttr, type OtlpSpan } from './otlp';
 
 const isComponent = (span: OtlpSpan, name: string): boolean =>
-    hasSpanType(span, 'browser_component') &&
-    JSON.stringify(attr(span, 'flare.component.name') ?? '').includes(`"${name}"`);
+    hasSpanType(span, 'browser_component') && stringAttr(span, 'flare.component.name') === name;
 
 /**
  * Every component span captured so far. A commit records the whole profiled subtree at once, but the
@@ -13,6 +12,14 @@ const isComponent = (span: OtlpSpan, name: string): boolean =>
  */
 export const componentSpans = async (fakeFlare: FakeFlare): Promise<OtlpSpan[]> =>
     (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson)).filter((s) => hasSpanType(s, 'browser_component'));
+
+/**
+ * How many spans a component recorded across the whole run so far. `find`/`some` elsewhere in this
+ * file only prove a span exists; this is the one that can catch a duplicate, e.g. a record-once guard
+ * regressing under React StrictMode's double-invoked mount effect.
+ */
+export const componentSpanCount = async (fakeFlare: FakeFlare, name: string): Promise<number> =>
+    (await componentSpans(fakeFlare)).filter((s) => isComponent(s, name)).length;
 
 export const waitForComponentSpan = async (fakeFlare: FakeFlare, name: string): Promise<OtlpSpan> => {
     const trace = await fakeFlare.waitForTrace({
