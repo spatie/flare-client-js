@@ -162,7 +162,7 @@ function install(router: InertiaRouterLike, track: TrackTeardown): void {
     on('success', (event: InertiaEventLike) => {
         // This is where a same-url visit and a `replace: true` one settle: page.set() fires navigate
         // only when replace is false, and it forces replace for a visit landing on the url it started
-        // on. A normal visit already cleared inFlight in navigate, so this is a no-op for those.
+        // on.
         if (!inFlight) {
             return;
         }

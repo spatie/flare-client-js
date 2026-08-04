@@ -20,10 +20,9 @@ import { createFakeInertiaRouter } from './helpers';
 // Same-origin SPA: every url the integration reports is the page origin plus a path.
 const u = (path: string): string => `${window.location.origin}${path}`;
 
-// mockReset, not mockClear: clearing keeps any implementation a test installed, so one test making a
-// seam throw would leave it throwing for every test after it. Reset also drops queued
-// `mockImplementationOnce` values, and it restores the implementation `vi.fn(impl)` was created with,
-// so `registerNavigationSource` keeps returning `nav`.
+// mockReset, not mockClear: mockClear leaves a test's implementation in place, so a seam made to throw
+// keeps throwing for the rest of the file. Reset also drops queued mockImplementationOnce values and
+// restores the implementation vi.fn(impl) was created with, so registerNavigationSource keeps returning nav.
 beforeEach(() => {
     nav.startNavigation.mockReset();
     nav.setActiveRouteName.mockReset();

@@ -78,10 +78,10 @@ export class IdleRootController {
 
     /**
      * Records the settle moment as a close floor and hands the root back to the normal idle lifecycle. It
-     * deliberately does NOT close here: a router settles BEFORE the framework mounts the new route
+     * deliberately does not close here: a router settles before the framework mounts the new route
      * component (vue-router runs `afterEach` in the route-update tick, Vue mounts on the next flush), so
-     * closing at settle cleared the active root ahead of every post-navigation mount. Component spans
-     * then read a null root and were dropped, and a trailing fetch opened a root of its own.
+     * closing at settle cleared the active root ahead of every post-navigation mount and every component
+     * span read a null root.
      */
     releaseHold(): void {
         if (this.ended || !this.held) {

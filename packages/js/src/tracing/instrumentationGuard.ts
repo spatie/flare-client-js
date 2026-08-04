@@ -1,5 +1,5 @@
-// The most important rule every instrumentation callback has to follow: a throw from our tracing SDK
-// can never reach the host (aka our code MAY NEVER crash the app)
+// A throw from our tracing must never reach the host app, so every instrumentation callback goes
+// through one of these.
 
 /** For a callback the host invokes: a router guard, a store subscriber, ... */
 export function insulate<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {

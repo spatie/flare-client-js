@@ -1,6 +1,6 @@
 import { defaultNowNano } from '@flareapp/core';
 
-/** Pure math seam (unit-testable): timeOrigin(ms) + startTime(ms) → unix nanos. */
+/** Split out so the timestamp maths is testable without a Navigation Timing entry. */
 export function computePageloadStartNano(timeOriginMs: number, startTimeMs: number | undefined): number {
     return Math.round((timeOriginMs + (startTimeMs ?? 0)) * 1e6);
 }
@@ -50,7 +50,6 @@ export function pageloadStartNano(): number {
     return computePageloadStartNano(perf.timeOrigin, navigationEntry(perf)?.startTime);
 }
 
-/** Pure math seam (unit-testable): timeOrigin(ms) + load-event-end(ms) → unix nanos; `now` when unset. */
 export function computePageloadEndNano(
     timeOriginMs: number,
     loadEventEndMs: number | undefined,

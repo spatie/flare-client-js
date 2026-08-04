@@ -218,9 +218,8 @@ export class Tracer {
         const config = this.deps.getConfig();
         const spanId = opts.spanId ?? makeSpanId();
 
-        // Pending continuation (continueFromTraceparent) is a strict one-shot for the NEXT startSpan: consumed by a
-        // parentless root, dropped when the span has a parent or tracing is disabled. Never lingers, so it can't attach
-        // a stale remote trace to an unrelated later root.
+        // pendingContinuation (continueFromTraceparent) is a one-shot for the next startSpan: a parentless
+        // root adopts it, anything else drops it.
         const continuation = this.pendingContinuation;
         this.pendingContinuation = null;
 
@@ -247,8 +246,8 @@ export class Tracer {
         // has to see both sides or the root's prune fires while they are open.
         state.openSpanCount++;
 
-        // "Local root" test: this span seeded (or is) its TraceState's local root. True for new, continued, and
-        // foreign-parent roots; false for a child of an already-seen trace.
+        // Local root: this span is the one its TraceState was seeded on, so it is the one that carries the
+        // scope attributes (see makeSpan).
         const isLocalRoot = state.localRootSpanId === spanId;
         const span = this.makeSpan(
             { traceId, spanId, parentSpanId, name, recording, isLocalRoot, stateGeneration: state.generation },
@@ -338,7 +337,7 @@ export class Tracer {
     private getOrSeedState(traceId: string, localRootSpanId: string, fallbackRecording: () => boolean): TraceState {
         const existing = this.traceStates.get(traceId);
         if (existing) {
-            // Refresh recency: delete + re-insert moves it to the Map's most-recent end, making eviction true LRU.
+            // Re-insert so the Map stays in recency order and eviction is true LRU.
             this.traceStates.delete(traceId);
             this.traceStates.set(traceId, existing);
             return existing;
@@ -357,8 +356,8 @@ export class Tracer {
     }
 
     private createState(traceId: string, localRootSpanId: string, recording: boolean): TraceState {
-        // Bounded backstop: an app that never ends spans must not grow the map forever. The Map is kept in recency
-        // order (getOrSeedState refreshes on access), so the first key is the LRU; evict it at the cap.
+        // An app that never ends spans must not grow the map forever. The Map is in recency order, so the first
+        // key is the LRU.
         evictLruIfNew(this.traceStates, traceId, this.maxLiveTraces);
         const state: TraceState = {
             traceId,

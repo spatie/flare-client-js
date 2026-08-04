@@ -12,13 +12,11 @@ export type Patcher<T extends object> = {
 };
 
 /**
- * One `installed` flag across a set of methods on the same target, so a multi-method patch (XHR's
- * open/setRequestHeader/send) installs and restores as a unit. A flag per method is unsafe once the
- * methods share state: a third party wrapping only one of them would leave that one patched while
- * the rest went back to native, and XHR's `open` records what `send` reads.
+ * One `installed` flag for the whole patch set, not per method: XHR's `open` records what `send` reads,
+ * so a third party wrapping one of them must never leave the set half patched.
  *
- * Target is passed per call rather than captured, because callers look it up fresh
- * (`globalThis.fetch` may not exist yet under SSR).
+ * Target is passed per call, not captured, because callers look it up fresh (`globalThis.fetch` may not
+ * exist yet under SSR).
  */
 export function createPatcher<T extends object>(): Patcher<T> {
     let installed = false;
@@ -49,10 +47,9 @@ export function createPatcher<T extends object>(): Patcher<T> {
         },
 
         /**
-         * Restores only if every method can still be restored cleanly, meaning our wrapper is still the
-         * outermost one. If a third party wrapped ours, restore nothing and stay `installed`: our
-         * wrappers stay in place but do nothing, thanks to their own `enableTracing` check, so the next
-         * `install` is a no-op instead of adding a second layer of wrapping.
+         * All or nothing: if a third party wrapped ours, restore nothing and stay `installed`, so the next
+         * `install` is a no-op instead of adding a second layer. Our wrappers stay in place but idle, because
+         * they check `enableTracing` themselves.
          */
         uninstall(target: T): void {
             if (!installed) {

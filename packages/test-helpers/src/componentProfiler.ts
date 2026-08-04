@@ -66,11 +66,8 @@ export function createComponentSeam(): FakeComponentSeam {
             step = 0;
             recorded.length = 0;
             root = { traceId: 'T', parentSpanId: 'root' };
-            // mockReset, not mockClear. mockClear only wipes call state and leaves a mockImplementation
-            // in place, so a test that makes the seam throw would leak that throw into every later test
-            // in the file (see @vitest/spy: mockClear touches state, mockReset touches config).
-            // Re-installing the implementation explicitly keeps this independent of what mockReset
-            // restores by default.
+            // mockReset, not mockClear: mockClear leaves a test's implementation in place, so a seam made to
+            // throw keeps throwing for the rest of the file. Re-installed explicitly, not the reset default.
             seam.activeComponentRoot.mockReset().mockImplementation(() => root);
             seam.reserveSpanId.mockReset().mockImplementation(() => `s${++counter}`);
             seam.recordComponentSpan.mockReset().mockImplementation(record);

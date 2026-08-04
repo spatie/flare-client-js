@@ -1,10 +1,8 @@
-// @flareapp/react/profiler — opt-in React component-mount tracing.
+// @flareapp/react/profiler is Electron-safe, so it imports only React and the side-effect-free
+// @flareapp/js/browser seam. No @flareapp/js root import (same rule as ./tanstack-router).
 //
-// Electron-safe / dependency-free: imports ONLY React and the side-effect-free
-// @flareapp/js/browser seam. NO @flareapp/js root import (same rule as
-// ./tanstack-router). Each <FlareProfiler> records one `browser_component` span
-// for its mount, nested under the nearest profiled ancestor (or the active
-// browser_pageload / browser_navigation root) via React context and reserved span ids.
+// Each <FlareProfiler> records one browser_component span for its mount, nested under the nearest
+// profiled ancestor or the active browser_pageload / browser_navigation root.
 import {
     activeComponentRoot,
     nowNano,
@@ -36,7 +34,6 @@ export type FlareProfilerProps = { name: string; children?: ReactNode };
 export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode {
     const context = useContext(FlareProfilerContext);
 
-    // Resolve the parent once: an ancestor's context if present, else the active root.
     // `undefined` marks "not yet resolved"; `null` marks "resolved to transparent".
     const parentRef = useRef<ComponentTraceContext | null | undefined>(undefined);
     if (parentRef.current === undefined) {
@@ -57,10 +54,8 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
         }
     }
 
-    // Freeze the context handed to descendants: this component's span when profiled,
-    // otherwise pass the (null) context through. A descendant re-resolves against the
-    // root live at ITS mount, so a dead-window ancestor (e.g. a layout mounted between
-    // traces) does not permanently disable profiling for its subtree.
+    // A descendant re-resolves against the root live at its own mount, so a layout that mounted between
+    // traces does not permanently disable profiling for its subtree.
     const providedRef = useRef<ComponentTraceContext | null | undefined>(undefined);
     if (providedRef.current === undefined) {
         providedRef.current =

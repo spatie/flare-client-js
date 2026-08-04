@@ -135,12 +135,8 @@ export class Logger {
     }
 
     private estimateBytes(log: BufferedLog): number {
-        // A rough estimate, used ONLY for the soft batching caps (weight-flush, oversized-record drop, trim loop). It
-        // is wrong in two known ways: (1) .length counts UTF-16 code units, not UTF-8 bytes; (2) resourceAttributes
-        // move to the envelope and are sent once per request, but are counted once per record here. Both are fine:
-        // these caps are soft and /v1/logs has no hard per-request byte limit. The HARD keepalive cap is measured
-        // separately, with exact UTF-8 bytes (~64 KB, enforced by the browser). flatJsonStringify rather than
-        // JSON.stringify, because record attributes are raw user data that can contain cycles.
+        // Rough, and only for the soft batching caps: UTF-16 code units rather than UTF-8 bytes, and resource
+        // attributes counted per record though they ship once. flatJsonStringify: record attributes can cycle.
         return flatJsonStringify(log).length;
     }
 }

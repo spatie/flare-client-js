@@ -74,9 +74,8 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
 
 type FetchGlobals = { fetch?: typeof fetch; location?: { origin?: string } };
 
-// Owns the installed flag for the single `fetch` method. A wrapper left behind by a failed unpatch
-// stays live and checks enableTracing per call, so one wrapper in the chain is always enough.
-// See createPatcher for how install and uninstall stay in step.
+// A wrapper left behind by a failed unpatch stays live and checks enableTracing per call, so one
+// wrapper in the chain is always enough. See createPatcher for how install and uninstall stay in step.
 const patcher = createPatcher<FetchGlobals>();
 
 /**

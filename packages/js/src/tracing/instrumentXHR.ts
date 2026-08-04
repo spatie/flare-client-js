@@ -194,9 +194,6 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
     } as XhrSend;
 }
 
-// One installed flag across all three methods, so they always install and restore together. A flag
-// per method would let a third party wrapping just one of them (say `send`) leave that one patched
-// while the others go back to native, and `send` reads the state `open` records.
 const patcher = createPatcher<XMLHttpRequest>();
 
 // Must target the patched prototype for uninstall; a swapped-in constructor would send
