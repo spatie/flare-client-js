@@ -63,6 +63,21 @@
                     xhr.send();
                 }),
         },
+        {
+            id: 'xhr-abort',
+            label: 'XHR: abort mid-flight',
+            run: () =>
+                new Promise((resolve) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('GET', '/api/echo?scenario=xhr-abort&delay=1500');
+                    xhr.addEventListener('loadend', () => {
+                        result = `xhr-abort:${xhr.status}`;
+                        resolve();
+                    });
+                    xhr.send();
+                    setTimeout(() => xhr.abort(), 50);
+                }),
+        },
     ];
 </script>
 

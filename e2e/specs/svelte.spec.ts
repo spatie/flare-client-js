@@ -318,6 +318,39 @@ test.describe('svelte http tracing', () => {
         const root = await parentOf(fakeFlare, loadFetch!);
         expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
     });
+
+    // The unit suite fakes completion with fireDone(0), which is the same call an abort and a network
+    // failure both make. This is the only place a real xhr.abort() runs through the real patch.
+    test('an aborted XHR ends its span once and releases the root', async ({ page, fakeFlare }) => {
+        await page.goto('/http');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByTestId(testIds.httpTrigger('xhr-abort')).click();
+        await expect(page.getByTestId(testIds.httpResult)).toHaveText('xhr-abort:0');
+
+        const trace = await fakeFlare.waitForTrace({
+            timeout: 9000,
+            predicate: (r) =>
+                spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-abort')),
+        });
+        const span = spansOf(trace.bodyJson).find(
+            (s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-abort'),
+        );
+        expect(span).toBeTruthy();
+        // The playground is served over http://, and status 0 on an http(s) URL means "no HTTP response",
+        // so the span is an OTel error (instrumentXHR.ts:163).
+        expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 0 });
+        expect(span!.status?.code ?? 0).toBe(2);
+
+        // Exactly one span: the abort must not also end it a second time through another path.
+        const all = (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson));
+        expect(all.filter((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-abort'))).toHaveLength(1);
+
+        // The root arriving inside the 9s wait is the observable proof that the open-child count went
+        // back to zero: a leaked child would hold it to the 15s childSpanTimeout instead.
+        const root = await parentOf(fakeFlare, span!);
+        expect(root).toBeTruthy();
+    });
 });
 
 test.describe('svelte component profiling', () => {
