@@ -1,6 +1,6 @@
-// Electron-safe entry: NO @flareapp/js root import. The navigation-source seam comes from
-// @flareapp/js/browser (side-effect-free). NO runtime dependency on react-router — the router is
-// consumed structurally (see ./vendor/reactRouterTypes).
+// Electron-safe entry: no @flareapp/js root import. The navigation-source seam comes from
+// @flareapp/js/browser (side-effect-free). No runtime dependency on react-router either: the router
+// is consumed structurally (see ./vendor/reactRouterTypes).
 import {
     insulate,
     instrumentOnce,

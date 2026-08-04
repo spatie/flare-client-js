@@ -80,7 +80,7 @@ function byteLength(s: string): number {
     return new TextEncoder().encode(s).length;
 }
 
-// Warn on 1, 10, 100, 1000, ... — first occurrence plus each power-of-ten milestone.
+// First occurrence, then every power-of-ten milestone: 1, 10, 100, 1000, and so on.
 // Integer-only check; avoids the float precision pitfalls of Math.log10 on powers of ten.
 function shouldWarn(count: number): boolean {
     if (count < 1) {

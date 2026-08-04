@@ -19,7 +19,7 @@ export type ReactRouterStateLike = {
     location: ReactRouterLocationLike;
     matches: ReactRouterMatchLike[];
     navigation: ReactRouterNavigationLike;
-    // `initialized` gates the initial-load guard. `historyAction` is deliberately NOT read: whether
+    // `initialized` gates the initial-load guard. `historyAction` is deliberately not read: whether
     // to open a root is decided by the change in navigation.state, not by the committed action.
     initialized?: boolean;
 };

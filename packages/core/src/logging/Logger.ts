@@ -53,8 +53,8 @@ export class Logger {
                     deps.track(deps.api.logs(envelope, config.logsIngestUrl, config.key, config.debug, keepalive));
                 },
                 onRecordBuffered: (record) => {
-                    // Last-write-wins: the envelope stamps ALL batched records with this single most-recent resource
-                    // map. Correct ONLY because every resource-prefixed key in the partition allowlist is
+                    // Last-write-wins: the envelope stamps all batched records with this single most-recent resource
+                    // map. Correct only because every resource-prefixed key in the partition allowlist is
                     // instance-static for the process lifetime (the one varying key, process.uptime, is held to
                     // record-level via the partition's exception set). A future collector emitting a request-varying
                     // resource key would silently mis-stamp batched records.

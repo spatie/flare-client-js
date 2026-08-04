@@ -114,7 +114,7 @@ export class Flare {
 
     /**
      * Register an in-flight report so `flush()` can wait for it. Every entry point wraps its whole async
-     * pipeline (beforeEvaluate -> stack trace -> beforeSubmit -> api.report), not just the HTTP send.
+     * pipeline, from beforeEvaluate through api.report, so flush() waits on all of it.
      *
      * What goes in the Set is a shadow promise that mirrors `p`'s timing but cannot reject, so a failed
      * report never surfaces as an unhandled rejection warning. `p` itself is returned untouched, so the

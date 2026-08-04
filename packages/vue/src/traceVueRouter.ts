@@ -10,7 +10,7 @@ import {
 
 import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from './vendor/vueRouterTypes';
 
-const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED — a newer nav superseded this one
+const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED: a newer nav superseded this one
 
 /** Internal, wired through `flareVue({ router })`. Opens a held navigation root per route change,
  *  settled when the navigation confirms. */
