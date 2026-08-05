@@ -1,8 +1,10 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
-    plugins: [tailwindcss()],
+import { flareSourcemapsForPlayground, mockApi } from '../shared/src/vite';
+
+export default defineConfig(({ mode }) => ({
+    plugins: [tailwindcss(), mockApi(), flareSourcemapsForPlayground(mode)],
     server: {
         port: 5180,
         strictPort: true,
@@ -14,4 +16,4 @@ export default defineConfig({
     build: {
         sourcemap: true,
     },
-});
+}));

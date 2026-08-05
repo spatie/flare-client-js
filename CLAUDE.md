@@ -132,6 +132,21 @@ SDK uniformly across frameworks.
   fake server needed; reports just fail to send.
 - Tailwind v4: each playground imports `@flareapp/playgrounds-shared/styles.css` once in its entry. The shared
   stylesheet declares `@theme` tokens. Don't duplicate `tailwindcss` config.
+- Sourcemap upload: every playground runs the real bundler plugin on `build` — the five vite ones through
+  `flareSourcemapsForPlayground(mode)`, the Next.js one through `withFlareSourcemaps` in its
+  `next.config.mjs`. Uploading is opt-in, so a repo-wide `npm run build` never talks to flareapp.io. It
+  switches on when `VITE_FLARE_URL` / `NEXT_PUBLIC_FLARE_URL` is set (the endpoint is that URL's origin plus
+  `/api/sourcemaps`, so e2e lands on the fake server) or when `FLARE_UPLOAD_SOURCEMAPS=1` is exported, which
+  uploads to real Flare with the `.env` key. `vite dev` never uploads.
+- The vite-config helpers live in `playgrounds/shared/src/vite/` and are imported by RELATIVE path
+  (`../shared/src/vite`), not through the package name. Vite bundles relative imports into the config it
+  loads, while a bare specifier gets externalized and handed to node, which cannot resolve the extensionless
+  relative imports inside those TypeScript files.
+- Mock catalog API: `mockApi()` (same directory) serves `/api/products`, `/api/products/:id`,
+  `/api/recommendations`, `POST /api/cart/summary` and `POST /api/checkout` in `vite dev` and `vite preview`,
+  with staggered latency so a page load produces a real trace waterfall. SvelteKit gets the same handlers
+  through its own `+server.ts` routes, because Kit owns request handling there. Screenshot instructions live
+  in `playgrounds/SCREENSHOTS.md`.
 
 ## E2E suite
 
