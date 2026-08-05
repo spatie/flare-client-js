@@ -1,4 +1,5 @@
 import { flare } from '@flareapp/js';
+import { showcaseUser } from '@flareapp/playgrounds-shared';
 
 export const initFlare = (): void => {
     const url = import.meta.env.VITE_FLARE_URL;
@@ -39,6 +40,9 @@ export const initFlare = (): void => {
             return report;
         },
     });
+
+    // Every showcase report carries a signed-in shopper (see playgrounds/SCREENSHOTS.md).
+    flare.setUser(showcaseUser);
 
     flare.light(key, true);
 

@@ -1,6 +1,15 @@
-import { productById, testIds, unsplashUrl, type Product } from '@flareapp/playgrounds-shared';
-import { cart } from '@flareapp/playgrounds-shared/react';
+import {
+    journeyGlows,
+    productById,
+    recordGlow,
+    shopApi,
+    testIds,
+    unsplashUrl,
+    type Product,
+} from '@flareapp/playgrounds-shared';
+import { cart, useAsyncData } from '@flareapp/playgrounds-shared/react';
 import { withFlareProfiler } from '@flareapp/react/profiler';
+import { useEffect } from 'react';
 import type { LoaderFunctionArgs, RouteObject } from 'react-router';
 import { useLoaderData } from 'react-router';
 
@@ -34,6 +43,14 @@ const AddToCartButton = withFlareProfiler(
 const ProductPage = () => {
     const { product } = useLoaderData() as ProductLoaderData;
 
+    // The loader stays network-free on purpose (see productLoader). The recommendations request rides
+    // along in an effect, so the navigation trace still shows a request span under its root.
+    const recommended = useAsyncData(() => shopApi.recommendations(product?.id), `product-${product?.id ?? 'none'}`);
+
+    useEffect(() => {
+        if (product) recordGlow(flare, journeyGlows.viewedProduct(product));
+    }, [product]);
+
     if (!product) {
         return <p>Product not found.</p>;
     }
@@ -55,7 +72,13 @@ const ProductPage = () => {
                 <h1 className="text-2xl font-semibold">{product.title}</h1>
                 <p className="text-sm opacity-70">Photograph by {product.photographer}</p>
                 <div className="text-xl font-mono">${(product.priceCents / 100).toFixed(2)}</div>
-                <AddToCartButton testId={testIds.addToCart(product.id)} onClick={() => cart.add(product.id)} />
+                <AddToCartButton
+                    testId={testIds.addToCart(product.id)}
+                    onClick={() => {
+                        cart.add(product.id);
+                        recordGlow(flare, journeyGlows.addedToCart(product.id, cart.count()));
+                    }}
+                />
                 <button
                     type="button"
                     onClick={triggerBroken}
@@ -63,6 +86,9 @@ const ProductPage = () => {
                 >
                     Trigger broken solution
                 </button>
+                <p className="text-xs opacity-60">
+                    Also like: {(recommended ?? []).map((other) => other.title).join(' · ')}
+                </p>
             </div>
         </article>
     );

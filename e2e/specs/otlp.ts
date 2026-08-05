@@ -35,12 +35,25 @@ export const urlOf = (span: OtlpSpan): string => stringAttr(span, 'url.full') ??
  * Wait for the trace envelope carrying a span of `type` and return that span. Replaces predicates that
  * substring-match the serialized envelope, which pass on the string turning up anywhere in the payload.
  */
-export const waitForSpanType = async (fakeFlare: FakeFlare, type: string, timeout = 9000): Promise<OtlpSpan> => {
+export const waitForSpanType = (fakeFlare: FakeFlare, type: string, timeout = 9000): Promise<OtlpSpan> =>
+    waitForSpan(fakeFlare, (span) => hasSpanType(span, type), timeout);
+
+/**
+ * Wait for the trace envelope carrying any span the predicate accepts, and return that span. Use this
+ * over `waitForSpanType` whenever the page under test produces more than one span of the same type:
+ * the playground pages load their catalog over the mock API, so a bare type match can land on one of
+ * those requests instead of the one the test triggered.
+ */
+export const waitForSpan = async (
+    fakeFlare: FakeFlare,
+    predicate: (span: OtlpSpan) => boolean,
+    timeout = 9000,
+): Promise<OtlpSpan> => {
     const record = await fakeFlare.waitForTrace({
         timeout,
-        predicate: (trace) => spansOf(trace.bodyJson).some((span) => hasSpanType(span, type)),
+        predicate: (trace) => spansOf(trace.bodyJson).some(predicate),
     });
-    return spansOf(record.bodyJson).find((span) => hasSpanType(span, type))!;
+    return spansOf(record.bodyJson).find(predicate)!;
 };
 
 /**

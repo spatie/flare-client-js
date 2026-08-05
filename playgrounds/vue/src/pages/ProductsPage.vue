@@ -1,50 +1,50 @@
 <script setup lang="ts">
-import { products, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
+import type { ApiProduct, CartSummary } from '@flareapp/playgrounds-shared';
+import { formatMoney, shopApi, testIds } from '@flareapp/playgrounds-shared';
+import { onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import { useCart } from '../cart';
+import ProductGrid from '../components/ProductGrid.vue';
 
 const cart = useCart();
 
-const formatPrice = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+const products = ref<ApiProduct[] | null>(null);
+const recommended = ref<ApiProduct[]>([]);
+const summary = ref<CartSummary | null>(null);
+
+onMounted(async () => {
+    // Three requests in parallel, so the page load span has a waterfall under it rather than one bar.
+    const [catalog, picks, cartSummary] = await Promise.all([
+        shopApi.products(),
+        shopApi.recommendations(),
+        shopApi.cartSummary(cart.lines.value),
+    ]);
+
+    products.value = catalog;
+    recommended.value = picks;
+    summary.value = cartSummary;
+});
 </script>
 
 <template>
     <section :data-testid="testIds.productGrid">
         <h1 class="text-xl font-semibold mb-6">Photographs</h1>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
-            <article
-                v-for="product in products"
-                :key="product.id"
-                class="group rounded-2xl bg-surface border border-surface-border overflow-hidden"
-                :data-testid="testIds.productCard(product.id)"
-            >
-                <RouterLink :to="`/product/${product.id}`" class="block">
-                    <img
-                        :src="unsplashUrl(product.unsplashId, 400, 400)"
-                        :alt="product.title"
-                        class="aspect-square w-full object-cover"
-                        loading="lazy"
-                    />
+        <ProductGrid v-if="products" :products="products" />
+        <p v-else class="text-sm opacity-60">Loading catalog…</p>
+        <template v-if="summary">
+            <h2 class="text-sm font-semibold mt-10 mb-3">Picked for you</h2>
+            <div class="flex flex-wrap gap-3">
+                <RouterLink
+                    v-for="product in recommended"
+                    :key="product.id"
+                    :to="`/product/${product.id}`"
+                    class="rounded-xl border border-surface-border bg-surface px-4 py-3 text-sm"
+                >
+                    {{ product.title }} <span class="opacity-60 font-mono">{{ formatMoney(product.price) }}</span>
                 </RouterLink>
-                <div class="p-4 flex items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-sm font-semibold">{{ product.title }}</h2>
-                        <p class="text-xs opacity-70">{{ product.photographer }}</p>
-                    </div>
-                    <div class="text-sm font-mono">{{ formatPrice(product.priceCents) }}</div>
-                </div>
-                <div class="px-4 pb-4">
-                    <button
-                        type="button"
-                        class="w-full rounded-lg bg-brand-ink text-white text-sm py-2 hover:opacity-90"
-                        :data-testid="testIds.addToCart(product.id)"
-                        @click="cart.add(product.id)"
-                    >
-                        Add to cart
-                    </button>
-                </div>
-            </article>
-        </div>
+            </div>
+            <p class="mt-6 text-xs opacity-60">{{ summary.lines.length }} line(s) in your cart</p>
+        </template>
     </section>
 </template>

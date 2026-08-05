@@ -1,14 +1,31 @@
-import { productById, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
-import { cart } from '@flareapp/playgrounds-shared/react';
+import { formatMoney, journeyGlows, recordGlow, shopApi, testIds, unsplashUrl } from '@flareapp/playgrounds-shared';
+import { cart, useAsyncData } from '@flareapp/playgrounds-shared/react';
 import { withFlareProfiler } from '@flareapp/react/profiler';
 import { createRoute } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 import { flare } from '../flare';
 import { rootRoute } from './__root';
 
 const ProductPage = () => {
     const { id } = productRoute.useParams();
-    const product = productById(id);
+    const data = useAsyncData(
+        () =>
+            Promise.all([shopApi.product(id).catch(() => null), shopApi.recommendations(id)]).then(
+                ([detail, recommended]) => ({ detail, recommended }),
+            ),
+        `product-${id}`,
+    );
+
+    const product = data?.detail?.product;
+
+    useEffect(() => {
+        if (product) recordGlow(flare, journeyGlows.viewedProduct(product));
+    }, [product]);
+
+    if (!data) {
+        return <p className="text-sm opacity-60">Loading print…</p>;
+    }
 
     if (!product) {
         return <p>Product not found.</p>;
@@ -30,8 +47,15 @@ const ProductPage = () => {
             <div className="flex flex-col gap-4">
                 <h1 className="text-2xl font-semibold">{product.title}</h1>
                 <p className="text-sm opacity-70">Photograph by {product.photographer}</p>
-                <div className="text-xl font-mono">${(product.priceCents / 100).toFixed(2)}</div>
-                <AddToCartButton testId={testIds.addToCart(product.id)} onClick={() => cart.add(product.id)} />
+                <p className="text-sm opacity-70">{data.detail?.description}</p>
+                <div className="text-xl font-mono">{formatMoney(product.price)}</div>
+                <AddToCartButton
+                    testId={testIds.addToCart(product.id)}
+                    onClick={() => {
+                        cart.add(product.id);
+                        recordGlow(flare, journeyGlows.addedToCart(product.id, cart.count()));
+                    }}
+                />
                 <button
                     type="button"
                     onClick={triggerBroken}
@@ -39,6 +63,9 @@ const ProductPage = () => {
                 >
                     Trigger broken solution
                 </button>
+                <p className="text-xs opacity-60">
+                    Also like: {data.recommended.map((other) => other.title).join(' · ')}
+                </p>
             </div>
         </article>
     );
@@ -51,7 +78,7 @@ export const productRoute = createRoute({
 });
 
 const AddToCartButton = withFlareProfiler(
-    ({ testId, onClick }: { testId: any; onClick: () => void }) => (
+    ({ testId, onClick }: { testId: string; onClick: () => void }) => (
         <button
             type="button"
             data-testid={testId}

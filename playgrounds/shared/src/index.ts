@@ -7,3 +7,8 @@ export * from './testIds';
 export * from './unsplash';
 export * from './logScenarios';
 export * from './logTrigger';
+export * from './api/client';
+export * from './api/types';
+export * from './checkout/journey';
+export * from './checkout/order';
+export * from './checkout/pricing';

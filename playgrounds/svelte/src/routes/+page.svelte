@@ -1,42 +1,48 @@
 <script lang="ts">
-    import { products, unsplashUrl, testIds } from '@flareapp/playgrounds-shared';
+    import type { ApiProduct, CartSummary } from '@flareapp/playgrounds-shared';
+    import { formatMoney, shopApi, testIds } from '@flareapp/playgrounds-shared';
+    import { onMount } from 'svelte';
     import { cart } from '$lib/cart.svelte';
+    import ProductGrid from '$lib/ProductGrid.svelte';
+
+    let products = $state<ApiProduct[] | null>(null);
+    let recommended = $state<ApiProduct[]>([]);
+    let summary = $state<CartSummary | null>(null);
+
+    // Fetched in the browser rather than in a load function, so the requests show up as spans under
+    // the page load root instead of happening server side.
+    onMount(async () => {
+        const [catalog, picks, cartSummary] = await Promise.all([
+            shopApi.products(),
+            shopApi.recommendations(),
+            shopApi.cartSummary(cart.lines),
+        ]);
+
+        products = catalog;
+        recommended = picks;
+        summary = cartSummary;
+    });
 </script>
 
 <section data-testid={testIds.productGrid}>
     <h1 class="text-xl font-semibold mb-6">Photographs</h1>
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
-        {#each products as product (product.id)}
-            <article
-                class="group rounded-2xl bg-surface border border-surface-border overflow-hidden"
-                data-testid={testIds.productCard(product.id)}
-            >
-                <a href="/product/{product.id}" class="block">
-                    <img
-                        src={unsplashUrl(product.unsplashId, 400, 400)}
-                        alt={product.title}
-                        class="aspect-square w-full object-cover"
-                        loading="lazy"
-                    />
+    {#if products}
+        <ProductGrid {products} />
+    {:else}
+        <p class="text-sm opacity-60">Loading catalog…</p>
+    {/if}
+    {#if summary}
+        <h2 class="text-sm font-semibold mt-10 mb-3">Picked for you</h2>
+        <div class="flex flex-wrap gap-3">
+            {#each recommended as product (product.id)}
+                <a
+                    href="/product/{product.id}"
+                    class="rounded-xl border border-surface-border bg-surface px-4 py-3 text-sm"
+                >
+                    {product.title} <span class="opacity-60 font-mono">{formatMoney(product.price)}</span>
                 </a>
-                <div class="p-4 flex items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-sm font-semibold">{product.title}</h2>
-                        <p class="text-xs opacity-70">{product.photographer}</p>
-                    </div>
-                    <div class="text-sm font-mono">${(product.priceCents / 100).toFixed(2)}</div>
-                </div>
-                <div class="px-4 pb-4">
-                    <button
-                        type="button"
-                        data-testid={testIds.addToCart(product.id)}
-                        onclick={() => cart.add(product.id)}
-                        class="w-full rounded-lg bg-brand-ink text-white text-sm py-2 hover:opacity-90"
-                    >
-                        Add to cart
-                    </button>
-                </div>
-            </article>
-        {/each}
-    </div>
+            {/each}
+        </div>
+        <p class="mt-6 text-xs opacity-60">{summary.lines.length} line(s) in your cart</p>
+    {/if}
 </section>

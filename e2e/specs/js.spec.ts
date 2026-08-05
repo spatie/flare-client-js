@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { logScenariosFor, runLogScenario, waitForLogMessage } from './logShared';
-import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, urlOf, waitForSpanType } from './otlp';
+import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, urlOf, waitForSpan, waitForSpanType } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('js playground', () => {
@@ -139,7 +139,12 @@ test.describe('js playground', () => {
         await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
-        const fetchSpan = await waitForSpanType(fakeFlare, 'browser_fetch');
+        // Match on the URL, not just the type: the products page loads its catalog over the mock API,
+        // so a bare browser_fetch match can land on one of those pageload requests instead.
+        const fetchSpan = await waitForSpan(
+            fakeFlare,
+            (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('/broken'),
+        );
         // The key assertion: the fetch is not its own root, it nests under the active root.
         // Root spans always serialize parentSpanId as null; a nested span carries the parent's spanId.
         expect(fetchSpan.parentSpanId).toBeTruthy();
@@ -201,7 +206,10 @@ test.describe('js playground', () => {
         await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
-        const fetchSpan = await waitForSpanType(fakeFlare, 'browser_fetch');
+        const fetchSpan = await waitForSpan(
+            fakeFlare,
+            (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('/broken'),
+        );
         expect(fetchSpan.parentSpanId).toBeTruthy(); // a child, not its own root
         // lean: carries its own http.* but not cookies or referrer/ready_state page context
         expect(attr(fetchSpan, 'http.request.method')).toBeTruthy();
