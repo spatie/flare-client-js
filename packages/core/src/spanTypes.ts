@@ -11,6 +11,7 @@ export const BrowserSpanType = {
     Fetch: 'browser_fetch',
     Xhr: 'browser_xhr',
     Component: 'browser_component',
+    WebVital: 'browser_web_vital',
 } as const;
 
 export type BrowserSpanType = (typeof BrowserSpanType)[keyof typeof BrowserSpanType];
