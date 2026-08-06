@@ -4,10 +4,6 @@ import type { CartSummaryLine, Money } from '../api/types';
 export const formatMoney = (money: Money | undefined): string =>
     money ? `$${(money.amountCents / 100).toFixed(2)}` : 'Price unavailable';
 
-/**
- * Trusts the catalog contract that every line carries a price. One product comes back without one,
- * which is where the showcase TypeError is thrown.
- */
 export const lineTotalCents = (line: CartSummaryLine): number => line.price.amountCents * line.quantity;
 
 export const calculateOrderTotal = (lines: CartSummaryLine[]): number =>
