@@ -11,6 +11,17 @@ export type FakeNavigationSource = {
 export type BrowserSeamMock = Record<string, unknown> & { registerNavigationSource: ReturnType<typeof vi.fn> };
 
 /**
+ * Force-clears whatever navigation source a prior test left registered, including one leaked by a
+ * mid-test assertion failure that skipped its own `unregister()`. Registering a fresh source replaces a
+ * leaked one (last-wins), and unregistering that fresh handle clears the slot. Pass the real
+ * `registerNavigationSource` from `@flareapp/js/browser`; this package cannot import it directly without
+ * a circular workspace dependency.
+ */
+export function resetNavigationSource(registerNavigationSource: () => { unregister(): void }): void {
+    registerNavigationSource().unregister();
+}
+
+/**
  * The `@flareapp/js/browser` mock used by every nav-seam suite. Only the seam itself is faked; pass
  * the real module as `original` and everything else stays real, so a suite cannot pass against a
  * hand-written stand-in that has drifted from the code it stands in for.

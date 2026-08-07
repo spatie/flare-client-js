@@ -3,5 +3,6 @@
     "extends": ["../../.oxlintrc.json"],
     "env": {
         "browser": true
-    }
+    },
+    "ignorePatterns": ["src/tracing/webvitals"]
 }

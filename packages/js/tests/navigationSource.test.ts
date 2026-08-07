@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { Config, Span, SpanOptions } from '@flareapp/core';
+import { resetNavigationSource } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -59,10 +60,7 @@ function fakeFlare() {
 
 describe('registerNavigationSource', () => {
     afterEach(() => {
-        // Force-clear any navigation source leaked by a mid-test assertion failure:
-        // registering a fresh source replaces a leaked one (last-wins), and
-        // unregistering that fresh handle clears the slot.
-        registerNavigationSource().unregister();
+        resetNavigationSource(registerNavigationSource);
         stopBrowserTracing();
         vi.useRealTimers();
         window.history.replaceState({}, '', '/');

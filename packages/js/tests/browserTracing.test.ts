@@ -1,8 +1,18 @@
 import type { Config, Span, SpanOptions } from '@flareapp/core';
+import { resetNavigationSource } from '@flareapp/test-helpers';
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/browserTracing';
+import {
+    pageloadContextForTests,
+    pageloadRootForTests,
+    pageloadRouteForTests,
+    registerNavigationSource,
+    startBrowserTracing,
+    stopBrowserTracing,
+    type BrowserTracingFlare,
+} from '../src/tracing/browserTracing';
+import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';
 
 function fakeSpan(name: string): Span {
     return {
@@ -12,9 +22,9 @@ function fakeSpan(name: string): Span {
         name,
         isRecording: true,
         endTimeUnixNano: 0,
-        setAttribute() {
+        setAttribute: vi.fn(function (this: Span) {
             return this;
-        },
+        }),
         setStatus() {
             return this;
         },
@@ -45,6 +55,7 @@ function fakeFlare() {
 
 describe('browserTracing', () => {
     afterEach(() => {
+        resetNavigationSource(registerNavigationSource);
         stopBrowserTracing();
         vi.useRealTimers();
         window.history.replaceState({}, '', '/');
@@ -271,5 +282,385 @@ describe('browserTracing', () => {
         // Teardown ran to the end, so the History patches came off: a further pushState opens no root.
         window.history.pushState({}, '', '/after');
         expect(startSpan).toHaveBeenCalledTimes(1);
+    });
+
+    it('stashes the pageload root when it opens', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare, startSpan } = fakeFlare();
+
+        startBrowserTracing(flare);
+
+        expect(pageloadRootForTests()).toBe(startSpan.mock.results[0].value);
+        expect(pageloadRouteForTests()).toEqual({ name: '/product/p01', source: 'url' });
+    });
+
+    it('does not stash a navigation root as the pageload root', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const pageloadRootSpan = startSpan.mock.results[0].value;
+
+        window.history.pushState({}, '', '/b');
+
+        expect(pageloadRootForTests()).toBe(pageloadRootSpan);
+    });
+
+    it('keeps the pageload route pinned when a navigation root is named after it', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare } = fakeFlare();
+        startBrowserTracing(flare);
+
+        const source = registerNavigationSource();
+        source.setActiveRouteName({ name: '/product/:id', source: 'route' });
+        source.startNavigation({ path: '/cart' });
+        source.setActiveRouteName({ name: '/cart', source: 'route' });
+
+        expect(pageloadRouteForTests()).toEqual({ name: '/product/:id', source: 'route' });
+    });
+
+    it('keeps the pageload context pinned when a navigation root is given a different url', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare } = fakeFlare();
+        startBrowserTracing(flare);
+
+        const source = registerNavigationSource();
+        source.setActiveRouteName({ name: '/product/:id', source: 'route', url: 'https://app.test/product/p01' });
+        source.startNavigation({ path: '/cart' });
+        source.setActiveRouteName({ name: '/cart', source: 'route', url: 'https://app.test/cart' });
+
+        expect(pageloadContextForTests()['url.full']).toBe('https://app.test/product/p01');
+    });
+
+    it('drops the stashed pageload state on stop', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare } = fakeFlare();
+        startBrowserTracing(flare);
+        registerNavigationSource().setActiveRouteName({
+            name: '/product/:id',
+            source: 'route',
+            url: 'https://app.test/product/p01',
+        });
+
+        stopBrowserTracing();
+
+        expect(pageloadRootForTests()).toBeNull();
+        expect(pageloadRouteForTests()).toBeNull();
+        expect(pageloadContextForTests()).toEqual({});
+    });
+
+    /** Returns the fake callbacks so a test can drive further values later, e.g. to simulate a
+     *  surviving upstream observer reporting again after a disable/re-enable (Finding 4). */
+    function recordVitals() {
+        const cbs: Record<string, (m: { value: number }) => void> = {};
+        const keep = (key: string) => (cb: (m: { value: number }) => void) => {
+            cbs[key] = cb;
+        };
+        // startBrowserTracing already latched the subscription with the real observers; clear it so
+        // these fakes are what gets wired.
+        resetWebVitalsForTests();
+        startWebVitals({
+            onTTFB: keep('ttfb'),
+            onFCP: keep('fcp'),
+            onLCP: keep('lcp'),
+            onCLS: keep('cls'),
+            onINP: keep('inp'),
+        });
+        cbs.lcp({ value: 2140 });
+        cbs.cls({ value: 0.08 });
+        return cbs;
+    }
+
+    function vitalsSpans(startSpan: ReturnType<typeof fakeFlare>['startSpan']) {
+        return startSpan.mock.calls.filter(([, opts]) => opts?.spanType === 'browser_web_vital');
+    }
+
+    it('emits one vitals span on page hide, carrying every leftover value as an attribute', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare, startSpan, flush } = fakeFlare();
+        startBrowserTracing(flare);
+        recordVitals();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        const emitted = vitalsSpans(startSpan);
+        expect(emitted.map(([name, opts]) => [name, opts.spanType])).toEqual([['/product/p01', 'browser_web_vital']]);
+        expect(emitted[0][1].attributes?.['browser.web_vital.lcp']).toBe(2140);
+        expect(emitted[0][1].attributes?.['browser.web_vital.cls']).toBe(0.08);
+        expect(emitted[0][1].forceRoot).toBe(true);
+
+        // It must be started before the only flush that will ever run on page hide, or the span sits in
+        // the buffer after everything has already shipped and never goes out.
+        const index = startSpan.mock.calls.findIndex(([, o]) => o?.spanType === 'browser_web_vital');
+        expect(startSpan.mock.invocationCallOrder[index]).toBeLessThan(flush.mock.invocationCallOrder[0]);
+    });
+
+    it('has zero duration, so it cannot stretch the pageload root it hangs off', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const pageloadStart = startSpan.mock.calls[0][1].startTimeUnixNano;
+        recordVitals();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        const [[, opts]] = vitalsSpans(startSpan);
+        const span = startSpan.mock.results[startSpan.mock.calls.findIndex(([, o]) => o === opts)].value;
+        expect(opts.startTimeUnixNano).toBe(pageloadStart);
+        expect(span.end).toHaveBeenCalledWith(pageloadStart);
+    });
+
+    it('parents the container on the pageload root span itself, so sampling is inherited', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const pageloadRootSpan = startSpan.mock.results[0].value;
+        recordVitals();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        // A bare { traceId, spanId } pair would make resolveTrace re-run the sampler and could reach
+        // the opposite decision; passing the Span makes it read parent.isRecording instead.
+        const container = vitalsSpans(startSpan).find(([, o]) => o.spanType === 'browser_web_vital');
+        expect(container![1].parent).toBe(pageloadRootSpan);
+    });
+
+    it('renames the container when a router named the pageload route', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        registerNavigationSource().setActiveRouteName({ name: '/product/:id', source: 'route' });
+        recordVitals();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        const container = vitalsSpans(startSpan).find(([, o]) => o.spanType === 'browser_web_vital');
+        expect(container![0]).toBe('/product/:id');
+        expect(container![1].attributes?.['flare.route.source']).toBe('route');
+    });
+
+    it('pins a late route rename to the vitals container after the pageload root idle window has closed', () => {
+        // Finding 5: the pin used to sit inside withLiveController alongside the root rename, so once
+        // the controller closed (idle timeout, no children) a later rename never reached the container,
+        // which then shipped the raw pathname instead of the template.
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/product/p01');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+
+        // idleTimeout is 1000ms; past it with no open children the controller has already closed the
+        // pageload root. Renaming the (already-ended) root itself is correctly a no-op from here on.
+        vi.advanceTimersByTime(1100);
+
+        registerNavigationSource().setActiveRouteName({ name: '/product/:id', source: 'route' });
+        recordVitals();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        const container = vitalsSpans(startSpan).find(([, o]) => o.spanType === 'browser_web_vital');
+        expect(container![0]).toBe('/product/:id');
+        expect(container![1].attributes?.['flare.route.source']).toBe('route');
+    });
+
+    it('emits only once across both triggers', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        recordVitals();
+
+        // Cross trigger types, not the same one twice: a page hide takes the vitals, then a pushState
+        // navigation must find takeWebVitals() already empty rather than emitting a second container.
+        window.dispatchEvent(new Event('pagehide'));
+        window.history.pushState({}, '', '/b');
+
+        expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(1);
+    });
+
+    it('emits on the first navigation, before the new root opens', () => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        recordVitals();
+
+        window.history.pushState({}, '', '/b');
+
+        const types = startSpan.mock.calls.map(([, o]) => o?.spanType);
+        expect(types).toContain('browser_web_vital'); // guards against indexOf(-1) < indexOf(-1)
+        expect(types.indexOf('browser_web_vital')).toBeLessThan(types.indexOf('browser_navigation'));
+    });
+
+    it('emits on a framework navigation too', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        recordVitals();
+
+        registerNavigationSource().startNavigation({ path: '/cart' });
+
+        expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(1);
+    });
+
+    it('ends the pageload root before emitting, on page hide inside the idle window', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const pageloadRootSpan = startSpan.mock.results[0].value;
+        recordVitals();
+
+        // Under idleTimeout (1000ms), so the controller is still live and endNow() runs here rather
+        // than the idle timer having already closed the root. Advancing past it would make this
+        // assertion pass for the wrong reason.
+        vi.advanceTimersByTime(200);
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(pageloadRootSpan.end).toHaveBeenCalledTimes(1);
+        const containerCallIndex = startSpan.mock.calls.findIndex(([, o]) => o?.spanType === 'browser_web_vital');
+        expect(containerCallIndex).toBeGreaterThan(-1);
+        expect(startSpan.mock.invocationCallOrder[containerCallIndex]).toBeGreaterThan(
+            pageloadRootSpan.end.mock.invocationCallOrder[0],
+        );
+    });
+
+    it.each([
+        ['history pushState', () => window.history.pushState({}, '', '/b')],
+        ['framework navigation', () => registerNavigationSource().startNavigation({ path: '/b' })],
+    ])('ends the pageload root before emitting, on %s inside the idle window', (_label, navigate) => {
+        vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const pageloadRootSpan = startSpan.mock.results[0].value;
+        recordVitals();
+
+        // still inside idleTimeout, so the controller is live and endNow() computes trimmedEnd()
+        vi.advanceTimersByTime(200);
+        navigate();
+
+        // Order is the invariant: a vitals span that ends while the root is open becomes its last
+        // child, and trimmedEnd() then drags the root's end out to the navigation.
+        expect(pageloadRootSpan.end).toHaveBeenCalledTimes(1);
+        const containerCallIndex = startSpan.mock.calls.findIndex(([, o]) => o?.spanType === 'browser_web_vital');
+        expect(containerCallIndex).toBeGreaterThan(-1);
+        expect(startSpan.mock.invocationCallOrder[containerCallIndex]).toBeGreaterThan(
+            pageloadRootSpan.end.mock.invocationCallOrder[0],
+        );
+    });
+
+    it('emits nothing after a disable, even on re-enable and page hide', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        recordVitals();
+
+        stopBrowserTracing();
+        startSpan.mockClear();
+        startBrowserTracing(flare);
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(vitalsSpans(startSpan)).toEqual([]);
+    });
+
+    it('does not ship a second container after a disable/re-enable, even if a surviving observer reports again', () => {
+        // This is the scenario Finding 4 actually describes: unlike the test above, an emit already
+        // succeeded once (a real container shipped) before the disable, so `taken` must stay sticky
+        // across stopBrowserTracing()/startBrowserTracing() rather than resetting and letting a still-alive
+        // upstream observer refill `collected` for a second report.
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const cbs = recordVitals();
+
+        window.dispatchEvent(new Event('pagehide'));
+        expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(1);
+
+        stopBrowserTracing();
+        startSpan.mockClear();
+        startBrowserTracing(flare);
+
+        // The same callback closure as before the disable: upstream has no unsubscribe, so this is
+        // what a still-running observer calling back after the re-enable looks like.
+        cbs.lcp({ value: 3000 });
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(0);
+    });
+
+    it('emits nothing when no vital ever reported', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(vitalsSpans(startSpan)).toEqual([]);
+    });
+
+    it('does not let a startSpan error during the emit escape into the page-hide handler, and still flushes', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan, flush } = fakeFlare();
+        startBrowserTracing(flare); // consumes the pageload root's startSpan call
+        recordVitals();
+        startSpan.mockImplementationOnce(() => {
+            throw new Error('tracer boom'); // the vitals container's startSpan call
+        });
+
+        expect(() => window.dispatchEvent(new Event('pagehide'))).not.toThrow();
+
+        expect(flush).toHaveBeenCalledWith({ keepalive: true });
+    });
+
+    it('restores the vitals for a later retry when the container span fails to start (Finding 3)', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare); // consumes the pageload root's startSpan call
+        recordVitals();
+        startSpan.mockImplementationOnce(() => {
+            throw new Error('tracer boom'); // the vitals container's startSpan call
+        });
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        // A failed emit must not permanently discard the page's vitals: a later trigger (here, a SPA
+        // navigation) has to see them again rather than a latched empty take. mockClear() first so the
+        // failed call above (still recorded as a call even though its implementation threw) does not
+        // muddy this count.
+        startSpan.mockClear();
+        window.history.pushState({}, '', '/next');
+
+        const retried = vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital');
+        expect(retried).toHaveLength(1);
+        expect(retried[0][1].attributes?.['browser.web_vital.cls']).toBe(0.08);
+    });
+
+    it('stamps the already-final vitals on the pageload root, and leaves the rest for the late span', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare();
+        startBrowserTracing(flare);
+        const pageloadRootSpan = startSpan.mock.results[0].value;
+        const cbs = recordVitals();
+        cbs.ttfb({ value: 210 });
+        cbs.fcp({ value: 890 });
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        // ttfb and fcp are final the moment they fire, so they ride the root itself. lcp and cls keep
+        // changing until the page goes away, so stamping them here would leave the root and the late
+        // span disagreeing about the same vital.
+        expect(pageloadRootSpan.setAttribute).toHaveBeenCalledWith('browser.web_vital.ttfb', 210);
+        expect(pageloadRootSpan.setAttribute).toHaveBeenCalledWith('browser.web_vital.fcp', 890);
+
+        const [[, opts]] = vitalsSpans(startSpan);
+        expect(opts.attributes?.['browser.web_vital.lcp']).toBe(2140);
+        expect(opts.attributes?.['browser.web_vital.cls']).toBe(0.08);
+        expect('browser.web_vital.ttfb' in (opts.attributes ?? {})).toBe(false);
+        expect('browser.web_vital.fcp' in (opts.attributes ?? {})).toBe(false);
     });
 });

@@ -29,6 +29,9 @@ export type IdleRootDeps = {
     // until the router settles, past the idle window. The finalTimeout/childSpanTimeout backstops still
     // apply.
     held?: boolean;
+    // Last call before the root's attributes are frozen: the tracer snapshots them inside `end()`, so a
+    // pageload stamps the vitals that are already final from here. Must not throw; see the call site.
+    beforeEnd?: () => void;
 };
 
 type Timer = ReturnType<typeof setTimeout> | null;
@@ -183,6 +186,7 @@ export class IdleRootController {
             this.finalTimer = null;
         }
         this.unsubscribe();
+        this.deps.beforeEnd?.();
         this.deps.root.end(atTimeNano);
         this.deps.setActiveRoot(undefined);
     }
