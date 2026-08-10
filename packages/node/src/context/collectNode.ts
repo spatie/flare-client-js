@@ -1,4 +1,4 @@
-import type { Attributes, Config, ContextCollector } from '@flareapp/core';
+import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
 import { redactUrlQuery } from '@flareapp/core';
 
 import type { AsyncLocalStorageScopeProvider } from '../scope/AsyncLocalStorageScopeProvider';
@@ -27,9 +27,9 @@ export function makeNodeContextCollector(
     >,
 ): ContextCollector {
     return (config: Readonly<Config>): Attributes => {
-        // Always-on baseline: server entry point + Node runtime info.
+        // Always-on baseline: web entry point + Node runtime info.
         const attrs: Attributes = {
-            'flare.entry_point.type': 'server',
+            'flare.entry_point.type': 'web' satisfies EntryPointType,
             ...collectProcessAttributes(),
         };
 

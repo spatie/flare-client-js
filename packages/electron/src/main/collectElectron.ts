@@ -1,6 +1,6 @@
 import os from 'node:os';
 
-import type { Attributes, Config, ContextCollector } from '@flareapp/core';
+import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
 import type { App } from 'electron';
 
 type AppLike = Pick<App, 'getName' | 'getVersion' | 'getLocale' | 'isReady'> & { isPackaged: boolean };
@@ -42,7 +42,7 @@ export function makeElectronContextCollector(app: AppLike): ContextCollector {
     return (_config: Readonly<Config>): Attributes => ({
         // Per-process fields reflect the main process; applied only to main-origin reports, not
         // forwarded renderer reports (which carry their own entry_point.type).
-        'flare.entry_point.type': 'server',
+        'flare.entry_point.type': 'web' satisfies EntryPointType,
         'process.type': (process as { type?: string }).type ?? 'browser',
         ...collectElectronAppAttributes(app),
     });

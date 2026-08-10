@@ -118,6 +118,9 @@ export type Glow = {
     metaData: Record<string, unknown> | Record<string, unknown>[];
 };
 
+/** The values the backend accepts for `flare.entry_point.type`. Anything else is dropped. */
+export type EntryPointType = 'web' | 'queue' | 'cli';
+
 export type EntryPointHandler = {
     identifier?: string;
     name?: string;
