@@ -71,6 +71,7 @@ export function buildVitalsSpan(input: BuildVitalsSpanInput): VitalsSpan | null 
         attributes: {
             ...input.contextAttributes,
             'flare.entry_point.handler.identifier': input.routeName,
+            'http.route': input.routeName,
             'flare.route.source': input.routeSource,
             ...vitals,
         },

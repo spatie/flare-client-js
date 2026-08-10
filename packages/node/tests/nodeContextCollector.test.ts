@@ -35,12 +35,35 @@ describe('Node ContextCollector', () => {
         });
     });
 
-    it('projects request.url through redactUrlQuery into url.full', () => {
+    it('projects request.url into redacted url.full + url.scheme', () => {
         const provider = new AsyncLocalStorageScopeProvider();
         const collect = makeNodeContextCollector(provider, () => baseOpts);
         provider.runWithContext({ url: 'https://x.test/a?password=hunter2' }, () => {
             const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
             expect(attrs['url.full']).toBe('https://x.test/a?password=[redacted]');
+            expect(attrs['url.scheme']).toBe('https');
+        });
+    });
+
+    it('lets request.path own url.path and url.query even when request.url is also set', () => {
+        const provider = new AsyncLocalStorageScopeProvider();
+        const collect = makeNodeContextCollector(provider, () => baseOpts);
+        // The proxy-resolved absolute url and the routed path can disagree; the routed one wins.
+        provider.runWithContext({ path: '/foo?bar=1', url: 'https://x.test/prefix/foo?bar=1' }, () => {
+            const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
+            expect(attrs['url.path']).toBe('/foo');
+            expect(attrs['url.query']).toBe('bar=1');
+            expect(attrs['url.scheme']).toBe('https');
+        });
+    });
+
+    it('omits url.scheme when request.url is not absolute', () => {
+        const provider = new AsyncLocalStorageScopeProvider();
+        const collect = makeNodeContextCollector(provider, () => baseOpts);
+        provider.runWithContext({ url: '/relative/a' }, () => {
+            const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
+            expect(attrs['url.full']).toBe('/relative/a');
+            expect('url.scheme' in attrs).toBe(false);
         });
     });
 

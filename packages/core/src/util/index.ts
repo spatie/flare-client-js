@@ -12,4 +12,5 @@ export * from './rejection';
 export * from './safeClone';
 export * from './statelessRegExp';
 export * from './toCustomContext';
+export * from './urlAttributes';
 // utf8Bytes is deliberately not re-exported: an internal envelope-sizing helper, not a public seam.

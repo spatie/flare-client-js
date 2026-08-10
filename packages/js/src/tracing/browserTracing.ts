@@ -408,6 +408,7 @@ function applyRouteName(route: RouteName, owner?: object): void {
     ifRootLive(() => {
         root.name = route.name;
         root.setAttribute('flare.entry_point.handler.identifier', route.name);
+        root.setAttribute('http.route', route.name);
         root.setAttribute('flare.route.source', route.source);
         if (!urlAttrs) {
             return;

@@ -489,6 +489,8 @@ export class Flare {
         const entryPointOverrides: Attributes = {};
         if (entryPoint?.identifier !== undefined) {
             entryPointOverrides['flare.entry_point.handler.identifier'] = entryPoint.identifier;
+            // OTel's name for the same thing. Written together so the two can never drift apart.
+            entryPointOverrides['http.route'] = entryPoint.identifier;
         }
         if (entryPoint?.type !== undefined) {
             entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;

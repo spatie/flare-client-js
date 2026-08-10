@@ -59,9 +59,18 @@ describe('httpRequestSpan helpers', () => {
         expect(attrs).toEqual({
             'http.request.method': 'GET',
             'url.full': 'https://app.example:8443/api/x?token=[redacted]&page=2',
+            'url.scheme': 'https',
+            'url.path': '/api/x',
+            'url.query': 'token=[redacted]&page=2',
             'server.address': 'app.example',
             'server.port': 8443,
         });
+    });
+
+    it('requestSpanAttributes falls back to url.full alone when the url will not resolve', () => {
+        const attrs = requestSpanAttributes('GET', null, 'not a url', config);
+
+        expect(attrs).toEqual({ 'http.request.method': 'GET', 'url.full': 'not a url' });
     });
 
     describe('endHttpRequestSpan', () => {

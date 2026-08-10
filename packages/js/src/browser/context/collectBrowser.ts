@@ -3,7 +3,6 @@ import { redactUrlQuery } from '@flareapp/core';
 
 import cookie from './cookie';
 import request from './request';
-import requestData from './requestData';
 
 export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): Attributes {
     if (typeof window === 'undefined') {
@@ -22,6 +21,7 @@ export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): 
         const pathname = urlOverride ? urlOverride.pathname : window?.location?.pathname;
         if (pathname) {
             attrs['flare.entry_point.handler.identifier'] = pathname;
+            attrs['http.route'] = pathname;
             attrs['flare.entry_point.handler.type'] = 'browser';
         }
     }
@@ -33,7 +33,7 @@ export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attr
     const attrs: Attributes = { ...browserEntryPoint(config) };
 
     // No window (SSR/node): browserEntryPoint already returned the entry point type on its own.
-    // request()/requestData()/cookie() below touch window unguarded, so stop here.
+    // request()/cookie() below touch window unguarded, so stop here.
     if (typeof window === 'undefined') {
         return attrs;
     }
@@ -46,7 +46,6 @@ export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attr
     }
 
     Object.assign(attrs, request(config.urlDenylist));
-    Object.assign(attrs, requestData(config.urlDenylist));
     Object.assign(attrs, cookie(config.urlDenylist));
 
     return attrs;
