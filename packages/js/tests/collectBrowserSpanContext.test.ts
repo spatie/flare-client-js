@@ -20,7 +20,7 @@ describe('collectBrowserSpanContext', () => {
         expect(attrs['url.full']).toContain('/products');
         expect(attrs['url.scheme']).toBe('http');
         expect(attrs['url.path']).toBe('/products');
-        // url.query now rides the span context too; it used to be report-only.
+        // url.query is on the span context now. It used to be on reports only.
         expect(attrs['url.query']).toBe('q=1');
         expect(attrs['user_agent.original']).toBeTypeOf('string');
         expect('http.request.referrer' in attrs).toBe(true);
@@ -79,8 +79,8 @@ describe('browserSpanUrlAttributes', () => {
     });
 
     it('emits an empty url.query for a destination without one', () => {
-        // A span attribute can be overwritten but not removed, so redirecting away from a URL that had a
-        // query must blank it out rather than leave the old one behind.
+        // You can overwrite a span attribute but not remove it. So a redirect away from a URL with a
+        // query has to blank it out.
         const attrs = browserSpanUrlAttributes(config, 'https://app.test/thanks');
 
         expect(attrs['url.query']).toBe('');

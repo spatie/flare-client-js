@@ -68,8 +68,8 @@ export function isFlareIngestUrl(resolved: URL | null, config: Config, origin: s
 }
 
 /**
- * Shared request-span attributes for a fetch/XHR call. The `url.*` set is redacted the same way error
- * reports are, so tokens/reset codes never leak.
+ * Shared request-span attributes for a fetch/XHR call. The `url.*` attributes are redacted the same
+ * way as error reports, so tokens and reset codes never leak.
  */
 export function requestSpanAttributes(method: string, resolved: URL | null, url: string, config: Config): Attributes {
     return {

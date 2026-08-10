@@ -23,15 +23,14 @@ export function collectBrowserSpanContext(config: Readonly<Config>, hrefOverride
 }
 
 /**
- * Re-stamps a root's url after a redirect, or when a newer navigation replaces this one: the root opened
- * with the first destination, so it would otherwise report a page the user never landed on.
+ * Updates a root's url after a redirect, or when a newer navigation replaces this one. The root opened
+ * with the first destination, so without this it reports a page the user never reached.
  *
- * Leaves `flare.entry_point.handler.identifier` and `http.route` alone. The route template owns those, and
- * deriving them from the href would turn `/product/[id]` back into `/product/p01`.
+ * Does not touch `flare.entry_point.handler.identifier` or `http.route`. Those hold the route template,
+ * and reading them back from the href would turn `/product/[id]` into `/product/p01`.
  *
- * `url.query` is always present here, empty string included, unlike everywhere else `urlAttributes` is
- * used. A span attribute can be overwritten but not removed, so redirecting from `/a?x=1` to `/b` would
- * otherwise leave the old query sitting next to the new path.
+ * Always sets `url.query`, even to an empty string. You can overwrite a span attribute but not remove
+ * it, so going from `/a?x=1` to `/b` would otherwise keep the old query.
  */
 export function browserSpanUrlAttributes(config: Readonly<Config>, href: string): Attributes {
     if (typeof window === 'undefined') {

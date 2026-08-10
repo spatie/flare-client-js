@@ -48,7 +48,7 @@ describe('Node ContextCollector', () => {
     it('lets request.path own url.path and url.query even when request.url is also set', () => {
         const provider = new AsyncLocalStorageScopeProvider();
         const collect = makeNodeContextCollector(provider, () => baseOpts);
-        // The proxy-resolved absolute url and the routed path can disagree; the routed one wins.
+        // The absolute url and the routed path can disagree. The routed path wins.
         provider.runWithContext({ path: '/foo?bar=1', url: 'https://x.test/prefix/foo?bar=1' }, () => {
             const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
             expect(attrs['url.path']).toBe('/foo');

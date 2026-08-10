@@ -130,8 +130,7 @@ describe('registerNavigationSource', () => {
         expect(nav.attrs['url.full']).toBe('https://app.example/cart');
         expect(nav.attrs['flare.entry_point.value']).toBe('https://app.example/cart');
         expect(nav.attrs['url.path']).toBe('/cart');
-        // The destination has no query, so the one the root opened with has to be blanked out rather
-        // than left sitting next to the new path.
+        // The new URL has no query, so the old one has to be blanked out.
         expect(nav.attrs['url.query']).toBe('');
         // The route template still owns the identifier. Taking it from the href would turn '/cart'
         // back into a url-shaped name.

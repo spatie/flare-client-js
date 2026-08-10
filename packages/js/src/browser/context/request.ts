@@ -2,7 +2,7 @@ import type { Attributes } from '@flareapp/core';
 import { redactUrlQuery, urlAttributes } from '@flareapp/core';
 
 /**
- * @param hrefOverride when set, the `url.*` attributes are derived from it instead of the live
+ * @param hrefOverride when set, the `url.*` attributes come from it instead of the live
  * `window.location.href` (a framework navigation root whose router knows the destination
  * before the URL commits). The override is pre-validated by the caller.
  */

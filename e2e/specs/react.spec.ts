@@ -49,7 +49,7 @@ test.describe('react playground', () => {
         });
         expect(pageload && attr(pageload, 'http.route')).toEqual({ stringValue: '/product/$id' });
         expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
-        // http.route is the template; url.path is the concrete path the user actually hit.
+        // http.route is the route template, url.path is the path the user actually hit.
         expect(pageload && attr(pageload, 'url.path')).toEqual({ stringValue: '/product/p01' });
         expect(pageload && attr(pageload, 'url.scheme')).toEqual({ stringValue: 'http' });
     });
