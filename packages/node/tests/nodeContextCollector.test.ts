@@ -21,7 +21,7 @@ describe('Node ContextCollector', () => {
         const collect = makeNodeContextCollector(provider, () => baseOpts);
         const attrs = collect({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
         expect(attrs['process.runtime.name']).toBe('nodejs');
-        expect(attrs['flare.entry_point.type']).toBe('server');
+        expect(attrs['flare.entry_point.type']).toBe('web');
     });
 
     it('projects request.path into url.path + url.query', () => {

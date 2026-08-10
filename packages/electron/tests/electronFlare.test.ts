@@ -72,8 +72,10 @@ describe('ElectronFlare', () => {
         expect(api.reports[0].sourcemapVersionId).toBe('sm-1');
         // renderer browser context preserved
         expect(api.reports[0].attributes['flare.entry_point.value']).toBe('http://localhost/page');
-        // renderer entry_point.type must NOT be overwritten to 'server' by the main overlay
+        // the renderer's own entry_point.type survives the main overlay
         expect(api.reports[0].attributes['flare.entry_point.type']).toBe('web');
+        // per-process main fields must not leak onto a forwarded renderer report
+        expect(api.reports[0].attributes['process.type']).toBeUndefined();
         // electron app metadata merged
         expect(api.reports[0].attributes['service.name']).toBe('TestApp');
         // main-side user is authoritative on forwarded reports and overrides any renderer-supplied key

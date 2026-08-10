@@ -10,9 +10,9 @@ describe('collectBrowser in SSR (no window)', () => {
         expect(() => collectBrowser({ urlDenylist: DEFAULT_URL_DENYLIST } as any)).not.toThrow();
     });
 
-    it('returns flare.entry_point.type === server when window is absent', () => {
+    it('returns flare.entry_point.type === web when window is absent', () => {
         const attrs = collectBrowser({ urlDenylist: DEFAULT_URL_DENYLIST } as any);
-        expect(attrs['flare.entry_point.type']).toBe('server');
+        expect(attrs['flare.entry_point.type']).toBe('web');
     });
 
     it('does not include window-dependent attributes when window is absent', () => {

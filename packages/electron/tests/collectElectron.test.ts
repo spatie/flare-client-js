@@ -32,7 +32,7 @@ describe('electron context collector', () => {
     it('collector adds per-process fields for main-origin reports', () => {
         const collector = makeElectronContextCollector(readyApp(true) as any);
         const attrs = collector(cfg);
-        expect(attrs['flare.entry_point.type']).toBe('server');
+        expect(attrs['flare.entry_point.type']).toBe('web');
         expect(typeof attrs['process.type']).toBe('string');
         expect(attrs['service.name']).toBe('TestApp');
         expect(attrs['process.runtime.name']).toBe('electron');

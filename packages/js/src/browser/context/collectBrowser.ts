@@ -1,4 +1,4 @@
-import type { Attributes, Config, ContextCollector } from '@flareapp/core';
+import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
 import { redactUrlQuery } from '@flareapp/core';
 
 import cookie from './cookie';
@@ -7,11 +7,11 @@ import requestData from './requestData';
 
 export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): Attributes {
     if (typeof window === 'undefined') {
-        return { 'flare.entry_point.type': 'server' };
+        return { 'flare.entry_point.type': 'web' satisfies EntryPointType };
     }
 
     const attrs: Attributes = {
-        'flare.entry_point.type': 'web',
+        'flare.entry_point.type': 'web' satisfies EntryPointType,
     };
 
     // Prefer a caller-supplied destination (framework nav integrations pass it because the router
@@ -32,7 +32,7 @@ export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): 
 export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
     const attrs: Attributes = { ...browserEntryPoint(config) };
 
-    // No window (SSR/node): browserEntryPoint already returned { 'flare.entry_point.type': 'server' };
+    // No window (SSR/node): browserEntryPoint already returned the entry point type on its own.
     // request()/requestData()/cookie() below touch window unguarded, so stop here.
     if (typeof window === 'undefined') {
         return attrs;

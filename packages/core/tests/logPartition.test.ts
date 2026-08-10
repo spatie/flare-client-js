@@ -12,7 +12,7 @@ describe('partitionAttributes', () => {
             'enduser.id': '42',
             'client.address': '1.2.3.4',
             'user_agent.original': 'UA',
-            'flare.entry_point.type': 'server',
+            'flare.entry_point.type': 'web',
             'context.custom': { a: 1 },
         });
 
@@ -26,7 +26,7 @@ describe('partitionAttributes', () => {
             'enduser.id': '42',
             'client.address': '1.2.3.4',
             'user_agent.original': 'UA',
-            'flare.entry_point.type': 'server',
+            'flare.entry_point.type': 'web',
             'context.custom': { a: 1 },
         });
     });

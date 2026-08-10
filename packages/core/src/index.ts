@@ -6,6 +6,7 @@ export type {
     BufferedSpan,
     Config,
     EntryPointHandler,
+    EntryPointType,
     Framework,
     Glow,
     KeyValue,
