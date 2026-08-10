@@ -4,7 +4,6 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import cookie from '../src/browser/context/cookie';
 import request from '../src/browser/context/request';
-import requestData from '../src/browser/context/requestData';
 
 const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
 const originalReferrer = Object.getOwnPropertyDescriptor(Document.prototype, 'referrer');
@@ -54,23 +53,37 @@ test('emits flat OTel-style request attributes', () => {
     const attributes = request(DEFAULT_URL_DENYLIST);
 
     expect(attributes['url.full']).toBe('https://app.test/some/path?utm=foo&q=bar');
+    expect(attributes['url.scheme']).toBe('https');
+    expect(attributes['url.path']).toBe('/some/path');
+    expect(attributes['url.query']).toBe('utm=foo&q=bar');
     expect(attributes['user_agent.original']).toBe('TestAgent/1.0');
     expect(attributes['http.request.referrer']).toBe('https://example.com/from');
     expect(attributes['document.ready_state']).toBe('complete');
 });
 
-test('emits url.query as raw query string without leading ?', () => {
-    const attributes = requestData(DEFAULT_URL_DENYLIST);
-
-    expect(attributes['url.query']).toBe('utm=foo&q=bar');
-});
-
 test('omits url.query when no search string is present', () => {
     setLocation('https://app.test/some/path');
 
-    const attributes = requestData(DEFAULT_URL_DENYLIST);
+    const attributes = request(DEFAULT_URL_DENYLIST);
 
     expect('url.query' in attributes).toBe(false);
+});
+
+test('redacts denylisted query values across url.full and url.query', () => {
+    setLocation('https://app.test/reset?token=abc123&q=bar');
+
+    const attributes = request(DEFAULT_URL_DENYLIST);
+
+    expect(attributes['url.full']).toBe('https://app.test/reset?token=[redacted]&q=bar');
+    expect(attributes['url.query']).toBe('token=[redacted]&q=bar');
+});
+
+test('derives the url.* set from an href override instead of the live location', () => {
+    const attributes = request(DEFAULT_URL_DENYLIST, 'https://app.test/product/p01?size=l');
+
+    expect(attributes['url.full']).toBe('https://app.test/product/p01?size=l');
+    expect(attributes['url.path']).toBe('/product/p01');
+    expect(attributes['url.query']).toBe('size=l');
 });
 
 test('emits http.request.cookies as parsed object, redacting denylisted names', () => {

@@ -48,6 +48,7 @@ export {
     safeClone,
     safeDecode,
     toCustomContext,
+    urlAttributes,
 } from './util';
 export type { RejectionReporter, SafeCloneOptions, SdkTaggable } from './util';
 

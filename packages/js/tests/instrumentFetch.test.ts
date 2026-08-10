@@ -22,6 +22,8 @@ describe('createFetchWrapper', () => {
             attributes: {
                 'http.request.method': 'GET',
                 'url.full': 'https://app.example/api/products',
+                'url.scheme': 'https',
+                'url.path': '/api/products',
                 'server.address': 'app.example',
             },
         });
@@ -33,16 +35,15 @@ describe('createFetchWrapper', () => {
         expect(calls.ended).toBe(true);
     });
 
-    it('redacts denylisted query params in url.full', async () => {
+    it('redacts denylisted query params in url.full and url.query', async () => {
         const { tracer, startSpan } = makeTracer();
         const wrapped = createFetchWrapper(tracer, okFetch(), ORIGIN);
 
         await wrapped('https://app.example/api/reset?token=abc123&page=2');
 
-        const opts = startSpan.mock.calls[0][1] as SpanOptions;
-        expect((opts.attributes as Record<string, string>)['url.full']).toBe(
-            'https://app.example/api/reset?token=[redacted]&page=2',
-        );
+        const attributes = (startSpan.mock.calls[0][1] as SpanOptions).attributes as Record<string, string>;
+        expect(attributes['url.full']).toBe('https://app.example/api/reset?token=[redacted]&page=2');
+        expect(attributes['url.query']).toBe('token=[redacted]&page=2');
     });
 
     it('does NOT inject traceparent cross-origin by default (span still created)', async () => {

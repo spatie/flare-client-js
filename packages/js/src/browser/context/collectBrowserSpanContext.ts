@@ -1,5 +1,5 @@
 import type { Attributes, Config } from '@flareapp/core';
-import { redactUrlQuery } from '@flareapp/core';
+import { urlAttributes } from '@flareapp/core';
 
 import { absoluteUrl } from '../../tracing/absoluteHref';
 import { browserEntryPoint } from './collectBrowser';
@@ -23,11 +23,14 @@ export function collectBrowserSpanContext(config: Readonly<Config>, hrefOverride
 }
 
 /**
- * Re-stamps a root's url after a redirect, or when a newer navigation replaces this one: the root opened
- * with the first destination, so it would otherwise report a page the user never landed on.
+ * Updates a root's url after a redirect, or when a newer navigation replaces this one. The root opened
+ * with the first destination, so without this it reports a page the user never reached.
  *
- * Leaves `flare.entry_point.handler.identifier` alone. The route template owns that, and deriving it from
- * the href would turn `/product/[id]` back into `/product/p01`.
+ * Does not touch `flare.entry_point.handler.identifier` or `http.route`. Those hold the route template,
+ * and reading them back from the href would turn `/product/[id]` into `/product/p01`.
+ *
+ * Always sets `url.query`, even to an empty string. You can overwrite a span attribute but not remove
+ * it, so going from `/a?x=1` to `/b` would otherwise keep the old query.
  */
 export function browserSpanUrlAttributes(config: Readonly<Config>, href: string): Attributes {
     if (typeof window === 'undefined') {
@@ -37,6 +40,6 @@ export function browserSpanUrlAttributes(config: Readonly<Config>, href: string)
     if (!resolved) {
         return {};
     }
-    const redacted = redactUrlQuery(resolved.href, config.urlDenylist);
-    return { 'url.full': redacted, 'flare.entry_point.value': redacted };
+    const attributes = urlAttributes(resolved.href, config.urlDenylist);
+    return { 'url.query': '', ...attributes, 'flare.entry_point.value': attributes['url.full'] };
 }

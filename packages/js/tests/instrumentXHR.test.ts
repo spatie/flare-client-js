@@ -74,6 +74,8 @@ describe('createXHR* wrappers', () => {
             attributes: {
                 'http.request.method': 'GET',
                 'url.full': 'https://app.example/api/products',
+                'url.scheme': 'https',
+                'url.path': '/api/products',
                 'server.address': 'app.example',
             },
         });
@@ -82,17 +84,16 @@ describe('createXHR* wrappers', () => {
         expect(calls.ended).toBe(true);
     });
 
-    it('redacts denylisted query params in url.full', () => {
+    it('redacts denylisted query params in url.full and url.query', () => {
         const { tracer, startSpan } = makeTracer({ urlDenylist: /token/ } as Partial<Config>);
         const { xhr } = instrument(tracer);
 
         xhr.open('GET', 'https://app.example/api/reset?token=abc123&page=2');
         xhr.send();
 
-        const opts = startSpan.mock.calls[0][1] as SpanOptions;
-        expect((opts.attributes as Record<string, string>)['url.full']).toBe(
-            'https://app.example/api/reset?token=[redacted]&page=2',
-        );
+        const attributes = (startSpan.mock.calls[0][1] as SpanOptions).attributes as Record<string, string>;
+        expect(attributes['url.full']).toBe('https://app.example/api/reset?token=[redacted]&page=2');
+        expect(attributes['url.query']).toBe('token=[redacted]&page=2');
     });
 
     it('does NOT inject traceparent cross-origin by default (span still created)', () => {
@@ -265,6 +266,8 @@ describe('createXHR* wrappers', () => {
             attributes: {
                 'http.request.method': 'GET',
                 'url.full': 'https://app.example/',
+                'url.scheme': 'https',
+                'url.path': '/',
                 'server.address': 'app.example',
             },
         });

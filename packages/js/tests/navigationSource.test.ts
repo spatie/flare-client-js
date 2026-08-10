@@ -108,6 +108,7 @@ describe('registerNavigationSource', () => {
 
         expect(spans[0].span.name).toBe('/product/$id');
         expect(spans[0].attrs['flare.entry_point.handler.identifier']).toBe('/product/$id');
+        expect(spans[0].attrs['http.route']).toBe('/product/$id');
         expect(spans[0].attrs['flare.route.source']).toBe('route');
         src.unregister();
     });
@@ -122,15 +123,19 @@ describe('registerNavigationSource', () => {
         startBrowserTracing(flare);
         const src = registerNavigationSource();
 
-        src.startNavigation({ path: '/old', url: 'https://app.example/old', hold: true });
+        src.startNavigation({ path: '/old', url: 'https://app.example/old?keep=me', hold: true });
         src.setActiveRouteName({ name: '/cart', source: 'route', url: 'https://app.example/cart' });
 
         const nav = spans[1];
         expect(nav.attrs['url.full']).toBe('https://app.example/cart');
         expect(nav.attrs['flare.entry_point.value']).toBe('https://app.example/cart');
+        expect(nav.attrs['url.path']).toBe('/cart');
+        // The new URL has no query, so the old one has to be blanked out.
+        expect(nav.attrs['url.query']).toBe('');
         // The route template still owns the identifier. Taking it from the href would turn '/cart'
         // back into a url-shaped name.
         expect(nav.attrs['flare.entry_point.handler.identifier']).toBe('/cart');
+        expect(nav.attrs['http.route']).toBe('/cart');
         src.unregister();
     });
 

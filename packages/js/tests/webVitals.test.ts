@@ -142,6 +142,7 @@ describe('buildVitalsSpan', () => {
 
         expect(result!.name).toBe('/product/:id');
         expect(result!.attributes['flare.entry_point.handler.identifier']).toBe('/product/:id');
+        expect(result!.attributes['http.route']).toBe('/product/:id');
         expect(result!.attributes['flare.route.source']).toBe('route');
         expect(result!.attributes['url.full']).toBe('https://shop.test/product/p01');
     });

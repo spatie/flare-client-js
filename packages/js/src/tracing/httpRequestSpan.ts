@@ -2,10 +2,10 @@ import {
     type Attributes,
     buildTraceparent,
     type Config,
-    redactUrlQuery,
     type Span,
     type SpanOptions,
     SpanStatusCode,
+    urlAttributes,
 } from '@flareapp/core';
 
 import { shouldPropagate } from './propagation';
@@ -68,13 +68,13 @@ export function isFlareIngestUrl(resolved: URL | null, config: Config, origin: s
 }
 
 /**
- * Shared request-span attributes for a fetch/XHR call. `url.full` is redacted the same way error
- * reports are, so tokens/reset codes never leak.
+ * Shared request-span attributes for a fetch/XHR call. The `url.*` attributes are redacted the same
+ * way as error reports, so tokens and reset codes never leak.
  */
 export function requestSpanAttributes(method: string, resolved: URL | null, url: string, config: Config): Attributes {
     return {
         'http.request.method': method,
-        'url.full': redactUrlQuery(resolved ? resolved.href : url, config.urlDenylist),
+        ...urlAttributes(resolved ? resolved.href : url, config.urlDenylist),
         ...(resolved ? { 'server.address': resolved.hostname } : {}),
         ...(resolved && resolved.port ? { 'server.port': Number(resolved.port) } : {}),
     };

@@ -1,5 +1,5 @@
 import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
-import { redactUrlQuery } from '@flareapp/core';
+import { redactUrlQuery, urlAttributes } from '@flareapp/core';
 
 import type { AsyncLocalStorageScopeProvider } from '../scope/AsyncLocalStorageScopeProvider';
 import type { ResolvedNodeOptions } from '../types';
@@ -56,9 +56,14 @@ export function makeNodeContextCollector(
         }
 
         // The absolute URL when the caller has it, post proxy/host resolution. Independent of
-        // `request.path`: either, both or neither may be set.
+        // `request.path`: either, both or neither may be set. We only take url.full and url.scheme
+        // from it. url.path and url.query come from `request.path`, which is what the server routed on.
         if (request.url) {
-            attrs['url.full'] = redactUrlQuery(request.url, config.urlDenylist);
+            const fromUrl = urlAttributes(request.url, config.urlDenylist);
+            attrs['url.full'] = fromUrl['url.full'];
+            if (fromUrl['url.scheme'] !== undefined) {
+                attrs['url.scheme'] = fromUrl['url.scheme'];
+            }
         }
 
         // Already sanitized by `configureNode`, so used directly.
