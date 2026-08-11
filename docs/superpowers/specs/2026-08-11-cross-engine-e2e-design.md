@@ -46,12 +46,20 @@ Playwright 1.60.0. Firefox 150.0.2 (playwright build v1522), WebKit 26.4 (playwr
 | Firefox  | 134 / 134 |
 | WebKit   | 133 / 134 |
 
+WebKit's single failure was a non-deterministic test, not a client defect (see the retraction below).
+
 The client is in far better shape across engines than expected. Fetch patching, XHR patching,
 traceparent propagation, pageload and navigation roots, span nesting, parameterized route names,
 component trees, span errors, aborted XHR handling and the keepalive flush on unload all work on all
 three engines, in every framework integration.
 
 ### The one bug: SvelteKit load fetch nests under the wrong root on WebKit
+
+> **Retracted 2026-08-11.** This is not a client defect. See "Spike result" below: the fetch is a
+> hover-triggered SvelteKit preload fired by Playwright's own pointer movement, before the navigation
+> starts. Attributing it to the page being left is correct. The defect was in the test, which did not
+> control for preload; it is fixed by clicking without hovering. The paragraphs below are kept because
+> the measurements in them are real, but their conclusion is wrong.
 
 `e2e/specs/svelte.spec.ts:297`, "SvelteKit's load-provided fetch produces a browser_fetch span".
 
@@ -333,3 +341,10 @@ non-deterministic root observed in the actual failing test comes from hover-prel
 (2 correct / 2 wrong of 4) used the same `.click()` gesture and is consistent with this spike's data,
 just a smaller sample. Nothing here contradicts it; it corrects the mechanism, not the observed
 failure rate.
+
+### Consequence for customers
+
+With `data-sveltekit-preload-data="hover"` — SvelteKit's recommended default — a page's trace contains
+the data fetches of pages the visitor hovered but never opened. That is a truthful record of what the
+browser did, not a bug, but it means a SvelteKit page's waterfall can show requests for routes that were
+never rendered. Worth a line in the SvelteKit integration documentation.

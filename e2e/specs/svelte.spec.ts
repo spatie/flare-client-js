@@ -298,7 +298,12 @@ test.describe('svelte http tracing', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.getByRole('link', { name: 'HTTP' }).click(); // client nav => load runs in the browser
+        // dispatchEvent, not click(). Playwright's click moves the pointer first, and app.html sets
+        // data-sveltekit-preload-data="hover", so a real click preloads /http's load (and its fetch)
+        // BEFORE the navigation starts, which correctly attributes that fetch to the page being left.
+        // Measured on WebKit: click() put the fetch under the pageload root in 7 of 8 runs, dispatchEvent
+        // in 0 of 8. This test is about the load fetch during a navigation, so it must not hover.
+        await page.getByRole('link', { name: 'HTTP' }).dispatchEvent('click');
         await expect(page).toHaveURL(/\/http$/);
 
         const trace = await fakeFlare.waitForTrace({
