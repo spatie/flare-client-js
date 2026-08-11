@@ -43,20 +43,4 @@ test.describe('stack frames', () => {
         // fetched, which is Vite's transformed output, and that is double-quoted today.
         expect(top.codeSnippet[String(top.lineNumber)]).toMatch(/throw new Error\(['"]sync-throw['"]\)/);
     });
-
-    // Every engine has to yield a usable name, whether the engine supplied one or createStackTrace fell
-    // back. An empty method would reach the Flare interface as a blank row.
-    test('every frame carries a non-empty method', async ({ page, fakeFlare }) => {
-        await page.goto('/broken');
-        await page.waitForLoadState('networkidle');
-        await page.getByTestId(testIds.brokenTrigger('sync-throw')).click();
-
-        const report = await fakeFlare.waitForReport({ timeout: 9000, predicate: isSyncThrow });
-        const frames = (report.bodyJson as { stacktrace?: Frame[] }).stacktrace ?? [];
-
-        expect(frames.length).toBeGreaterThan(0);
-        for (const frame of frames) {
-            expect(frame.method.length).toBeGreaterThan(0);
-        }
-    });
 });

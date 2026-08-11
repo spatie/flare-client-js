@@ -11,8 +11,10 @@ labelled as such.
 
 ## Goal
 
-Prove the JavaScript client behaves correctly on all three browser engines, and keep proving it.
-Tracing is the part that has to be right.
+Prove the JavaScript client behaves correctly on all three browser engines, and make that provable on
+demand. Tracing is the part that has to be right. The engine axis is opt-in and defaults to Chromium;
+wiring it into continuous integration so it re-proves itself automatically is not done (see "Out of
+scope").
 
 ## How this started, and why the instrument changed
 
@@ -53,7 +55,7 @@ traceparent propagation, pageload and navigation roots, span nesting, parameteri
 component trees, span errors, aborted XHR handling and the keepalive flush on unload all work on all
 three engines, in every framework integration.
 
-### The one bug: SvelteKit load fetch nests under the wrong root on WebKit
+### The WebKit failure (not a client bug — retracted)
 
 > **Retracted 2026-08-11.** This is not a client defect. See "Spike result" below: the fetch is a
 > hover-triggered SvelteKit preload fired by Playwright's own pointer movement, before the navigation
@@ -165,7 +167,13 @@ preserved when the projects become generated rather than literal.
 
 Contributors need `npx playwright install firefox webkit` once. Document that next to the new script.
 
-## Part two: fix the WebKit race
+## Part two: the WebKit failure (retracted — see below)
+
+> **Retracted 2026-08-11.** Neither shape below was built. The spike in "Spike result (2026-08-11)"
+> found the premise wrong: `beforeNavigate` is not the earliest signal available, because SvelteKit's
+> hover-preload fires a `load` fetch before any navigation-lifecycle hook runs at all. There is no
+> client bug to fix here; see "The WebKit failure (not a client bug — retracted)" above. The prose
+> below is kept as the record of what was considered before the spike ruled it out.
 
 Chosen direction: **an optional companion for the root layout.**
 
