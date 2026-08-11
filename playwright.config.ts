@@ -36,7 +36,7 @@ const ENGINES = (process.env.E2E_ENGINES ?? 'chromium')
 type Framework = { name: string; testMatch: RegExp; baseURL: string };
 
 const frameworks: Framework[] = [
-    { name: 'js', testMatch: /(^|\/)js\.spec\.ts$/, baseURL: 'http://localhost:5180' },
+    { name: 'js', testMatch: /(^|\/)(js|vitals|frames)\.spec\.ts$/, baseURL: 'http://localhost:5180' },
     { name: 'react', testMatch: /(^|\/)react\.spec\.ts$/, baseURL: 'http://localhost:5181' },
     { name: 'vue', testMatch: /(^|\/)vue\.spec\.ts$/, baseURL: 'http://localhost:5182' },
     { name: 'svelte', testMatch: /(^|\/)svelte\.spec\.ts$/, baseURL: 'http://localhost:5183' },
