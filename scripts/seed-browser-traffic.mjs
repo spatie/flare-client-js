@@ -17,6 +17,11 @@
 // Where the data lands is decided by playgrounds/react/.env.local (VITE_FLARE_KEY +
 // VITE_FLARE_URL), which is baked into the build. This script does not talk to Flare itself.
 //
+// To get a real hostname on every span instead of localhost, put a Valet/Herd proxy in front of
+// the preview port and pass --base-url https://<host>.test. Preview must then be started with
+// `-- --host 127.0.0.1`: it otherwise binds IPv6 only ([::1]), while the proxy dials 127.0.0.1,
+// and every request comes back 502.
+//
 // Deliberately never navigates to /broken or /http: those routes are test fixtures and look
 // wrong in a page-performance list.
 
@@ -137,6 +142,7 @@ const devices = [
 const networks = [
     {
         name: 'wifi',
+        timeout: 15000,
         downloadThroughput: (30 * 1024 * 1024) / 8,
         uploadThroughput: (15 * 1024 * 1024) / 8,
         latency: 10,
@@ -144,6 +150,7 @@ const networks = [
     },
     {
         name: 'fast-4g',
+        timeout: 20000,
         downloadThroughput: (9 * 1024 * 1024) / 8,
         uploadThroughput: (1.5 * 1024 * 1024) / 8,
         latency: 60,
@@ -151,6 +158,7 @@ const networks = [
     },
     {
         name: 'slow-4g',
+        timeout: 35000,
         downloadThroughput: (1.6 * 1024 * 1024) / 8,
         uploadThroughput: (750 * 1024) / 8,
         latency: 150,
@@ -162,6 +170,7 @@ const networks = [
     // because a real shop is mostly green and because these sessions take much longer to run.
     {
         name: 'slow-3g',
+        timeout: 60000,
         downloadThroughput: (400 * 1024) / 8,
         uploadThroughput: (400 * 1024) / 8,
         latency: 400,
@@ -170,6 +179,7 @@ const networks = [
     },
     {
         name: '2g',
+        timeout: 120000,
         downloadThroughput: (180 * 1024) / 8,
         uploadThroughput: (84 * 1024) / 8,
         latency: 700,
@@ -298,7 +308,7 @@ async function openHome(page, shopper) {
     await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
     // The grid wrapper renders straight away with a "Loading catalog…" placeholder, so wait for a
     // real card. All three of its requests are one Promise.all: failing any leaves it on the placeholder.
-    await page.waitForSelector(`[data-testid="${testIds.productCard('1')}"]`, { timeout: 15000 });
+    await page.waitForSelector(`[data-testid="${testIds.productCard('1')}"]`);
 
     await identify(page, shopper);
 
@@ -318,12 +328,12 @@ async function openProduct(page, id) {
         .locator(`[data-testid="${testIds.productCard(id)}"] a`)
         .first()
         .click();
-    await page.waitForSelector(`[data-testid="${testIds.addToCart(id)}"]`, { timeout: 15000 });
+    await page.waitForSelector(`[data-testid="${testIds.addToCart(id)}"]`);
 }
 
 async function backToShop(page) {
     await page.getByRole('link', { name: 'Shop', exact: true }).click();
-    await page.waitForSelector(`[data-testid="${testIds.productCard('1')}"]`, { timeout: 15000 });
+    await page.waitForSelector(`[data-testid="${testIds.productCard('1')}"]`);
 }
 
 async function addToCart(page, id) {
@@ -336,12 +346,12 @@ async function addToCart(page, id) {
 
 async function openCart(page) {
     await page.locator(`[data-testid="${testIds.cartCount}"]`).click();
-    await page.getByRole('link', { name: 'Checkout' }).waitFor({ timeout: 15000 });
+    await page.getByRole('link', { name: 'Checkout' }).waitFor();
 }
 
 async function openCheckout(page) {
     await page.getByRole('link', { name: 'Checkout' }).click();
-    await page.locator(`[data-testid="${testIds.checkoutSubmit}"]`).waitFor({ timeout: 15000 });
+    await page.locator(`[data-testid="${testIds.checkoutSubmit}"]`).waitFor();
 }
 
 const journeys = {
@@ -388,7 +398,7 @@ const journeys = {
         await openCheckout(page);
         await beat();
         await page.locator(`[data-testid="${testIds.checkoutSubmit}"]`).click();
-        await page.waitForSelector(`[data-testid="${testIds.confirmation}"]`, { timeout: 15000 });
+        await page.waitForSelector(`[data-testid="${testIds.confirmation}"]`);
         await settle();
     },
 
@@ -425,7 +435,7 @@ const deepEntries = [
         path: () => `/product/${pick(normalProductIds)}`,
         async run(page, shopper, path) {
             const id = path.split('/').pop();
-            await page.waitForSelector(`[data-testid="${testIds.addToCart(id)}"]`, { timeout: 20000 });
+            await page.waitForSelector(`[data-testid="${testIds.addToCart(id)}"]`);
             await identify(page, shopper);
             await beat();
             await page.mouse.wheel(0, randomInt(200, 700));
@@ -442,7 +452,7 @@ const deepEntries = [
         weight: 2,
         path: () => '/cart',
         async run(page, shopper) {
-            await page.getByRole('link', { name: 'Checkout' }).waitFor({ timeout: 20000 });
+            await page.getByRole('link', { name: 'Checkout' }).waitFor();
             await identify(page, shopper);
             await beat();
             await page.mouse.wheel(0, randomInt(100, 400));
@@ -458,7 +468,7 @@ const deepEntries = [
         weight: 2,
         path: () => '/checkout',
         async run(page, shopper) {
-            await page.locator(`[data-testid="${testIds.checkoutSubmit}"]`).waitFor({ timeout: 20000 });
+            await page.locator(`[data-testid="${testIds.checkoutSubmit}"]`).waitFor();
             await identify(page, shopper);
             await beat();
             // Focusing a field is a real interaction, and unlike Pay it cannot end the session early.
@@ -471,7 +481,7 @@ const deepEntries = [
         weight: 1,
         path: () => '/confirmation',
         async run(page, shopper) {
-            await page.getByRole('link', { name: 'Continue shopping' }).waitFor({ timeout: 20000 });
+            await page.getByRole('link', { name: 'Continue shopping' }).waitFor();
             await identify(page, shopper);
             await beat();
             await page.mouse.wheel(0, randomInt(50, 200));
@@ -509,6 +519,11 @@ async function runSession(browser, label, chromeVersion) {
         ignoreHTTPSErrors: true,
     });
 
+    // Every wait in a session inherits this. A 2g page needs far longer to paint than a wifi one, and
+    // a single budget either throws away the slow sessions or lets a genuinely stuck one hang for ages.
+    context.setDefaultTimeout(network.timeout);
+    context.setDefaultNavigationTimeout(network.timeout * 2);
+
     // A visitor landing on /cart or /checkout got there with something in the basket.
     if (deep) {
         const lines = [{ productId: pick(normalProductIds), quantity: randomInt(1, 2) }];
@@ -541,7 +556,7 @@ async function runSession(browser, label, chromeVersion) {
         try {
             if (deep) {
                 const path = deep.path();
-                await page.goto(`${baseUrl}${path}`, { waitUntil: 'load', timeout: 90000 });
+                await page.goto(`${baseUrl}${path}`, { waitUntil: 'load' });
                 await deep.run(page, shopper, path);
             } else {
                 await journeys[journeyName](page, shopper);
