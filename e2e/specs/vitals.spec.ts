@@ -32,9 +32,10 @@ const liveAndLeave = async (page: Page): Promise<void> => {
     await page.waitForLoadState('networkidle');
     await page.getByTestId(testIds.addToCart('1')).click();
     await page.mouse.wheel(0, 600);
+    // Gives LCP and INP time to be observed while the page is still alive. Load-bearing: no
+    // amount of polling after the page is gone substitutes for letting it live first.
     await page.waitForTimeout(1500);
     await page.goto('about:blank');
-    await page.waitForTimeout(2500);
 };
 
 test.describe('web vitals', () => {
@@ -50,6 +51,14 @@ test.describe('web vitals', () => {
     }) => {
         await liveAndLeave(page);
 
-        expect(await vitalsReported(fakeFlare)).toEqual(expectedVitals(browserName).toSorted());
+        const expected = expectedVitals(browserName).toSorted();
+
+        // The late vitals span flushes on pagehide via a keepalive beacon, which can still be in
+        // flight once the navigation above resolves. Poll like the otlp helpers do instead of a
+        // fixed sleep: a slow engine gets more time, and a vital that never arrives still fails,
+        // just after the timeout instead of immediately.
+        await expect.poll(() => vitalsReported(fakeFlare), { timeout: 9000 }).toEqual(expect.arrayContaining(expected));
+
+        expect(await vitalsReported(fakeFlare)).toEqual(expected);
     });
 });
