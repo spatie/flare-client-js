@@ -29,7 +29,9 @@ const { values } = parseArgs({
         'sessions': { type: 'string', default: '60' },
         'concurrency': { type: 'string', default: '3' },
         'port': { type: 'string', default: '5181' },
+        'base-url': { type: 'string' },
         'error-rate': { type: 'string', default: '0.08' },
+        'deep-entry-share': { type: 'string', default: '0.45' },
         'headed': { type: 'boolean', default: false },
         'forever': { type: 'boolean', default: false },
         'help': { type: 'boolean', default: false },
@@ -44,7 +46,9 @@ if (values.help) {
             '  --sessions <n>      how many sessions to run (default 60)',
             '  --concurrency <n>   how many browsers in parallel (default 3)',
             '  --port <n>          playground preview port (default 5181)',
+            '  --base-url <url>    serve from this origin instead of localhost, e.g. https://flarepix.test',
             '  --error-rate <0-1>  share of sessions that get an injected API failure (default 0.08)',
+            '  --deep-entry-share <0-1>  share of sessions landing straight on a deep route (default 0.45)',
             '  --headed            watch it happen',
             '  --forever           keep going until ctrl-c',
         ].join('\n'),
@@ -56,10 +60,13 @@ const totalSessions = Number(values.sessions);
 const concurrency = Number(values.concurrency);
 const port = Number(values.port);
 const errorRate = Number(values['error-rate']);
-const baseUrl = `http://localhost:${port}`;
+const deepEntryShare = Number(values['deep-entry-share']);
+// Every host in the data reads as whatever this origin is, so point it at a real-looking hostname
+// (a Herd/Valet proxy to the preview port) when the screenshots should not say "localhost".
+const baseUrl = (values['base-url'] ?? `http://localhost:${port}`).replace(/\/$/, '');
 
-const PRICING_GAP_PRODUCT_ID = 'p07';
-const productIds = Array.from({ length: 12 }, (_, index) => `p${String(index + 1).padStart(2, '0')}`);
+const PRICING_GAP_PRODUCT_ID = '7';
+const productIds = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const normalProductIds = productIds.filter((id) => id !== PRICING_GAP_PRODUCT_ID);
 
 // Mirrors playgrounds/shared/src/testIds.ts. Duplicated because that file is TypeScript source
@@ -148,9 +155,31 @@ const networks = [
         uploadThroughput: (750 * 1024) / 8,
         latency: 150,
         weight: 2,
+        cpu: 4,
+    },
+    // The two below exist to put amber and red in the Core Web Vitals score column. Measured LCP on
+    // the home page: slow-3g/cpu6 lands around 3.4s (amber), 2g/cpu8 around 7.1s (red). Kept rare,
+    // because a real shop is mostly green and because these sessions take much longer to run.
+    {
+        name: 'slow-3g',
+        downloadThroughput: (400 * 1024) / 8,
+        uploadThroughput: (400 * 1024) / 8,
+        latency: 400,
+        weight: 1.5,
+        cpu: 6,
+    },
+    {
+        name: '2g',
+        downloadThroughput: (180 * 1024) / 8,
+        uploadThroughput: (84 * 1024) / 8,
+        latency: 700,
+        weight: 0.5,
+        cpu: 8,
     },
 ];
 
+// Only used by the profiles that do not pin their own rate. The slow ones do, because their whole
+// point is a specific vitals band.
 const cpuRates = [
     [1, 5],
     [2, 3],
@@ -184,8 +213,13 @@ async function preflight() {
     try {
         const response = await fetch(baseUrl);
         html = await response.text();
-    } catch {
-        abort(`Nothing is serving ${baseUrl}.`);
+    } catch (error) {
+        // node has its own certificate store, so an https --base-url on a locally signed domain
+        // fails here while the browser itself would be fine.
+        const hint = baseUrl.startsWith('https:')
+            ? '\nFor a locally signed host, run with NODE_EXTRA_CA_CERTS pointing at your CA.'
+            : '';
+        abort(`Nothing is serving ${baseUrl} (${error.message}).${hint}`);
     }
 
     if (html.includes('/@vite/client')) {
@@ -252,15 +286,21 @@ async function injectApiFailure(page) {
     return state;
 }
 
+/**
+ * Swap the pinned showcase shopper for this session's one, before anything can be reported. The
+ * scope survives SPA navigation, so this holds for the whole session.
+ */
+async function identify(page, shopper) {
+    await page.evaluate((user) => globalThis.__flare?.setUser(user), shopper).catch(() => {});
+}
+
 async function openHome(page, shopper) {
     await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
     // The grid wrapper renders straight away with a "Loading catalog…" placeholder, so wait for a
     // real card. All three of its requests are one Promise.all: failing any leaves it on the placeholder.
-    await page.waitForSelector(`[data-testid="${testIds.productCard('p01')}"]`, { timeout: 15000 });
+    await page.waitForSelector(`[data-testid="${testIds.productCard('1')}"]`, { timeout: 15000 });
 
-    // Swap the pinned showcase shopper for this session's one, before anything can be reported.
-    // The scope survives SPA navigation, so this holds for the whole session.
-    await page.evaluate((user) => globalThis.__flare?.setUser(user), shopper).catch(() => {});
+    await identify(page, shopper);
 
     await beat();
     await page.mouse.wheel(0, randomInt(300, 1200));
@@ -283,7 +323,7 @@ async function openProduct(page, id) {
 
 async function backToShop(page) {
     await page.getByRole('link', { name: 'Shop', exact: true }).click();
-    await page.waitForSelector(`[data-testid="${testIds.productCard('p01')}"]`, { timeout: 15000 });
+    await page.waitForSelector(`[data-testid="${testIds.productCard('1')}"]`, { timeout: 15000 });
 }
 
 async function addToCart(page, id) {
@@ -352,7 +392,7 @@ const journeys = {
         await settle();
     },
 
-    // The showcase error: p07 comes back from the pricing service without a price, so
+    // The showcase error: product 7 comes back from the pricing service without a price, so
     // calculateOrderTotal throws a TypeError out of the submit handler.
     async checkoutFailure(page, shopper) {
         await openHome(page, shopper);
@@ -370,6 +410,76 @@ const journeys = {
     },
 };
 
+/**
+ * Landing straight on a deep route, the way a visitor arrives from search, a shared link or a
+ * bookmark. This is what fills the Core Web Vitals table: only a page LOAD carries vitals, so a
+ * route that is ever only reached by clicking through the app shows dashes in every vitals column.
+ *
+ * Each one interacts without navigating first, because INP is only recorded before the first
+ * navigation, and only then wanders off.
+ */
+const deepEntries = [
+    {
+        name: 'land-product',
+        weight: 4,
+        path: () => `/product/${pick(normalProductIds)}`,
+        async run(page, shopper, path) {
+            const id = path.split('/').pop();
+            await page.waitForSelector(`[data-testid="${testIds.addToCart(id)}"]`, { timeout: 20000 });
+            await identify(page, shopper);
+            await beat();
+            await page.mouse.wheel(0, randomInt(200, 700));
+            await addToCart(page, id);
+            await settle();
+            if (Math.random() < 0.5) {
+                await openCart(page);
+                await settle();
+            }
+        },
+    },
+    {
+        name: 'land-cart',
+        weight: 2,
+        path: () => '/cart',
+        async run(page, shopper) {
+            await page.getByRole('link', { name: 'Checkout' }).waitFor({ timeout: 20000 });
+            await identify(page, shopper);
+            await beat();
+            await page.mouse.wheel(0, randomInt(100, 400));
+            await settle();
+            if (Math.random() < 0.6) {
+                await openCheckout(page);
+                await settle();
+            }
+        },
+    },
+    {
+        name: 'land-checkout',
+        weight: 2,
+        path: () => '/checkout',
+        async run(page, shopper) {
+            await page.locator(`[data-testid="${testIds.checkoutSubmit}"]`).waitFor({ timeout: 20000 });
+            await identify(page, shopper);
+            await beat();
+            // Focusing a field is a real interaction, and unlike Pay it cannot end the session early.
+            await page.locator('input[name="name"]').click();
+            await settle();
+        },
+    },
+    {
+        name: 'land-confirmation',
+        weight: 1,
+        path: () => '/confirmation',
+        async run(page, shopper) {
+            await page.getByRole('link', { name: 'Continue shopping' }).waitFor({ timeout: 20000 });
+            await identify(page, shopper);
+            await beat();
+            await page.mouse.wheel(0, randomInt(50, 200));
+            await settle();
+        },
+    },
+];
+
 const journeyWeights = [
     ['bounce', 25],
     ['browse', 30],
@@ -378,12 +488,15 @@ const journeyWeights = [
     ['checkoutFailure', 10],
 ];
 
+const NO_THROTTLE = { offline: false, downloadThroughput: -1, uploadThroughput: -1, latency: 0 };
+
 async function runSession(browser, label, chromeVersion) {
     const device = pickWeighted(devices.map((item) => [item, item.weight]));
     const network = pickWeighted(networks.map((item) => [item, item.weight]));
-    const cpu = pickWeighted(cpuRates);
+    const cpu = network.cpu ?? pickWeighted(cpuRates);
     const shopper = pick(shoppers);
-    const journeyName = pickWeighted(journeyWeights);
+    const deep = Math.random() < deepEntryShare ? pickWeighted(deepEntries.map((item) => [item, item.weight])) : null;
+    const journeyName = deep ? deep.name : pickWeighted(journeyWeights);
     const startedAt = process.hrtime.bigint();
 
     const context = await browser.newContext({
@@ -395,6 +508,15 @@ async function runSession(browser, label, chromeVersion) {
         // The playground reports to a locally signed flareapp.io.test.
         ignoreHTTPSErrors: true,
     });
+
+    // A visitor landing on /cart or /checkout got there with something in the basket.
+    if (deep) {
+        const lines = [{ productId: pick(normalProductIds), quantity: randomInt(1, 2) }];
+        await context.addInitScript(
+            (value) => localStorage.setItem('flare-playground-cart', value),
+            JSON.stringify(lines),
+        );
+    }
 
     let injected = null;
     let abandoned = false;
@@ -417,7 +539,13 @@ async function runSession(browser, label, chromeVersion) {
         }
 
         try {
-            await journeys[journeyName](page, shopper);
+            if (deep) {
+                const path = deep.path();
+                await page.goto(`${baseUrl}${path}`, { waitUntil: 'load', timeout: 90000 });
+                await deep.run(page, shopper, path);
+            } else {
+                await journeys[journeyName](page, shopper);
+            }
         } catch (error) {
             // A failed request leaves the page stuck, so the rest of the journey cannot run. That is
             // what a real visitor hitting a broken page looks like, and the error was already
@@ -428,6 +556,11 @@ async function runSession(browser, label, chromeVersion) {
             abandoned = true;
         }
 
+        // The vitals are already recorded by now, so drop the throttle rather than make the teardown
+        // flush crawl over a 700ms-latency link.
+        await cdp.send('Network.emulateNetworkConditions', NO_THROTTLE);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+
         // pagehide is what flushes the late browser_web_vital span and the keepalive buffer.
         await page.goto('about:blank');
         await sleep(1800);
@@ -437,7 +570,7 @@ async function runSession(browser, label, chromeVersion) {
 
     const seconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
     console.log(
-        `${label} ${journeyName.padEnd(16)} ${device.name.padEnd(7)} ${network.name.padEnd(7)} cpu ${cpu}x  ${seconds.toFixed(1)}s${
+        `${label} ${journeyName.padEnd(17)} ${device.name.padEnd(7)} ${network.name.padEnd(7)} cpu ${cpu}x  ${seconds.toFixed(1)}s${
             injected?.fired ? `  [failed ${injected.label}${abandoned ? ', abandoned' : ''}]` : ''
         }`,
     );
