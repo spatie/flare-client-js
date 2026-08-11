@@ -4,6 +4,7 @@ import { withFlareProfiler } from '@flareapp/react/profiler';
 import { createRoute } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { ColorPalette } from '../components/ColorPalette';
 import { flare } from '../flare';
 import { rootRoute } from './__root';
 
@@ -49,6 +50,9 @@ const ProductPage = () => {
                 <p className="text-sm opacity-70">Photograph by {product.photographer}</p>
                 <p className="text-sm opacity-70">{data.detail?.description}</p>
                 <div className="text-xl font-mono">{formatMoney(product.price)}</div>
+                {/* Before AddToCartButton on purpose: a profiled span ends at commit, so a sibling
+                    rendered ahead of this one absorbs its 1.5s and looks slow too. */}
+                <ColorPalette unsplashId={product.unsplashId} />
                 <AddToCartButton
                     testId={testIds.addToCart(product.id)}
                     onClick={() => {

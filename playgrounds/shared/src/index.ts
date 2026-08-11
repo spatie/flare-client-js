@@ -1,3 +1,4 @@
+export * from './palette';
 export * from './products';
 export * from './routes';
 export * from './errorScenarios';
