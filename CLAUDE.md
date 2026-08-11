@@ -170,6 +170,11 @@ worker (the fake server has shared in-memory state), `webServer` boots each play
 Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --project=svelte`. One scenario:
 `npx playwright test -g "sync-throw"`.
 
+- Cross-engine: `npm run test:e2e:engines` runs every project on Chromium, Firefox and WebKit
+  (`E2E_ENGINES=chromium,firefox,webkit`). Chromium projects keep their bare names; the others take a
+  suffix, so `--project=svelte-webkit`. Takes about twelve minutes. The `pretest` hook installs the
+  Firefox and WebKit builds on first run.
+
 ## Error reporting flow
 
 1. Error caught by global listeners (`catchWindowErrors`) or framework integration (React boundary / Vue handler)
