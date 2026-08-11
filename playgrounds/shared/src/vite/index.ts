@@ -6,4 +6,5 @@
  * node, which cannot resolve the extensionless relative imports inside these TypeScript files.
  */
 export { flareSourcemapsForPlayground } from './flareSourcemaps';
+export { playgroundAllowedHosts } from './hosts';
 export { mockApi } from './mockApi';
