@@ -3,6 +3,7 @@ import { nativeFetchStub } from '@flareapp/test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createFetchWrapper, instrumentFetch, unpatchFetch } from '../src/tracing/instrumentFetch';
+import { internalRequestInit } from '../src/tracing/internalRequest';
 import { makeTracer } from './helpers';
 
 const ORIGIN = 'https://app.example';
@@ -115,6 +116,21 @@ describe('createFetchWrapper', () => {
 
         expect(startSpan).not.toHaveBeenCalled();
         expect(original).toHaveBeenCalledOnce();
+    });
+
+    it('skips a request marked internal, and does not propagate on it', async () => {
+        const { tracer, startSpan } = makeTracer();
+        const original = okFetch();
+        const wrapped = createFetchWrapper(tracer, original, ORIGIN);
+
+        // A snippet fetch targets the app's own asset, so it is same-origin and would otherwise be
+        // both traced and given a traceparent.
+        await wrapped('https://app.example/assets/index.js', internalRequestInit());
+
+        expect(startSpan).not.toHaveBeenCalled();
+        expect(original).toHaveBeenCalledOnce();
+        const passedInit = (original as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+        expect((passedInit.headers as Record<string, string> | undefined)?.traceparent).toBeUndefined();
     });
 
     it('does not trace the flush POST when the traces ingest URL is relative', async () => {

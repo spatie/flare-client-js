@@ -1,5 +1,7 @@
 import type { FileReader } from '@flareapp/core';
 
+import { internalRequestInit } from '../tracing/internalRequest';
+
 /**
  * Fetches source files so the stack-trace builder can render a snippet around the offending line.
  * Only http(s) is fetched: other schemes (chrome-extension://, file://, blob:, data:) would cross a
@@ -10,7 +12,8 @@ export class FetchFileReader implements FileReader {
         if (!/^https?:\/\//i.test(url)) {
             return Promise.resolve(null);
         }
-        return fetch(url)
+        // Marked internal: this is Flare's own request, not the app's, so it must not be traced.
+        return fetch(url, internalRequestInit())
             .then((response) => {
                 if (response.status !== 200) {
                     return null;

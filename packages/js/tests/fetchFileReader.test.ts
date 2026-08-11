@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FetchFileReader } from '../src/browser/FetchFileReader';
+import { isInternalRequest } from '../src/tracing/internalRequest';
 
 const originalFetch = global.fetch;
 
@@ -25,6 +26,15 @@ describe('FetchFileReader', () => {
         }) as any;
         const reader = new FetchFileReader();
         expect(await reader.read('https://example.com/x.js')).toBe('hello');
+    });
+
+    it('marks the request internal so the fetch patch does not trace it', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ status: 200, text: () => Promise.resolve('hello') });
+        global.fetch = fetchMock as any;
+
+        await new FetchFileReader().read('https://example.com/x.js');
+
+        expect(isInternalRequest(fetchMock.mock.calls[0][1])).toBe(true);
     });
 
     it('returns null on non-200', async () => {

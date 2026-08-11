@@ -6,6 +6,7 @@ import {
     startHttpRequestSpan,
     traceparentFor,
 } from './httpRequestSpan';
+import { isInternalRequest } from './internalRequest';
 import { type FetchInput, mergeTraceparentHeader } from './propagation';
 import { BrowserSpanType } from './spanTypes';
 import { supportsNativeFetch } from './supportsNativeFetch';
@@ -33,7 +34,7 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
 
         const config = tracer.config;
-        if (!config.enableTracing) {
+        if (!config.enableTracing || isInternalRequest(init)) {
             return call(init);
         }
 
