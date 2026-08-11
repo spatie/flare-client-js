@@ -2,7 +2,7 @@ export interface FileReader {
     read(url: string): Promise<string | null>;
 }
 
-const cachedFiles: { [key: string]: string } = {};
+const cachedFiles: { [key: string]: Promise<string | null> } = {};
 
 type CodeSnippet = { [key: number]: string };
 
@@ -42,15 +42,23 @@ export function getCodeSnippet(
 }
 
 function readFile(fileReader: FileReader, url: string): Promise<string | null> {
-    if (cachedFiles[url] !== undefined) {
-        return Promise.resolve(cachedFiles[url]);
+    const cached = cachedFiles[url];
+    if (cached !== undefined) {
+        return cached;
     }
-    return fileReader.read(url).then((text) => {
-        if (text !== null) {
-            cachedFiles[url] = text;
+
+    // Cache the promise, not the resolved text. Every frame of a report resolves its snippet at the
+    // same time, so caching only once the read finished fired one request per frame in the same file.
+    const pending = fileReader.read(url).then((text) => {
+        // A failed read stays out of the cache, so a later report can try the file again.
+        if (text === null) {
+            delete cachedFiles[url];
         }
         return text;
     });
+
+    cachedFiles[url] = pending;
+    return pending;
 }
 
 export function readLinesFromFile(
