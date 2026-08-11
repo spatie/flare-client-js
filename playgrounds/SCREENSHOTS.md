@@ -105,12 +105,12 @@ and recommendation requests under it:
 
 ```
 browser_navigation /product/$id               127ms
-  browser_fetch    GET /api/products/p01      123ms
+  browser_fetch    GET /api/products/1        123ms
   browser_fetch    GET /api/recommendations    93ms
 ```
 
 **The checkout error.** `POST /api/cart/summary` answers without a price for one product, `Studio Still`
-(`p07`), as if the pricing service had a gap. The cart page renders that as "Price unavailable", but
+(`7`), as if the pricing service had a gap. The cart page renders that as "Price unavailable", but
 `calculateOrderTotal` trusts the contract, so paying throws:
 
 ```

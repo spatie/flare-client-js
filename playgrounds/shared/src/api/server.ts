@@ -12,7 +12,7 @@ import type {
  * The product whose price the mock pricing service drops. Adding it to the cart and checking out is
  * what produces the showcase TypeError. See playgrounds/SCREENSHOTS.md.
  */
-export const PRICING_GAP_PRODUCT_ID = 'p07';
+export const PRICING_GAP_PRODUCT_ID = '7';
 
 /**
  * Per-route latency. Deliberately uneven so a trace waterfall shows bars of different widths instead

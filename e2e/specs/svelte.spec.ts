@@ -15,9 +15,9 @@ test.describe('svelte playground', () => {
     test('checkout happy path reports no errors', async ({ page, fakeFlare }) => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
-        await page.getByTestId(testIds.addToCart('p01')).click();
+        await page.getByTestId(testIds.addToCart('1')).click();
         await page.getByRole('link', { name: 'Cart' }).click();
-        await expect(page.getByTestId(testIds.cartItem('p01'))).toBeVisible();
+        await expect(page.getByTestId(testIds.cartItem('1'))).toBeVisible();
         await page.getByRole('link', { name: 'Checkout' }).click();
         await page.getByTestId(testIds.checkoutSubmit).click();
         await expect(page.getByTestId(testIds.confirmation)).toBeVisible();
@@ -47,7 +47,7 @@ test.describe('svelte logging', () => {
 
 test.describe('svelte tracing', () => {
     test('pageload root carries the parameterized route and route source', async ({ page, fakeFlare }) => {
-        await page.goto('/product/p01'); // deep-link the initial load
+        await page.goto('/product/1'); // deep-link the initial load
         await page.waitForLoadState('networkidle');
 
         const trace = await fakeFlare.waitForTrace({
@@ -68,7 +68,7 @@ test.describe('svelte tracing', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('a[href="/product/p01"]').first().click();
+        await page.locator('a[href="/product/1"]').first().click();
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
@@ -84,7 +84,7 @@ test.describe('svelte tracing', () => {
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
         // The nav root's url.full has to be where the navigation went, even though Kit tells us
         // before the URL changes. This is what proves the url override is wired up.
-        expect(nav && stringAttr(nav, 'url.full')).toContain('/product/p01');
+        expect(nav && stringAttr(nav, 'url.full')).toContain('/product/1');
 
         // registerNavigationSource suppresses the History-based root, so one click => one root.
         const navSpans = (await fakeFlare.traces())
@@ -109,14 +109,14 @@ test.describe('svelte tracing', () => {
             (window as unknown as { __navStates: string[] }).__navStates = [];
         });
 
-        await page.locator('a[href="/product/p01"]').first().click();
-        await expect(page).toHaveURL(/\/product\/p01$/);
+        await page.locator('a[href="/product/1"]').first().click();
+        await expect(page).toHaveURL(/\/product\/1$/);
 
         // Kit clears `navigating` a tick after the URL changes, not at the same time, so poll for
         // it rather than reading once.
         await expect.poll(async () => (await readStates()).at(-1)).toBe('null');
 
-        expect(await readStates()).toContain('to:/product/p01'); // survived batching
+        expect(await readStates()).toContain('to:/product/1'); // survived batching
     });
 
     test('a hash-only change opens no navigation root', async ({ page, fakeFlare }) => {

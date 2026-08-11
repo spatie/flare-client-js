@@ -12,9 +12,9 @@ test.describe('js playground', () => {
 
     test('checkout happy path reports no errors', async ({ page, fakeFlare }) => {
         await page.goto('/');
-        await page.getByTestId(testIds.addToCart('p01')).click();
+        await page.getByTestId(testIds.addToCart('1')).click();
         await page.goto('/cart');
-        await expect(page.getByTestId(testIds.cartItem('p01'))).toBeVisible();
+        await expect(page.getByTestId(testIds.cartItem('1'))).toBeVisible();
         await page.getByRole('link', { name: 'Checkout' }).click();
         await page.getByTestId(testIds.checkoutSubmit).click();
         await expect(page.getByTestId(testIds.confirmation)).toBeVisible();

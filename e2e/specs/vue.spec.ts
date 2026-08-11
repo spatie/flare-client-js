@@ -14,9 +14,9 @@ test.describe('vue playground', () => {
 
     test('checkout happy path reports no errors', async ({ page, fakeFlare }) => {
         await page.goto('/');
-        await page.getByTestId(testIds.addToCart('p01')).click();
+        await page.getByTestId(testIds.addToCart('1')).click();
         await page.getByRole('link', { name: 'Cart' }).click();
-        await expect(page.getByTestId(testIds.cartItem('p01'))).toBeVisible();
+        await expect(page.getByTestId(testIds.cartItem('1'))).toBeVisible();
         await page.getByRole('link', { name: 'Checkout' }).click();
         await page.getByTestId(testIds.checkoutSubmit).click();
         await expect(page.getByTestId(testIds.confirmation)).toBeVisible();
@@ -35,7 +35,7 @@ test.describe('vue playground', () => {
 
 test.describe('vue-router tracing', () => {
     test('pageload root carries the parameterized route and route source', async ({ page, fakeFlare }) => {
-        await page.goto('/product/p01');
+        await page.goto('/product/1');
         await page.waitForLoadState('networkidle');
 
         const trace = await fakeFlare.waitForTrace({
@@ -59,7 +59,7 @@ test.describe('vue-router tracing', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('a[href="/product/p01"]').first().click();
+        await page.locator('a[href="/product/1"]').first().click();
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,

@@ -14,9 +14,9 @@ test.describe('react-router playground', () => {
 
     test('checkout happy path reports no errors', async ({ page, fakeFlare }) => {
         await page.goto('/');
-        await page.getByTestId(testIds.addToCart('p01')).click();
+        await page.getByTestId(testIds.addToCart('1')).click();
         await page.getByRole('link', { name: 'Cart' }).click();
-        await expect(page.getByTestId(testIds.cartItem('p01'))).toBeVisible();
+        await expect(page.getByTestId(testIds.cartItem('1'))).toBeVisible();
         await page.getByRole('link', { name: 'Checkout' }).click();
         await page.getByTestId(testIds.checkoutSubmit).click();
         await expect(page.getByTestId(testIds.confirmation)).toBeVisible();
@@ -34,7 +34,7 @@ test.describe('react-router playground', () => {
     });
 
     test('pageload root carries the parameterized route and route source', async ({ page, fakeFlare }) => {
-        await page.goto('/product/p01'); // deep-link the initial load (loader route)
+        await page.goto('/product/1'); // deep-link the initial load (loader route)
         await page.waitForLoadState('networkidle');
 
         const trace = await fakeFlare.waitForTrace({
@@ -55,7 +55,7 @@ test.describe('react-router playground', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('a[href="/product/p01"]').first().click(); // loader route -> held nav root
+        await page.locator('a[href="/product/1"]').first().click(); // loader route -> held nav root
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
@@ -121,7 +121,7 @@ test.describe('react-router component profiling', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('a[href="/product/p01"]').first().click();
+        await page.locator('a[href="/product/1"]').first().click();
 
         // The component that mounts on navigation is ProductPage, and its parent is the navigation
         // root itself.

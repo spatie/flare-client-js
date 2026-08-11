@@ -14,9 +14,9 @@ test.describe('react playground', () => {
 
     test('checkout happy path reports no errors', async ({ page, fakeFlare }) => {
         await page.goto('/');
-        await page.getByTestId(testIds.addToCart('p01')).click();
+        await page.getByTestId(testIds.addToCart('1')).click();
         await page.getByRole('link', { name: 'Cart' }).click();
-        await expect(page.getByTestId(testIds.cartItem('p01'))).toBeVisible();
+        await expect(page.getByTestId(testIds.cartItem('1'))).toBeVisible();
         await page.getByRole('link', { name: 'Checkout' }).click();
         await page.getByTestId(testIds.checkoutSubmit).click();
         await expect(page.getByTestId(testIds.confirmation)).toBeVisible();
@@ -33,7 +33,7 @@ test.describe('react playground', () => {
     });
 
     test('pageload root carries the parameterized route and route source', async ({ page, fakeFlare }) => {
-        await page.goto('/product/p01'); // deep-link the initial load
+        await page.goto('/product/1'); // deep-link the initial load
         await page.waitForLoadState('networkidle');
 
         const trace = await fakeFlare.waitForTrace({
@@ -50,7 +50,7 @@ test.describe('react playground', () => {
         expect(pageload && attr(pageload, 'http.route')).toEqual({ stringValue: '/product/$id' });
         expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
         // http.route is the route template, url.path is the path the user actually hit.
-        expect(pageload && attr(pageload, 'url.path')).toEqual({ stringValue: '/product/p01' });
+        expect(pageload && attr(pageload, 'url.path')).toEqual({ stringValue: '/product/1' });
         expect(pageload && attr(pageload, 'url.scheme')).toEqual({ stringValue: 'http' });
     });
 
@@ -58,7 +58,7 @@ test.describe('react playground', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('a[href="/product/p01"]').first().click(); // client nav to the parameterized route
+        await page.locator('a[href="/product/1"]').first().click(); // client nav to the parameterized route
 
         const trace = await fakeFlare.waitForTrace({
             timeout: 9000,
@@ -108,7 +108,7 @@ test.describe('react component profiling', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('a[href="/product/p01"]').first().click();
+        await page.locator('a[href="/product/1"]').first().click();
 
         // The component that mounts on navigation is ProductPage, and its parent is the navigation
         // root itself.
