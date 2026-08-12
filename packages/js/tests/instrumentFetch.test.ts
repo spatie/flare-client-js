@@ -154,6 +154,28 @@ describe('createFetchWrapper', () => {
         expect(original).toHaveBeenCalledOnce();
     });
 
+    it('calls the underlying fetch exactly once and propagates a synchronous throw when tracing is disabled', async () => {
+        const { tracer } = makeTracer({ enableTracing: false });
+        const original = vi.fn(() => {
+            throw new Error('sync boom');
+        }) as unknown as typeof fetch;
+        const wrapped = createFetchWrapper(tracer, original, URLS);
+
+        expect(() => wrapped('https://app.example/api/x')).toThrow('sync boom');
+        expect(original).toHaveBeenCalledOnce();
+    });
+
+    it('calls the underlying fetch exactly once and propagates a synchronous throw for an internal request', async () => {
+        const { tracer } = makeTracer();
+        const original = vi.fn(() => {
+            throw new Error('sync boom');
+        }) as unknown as typeof fetch;
+        const wrapped = createFetchWrapper(tracer, original, URLS);
+
+        expect(() => wrapped('https://app.example/assets/index.js', internalRequestInit())).toThrow('sync boom');
+        expect(original).toHaveBeenCalledOnce();
+    });
+
     it('injects traceparent with flag 00 when the span is not recording', async () => {
         const { tracer, span } = makeTracer();
         (span as { isRecording: boolean }).isRecording = false;
@@ -243,6 +265,19 @@ describe('createFetchWrapper never breaks the host fetch', () => {
         const response = await wrapped('https://app.example/api/x');
 
         expect(response.status).toBe(200);
+        expect(original).toHaveBeenCalledOnce();
+    });
+
+    it('calls the underlying fetch exactly once when starting the span throws', async () => {
+        const { tracer } = makeTracer();
+        tracer.startSpan = vi.fn(() => {
+            throw new Error('span setup exploded');
+        });
+        const original = okFetch();
+        const wrapped = createFetchWrapper(tracer, original, URLS);
+
+        await wrapped('https://app.example/api/x');
+
         expect(original).toHaveBeenCalledOnce();
     });
 

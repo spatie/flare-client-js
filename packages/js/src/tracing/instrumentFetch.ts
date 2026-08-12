@@ -39,27 +39,30 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, u
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
 
         // Everything up to the handoff reads host-supplied input and user config, so any of it can
-        // throw. A throw here costs the trace, never the request.
+        // throw. A throw here costs the trace, never the request. The handoff itself must sit
+        // outside the try, or a synchronous throw from `call` gets swallowed by the catch below and
+        // retried here, invoking the underlying fetch twice.
         let started: { span: Span; absoluteUrl: URL | null } | null = null;
         let url = '';
+        let passthrough = false;
         try {
             const config = tracer.config;
-            if (!config.enableTracing || isInternalRequest(init)) {
-                return call(init);
+            passthrough = !config.enableTracing || isInternalRequest(init);
+            if (!passthrough) {
+                const resolved = resolveRequest(input, init);
+                url = resolved.url;
+                started = startHttpRequestSpan(tracer, {
+                    method: resolved.method,
+                    url,
+                    urls,
+                    spanType: BrowserSpanType.Fetch,
+                });
             }
-            const resolved = resolveRequest(input, init);
-            url = resolved.url;
-            started = startHttpRequestSpan(tracer, {
-                method: resolved.method,
-                url,
-                urls,
-                spanType: BrowserSpanType.Fetch,
-            });
         } catch {
             started = null;
         }
 
-        if (!started) {
+        if (passthrough || !started) {
             return call(init);
         }
         const { span, absoluteUrl } = started;
