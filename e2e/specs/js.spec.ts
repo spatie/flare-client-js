@@ -262,16 +262,17 @@ test.describe('js logging', () => {
         expect(log.headers['x-api-token']).toBeTruthy();
     });
 
-    test('backgrounding a tab retains over-keepalive logs and ships them on resume', async ({ page, fakeFlare }) => {
+    test('a log too big for the keepalive budget still ships when the tab is hidden', async ({ page, fakeFlare }) => {
         await fakeFlare.reset();
+
+        // Lower the keepalive budget and buffer a record larger than it, so the hide flush can
+        // pack nothing. Retaining it would strand the record behind a timer that an unloading
+        // page never gets to fire, so it goes out as a plain request instead.
+        const oversized = 'e2e-over-budget-' + 'x'.repeat(5000);
 
         await page.goto('/broken');
         await page.waitForLoadState('networkidle');
 
-        // Lower the keepalive budget and buffer a record larger than it. visibilitychange
-        // :hidden fires on backgrounding too, not only on unload, so the over-budget
-        // record must survive a hidden/visible cycle instead of being dropped.
-        const oversized = 'e2e-bg-resume-' + 'x'.repeat(5000);
         await page.evaluate((message) => {
             const flare = (globalThis as { __flare?: any }).__flare;
             flare.configure({ keepaliveMaxBytes: 2000, logFlushIntervalMs: 999_999 });
@@ -284,17 +285,14 @@ test.describe('js logging', () => {
             document.dispatchEvent(new Event('visibilitychange'));
         });
 
-        // Nothing fit the keepalive budget, so no envelope shipped and the record is kept.
-        await page.waitForTimeout(300);
-        expect(await fakeFlare.logs()).toHaveLength(0);
+        const log = await waitForLogMessage(fakeFlare, 'e2e-over-budget-');
+        expect(log.endpoint).toBe('logs');
 
-        // Tab resumes; a normal flush ships the retained record.
+        // Drained, not retained: coming back to the tab has nothing left to send.
         await page.evaluate(() => {
             Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
             return (globalThis as { __flare?: any }).__flare.flush();
         });
-
-        const log = await waitForLogMessage(fakeFlare, 'e2e-bg-resume-');
-        expect(log.endpoint).toBe('logs');
+        expect(await fakeFlare.logs()).toHaveLength(1);
     });
 });
