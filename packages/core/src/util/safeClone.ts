@@ -1,3 +1,5 @@
+import { createTraversalBudget, MAX_TRAVERSAL_DEPTH, spendNode, TRUNCATED } from './traversalBudget';
+
 export type SafeCloneOptions =
     | { mode: 'json' }
     | {
@@ -18,6 +20,8 @@ export type SafeCloneOptions =
  */
 export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
     const seen = new WeakSet<object>();
+    const budget = createTraversalBudget();
+    const depthCap = options.mode === 'display' ? options.maxDepth : MAX_TRAVERSAL_DEPTH;
 
     function walk(node: unknown, depth: number): unknown {
         if (node === null) {
@@ -46,9 +50,13 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
             return '[Circular]';
         }
 
+        if (!spendNode(budget)) {
+            return TRUNCATED;
+        }
+
         if (Array.isArray(node)) {
-            if (options.mode === 'display' && depth > options.maxDepth) {
-                return '[Array]';
+            if (depth > depthCap) {
+                return options.mode === 'display' ? '[Array]' : TRUNCATED;
             }
             seen.add(node);
             const cap = options.mode === 'display' ? options.arrayCap : Infinity;
@@ -65,8 +73,8 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
             return options.mode === 'display' ? '[Object]' : node;
         }
 
-        if (options.mode === 'display' && depth > options.maxDepth) {
-            return '[Object]';
+        if (depth > depthCap) {
+            return options.mode === 'display' ? '[Object]' : TRUNCATED;
         }
 
         seen.add(node);

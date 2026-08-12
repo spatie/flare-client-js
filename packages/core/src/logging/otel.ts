@@ -1,10 +1,28 @@
 import type { AnyValue, AttributeValue, Attributes, KeyValue } from '../types';
+import {
+    createTraversalBudget,
+    MAX_TRAVERSAL_DEPTH,
+    spendNode,
+    TRUNCATED,
+    type TraversalBudget,
+} from '../util/traversalBudget';
 
 /**
  * `inPath` tracks ancestors on the current branch only (added on enter, removed on exit), mirroring
  * flatJsonStringify's decycle. A global "seen" set would mis-flag an object referenced twice in sibling branches.
+ *
+ * Also bounded by depth and node count; see traversalBudget.ts.
  */
 export function valueToOpenTelemetry(value: AttributeValue, inPath: WeakSet<object> = new WeakSet()): AnyValue | null {
+    return convert(value, inPath, 0, createTraversalBudget());
+}
+
+function convert(
+    value: AttributeValue,
+    inPath: WeakSet<object>,
+    depth: number,
+    budget: TraversalBudget,
+): AnyValue | null {
     if (typeof value === 'string') {
         return { stringValue: value };
     }
@@ -21,6 +39,10 @@ export function valueToOpenTelemetry(value: AttributeValue, inPath: WeakSet<obje
         return null;
     }
 
+    if (depth >= MAX_TRAVERSAL_DEPTH || !spendNode(budget)) {
+        return { stringValue: TRUNCATED };
+    }
+
     if (Array.isArray(value)) {
         if (inPath.has(value)) {
             return { stringValue: '[Circular]' };
@@ -28,7 +50,7 @@ export function valueToOpenTelemetry(value: AttributeValue, inPath: WeakSet<obje
         inPath.add(value);
         const values: AnyValue[] = [];
         for (const item of value) {
-            const mapped = valueToOpenTelemetry(item, inPath);
+            const mapped = convert(item, inPath, depth + 1, budget);
             if (mapped !== null) {
                 values.push(mapped);
             }
@@ -44,7 +66,7 @@ export function valueToOpenTelemetry(value: AttributeValue, inPath: WeakSet<obje
         inPath.add(value);
         const values: KeyValue[] = [];
         for (const [key, item] of Object.entries(value)) {
-            const mapped = valueToOpenTelemetry(item as AttributeValue, inPath);
+            const mapped = convert(item as AttributeValue, inPath, depth + 1, budget);
             if (mapped !== null) {
                 values.push({ key, value: mapped });
             }
