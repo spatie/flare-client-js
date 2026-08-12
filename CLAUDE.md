@@ -76,6 +76,16 @@ npm run playgrounds:svelte # Boot the SvelteKit playground on http://localhost:5
 npm run playgrounds:react-router # Boot the React Router v7 playground on http://localhost:5185
 ```
 
+Two of these bite if you run them without knowing what they do:
+
+- `npm run format` runs `oxfmt .` over the whole repo, not your changes. Nobody has formatted this repo
+  wide in a long time, so it reindents files you never touched: all of `.github/workflows/ci.yml` from
+  two-space to four-space, plus old documents under `docs/superpowers/specs/`. Format your own work with
+  `npx oxfmt path/to/file`.
+- `npm run test:e2e:engines` takes about twelve minutes, longer than a coding agent's shell allows for one
+  command. Run one engine at a time, roughly four minutes each: `E2E_ENGINES=chromium npx playwright test`,
+  then `firefox`, then `webkit`.
+
 ## Key source files
 
 The `Flare` engine lives in `@flareapp/core`; `@flareapp/js` is the browser wiring layer that subclasses

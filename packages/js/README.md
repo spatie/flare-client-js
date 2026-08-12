@@ -51,6 +51,23 @@ flare.logger.info('Checkout started', { cartId: cart.id, total: cart.total });
 Logs are buffered and batched, and flushed when the tab is hidden so buffered logs survive a page unload. The optional
 second argument is structured, searchable attributes.
 
+## What happens when someone leaves the page
+
+Logs and spans are batched, so there's usually something unsent when a visitor leaves. The client flushes it when
+the tab is hidden or the page closes.
+
+Browsers cap what you can send at that moment: roughly 64KB across every request still in flight. The client stays
+under 60KB, and logs and spans share that budget.
+
+Switching tabs is safe. Hiding a tab triggers the same flush, and whatever didn't fit goes out when the visitor
+comes back.
+
+If nothing fits, the batch is still sent, as a normal request instead of a keepalive one. That usually lands, but
+it can be cancelled if the page closes right then.
+
+You'll only hit the limit on pages that produce a lot of telemetry before the visitor leaves. Log less on those
+pages rather than raising the limits.
+
 ## Documentation
 
 Full documentation on configuration, hooks, context, breadcrumbs, solution providers, and more is available
