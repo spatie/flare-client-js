@@ -42,19 +42,36 @@ describe('span context is captured at start, not end (no drift)', () => {
         expect(body).not.toContain('user-after-navigating');
     });
 
-    it('a root inherits only the allowlisted scope keys, not the report context bag', () => {
+    it('a root inherits the assembled scope except user identity (user.id stays)', () => {
         const { api, flare } = setup();
-        flare.setUser({ id: 'u1', email: 'shopper@example.com', ipAddress: '203.0.113.9' });
+        flare.setFramework({ name: 'React', version: '19.0.0' });
+        flare.setUser({
+            id: 'u1',
+            email: 'shopper@example.com',
+            fullName: 'Shopper Name',
+            ipAddress: '203.0.113.9',
+            plan: 'gold',
+        });
         flare.addContext('cart', { total: 42 });
+        flare.addContextGroup('checkout', { step: 'payment' });
         flare.startSpan('op', {}).end();
         flare.flush();
 
         const span = api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans[0];
         const keys = span.attributes.map((a) => a.key);
+
+        // Included: opaque user id, and everything the trace viewer can usefully render.
         expect(keys).toContain('user.id');
+        expect(keys).toContain('context.custom');
+        expect(JSON.stringify(span)).toContain('framework');
+        expect(JSON.stringify(span)).toContain('react');
+        expect(keys).toContain('context.checkout');
+
+        // Excluded: user identity fields, asserted individually so a partial regression cannot hide.
         expect(keys).not.toContain('user.email');
+        expect(keys).not.toContain('user.full_name');
         expect(keys).not.toContain('client.address');
-        expect(keys).not.toContain('context.custom');
+        expect(keys).not.toContain('user.attributes');
     });
 
     it('a continued-trace root (non-null parentSpanId) still carries start-time scope', () => {

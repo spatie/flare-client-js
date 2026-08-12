@@ -23,8 +23,9 @@ import {
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
 
-/** The only scope attributes a span inherits. See `getScopeAttributes`. */
-const SPAN_SCOPE_KEYS: readonly string[] = [USER_FIELD_KEYS.id];
+/** Scope attributes a span never inherits. Derived from `USER_IDENTITY_KEYS` so a future user field is
+ *  excluded automatically, without anyone needing to remember to list it here. See `getScopeAttributes`. */
+const SPAN_SCOPE_EXCLUDED_KEYS: readonly string[] = USER_IDENTITY_KEYS.filter((key) => key !== USER_FIELD_KEYS.id);
 
 export type ContextCollector = (config: Readonly<Config>) => Attributes;
 
@@ -549,16 +550,16 @@ export class Flare {
      * Local roots only, snapshotted by the Tracer at span START so a long-lived root does not drift into
      * the next page's scope. Children get none, and no span ever runs the DOM collector.
      *
-     * Allowlisted, not the whole scope: a root span goes out for every page view, so the email, IP and
-     * context bags an error report carries would turn normal browsing into PII traffic.
+     * Everything assembled is inherited except user identity (excluding the opaque `user.id`): a root span
+     * goes out for every page view, so email, full name, IP and `user.attributes` would turn normal
+     * browsing into PII traffic. The rest — `context.custom`, `addContextGroup` bags — stays in, because
+     * the trace viewer renders any span attribute whose key does not start with `flare.`.
      */
     private getScopeAttributes(): Attributes {
         const all = this.assembleAttributes({}, {}, false);
-        const scoped: Attributes = {};
-        for (const key of SPAN_SCOPE_KEYS) {
-            if (all[key] !== undefined) {
-                scoped[key] = all[key];
-            }
+        const scoped: Attributes = { ...all };
+        for (const key of SPAN_SCOPE_EXCLUDED_KEYS) {
+            delete scoped[key];
         }
         return scoped;
     }
