@@ -40,6 +40,11 @@ export type TelemetryBufferPolicy<TRecord, TEnvelope> = {
     send: (envelope: TEnvelope, config: Config, keepalive: boolean) => void;
     /** Runs once a record has been accepted into the buffer, before the flush triggers see it. */
     onRecordBuffered?: (record: TRecord) => void;
+    /**
+     * Hard ceiling for one keepalive envelope. Defaults to `config.keepaliveMaxBytes`; a signal that shares
+     * the browser's keepalive allowance with another passes what is actually left instead.
+     */
+    keepaliveBudget?: (config: Config) => number;
 };
 
 // `bytes` is measured once at add() and can go stale when a record holds a value by reference that the host
@@ -223,6 +228,10 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
         // Sized from parts instead of rebuilding the envelope per candidate: fixed overhead once, each record's
         // own UTF-8 length, plus one byte per record after the first for the JSON array comma.
         const fixedBytes = this.policy.emptyEnvelopeBytes(resource);
+        const budget = Math.min(
+            config.keepaliveMaxBytes,
+            this.policy.keepaliveBudget?.(config) ?? config.keepaliveMaxBytes,
+        );
         const selected: BufferEntry<TRecord>[] = [];
         let selectedBytes = 0;
         let droppedCount = 0;
@@ -231,7 +240,7 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
             const entry = this.entries[i];
             const candidateBytes = this.policy.recordBytes(entry.record);
             // selected.length is the comma count the array will have once this candidate joins it.
-            if (fixedBytes + selectedBytes + candidateBytes + selected.length <= config.keepaliveMaxBytes) {
+            if (fixedBytes + selectedBytes + candidateBytes + selected.length <= budget) {
                 selected.unshift(entry);
                 selectedBytes += candidateBytes;
             } else if (config.debug) {

@@ -17,6 +17,18 @@ export class Api {
     private pendingKeepaliveBytes = 0;
     private pendingKeepaliveRequests = 0;
 
+    /**
+     * How many keepalive bytes are still available. Logs and traces share one browser allowance and both
+     * flush on page hide, so whichever goes second has to pack against what is left rather than assume the
+     * whole budget, or it exceeds the gate in send() and silently degrades to a cancellable fetch.
+     */
+    keepaliveBudgetRemaining(): number {
+        if (this.pendingKeepaliveRequests >= MAX_PENDING_KEEPALIVE_REQUESTS) {
+            return 0;
+        }
+        return Math.max(0, MAX_PENDING_KEEPALIVE_BYTES - this.pendingKeepaliveBytes);
+    }
+
     report(
         report: Report,
         url: string,

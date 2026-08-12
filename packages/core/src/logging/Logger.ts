@@ -34,6 +34,7 @@ export class Logger {
                     flushIntervalMs: config.logFlushIntervalMs,
                 }),
                 enabled: (config) => config.enableLogs,
+                keepaliveBudget: () => deps.api.keepaliveBudgetRemaining(),
                 estimateBytes: (record) => this.estimateBytes(record),
                 emptyEnvelopeBytes: (resource) => {
                     const sdk = deps.getSdkInfo();

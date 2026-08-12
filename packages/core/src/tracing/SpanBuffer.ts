@@ -31,6 +31,7 @@ export class SpanBuffer {
                     flushIntervalMs: config.spanFlushIntervalMs,
                 }),
                 enabled: (config) => config.enableTracing,
+                keepaliveBudget: () => deps.api.keepaliveBudgetRemaining(),
                 estimateBytes: (span) => this.estimateBytes(span),
                 emptyEnvelopeBytes: (resource) => {
                     const sdk = deps.getSdkInfo();
