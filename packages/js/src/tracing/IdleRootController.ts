@@ -179,6 +179,8 @@ export class IdleRootController {
             return;
         }
         this.ended = true;
+        // endFloor and lastChildEndTime come from outside, so clamp: a root may never end before it started.
+        atTimeNano = Math.max(atTimeNano, this.deps.rootStartTime);
         this.clearIdle();
         this.clearChildTimeout();
         if (this.finalTimer !== null) {

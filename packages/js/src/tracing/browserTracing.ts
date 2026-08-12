@@ -85,10 +85,12 @@ type StartRootOptions = {
     name?: string;
     urlOverride?: string;
     hold?: boolean;
+    /** Pageloads only: whether the start really is Navigation Timing's navigation start. */
+    backdated?: boolean;
 };
 
 function startRoot(flare: BrowserTracingFlare, options: StartRootOptions): void {
-    const { spanType, startTimeUnixNano, name = location.pathname, urlOverride, hold } = options;
+    const { spanType, startTimeUnixNano, name = location.pathname, urlOverride, hold, backdated } = options;
     let root: Span | undefined;
     try {
         const context = collectBrowserSpanContext(flare.config, urlOverride);
@@ -107,9 +109,11 @@ function startRoot(flare: BrowserTracingFlare, options: StartRootOptions): void 
                 setTimeout: (fn, ms) => setTimeout(fn, ms),
                 clearTimeout: (handle) => clearTimeout(handle),
                 rootStartTime: startTimeUnixNano,
-                // Childless-close floor: a pageload ends at its real load-event mark,
-                // a navigation at its own start (an instant client nav trims to ~0).
-                endFloor: spanType === BrowserSpanType.Pageload ? pageloadEndNano : () => startTimeUnixNano,
+                // Childless-close floor: a backdated pageload ends at its load-event mark, anything else
+                // at its own start. A pageload that could not be backdated opened after the load event,
+                // so that mark is before its start and cannot be its floor.
+                endFloor:
+                    spanType === BrowserSpanType.Pageload && backdated ? pageloadEndNano : () => startTimeUnixNano,
                 held: hold,
                 // Only a pageload: the vitals describe the document load, and a navigation root has
                 // none of its own coming.
@@ -166,7 +170,6 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
         return;
     }
     withLiveController((live) => live.endNow());
-    emitWebVitals(flare);
     startRoot(flare, { spanType: BrowserSpanType.Navigation, startTimeUnixNano: defaultNowNano(), name: path });
 }
 
@@ -196,7 +199,12 @@ function stampEarlyVitals(root: Span, flare: BrowserTracingFlare): void {
 
 /**
  * Emits whatever the pageload root could not carry as one zero-duration `browser_web_vital` span,
- * parented to that root. Runs on the first SPA navigation or on page hide, whichever comes first.
+ * parented to that root. Page hide only, and once per document.
+ *
+ * Deliberately NOT on navigation: LCP, CLS and INP keep moving all document long, so emitting at the
+ * first route change froze them a second after load, and a session whose first action was a nav click
+ * reported no INP at all. One span per document is a backend constraint, so the emit waits for the last
+ * moment we get instead. The cost is a page whose hide event never fires reports no vitals.
  *
  * `pageloadRoot` has usually ended by now; reading `traceId` and `spanId` off an ended span is fine,
  * and passing the `Span` rather than a `{ traceId, spanId }` pair is what makes sampling inherit:
@@ -258,14 +266,14 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     lastPath = location.pathname;
 
     const finalTimeoutNano = resolveTimeouts(flare.config).finalTimeout * 1e6;
-    const pageloadStart = resolvePageloadStartNano(
-        pageloadStartNano(),
-        defaultNowNano(),
-        finalTimeoutNano,
-        pageloadTraced,
-    );
+    const navigationStart = pageloadStartNano();
+    const pageloadStart = resolvePageloadStartNano(navigationStart, defaultNowNano(), finalTimeoutNano, pageloadTraced);
     pageloadTraced = true;
-    startRoot(flare, { spanType: BrowserSpanType.Pageload, startTimeUnixNano: pageloadStart });
+    startRoot(flare, {
+        spanType: BrowserSpanType.Pageload,
+        startTimeUnixNano: pageloadStart,
+        backdated: pageloadStart === navigationStart,
+    });
     startWebVitals();
 
     // Named from the route the source already knows, so install order (router integration first,
@@ -453,7 +461,6 @@ export function registerNavigationSource(): NavigationSource {
             const path = opts?.path ?? currentPath();
             lastPath = path;
             withLiveController((live) => live.endNow());
-            emitWebVitals(activeFlare);
             startRoot(activeFlare, {
                 spanType: BrowserSpanType.Navigation,
                 startTimeUnixNano: defaultNowNano(),

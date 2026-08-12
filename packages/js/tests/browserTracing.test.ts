@@ -485,29 +485,55 @@ describe('browserTracing', () => {
         expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(1);
     });
 
-    it('emits on the first navigation, before the new root opens', () => {
+    it.each([
+        ['history pushState', () => window.history.pushState({}, '', '/b')],
+        ['a framework navigation', () => registerNavigationSource().startNavigation({ path: '/cart' })],
+    ])('does not emit on %s: LCP, CLS and INP are still moving', (_label, navigate) => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/a');
         const { flare, startSpan } = fakeFlare();
         startBrowserTracing(flare);
         recordVitals();
 
-        window.history.pushState({}, '', '/b');
+        navigate();
 
-        const types = startSpan.mock.calls.map(([, o]) => o?.spanType);
-        expect(types).toContain('browser_web_vital'); // guards against indexOf(-1) < indexOf(-1)
-        expect(types.indexOf('browser_web_vital')).toBeLessThan(types.indexOf('browser_navigation'));
+        expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(0);
     });
 
-    it('emits on a framework navigation too', () => {
+    it('emits the one container at page hide, carrying vitals that only reported after a navigation', () => {
         vi.useFakeTimers();
+        window.history.replaceState({}, '', '/a');
         const { flare, startSpan } = fakeFlare();
         startBrowserTracing(flare);
-        recordVitals();
+        const cbs = recordVitals();
 
-        registerNavigationSource().startNavigation({ path: '/cart' });
+        window.history.pushState({}, '', '/b');
+        cbs.inp({ value: 480 }); // the interaction that only happens after the user navigated
 
-        expect(vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital')).toHaveLength(1);
+        window.dispatchEvent(new Event('pagehide'));
+
+        const emitted = vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital');
+        expect(emitted).toHaveLength(1);
+        expect(emitted[0][1].attributes?.['browser.web_vital.inp']).toBe(480);
+    });
+
+    it('does not backdate a pageload root past a load event that already fired', () => {
+        // The SDK booting long after load (lazy import, consent gate, throttled background tab) starts the
+        // root at now(). loadEventEnd is then in the past and cannot be its close floor.
+        vi.useFakeTimers();
+        vi.spyOn(performance, 'getEntriesByType').mockImplementation((type: string) =>
+            type === 'navigation' ? ([{ startTime: 0, loadEventEnd: 2000 }] as never) : [],
+        );
+        vi.spyOn(performance, 'now').mockReturnValue(60_000);
+        const { flare, startSpan } = fakeFlare();
+
+        startBrowserTracing(flare);
+        const [, opts] = startSpan.mock.calls[0];
+        const root = startSpan.mock.results[0].value;
+        vi.advanceTimersByTime(1500);
+
+        expect(root.end).toHaveBeenCalledTimes(1);
+        expect(root.end.mock.calls[0][0]).toBeGreaterThanOrEqual(opts.startTimeUnixNano);
     });
 
     it('ends the pageload root before emitting, on page hide inside the idle window', () => {
@@ -523,31 +549,6 @@ describe('browserTracing', () => {
         vi.advanceTimersByTime(200);
         window.dispatchEvent(new Event('pagehide'));
 
-        expect(pageloadRootSpan.end).toHaveBeenCalledTimes(1);
-        const containerCallIndex = startSpan.mock.calls.findIndex(([, o]) => o?.spanType === 'browser_web_vital');
-        expect(containerCallIndex).toBeGreaterThan(-1);
-        expect(startSpan.mock.invocationCallOrder[containerCallIndex]).toBeGreaterThan(
-            pageloadRootSpan.end.mock.invocationCallOrder[0],
-        );
-    });
-
-    it.each([
-        ['history pushState', () => window.history.pushState({}, '', '/b')],
-        ['framework navigation', () => registerNavigationSource().startNavigation({ path: '/b' })],
-    ])('ends the pageload root before emitting, on %s inside the idle window', (_label, navigate) => {
-        vi.useFakeTimers();
-        window.history.replaceState({}, '', '/a');
-        const { flare, startSpan } = fakeFlare();
-        startBrowserTracing(flare);
-        const pageloadRootSpan = startSpan.mock.results[0].value;
-        recordVitals();
-
-        // still inside idleTimeout, so the controller is live and endNow() computes trimmedEnd()
-        vi.advanceTimersByTime(200);
-        navigate();
-
-        // Order is the invariant: a vitals span that ends while the root is open becomes its last
-        // child, and trimmedEnd() then drags the root's end out to the navigation.
         expect(pageloadRootSpan.end).toHaveBeenCalledTimes(1);
         const containerCallIndex = startSpan.mock.calls.findIndex(([, o]) => o?.spanType === 'browser_web_vital');
         expect(containerCallIndex).toBeGreaterThan(-1);
@@ -630,12 +631,11 @@ describe('browserTracing', () => {
 
         window.dispatchEvent(new Event('pagehide'));
 
-        // A failed emit must not permanently discard the page's vitals: a later trigger (here, a SPA
-        // navigation) has to see them again rather than a latched empty take. mockClear() first so the
-        // failed call above (still recorded as a call even though its implementation threw) does not
-        // muddy this count.
+        // A failed emit must not permanently discard the page's vitals: the next hide has to see them
+        // again rather than a latched empty take. mockClear() first so the failed call above (still
+        // recorded as a call even though its implementation threw) does not muddy this count.
         startSpan.mockClear();
-        window.history.pushState({}, '', '/next');
+        window.dispatchEvent(new Event('pagehide'));
 
         const retried = vitalsSpans(startSpan).filter(([, o]) => o.spanType === 'browser_web_vital');
         expect(retried).toHaveLength(1);
