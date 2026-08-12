@@ -1,11 +1,16 @@
+import type { Span } from '@flareapp/core';
+
 import { createPatcher } from './createPatcher';
 import {
+    browserUrlContext,
     endHttpRequestSpan,
     finishHttpSpanError,
     type HttpTracer,
     startHttpRequestSpan,
     traceparentFor,
+    type UrlContext,
 } from './httpRequestSpan';
+import { insulate } from './instrumentationGuard';
 import { isInternalRequest } from './internalRequest';
 import { type FetchInput, mergeTraceparentHeader } from './propagation';
 import { BrowserSpanType } from './spanTypes';
@@ -25,34 +30,59 @@ function resolveRequest(input: FetchInput, init: RequestInit | undefined): { met
 
 /**
  * Build a fetch replacement that opens a `browser_fetch` span per call, injects `traceparent` on
- * propagation-eligible URLs, and ends the span on settle. Pure factory: `origin` is injected (node
- * test env has no `location`), so this is unit-testable without a browser.
+ * propagation-eligible URLs, and ends the span on settle. Pure factory: `urls` is injected (node
+ * test env has no `location` or `document`), so this is unit-testable without a browser.
  */
-export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, origin: string): typeof fetch {
+export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, urls: UrlContext): typeof fetch {
     return function (this: unknown, input: FetchInput, init?: RequestInit): Promise<Response> {
         const call = (i?: RequestInit): Promise<Response> =>
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
 
-        const config = tracer.config;
-        if (!config.enableTracing || isInternalRequest(init)) {
-            return call(init);
+        // Everything up to the handoff reads host-supplied input and user config, so any of it can
+        // throw. A throw here costs the trace, never the request.
+        let started: { span: Span; absoluteUrl: URL | null } | null = null;
+        let url = '';
+        try {
+            const config = tracer.config;
+            if (!config.enableTracing || isInternalRequest(init)) {
+                return call(init);
+            }
+            const resolved = resolveRequest(input, init);
+            url = resolved.url;
+            started = startHttpRequestSpan(tracer, {
+                method: resolved.method,
+                url,
+                urls,
+                spanType: BrowserSpanType.Fetch,
+            });
+        } catch {
+            started = null;
         }
 
-        const { method, url } = resolveRequest(input, init);
-        const started = startHttpRequestSpan(tracer, { method, url, origin, spanType: BrowserSpanType.Fetch });
         if (!started) {
             return call(init);
         }
         const { span, absoluteUrl } = started;
 
+        // Separate guard from the one above: the span already exists here, so a throw must leave it
+        // started and end normally below. Losing the header only costs backend correlation.
         let finalInit = init;
-        const traceparent = traceparentFor(span, absoluteUrl, url, origin, config);
-        if (traceparent) {
-            finalInit = mergeTraceparentHeader(input, init, traceparent);
+        try {
+            const traceparent = traceparentFor(span, absoluteUrl, url, urls.origin, tracer.config);
+            if (traceparent) {
+                finalInit = mergeTraceparentHeader(input, init, traceparent);
+            }
+        } catch {
+            finalInit = init;
         }
 
+        // Insulated so a throw out of our own span bookkeeping cannot swallow the host's response, nor
+        // replace the host's rejection reason with ours.
+        const endSpan = insulate((response: Response) => endHttpRequestSpan(span, response.status));
+        const failSpan = insulate((error: unknown) => finishHttpSpanError(span, error));
+
         const finishError = (error: unknown): Promise<never> => {
-            finishHttpSpanError(span, error);
+            failSpan(error);
             return Promise.reject(error);
         };
 
@@ -63,17 +93,14 @@ export function createFetchWrapper(tracer: HttpTracer, original: typeof fetch, o
             return finishError(error);
         }
 
-        return promise.then(
-            (response) => {
-                endHttpRequestSpan(span, response.status);
-                return response;
-            },
-            (error: unknown) => finishError(error),
-        );
+        return promise.then((response) => {
+            endSpan(response);
+            return response;
+        }, finishError);
     };
 }
 
-type FetchGlobals = { fetch?: typeof fetch; location?: { origin?: string } };
+type FetchGlobals = { fetch?: typeof fetch };
 
 // A wrapper left behind by a failed unpatch stays live and checks enableTracing per call, so one
 // wrapper in the chain is always enough. See createPatcher for how install and uninstall stay in step.
@@ -97,8 +124,8 @@ export function instrumentFetch(tracer: HttpTracer): void {
         return;
     }
 
-    const origin = globals.location?.origin ?? '';
-    patcher.install(globals, { fetch: (original) => createFetchWrapper(tracer, original, origin) });
+    const urls = browserUrlContext();
+    patcher.install(globals, { fetch: (original) => createFetchWrapper(tracer, original, urls) });
 }
 
 /** Restore the original global `fetch`. Safe if never patched. */

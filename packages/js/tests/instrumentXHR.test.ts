@@ -3,9 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { HttpTracer } from '../src/tracing/httpRequestSpan';
 import { createXHROpen, createXHRSend, createXHRSetRequestHeader } from '../src/tracing/instrumentXHR';
-import { makeTracer } from './helpers';
+import { fixedUrls, makeTracer } from './helpers';
 
 const ORIGIN = 'https://app.example';
+const URLS = fixedUrls(ORIGIN);
 
 /** A minimal XMLHttpRequest stand-in that records header/listener calls and can fire readystatechange. */
 function fakeXHR(opts: { sendImpl?: () => void; headerThrows?: (name: string, value: string) => boolean } = {}) {
@@ -56,7 +57,7 @@ function instrument(
     const origSet = f.xhr.setRequestHeader;
     f.xhr.open = createXHROpen(origOpen as any) as any;
     f.xhr.setRequestHeader = createXHRSetRequestHeader(origSet as any) as any;
-    f.xhr.send = createXHRSend(tracer, origSend as any, ORIGIN) as any;
+    f.xhr.send = createXHRSend(tracer, origSend as any, URLS) as any;
     return f;
 }
 
@@ -363,5 +364,104 @@ describe('createXHR* wrappers', () => {
 
         expect(spans[0].ended).toBe(true);
         expect(startSpan).toHaveBeenCalledOnce();
+    });
+});
+
+// The host's request must survive our tracing throwing, same as the fetch wrapper. Both seams below run
+// before the native send(), and both read user config, so neither can be assumed infallible.
+describe('createXHRSend never breaks the host request', () => {
+    it('still sends when starting the span throws', () => {
+        const { tracer } = makeTracer();
+        tracer.startSpan = vi.fn(() => {
+            throw new Error('span setup exploded');
+        });
+        const sendImpl = vi.fn();
+        const { xhr } = instrument(tracer, { sendImpl });
+
+        xhr.open('GET', 'https://app.example/api/x');
+        xhr.send();
+
+        expect(sendImpl).toHaveBeenCalledOnce();
+    });
+
+    it('leaves no readystatechange listener behind when starting the span throws', () => {
+        const { tracer } = makeTracer();
+        tracer.startSpan = vi.fn(() => {
+            throw new Error('span setup exploded');
+        });
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'https://app.example/api/x');
+        xhr.send();
+        xhr.fireDone(200);
+
+        expect(xhr.listenerCount('readystatechange')).toBe(0);
+    });
+
+    it('still sends when the propagation config throws', () => {
+        // A non-RegExp entry is unreachable in TypeScript but not in plain JS or JSON-built config;
+        // shouldPropagate calls .test on it.
+        const { tracer } = makeTracer({ tracePropagationTargets: [null as unknown as RegExp] });
+        const sendImpl = vi.fn();
+        const { xhr, headers } = instrument(tracer, { sendImpl });
+
+        xhr.open('GET', 'https://app.example/api/x');
+        xhr.send();
+
+        expect(sendImpl).toHaveBeenCalledOnce();
+        expect(headers.traceparent).toBeUndefined();
+    });
+
+    it('keeps the span it already opened when the propagation config throws', () => {
+        const { tracer, calls } = makeTracer({ tracePropagationTargets: [null as unknown as RegExp] });
+        const { xhr } = instrument(tracer);
+
+        xhr.open('GET', 'https://app.example/api/x');
+        xhr.send();
+        xhr.fireDone(200);
+
+        // Losing the header costs backend correlation; the request itself still settles, so the span
+        // has a real status to report and must not be dropped or left open.
+        expect(calls.attrs['http.response.status_code']).toBe(200);
+        expect(calls.ended).toBe(true);
+    });
+});
+
+// open() captures method and URL before handing off to the native call, so a throw in that
+// bookkeeping would stop the host's request from ever being opened.
+describe('createXHROpen never breaks the host open', () => {
+    const hostile = (label: string) => ({
+        toString() {
+            throw new Error(label);
+        },
+    });
+
+    it('still calls the native open when stringifying the url throws', () => {
+        const originalOpen = vi.fn();
+        const open = createXHROpen(originalOpen as unknown as XMLHttpRequest['open']);
+
+        expect(() => open.call({} as XMLHttpRequest, 'GET', hostile('hostile url') as unknown as URL)).not.toThrow();
+        expect(originalOpen).toHaveBeenCalledOnce();
+    });
+
+    it('still calls the native open when stringifying the method throws', () => {
+        const originalOpen = vi.fn();
+        const open = createXHROpen(originalOpen as unknown as XMLHttpRequest['open']);
+
+        expect(() =>
+            open.call({} as XMLHttpRequest, hostile('hostile method') as unknown as string, 'https://app.example/x'),
+        ).not.toThrow();
+        expect(originalOpen).toHaveBeenCalledOnce();
+    });
+
+    it('opens no span on a later send when the url could not be captured', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { xhr } = instrument(tracer);
+
+        (xhr.open as unknown as (m: string, u: unknown) => void)('GET', hostile('hostile url'));
+        xhr.send();
+
+        // State capture failed, so there is nothing to trace; the request must still go out untraced.
+        expect(startSpan).not.toHaveBeenCalled();
     });
 });

@@ -18,28 +18,50 @@ export type HttpTracer = {
 
 const INLINE_SCHEMES = new Set(['data:', 'blob:']);
 
-/** Resolve `url` to an absolute URL against `origin`, or null if it cannot be parsed. */
-export function safeAbsolute(url: string, origin: string): URL | null {
+/**
+ * The two URL facts a request needs, kept apart on purpose. `base` is what the browser resolves a
+ * relative request URL against (`document.baseURI`: the document URL, or a `<base href>`), while
+ * `origin` is the page's own origin, which is what the default same-origin propagation rule asks
+ * about. They differ under a sub-path or a cross-origin `<base href>`.
+ */
+export type UrlContext = {
+    origin: string;
+    /** Read per request: pushState changes `document.baseURI` without a page load. */
+    base(): string;
+};
+
+/** The real browser context. Falls back to the origin where there is no document (SSR, tests). */
+export function browserUrlContext(): UrlContext {
+    const globals = globalThis as { location?: { origin?: string }; document?: { baseURI?: string } };
+    const origin = globals.location?.origin ?? '';
+    return {
+        origin,
+        base: () => (globalThis as { document?: { baseURI?: string } }).document?.baseURI || origin,
+    };
+}
+
+/** Resolve `url` to an absolute URL against `base`, or null if it cannot be parsed. */
+export function safeAbsolute(url: string, base: string): URL | null {
     try {
-        return new URL(url, origin || undefined);
+        return new URL(url, base || undefined);
     } catch {
         return null;
     }
 }
 
-// Resolved ingest hrefs, memoised on the raw values plus origin. The wrappers call this per request,
+// Resolved ingest hrefs, memoised on the raw values plus base. The wrappers call this per request,
 // and configure() can swap the URLs at any point, so this cannot be computed once at install time.
 let ingestCacheKey: string | null = null;
 let ingestCacheHrefs: string[] = [];
 
-function resolvedIngestHrefs(config: Config, origin: string): string[] {
+function resolvedIngestHrefs(config: Config, base: string): string[] {
     const raw = [config.ingestUrl, config.logsIngestUrl, config.tracesIngestUrl];
-    const key = `${origin} ${raw.join(' ')}`;
+    const key = `${base} ${raw.join(' ')}`;
     if (key !== ingestCacheKey) {
         ingestCacheKey = key;
         ingestCacheHrefs = raw
             .filter((u): u is string => typeof u === 'string' && u.length > 0)
-            .map((u) => safeAbsolute(u, origin))
+            .map((u) => safeAbsolute(u, base))
             .filter((u): u is URL => u !== null)
             .map((u) => u.href);
     }
@@ -58,15 +80,15 @@ function matchesIngestHref(href: string, ingestHref: string): boolean {
 
 /**
  * True when `resolved` targets one of Flare's own ingest endpoints (never traced). The configured
- * URLs are resolved against `origin` first: a relative one (a customer proxying ingest through their
+ * URLs are resolved against `base` first: a relative one (a customer proxying ingest through their
  * own origin) would otherwise never match, so every flush POST would open a span that arms the next
  * flush, forever.
  */
-export function isFlareIngestUrl(resolved: URL | null, config: Config, origin: string): boolean {
+export function isFlareIngestUrl(resolved: URL | null, config: Config, base: string): boolean {
     if (!resolved) {
         return false;
     }
-    return resolvedIngestHrefs(config, origin).some((ingestHref) => matchesIngestHref(resolved.href, ingestHref));
+    return resolvedIngestHrefs(config, base).some((ingestHref) => matchesIngestHref(resolved.href, ingestHref));
 }
 
 /**
@@ -128,13 +150,14 @@ export function traceparentFor(
  */
 export function startHttpRequestSpan(
     tracer: HttpTracer,
-    request: { method: string; url: string; origin: string; spanType: string },
+    request: { method: string; url: string; urls: UrlContext; spanType: string },
 ): { span: Span; absoluteUrl: URL | null } | null {
-    const { method, url, origin, spanType } = request;
+    const { method, url, urls, spanType } = request;
     const config = tracer.config;
 
-    const resolved = safeAbsolute(url, origin);
-    if (isFlareIngestUrl(resolved, config, origin)) {
+    const base = urls.base();
+    const resolved = safeAbsolute(url, base);
+    if (isFlareIngestUrl(resolved, config, base)) {
         return null;
     }
     // A data:/blob: read is not network traffic, and a data: URL carries its whole payload in the url.

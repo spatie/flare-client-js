@@ -2,11 +2,13 @@ import { type Span, SpanStatusCode } from '@flareapp/core';
 
 import { createPatcher } from './createPatcher';
 import {
+    browserUrlContext,
     endHttpRequestSpan,
     finishHttpSpanError,
     type HttpTracer,
     startHttpRequestSpan,
     traceparentFor,
+    type UrlContext,
 } from './httpRequestSpan';
 import { BrowserSpanType } from './spanTypes';
 
@@ -67,16 +69,21 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
             releaseRequestRefs(prior);
         }
 
-        if (method && url != null) {
-            const urlString = String(url);
-            xhrState.set(this, {
-                method: String(method).toUpperCase(),
-                url: urlString,
-                hasAppTraceparent: false,
-                ended: false,
-            });
-        } else {
-            // Clear prior entry so a reused instance can't resurrect stale state on a later send().
+        // Stringifying a hostile method or URL can throw, and that must not stop the host's request
+        // from being opened. Recording no state is enough: the later send() then traces nothing.
+        try {
+            if (method && url != null) {
+                xhrState.set(this, {
+                    method: String(method).toUpperCase(),
+                    url: String(url),
+                    hasAppTraceparent: false,
+                    ended: false,
+                });
+            } else {
+                // Clear prior entry so a reused instance can't resurrect stale state on a later send().
+                xhrState.delete(this);
+            }
+        } catch {
             xhrState.delete(this);
         }
         return (original as (this: XMLHttpRequest, ...a: unknown[]) => void).apply(this, [method, url, ...rest]);
@@ -115,7 +122,7 @@ function setTraceparentHeader(xhr: XMLHttpRequest, traceparent: string | null | 
 }
 
 /** Patch `send` to open the span, inject `traceparent`, and end on `readyState === 4`. */
-export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: string): XhrSend {
+export function createXHRSend(tracer: HttpTracer, original: XhrSend, urls: UrlContext): XhrSend {
     return function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null): void {
         const send = (): void => original.call(this, body);
 
@@ -130,12 +137,19 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
             return send();
         }
 
-        const started = startHttpRequestSpan(tracer, {
-            method: state.method,
-            url: state.url,
-            origin,
-            spanType: BrowserSpanType.Xhr,
-        });
+        // Span setup reads the captured URL and user config, so any of it can throw. A throw here costs
+        // the trace, never the request: fall through and send untraced, like an ingest URL does.
+        let started: { span: Span; absoluteUrl: URL | null } | null = null;
+        try {
+            started = startHttpRequestSpan(tracer, {
+                method: state.method,
+                url: state.url,
+                urls,
+                spanType: BrowserSpanType.Xhr,
+            });
+        } catch {
+            started = null;
+        }
         if (!started) {
             return send();
         }
@@ -143,7 +157,16 @@ export function createXHRSend(tracer: HttpTracer, original: XhrSend, origin: str
         state.span = span;
 
         if (!state.hasAppTraceparent) {
-            setTraceparentHeader(this, traceparentFor(span, absoluteUrl, state.url, origin, config));
+            // Guarded separately from the span setup above: the span already exists, so a throwing
+            // propagation config costs the header only. The request still settles, so the span stays
+            // open and ends with a real status on DONE.
+            let traceparent: string | null = null;
+            try {
+                traceparent = traceparentFor(span, absoluteUrl, state.url, urls.origin, config);
+            } catch {
+                // no traceparent on this request
+            }
+            setTraceparentHeader(this, traceparent);
         }
 
         const onDone = (): void => {
@@ -210,17 +233,17 @@ export function instrumentXHR(tracer: HttpTracer): void {
         return;
     }
 
-    const globals = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest; location?: { origin?: string } };
+    const globals = globalThis as { XMLHttpRequest?: typeof XMLHttpRequest };
     const xhrConstructor = globals.XMLHttpRequest;
     if (typeof xhrConstructor !== 'function' || !xhrConstructor.prototype) {
         return;
     }
 
-    const origin = globals.location?.origin ?? '';
+    const urls = browserUrlContext();
     patcher.install(xhrConstructor.prototype, {
         open: (original) => createXHROpen(original),
         setRequestHeader: (original) => createXHRSetRequestHeader(original),
-        send: (original) => createXHRSend(tracer, original, origin),
+        send: (original) => createXHRSend(tracer, original, urls),
     });
     patchedPrototype = xhrConstructor.prototype;
 }

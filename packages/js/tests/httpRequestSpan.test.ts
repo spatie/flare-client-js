@@ -1,7 +1,8 @@
 import type { Config, Span } from '@flareapp/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    browserUrlContext,
     endHttpRequestSpan,
     finishHttpSpanError,
     type HttpTracer,
@@ -11,9 +12,10 @@ import {
     startHttpRequestSpan,
     traceparentFor,
 } from '../src/tracing/httpRequestSpan';
-import { fakeRecordingSpan } from './helpers';
+import { fakeRecordingSpan, fixedUrls } from './helpers';
 
 const ORIGIN = 'https://app.example';
+const URLS = fixedUrls(ORIGIN);
 const config = {
     urlDenylist: /token/,
     ingestUrl: 'https://ingress.flareapp.io/v1/errors',
@@ -26,7 +28,7 @@ describe('httpRequestSpan helpers', () => {
         const tracer = { config, startSpan: vi.fn() } as unknown as HttpTracer;
         for (const url of ['data:text/plain;base64,' + btoa('x'.repeat(2000)), 'blob:https://app.example/abc']) {
             expect(
-                startHttpRequestSpan(tracer, { method: 'GET', url, origin: ORIGIN, spanType: 'browser_fetch' }),
+                startHttpRequestSpan(tracer, { method: 'GET', url, urls: URLS, spanType: 'browser_fetch' }),
             ).toBeNull();
         }
         expect(tracer.startSpan).not.toHaveBeenCalled();
@@ -93,6 +95,34 @@ describe('httpRequestSpan helpers', () => {
         const attrs = requestSpanAttributes('GET', null, 'not a url', config);
 
         expect(attrs).toEqual({ 'http.request.method': 'GET', 'url.full': 'not a url' });
+    });
+
+    describe('browserUrlContext', () => {
+        const globals = globalThis as { location?: unknown; document?: unknown };
+
+        afterEach(() => {
+            delete globals.location;
+            delete globals.document;
+        });
+
+        it('takes the base from document.baseURI and re-reads it per call', () => {
+            globals.location = { origin: ORIGIN };
+            globals.document = { baseURI: `${ORIGIN}/store/` };
+            const urls = browserUrlContext();
+
+            expect(urls.origin).toBe(ORIGIN);
+            expect(urls.base()).toBe(`${ORIGIN}/store/`);
+
+            // pushState moves baseURI without a page load, so a snapshot would go stale in an SPA.
+            (globals.document as { baseURI: string }).baseURI = `${ORIGIN}/store/cart/`;
+            expect(urls.base()).toBe(`${ORIGIN}/store/cart/`);
+        });
+
+        it('falls back to the origin when there is no document (SSR)', () => {
+            globals.location = { origin: ORIGIN };
+
+            expect(browserUrlContext().base()).toBe(ORIGIN);
+        });
     });
 
     describe('endHttpRequestSpan', () => {
@@ -169,7 +199,7 @@ describe('httpRequestSpan helpers', () => {
             const started = startHttpRequestSpan(t, {
                 method: 'POST',
                 url: '/api/orders?token=abc',
-                origin: ORIGIN,
+                urls: URLS,
                 spanType: 'browser_fetch',
             });
 
@@ -181,13 +211,27 @@ describe('httpRequestSpan helpers', () => {
             });
         });
 
+        it('resolves a bare-relative url against the document base, not the origin', () => {
+            const { tracer: t, startSpan } = tracer();
+
+            const started = startHttpRequestSpan(t, {
+                method: 'GET',
+                url: 'api/products',
+                urls: fixedUrls(ORIGIN, `${ORIGIN}/store/`),
+                spanType: 'browser_fetch',
+            });
+
+            expect(started!.absoluteUrl?.href).toBe(`${ORIGIN}/store/api/products`);
+            expect(startSpan).toHaveBeenCalledWith('GET /store/api/products', expect.anything());
+        });
+
         it('falls back to the raw url when it cannot be resolved', () => {
             const { tracer: t, startSpan } = tracer();
 
             const started = startHttpRequestSpan(t, {
                 method: 'GET',
                 url: 'http://[',
-                origin: ORIGIN,
+                urls: URLS,
                 spanType: 'browser_xhr',
             });
 
@@ -201,7 +245,7 @@ describe('httpRequestSpan helpers', () => {
             const started = startHttpRequestSpan(t, {
                 method: 'POST',
                 url: 'https://ingress.flareapp.io/v1/traces',
-                origin: ORIGIN,
+                urls: URLS,
                 spanType: 'browser_fetch',
             });
 
