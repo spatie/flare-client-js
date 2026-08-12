@@ -20,4 +20,26 @@ describe('BrowserFlushScheduler', () => {
 
         expect(flush).toHaveBeenCalledWith({ keepalive: true });
     });
+
+    it('flushes on pagehide too, for the browsers that skip visibilitychange', () => {
+        const documentListeners: Record<string, () => void> = {};
+        const windowListeners: Record<string, () => void> = {};
+        vi.stubGlobal('document', {
+            addEventListener: (type: string, cb: () => void) => {
+                documentListeners[type] = cb;
+            },
+            visibilityState: 'visible',
+        });
+        vi.stubGlobal('window', {
+            addEventListener: (type: string, cb: () => void) => {
+                windowListeners[type] = cb;
+            },
+        });
+
+        const flush = vi.fn();
+        new BrowserFlushScheduler().register(flush);
+        windowListeners['pagehide']();
+
+        expect(flush).toHaveBeenCalledWith({ keepalive: true });
+    });
 });
