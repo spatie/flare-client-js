@@ -12,9 +12,9 @@ export type LoggerDeps = {
     getConfig: () => Config;
     getSdkInfo: () => SdkInfo;
     getFramework: () => Framework | null;
-    // Returns attributes already split into resource-level (only the collector's resource keys) and record-level
-    // (collector record keys + scope + entry point + user attrs). The Logger does not partition; only the collector
-    // output is partitionable, scope/user/entry-point attributes always stay record-level.
+    // Hands back the attributes already split in two: resource ones (shared by every record in an envelope) and
+    // record ones (attached to a single record). The Logger never splits them itself. Only collector attributes
+    // can become resource-level; scope, entry point and user attributes always stay record-level.
     buildLogAttributes: (userAttributes: Attributes) => { record: Attributes; resource: Attributes };
     track: <T>(p: Promise<T>) => Promise<T>;
     scheduler: FlushScheduler;
@@ -54,11 +54,10 @@ export class Logger {
                     deps.track(deps.api.logs(envelope, config.logsIngestUrl, config.key, config.debug, keepalive));
                 },
                 onRecordBuffered: (record) => {
-                    // Last-write-wins: the envelope stamps all batched records with this single most-recent resource
-                    // map. Correct only because every resource-prefixed key in the partition allowlist is
-                    // instance-static for the process lifetime (the one varying key, process.uptime, is held to
-                    // record-level via the partition's exception set). A future collector emitting a request-varying
-                    // resource key would silently mis-stamp batched records.
+                    // The whole batch is sent with one resource map: the newest one wins. That is fine because
+                    // resource attributes never change while the process runs (process.uptime does change, which is
+                    // why it is kept record-level). If a collector ever makes a resource attribute that changes per
+                    // request, the older records in the batch get the wrong value and nothing warns about it.
                     this.resourceAttributes = record.resourceAttributes;
                 },
             },
@@ -102,8 +101,9 @@ export class Logger {
         this.inner.clear();
     }
 
-    // Mirrors PHP's Logger::record: everyday `context` nests under `log.context` (Flare's "Context" section), while
-    // `attributes` is a raw passthrough spread flat onto the record (same resource/record partitioning).
+    // Two ways to add data, same as PHP's Logger::record. `context` is the everyday one: it goes in one nested
+    // `log.context` key and shows up in Flare's "Context" section. `attributes` is passed through untouched and
+    // its keys land directly on the record.
     private record(level: MessageLevel, message: string, context: Attributes, attributes: Attributes): void {
         const config = this.deps.getConfig();
         if (!config.enableLogs) {
@@ -136,10 +136,11 @@ export class Logger {
     }
 
     private estimateBytes(log: BufferedLog): number {
-        // Rough, and only for the soft batching caps: UTF-16 code units rather than UTF-8 bytes, and resource
-        // attributes counted per record though they ship once. Safe: /v1/logs has no hard per-request limit,
-        // and the real ~64 KB keepalive cap is measured exactly by otelLogRecordBytes. flatJsonStringify:
-        // record attributes can cycle.
+        // A rough number, only used to decide when the buffer is full enough to flush. It counts UTF-16 code
+        // units instead of UTF-8 bytes, and counts the resource attributes on every record even though they are
+        // sent once. Good enough: /v1/logs has no hard request size limit, and the real ~64 KB keepalive limit
+        // is measured exactly by otelLogRecordBytes. We use flatJsonStringify because record attributes can be
+        // circular.
         return flatJsonStringify(log).length;
     }
 }

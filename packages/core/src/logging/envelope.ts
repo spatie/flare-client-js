@@ -46,8 +46,9 @@ export function buildLogsEnvelope(
 }
 
 /**
- * UTF-8 bytes one record contributes to an envelope. Lives here to track toOtelLogRecord's shape rather than
- * reuse the cached BufferedLog estimate, since keepaliveMaxBytes is a hard browser limit.
+ * How many UTF-8 bytes one record adds to an envelope. We measure the real toOtelLogRecord output instead of
+ * reusing the cached BufferedLog estimate, because keepaliveMaxBytes is a hard browser limit and an estimate
+ * is not good enough.
  *
  * Uses flatJsonStringify to match Api.logs, which sends the envelope through the same encoder.
  */
@@ -55,7 +56,7 @@ export function otelLogRecordBytes(record: BufferedLog): number {
     return utf8Bytes(flatJsonStringify(toOtelLogRecord(record)));
 }
 
-/** UTF-8 bytes of an envelope carrying no records: everything a batch does not pay for per record. */
+/** UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any records are added. */
 export function emptyLogsEnvelopeBytes(
     resourceAttributes: Attributes,
     scopeName: string,

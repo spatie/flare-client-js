@@ -47,8 +47,8 @@ function readFile(fileReader: FileReader, url: string): Promise<string | null> {
         return cached;
     }
 
-    // Cache the promise, not the resolved text. Every frame of a report resolves its snippet at the
-    // same time, so caching only once the read finished fired one request per frame in the same file.
+    // We store the promise instead of the file contents, so all the frames pointing at the same file share one
+    // request, instead of duplicating the file requests per frame.
     const pending = fileReader.read(url).then((text) => {
         // A failed read stays out of the cache, so a later report can try the file again.
         if (text === null) {

@@ -10,8 +10,13 @@ export type TelemetryBufferDeps = {
 };
 
 /**
- * Everything that differs between the logs buffer and the traces buffer. Every member is a named value or
- * builder for one signal, never a "which signal am I" flag.
+ * Everything TelemetryBuffer cannot know on its own: which config limits apply, how big a record is, how to
+ * build and send the envelope, and what to log when something gets dropped. Logger and SpanBuffer each build
+ * a TelemetryBuffer and hand it one of these.
+ *
+ * It exists so the batching itself lives in one place: when to flush, what to drop, how to size the envelope.
+ * The send is not shared, Logger posts to /v1/logs and SpanBuffer to /v1/traces, but everything around it is,
+ * without the buffer ever branching on whether it holds logs or spans.
  */
 export type TelemetryBufferPolicy<TRecord, TEnvelope> = {
     /**
@@ -24,7 +29,7 @@ export type TelemetryBufferPolicy<TRecord, TEnvelope> = {
     enabled: (config: Config) => boolean;
     /** Soft size of one record, for the weight trigger, the oversized drop and the trim loop. */
     estimateBytes: (record: TRecord) => number;
-    /** Exact UTF-8 bytes of an envelope carrying no records: what a batch does not pay for per record. */
+    /** UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any records are added. */
     emptyEnvelopeBytes: (resource: Attributes) => number;
     /** Exact UTF-8 bytes one record adds to an envelope. Feeds the hard keepalive budget, so no estimating. */
     recordBytes: (record: TRecord) => number;

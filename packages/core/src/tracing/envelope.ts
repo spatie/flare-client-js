@@ -56,19 +56,21 @@ export function buildTracesEnvelope(
 }
 
 /**
- * UTF-8 bytes one span contributes to an envelope. Lives here to track toOtelSpan's shape rather than reuse
- * the cached BufferedSpan estimate, since keepaliveMaxBytes is a hard browser limit.
+ * How many UTF-8 bytes one span adds to an envelope. We measure the real toOtelSpan output instead of reusing
+ * the cached BufferedSpan estimate, because keepaliveMaxBytes is a hard browser limit and an estimate is not
+ * good enough.
  *
- * Uses flatJsonStringify, not JSON.stringify: status.message is a live caller reference and can go
- * unserializable after end(), and this runs on a bare visibilitychange listener. flatJsonStringify's safeClone
- * absorbs the common cases (circular refs, BigInt, a throwing getter on a plain object) but is not throw-proof:
- * a class instance with a throwing getter passes through untouched and can still throw at JSON.stringify.
+ * We use flatJsonStringify instead of JSON.stringify because a span keeps values the caller still owns, like
+ * status.message, and those can turn unserializable after the span ended. This runs from a visibilitychange
+ * listener with no try/catch around it, so a throw here loses the flush. flatJsonStringify handles the usual
+ * suspects (circular references, BigInt, a getter that throws on a plain object) but is not bulletproof: a
+ * class instance with a throwing getter goes through untouched and can still throw.
  */
 export function otelSpanBytes(span: BufferedSpan): number {
     return utf8Bytes(flatJsonStringify(toOtelSpan(span)));
 }
 
-/** UTF-8 bytes of an envelope carrying no spans: everything a batch does not pay for per span. */
+/** UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any spans are added. */
 export function emptyTracesEnvelopeBytes(
     resourceAttributes: Attributes,
     scopeName: string,

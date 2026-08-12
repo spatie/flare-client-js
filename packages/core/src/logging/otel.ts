@@ -8,11 +8,16 @@ import {
 } from '../util/traversalBudget';
 
 /**
- * `inPath` tracks ancestors on the current branch only (added on enter, removed on exit), mirroring
- * flatJsonStringify's decycle. A global "seen" set would mis-flag an object referenced twice in sibling branches.
+ * Converts one attribute value into the OpenTelemetry `AnyValue` shape. Strings, numbers and booleans become
+ * leaves, arrays and objects are walked recursively. Anything OpenTelemetry cannot carry (null, undefined,
+ * NaN, functions) returns null and the caller drops that key.
  *
- * Also bounded by depth and node count; see traversalBudget.ts. Pass `budget` to make several calls
- * share one allowance; without it every call gets its own.
+ * A value that contains itself becomes the string `[Circular]`. `inPath` only holds the parents of the value
+ * being converted right now, so the same object used twice side by side is converted twice instead of being
+ * wrongly called circular.
+ *
+ * The walk also stops at a maximum depth and a maximum number of nodes, see traversalBudget.ts. Pass `budget`
+ * to let several calls share one allowance, otherwise every call gets its own.
  */
 export function valueToOpenTelemetry(
     value: AttributeValue,
@@ -28,8 +33,10 @@ function convert(
     depth: number,
     budget: TraversalBudget,
 ): AnyValue | null {
-    // Charged before the leaf branches: a wide primitive leaf is re-walked once per path too, so leaving
-    // it free means the budget cannot bound the work.
+    // An attribute is whatever object the user hands us, so this walk needs to return early. This if sits above
+    // the string and number checks because strings and numbers have to count too. When they did not, one
+    // attribute visited 17 million strings before the counter ran out (which resulted in massive memory usage
+    // and cpu time).
     if (!spendNode(budget)) {
         return { stringValue: TRUNCATED };
     }
@@ -90,8 +97,8 @@ function convert(
 }
 
 export function attributesToOpenTelemetry(attributes: Attributes): KeyValue[] {
-    // One budget for the whole attribute set: a per-attribute budget multiplies the worst case by
-    // maxAttributesPerSpan.
+    // One counter shared by all attributes, not one per attribute. One per attribute would multiply the worst
+    // case by maxAttributesPerSpan.
     const budget = createTraversalBudget();
     const out: KeyValue[] = [];
     for (const [key, value] of Object.entries(attributes)) {
