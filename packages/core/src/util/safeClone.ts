@@ -24,6 +24,12 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
     const depthCap = options.mode === 'display' ? options.maxDepth : MAX_TRAVERSAL_DEPTH;
 
     function walk(node: unknown, depth: number): unknown {
+        // Charged before the leaf branches: a wide primitive leaf is re-walked once per path too, so
+        // leaving it free means the budget cannot bound the work.
+        if (!spendNode(budget)) {
+            return TRUNCATED;
+        }
+
         if (node === null) {
             return null;
         }
@@ -48,10 +54,6 @@ export function safeClone(value: unknown, options: SafeCloneOptions): unknown {
 
         if (seen.has(node as object)) {
             return '[Circular]';
-        }
-
-        if (!spendNode(budget)) {
-            return TRUNCATED;
         }
 
         if (Array.isArray(node)) {

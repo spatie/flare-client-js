@@ -1,8 +1,12 @@
 /**
  * Cycle detection only tracks the ancestor path, so a value holding the same child under two keys is not
  * a cycle but still costs 2^depth to walk. Host data (glows, addContext, span attributes) reaches that
- * shape through any object graph shared by reference. These caps bound the walk; real payloads are
- * nowhere near them.
+ * shape through any object graph shared by reference.
+ *
+ * The node cap only bounds that walk if EVERY visited node is charged, primitive leaves included. It used
+ * to charge containers only, so 15 shared objects over an array of 1000 strings walked ~17M uncharged
+ * strings before the cap fired: 1.2s and 1GB. Callers must spend before their leaf branches return, not
+ * after. We do not memoize instead: a value shared under two keys is not a cycle and must not read as one.
  */
 export const MAX_TRAVERSAL_DEPTH = 24;
 export const MAX_TRAVERSAL_NODES = 50_000;

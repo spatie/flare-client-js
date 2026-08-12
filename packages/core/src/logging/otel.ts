@@ -11,10 +11,15 @@ import {
  * `inPath` tracks ancestors on the current branch only (added on enter, removed on exit), mirroring
  * flatJsonStringify's decycle. A global "seen" set would mis-flag an object referenced twice in sibling branches.
  *
- * Also bounded by depth and node count; see traversalBudget.ts.
+ * Also bounded by depth and node count; see traversalBudget.ts. Pass `budget` to make several calls
+ * share one allowance; without it every call gets its own.
  */
-export function valueToOpenTelemetry(value: AttributeValue, inPath: WeakSet<object> = new WeakSet()): AnyValue | null {
-    return convert(value, inPath, 0, createTraversalBudget());
+export function valueToOpenTelemetry(
+    value: AttributeValue,
+    inPath: WeakSet<object> = new WeakSet(),
+    budget: TraversalBudget = createTraversalBudget(),
+): AnyValue | null {
+    return convert(value, inPath, 0, budget);
 }
 
 function convert(
@@ -23,6 +28,12 @@ function convert(
     depth: number,
     budget: TraversalBudget,
 ): AnyValue | null {
+    // Charged before the leaf branches: a wide primitive leaf is re-walked once per path too, so leaving
+    // it free means the budget cannot bound the work.
+    if (!spendNode(budget)) {
+        return { stringValue: TRUNCATED };
+    }
+
     if (typeof value === 'string') {
         return { stringValue: value };
     }
@@ -39,7 +50,7 @@ function convert(
         return null;
     }
 
-    if (depth >= MAX_TRAVERSAL_DEPTH || !spendNode(budget)) {
+    if (depth >= MAX_TRAVERSAL_DEPTH) {
         return { stringValue: TRUNCATED };
     }
 
@@ -79,9 +90,12 @@ function convert(
 }
 
 export function attributesToOpenTelemetry(attributes: Attributes): KeyValue[] {
+    // One budget for the whole attribute set: a per-attribute budget multiplies the worst case by
+    // maxAttributesPerSpan.
+    const budget = createTraversalBudget();
     const out: KeyValue[] = [];
     for (const [key, value] of Object.entries(attributes)) {
-        const mapped = valueToOpenTelemetry(value);
+        const mapped = valueToOpenTelemetry(value, new WeakSet(), budget);
         if (mapped !== null) {
             out.push({ key, value: mapped });
         }
