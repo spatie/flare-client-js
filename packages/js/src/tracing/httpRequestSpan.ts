@@ -16,6 +16,8 @@ export type HttpTracer = {
     startSpan(name: string, opts?: SpanOptions): Span;
 };
 
+const INLINE_SCHEMES = new Set(['data:', 'blob:']);
+
 /** Resolve `url` to an absolute URL against `origin`, or null if it cannot be parsed. */
 export function safeAbsolute(url: string, origin: string): URL | null {
     try {
@@ -133,6 +135,10 @@ export function startHttpRequestSpan(
 
     const resolved = safeAbsolute(url, origin);
     if (isFlareIngestUrl(resolved, config, origin)) {
+        return null;
+    }
+    // A data:/blob: read is not network traffic, and a data: URL carries its whole payload in the url.
+    if (resolved && INLINE_SCHEMES.has(resolved.protocol)) {
         return null;
     }
 

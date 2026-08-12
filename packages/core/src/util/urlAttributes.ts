@@ -1,6 +1,13 @@
 import type { Attributes } from '../types';
 import { DEFAULT_URL_DENYLIST, redactUrlQuery } from './redactUrl';
 
+/** Well past any routable URL, but short enough that an inline `data:` payload cannot ride along. */
+export const MAX_URL_LENGTH = 2048;
+
+function truncateUrl(url: string): string {
+    return url.length <= MAX_URL_LENGTH ? url : `${url.slice(0, MAX_URL_LENGTH)}…[truncated]`;
+}
+
 /**
  * Builds the OTel `url.*` attributes for one absolute URL.
  *
@@ -11,7 +18,7 @@ import { DEFAULT_URL_DENYLIST, redactUrlQuery } from './redactUrl';
  * be parsed, for example a relative one.
  */
 export function urlAttributes(url: string, denylist: RegExp = DEFAULT_URL_DENYLIST): Attributes {
-    const full = redactUrlQuery(url, denylist);
+    const full = truncateUrl(redactUrlQuery(url, denylist));
     const attributes: Attributes = { 'url.full': full };
 
     let parsed: URL;

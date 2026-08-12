@@ -22,6 +22,28 @@ const config = {
 } as unknown as Config;
 
 describe('httpRequestSpan helpers', () => {
+    it('does not trace a data: or blob: request', () => {
+        const tracer = { config, startSpan: vi.fn() } as unknown as HttpTracer;
+        for (const url of ['data:text/plain;base64,' + btoa('x'.repeat(2000)), 'blob:https://app.example/abc']) {
+            expect(
+                startHttpRequestSpan(tracer, { method: 'GET', url, origin: ORIGIN, spanType: 'browser_fetch' }),
+            ).toBeNull();
+        }
+        expect(tracer.startSpan).not.toHaveBeenCalled();
+    });
+
+    it('truncates url.full so an overlong URL cannot bloat a span', () => {
+        const attributes = requestSpanAttributes(
+            'GET',
+            safeAbsolute('/search?q=' + 'a'.repeat(8000), ORIGIN),
+            '/search',
+            config,
+        );
+        const full = attributes['url.full'] as string;
+        expect(full.length).toBeLessThan(2100);
+        expect(full.endsWith('…[truncated]')).toBe(true);
+    });
+
     it('safeAbsolute resolves relative URLs and returns null on garbage', () => {
         expect(safeAbsolute('/api/x', ORIGIN)?.href).toBe('https://app.example/api/x');
         expect(safeAbsolute('http://[', '')).toBeNull();
