@@ -166,13 +166,31 @@ describe('SpanBuffer', () => {
     it('keepalive over budget retains the tail and re-arms the timer', () => {
         vi.useFakeTimers();
         const api = new FakeApi();
+        // Sized to fit exactly the newest of two spans (packing is newest-wins), so this exercises a genuine
+        // partial pack rather than the nothing-fits case (see the fallback tests below for that one).
+        const buffer = makeBuffer(baseConfig({ keepaliveMaxBytes: 900, spanFlushIntervalMs: 5000 }), api);
+        buffer.add(span('1'));
+        buffer.add(span('2'));
+        buffer.flush({ keepalive: true });
+        expect(api.traceEnvelopes).toHaveLength(1); // only the newest span fit
+        expect(api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans).toHaveLength(1);
+        expect(buffer.length()).toBe(1); // the older span retained
+        vi.advanceTimersByTime(5000); // re-armed timer drains it normally
+        expect(api.traceEnvelopes).toHaveLength(2);
+    });
+
+    it('keepalive with nothing fitting the budget ships the whole buffer without keepalive instead of dropping it', () => {
+        const api = new FakeApi();
         const buffer = makeBuffer(baseConfig({ keepaliveMaxBytes: 1, spanFlushIntervalMs: 5000 }), api);
         buffer.add(span('1'));
+        buffer.add(span('2'));
         buffer.flush({ keepalive: true });
-        expect(api.traceEnvelopes).toHaveLength(0); // nothing fit the 1-byte budget
-        expect(buffer.length()).toBe(1); // retained
-        vi.advanceTimersByTime(5000); // re-armed timer drains it normally
+        // Nothing fits a 1-byte budget. A cancellable normal fetch beats silent retention on a page that is
+        // unloading, so the whole buffer ships anyway, just without keepalive.
         expect(api.traceEnvelopes).toHaveLength(1);
+        expect(api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans).toHaveLength(2);
+        expect(api.lastTraceKeepalive).toBe(false);
+        expect(buffer.length()).toBe(0);
     });
 
     it('clear() empties the buffer', () => {
@@ -254,10 +272,10 @@ describe('SpanBuffer', () => {
         expect(api.traceEnvelopes).toHaveLength(1);
     });
 
-    it('logs one console.error for all keepalive-dropped spans, not one per span', () => {
+    it('logs one console.error for all keepalive-dropped spans, not one per span, then ships them via the fallback', () => {
         const err = vi.spyOn(console, 'error').mockImplementation(() => {});
         const api = new FakeApi();
-        // keepaliveMaxBytes: 1 means nothing fits, so every buffered span is dropped by packForKeepalive.
+        // keepaliveMaxBytes: 1 means nothing fits, so packForKeepalive rejects every candidate.
         const cfg = baseConfig({ debug: true, maxSpanBufferSize: 200, keepaliveMaxBytes: 1 });
         const buffer = makeBuffer(cfg, api);
         for (let i = 0; i < 100; i++) {
@@ -266,9 +284,14 @@ describe('SpanBuffer', () => {
 
         buffer.flush({ keepalive: true });
 
-        expect(api.traceEnvelopes).toHaveLength(0); // nothing fit the 1-byte budget
+        // packForKeepalive still logs the rejection once, for all 100 candidates...
         expect(err).toHaveBeenCalledTimes(1);
         expect(err).toHaveBeenCalledWith(expect.stringContaining('100'));
+        // ...but the whole buffer ships anyway through the no-room-left fallback, just without keepalive.
+        expect(api.traceEnvelopes).toHaveLength(1);
+        expect(api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans).toHaveLength(100);
+        expect(api.lastTraceKeepalive).toBe(false);
+        expect(buffer.length()).toBe(0);
 
         err.mockRestore();
     });

@@ -122,15 +122,27 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
         const resource = this.policy.resourceForFlush();
 
         let selected: BufferEntry<TRecord>[];
+        let sendKeepalive = !!opts?.keepalive;
         if (opts?.keepalive) {
             selected = this.packForKeepalive(config, resource);
-            this.entries = this.entries.filter((entry) => !selected.includes(entry));
-            // Summed from what is retained rather than subtracted, because summing cached numbers is cheap and
-            // cannot drift out of step with the filter.
-            this.bufferedBytes = this.entries.reduce((sum, entry) => sum + entry.bytes, 0);
-            // Re-arm the interval so retained records flush on resume without waiting for the next capture.
-            if (this.entries.length > 0) {
-                this.armTimer(this.policy.limits(config));
+            if (selected.length === 0) {
+                // Nothing fits what is left of the shared budget. Sending the whole buffer without keepalive
+                // beats silent retention on a page that is unloading, and (this buffer has no notion of
+                // traceId) it keeps a trace whole instead of packForKeepalive dropping a fat root while
+                // shipping its leaner children.
+                selected = this.entries;
+                this.entries = [];
+                this.bufferedBytes = 0;
+                sendKeepalive = false;
+            } else {
+                this.entries = this.entries.filter((entry) => !selected.includes(entry));
+                // Summed from what is retained rather than subtracted, because summing cached numbers is cheap
+                // and cannot drift out of step with the filter.
+                this.bufferedBytes = this.entries.reduce((sum, entry) => sum + entry.bytes, 0);
+                // Re-arm the interval so retained records flush on resume without waiting for the next capture.
+                if (this.entries.length > 0) {
+                    this.armTimer(this.policy.limits(config));
+                }
             }
         } else {
             selected = this.entries;
@@ -157,7 +169,7 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
                     resource,
                 ),
                 config,
-                !!opts?.keepalive,
+                sendKeepalive,
             );
         } catch (error) {
             // The buffer is already drained above, so this batch is gone either way.

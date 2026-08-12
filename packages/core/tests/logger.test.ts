@@ -174,7 +174,7 @@ describe('Logger triggers', () => {
         expect(logger.bufferLength()).toBe(1);
     });
 
-    it('backgrounded tab keeps over-keepalive records and ships them on a later normal flush', () => {
+    it('ships the whole buffer without keepalive when nothing fits the keepalive budget', () => {
         const api = new FakeApi();
         const logger = makeLogger(
             makeConfig({ keepaliveMaxBytes: 2000, logFlushMaxBytes: 1_000_000, logFlushIntervalMs: 999_999 }),
@@ -182,14 +182,10 @@ describe('Logger triggers', () => {
         );
         logger.info('x'.repeat(5000)); // > keepaliveMaxBytes, < logFlushMaxBytes
 
-        // visibilitychange:hidden on a backgrounded (not unloading) tab. Nothing fits the keepalive budget, so no
-        // envelope ships and the record must survive.
+        // visibilitychange:hidden, possibly on a tab that is unloading. Nothing fits the keepalive budget, so
+        // packForKeepalive selects nothing; a cancellable normal fetch beats retaining the record behind a
+        // timer that may never fire again.
         logger.flush({ keepalive: true });
-        expect(api.logEnvelopes).toHaveLength(0);
-        expect(logger.bufferLength()).toBe(1);
-
-        // Tab resumes; a normal flush ships the retained record.
-        logger.flush();
         expect(api.logEnvelopes).toHaveLength(1);
         expect(api.lastLogKeepalive).toBe(false);
         const bodies = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords.map((r) => r.body);
