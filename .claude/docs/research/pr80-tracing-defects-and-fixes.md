@@ -162,17 +162,9 @@ navigation call sites (`onUrlChanged` and the navigation source's `startNavigati
 `endRootAndFlush` still does. `webVitals.ts` is unchanged: the latch was never the problem, the trigger
 was.
 
-**Decided 2026-08-12.** The alternative was to let a moved LCP or a late INP ship as a correction, which
-means more than one vitals span per page view. The backend cannot reliably treat a later value as
-replacing an earlier one for the same page view today, so **one span per document stands, and losing
-vitals on a page whose hide event never fires is accepted.**
-
-Worth knowing about the trigger that remains: `endRootAndFlush` runs on `pagehide` and on
-`visibilitychange: hidden`, and the second fires on a plain tab switch. So the practical capture point is
-whichever comes first, which for a user who tabs away early is still an incomplete INP, just far later
-than a route change. Restricting the emit to `pagehide` alone would capture more per page at the cost of
-a higher miss rate. That is a one-line change in `startBrowserTracing` if the miss rate turns out to be
-lower than expected in production.
+The span-count decision and the one caveat that is still open (the remaining trigger fires on a plain tab
+switch, so the practical capture point is the first tab-away) live in `../needs-your-attention.md`,
+sections 4.7 and 5. Do not restate them here; that file is the tracked one.
 
 **Test churn.** `browserTracing.test.ts`: the two tests asserting a navigation emit now assert the
 opposite, the pair asserting emit ordering on navigation is gone (the page-hide ordering test already

@@ -6,9 +6,11 @@ not spread across nine plan files and a chat log.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-04, at branch tip `d702e80`. **All nine plans are complete.** Gate at that commit:
-build and type check exit 0, oxlint 21 warnings (all pre-existing), 197 test files / 1636 tests,
-134 end-to-end tests passing, pack check clean on all 12 published packages, working tree clean.
+Last updated 2026-08-12, at branch tip `c371f11`. **All nine plans are complete**, and an adversarial
+review has since landed six defect fixes plus three of its low findings (see
+`research/pr80-tracing-defects-and-fixes.md` and `research/pr80-tracing-low-findings.md`). Gate at that
+commit: build and type check exit 0, oxlint 0 errors, 1725 unit tests, 136 end-to-end tests passing,
+working tree clean. Pack check not re-run since `d702e80`.
 
 What is left is in this file: two backend agreements, four manual checks, three release-note items, and a
 handful of findings deliberately left alone.
@@ -161,7 +163,25 @@ that already gets checked; widening the check itself was never one of its tasks.
 the second one got more valuable to close, because plan 6 moved the end-to-end specs onto typed helpers that
 no compiler currently reads.
 
-### 4.7 The comment standard has nothing holding it
+### 4.7 Web vitals: the capture point is the first tab-away, not the end of the session
+
+`packages/js/src/tracing/browserTracing.ts:333` is now the only `emitWebVitals` call, reached from
+`endRootAndFlush`, which runs on both `pagehide` and `visibilitychange: hidden`. The second of those fires on
+a plain tab switch, so on a session where the user tabs away early that is where the one span is built. LCP is
+genuinely final by then (the spec stops tracking it at first hidden), but CLS and INP are not.
+
+**If ignored:** vitals still arrive for almost every page view, but INP and CLS under-report on any session
+with an early tab switch. The number is wrong in a direction that looks plausible, which is the bad kind.
+
+**The alternative is one line:** drop `visibilitychange` from that path and emit on `pagehide` only. That
+captures more per page and loses everything on the pages where `pagehide` never fires. Which is better
+depends on the real `pagehide` miss rate in production, which nobody here can measure.
+
+**Verified:** that both events reach `endRootAndFlush`, and that a vital reporting after a navigation now
+lands in the hide-time span (`packages/js/tests/browserTracing.test.ts`). **Not verified:** any miss rate,
+or how much INP actually moves after a first tab switch in the field.
+
+### 4.8 The comment standard has nothing holding it
 
 Plan 8 applied the comment standard by hand: em dashes in `packages/*/src` went from 6 to 0, shouty capitals
 came down, and over-long comments were cut. **Nothing in continuous integration holds any of that.** The next
@@ -175,7 +195,7 @@ command-line flag references, so that rule needs to allow those.
 This is a decision, not a defect: it is your call whether the standard is worth enforcing mechanically or
 whether a periodic manual pass is good enough.
 
-### 4.8 `npm run format` is not idempotent
+### 4.9 `npm run format` is not idempotent
 
 Running it repo-wide produces drift in files nobody touched, so a formatting run cannot be trusted to be a
 no-op on an already-formatted tree. This surfaced when a task ran it, saw unrelated files change, and had to
@@ -184,7 +204,7 @@ revert them by hand to keep its commit clean.
 It is a nuisance rather than a defect: it makes "just run the formatter" an unsafe instruction, because the
 result has to be inspected before committing. Worth tracking down whichever rule is unstable.
 
-### 4.9 Two small repo inconsistencies
+### 4.10 Two small repo inconsistencies
 
 - `packages/node/package.json` has **no `contributors` field at all**, which is inconsistent under either
   convention. It is the one manifest that needs an edit whichever way you eventually go.
@@ -198,12 +218,14 @@ result has to be inspected before committing. Worth tracking down whichever rule
 
 Recorded so they are not reopened. No action needed.
 
-| Decision                    | Choice                                                                                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Version bump                | **2.7.0 lockstep minor**, held until backend aliasing is confirmed deployed. `react-native` 2.7.0, `core` 2.7.0, `node` 0.7.0, `electron` 2.7.0. Fallback is 3.0.0 if aliasing slips.      |
-| `nextjs` `removeSourcemaps` | Keep `?? true` and treat the old `?? false` as the bug. Scope removal to the client pass. Document the divergence from `@flareapp/webpack` and `@flareapp/vite` rather than aligning them. |
-| `contributors` convention   | Leave alone. The mixed state ships as-is.                                                                                                                                                  |
-| PRs #84 and #81             | Both stay open, you handle them. #84 is fully superseded (its `framework.ts` is blob-identical to this branch's) but was not closed.                                                       |
+| Decision                     | Choice                                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Version bump                 | **2.7.0 lockstep minor**, held until backend aliasing is confirmed deployed. `react-native` 2.7.0, `core` 2.7.0, `node` 0.7.0, `electron` 2.7.0. Fallback is 3.0.0 if aliasing slips.                                                       |
+| `nextjs` `removeSourcemaps`  | Keep `?? true` and treat the old `?? false` as the bug. Scope removal to the client pass. Document the divergence from `@flareapp/webpack` and `@flareapp/vite` rather than aligning them.                                                  |
+| `contributors` convention    | Leave alone. The mixed state ships as-is.                                                                                                                                                                                                   |
+| PRs #84 and #81              | Both stay open, you handle them. #84 is fully superseded (its `framework.ts` is blob-identical to this branch's) but was not closed.                                                                                                        |
+| Web vitals span count        | **One `browser_web_vital` span per document, emitted at page hide.** Emitting on the first navigation as well was the bug: it froze LCP, CLS and INP a second after load. Losing vitals on a page whose hide event never fires is accepted. |
+| Web vitals value corrections | **Rejected.** Letting a moved LCP or a late INP ship as a second span would need the backend to treat a later value as replacing an earlier one for the same page view, which it cannot do reliably today. Do not re-propose without that.  |
 
 Three extractions were also deliberately **refused** during plan 6, each because a shared helper would have
 needed flags to paper over real differences: a shared navigation tracker across the five routers, a shared
