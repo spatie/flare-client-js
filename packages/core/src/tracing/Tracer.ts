@@ -143,6 +143,25 @@ export class Tracer {
         this.holder.setActiveRoot?.(span);
     }
 
+    /**
+     * Take one span against `traceId`'s cap up front, for a caller that publishes a span id before the
+     * span exists (the component profilers do; their descendants record first). False means the trace is
+     * full and the caller should stay transparent instead of handing out an id the cap will refuse.
+     * Consumed by the matching `startSpan({ claimed: true })`.
+     */
+    claimSpanSlot(traceId: string): boolean {
+        const config = this.deps.getConfig();
+        if (!config.enableTracing) {
+            return false;
+        }
+        const state = this.traceStates.get(traceId);
+        if (!state || !state.recording || state.startedSpanCount >= config.maxSpansPerTrace) {
+            return false;
+        }
+        state.startedSpanCount++;
+        return true;
+    }
+
     addSpanListener(fn: SpanLifecycleListener): () => void {
         this.spanListeners.add(fn);
         return () => {
@@ -238,7 +257,10 @@ export class Tracer {
         const { traceId, parentSpanId, state } = this.resolveTrace(spanId, name, opts, config, continuation);
 
         let recording = state.recording;
-        if (state.startedSpanCount >= config.maxSpansPerTrace) {
+        // A claimed span already paid for its slot, so it skips both the check and the increment.
+        if (opts.claimed) {
+            // already counted
+        } else if (state.startedSpanCount >= config.maxSpansPerTrace) {
             recording = false;
             // Once per trace: a root that never closes would otherwise log on every span for the page's lifetime.
             if (config.debug && !state.loggedCap) {

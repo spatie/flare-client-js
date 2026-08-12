@@ -20,7 +20,7 @@ import {
 export type BrowserTracingFlare = {
     readonly config: Config;
     startSpan(name: string, opts?: SpanOptions): Span;
-    tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan'>;
+    tracer: Pick<Tracer, 'addSpanListener' | 'setActiveRoot' | 'flush' | 'getActiveSpan' | 'claimSpanSlot'>;
 };
 
 // Module state, not per-Flare-instance: one browser tracing session runs at a time for the whole

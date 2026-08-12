@@ -30,7 +30,10 @@ export function __flareProfileComponent(name: string): void {
             return;
         }
 
-        const spanId = reserveSpanId();
+        const spanId = reserveSpanId(parent.traceId);
+        if (!spanId) {
+            return;
+        }
         const startTimeUnixNano = nowNano();
 
         setContext(PROFILE_KEY, { traceId: parent.traceId, parentSpanId: spanId });

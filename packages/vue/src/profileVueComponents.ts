@@ -61,7 +61,10 @@ export function createComponentProfilerMixin(matches: (name: string) => boolean)
                 // context or that root. It keeps the type non-null without a branch that never runs.
                 const parent = resolveComponentParent(nearestMarker(internal), live) ?? live;
 
-                const spanId = reserveSpanId();
+                const spanId = reserveSpanId(parent.traceId);
+                if (!spanId) {
+                    return;
+                }
                 internal[PROFILE] = {
                     marker: { traceId: parent.traceId, parentSpanId: spanId },
                     pending: { name, spanId, startNano: nowNano(), parent },

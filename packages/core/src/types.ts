@@ -210,6 +210,8 @@ export type SpanOptions = {
     forceRoot?: boolean;
     /** Use this exact span id instead of generating one (manual span stitching). */
     spanId?: string;
+    /** This span's slot against `maxSpansPerTrace` was already taken by `Tracer.claimSpanSlot`. */
+    claimed?: boolean;
 };
 
 export interface Span {

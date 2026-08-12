@@ -173,6 +173,45 @@ describe('FlareProfiler', () => {
         });
     });
 
+    it('reserves once per plain mount, but once per discarded render under Suspense', async () => {
+        // Pins the cost of claiming a maxSpansPerTrace slot at reserve time (see Tracer.claimSpanSlot):
+        // React drops a suspended fiber and re-renders with fresh refs, so each attempt claims again while
+        // only the committed one records. Fine at 1024 spans, but it should not get worse unnoticed.
+        render(
+            <FlareProfiler name="Plain">
+                <div>content</div>
+            </FlareProfiler>,
+        );
+        expect(fake.reserveSpanId.mock.calls).toHaveLength(1);
+
+        fake.reset();
+        let ready = false;
+        let resolve!: () => void;
+        const pending = new Promise<void>((r) => (resolve = r));
+        function Suspender(): ReactNode {
+            if (!ready) {
+                throw pending;
+            }
+            return <div>ready</div>;
+        }
+        render(
+            <Suspense fallback={<div>loading</div>}>
+                <FlareProfiler name="Deferred">
+                    <Suspender />
+                </FlareProfiler>
+            </Suspense>,
+        );
+        ready = true;
+        resolve();
+
+        await vi.waitFor(() => {
+            expect(calls().filter((c) => c.name === 'Deferred')).toHaveLength(1);
+        });
+        // One span recorded, but the discarded renders each took a reservation.
+        expect(fake.reserveSpanId.mock.calls.length).toBeGreaterThan(1);
+        expect(fake.reserveSpanId.mock.calls.length).toBeLessThanOrEqual(3);
+    });
+
     it('re-homes a descendant to the live root when the inherited ancestor context is from a dead trace', () => {
         // Ancestor (a persistent layout) mounts under the initial pageload trace R1.
         fake.setRoot({ traceId: 'R1', parentSpanId: 'r1root' });

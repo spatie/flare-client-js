@@ -10,8 +10,14 @@ export type ComponentTraceContext = { traceId: string; parentSpanId: string };
 /** Unix nanos on the same clock the tracer uses for span timestamps. */
 export const nowNano = defaultNowNano;
 
-/** Reserved up front so descendants can point at a span before it is recorded. */
-export function reserveSpanId(): string {
+/**
+ * Reserved up front so descendants can point at a span before it is recorded. Null when the trace is at
+ * its span cap: descendants record before this span does, so an id the cap will refuse orphans them.
+ */
+export function reserveSpanId(traceId?: string): string | null {
+    if (traceId !== undefined && !activeTracingFlare()?.tracer.claimSpanSlot(traceId)) {
+        return null;
+    }
     return makeSpanId();
 }
 
@@ -75,6 +81,7 @@ export function recordComponentSpan(record: ComponentSpanRecord): void {
                 spanType: BrowserSpanType.Component,
                 startTimeUnixNano: record.startTimeUnixNano,
                 attributes: { ...record.attributes, 'flare.component.name': record.name },
+                claimed: true, // taken in reserveSpanId
             })
             .end(record.endTimeUnixNano);
     } catch {

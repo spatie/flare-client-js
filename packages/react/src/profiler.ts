@@ -51,7 +51,8 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
     const ownRef = useRef<{ spanId: string; startNano: number } | null>(null);
     if (parent && ownRef.current === null) {
         try {
-            ownRef.current = { spanId: reserveSpanId(), startNano: nowNano() };
+            const spanId = reserveSpanId(parent.traceId);
+            ownRef.current = spanId ? { spanId, startNano: nowNano() } : null;
         } catch {
             // leave ownRef null: the mount effect no-ops and this component stays transparent
         }
