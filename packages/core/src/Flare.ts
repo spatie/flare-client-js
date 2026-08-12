@@ -23,6 +23,9 @@ import {
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
 
+/** The only scope attributes a span inherits. See `getScopeAttributes`. */
+const SPAN_SCOPE_KEYS: readonly string[] = [USER_FIELD_KEYS.id];
+
 export type ContextCollector = (config: Readonly<Config>) => Attributes;
 
 const DEFAULT_SDK_NAME = '@flareapp/core';
@@ -542,10 +545,22 @@ export class Flare {
         };
     }
 
-    /** Local roots only, snapshotted by the Tracer at span START so a long-lived root does not drift into
-     *  the next page's scope. Children get none, and no span ever runs the DOM collector. */
+    /**
+     * Local roots only, snapshotted by the Tracer at span START so a long-lived root does not drift into
+     * the next page's scope. Children get none, and no span ever runs the DOM collector.
+     *
+     * Allowlisted, not the whole scope: a root span goes out for every page view, so the email, IP and
+     * context bags an error report carries would turn normal browsing into PII traffic.
+     */
     private getScopeAttributes(): Attributes {
-        return this.assembleAttributes({}, {}, false);
+        const all = this.assembleAttributes({}, {}, false);
+        const scoped: Attributes = {};
+        for (const key of SPAN_SCOPE_KEYS) {
+            if (all[key] !== undefined) {
+                scoped[key] = all[key];
+            }
+        }
+        return scoped;
     }
 
     private spanResourceAttributes(): Attributes {
