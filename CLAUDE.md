@@ -63,7 +63,8 @@ package, and a Playwright-based e2e suite:
 ## Commands (run from repo root)
 
 ```bash
-npm run build              # Build all packages
+npm run build              # Build all packages under packages/ (never the playgrounds)
+npm run build:playgrounds  # Build the playground apps
 npm run test               # Run vitest across workspaces (after build)
 npm run typescript         # Type-check all packages
 npm run format             # Run oxfmt on all files
@@ -146,7 +147,7 @@ SDK uniformly across frameworks.
   stylesheet declares `@theme` tokens. Don't duplicate `tailwindcss` config.
 - Sourcemap upload: every playground runs the real bundler plugin on `build` — the five vite ones through
   `flareSourcemapsForPlayground(mode)`, the Next.js one through `withFlareSourcemaps` in its
-  `next.config.mjs`. Uploading is opt-in, so a repo-wide `npm run build` never talks to flareapp.io. It
+  `next.config.mjs`. Uploading is opt-in, so `npm run build:playgrounds` never talks to flareapp.io. It
   switches on when `VITE_FLARE_URL` / `NEXT_PUBLIC_FLARE_URL` is set (the endpoint is that URL's origin plus
   `/api/sourcemaps`, so e2e lands on the fake server) or when `FLARE_UPLOAD_SOURCEMAPS=1` is exported, which
   uploads to real Flare with the `.env` key. `vite dev` never uploads.

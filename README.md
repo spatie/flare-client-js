@@ -67,7 +67,8 @@ All commands are run from the repository root:
 
 | Command                            | Description                                                                                    |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `npm run build`                    | Build all packages to their respective `dist` folders                                          |
+| `npm run build`                    | Build all packages to their respective `dist` folders (playgrounds are not built)              |
+| `npm run build:playgrounds`        | Build the playground apps                                                                      |
 | `npm run test`                     | Run tests for all packages that have them                                                      |
 | `npm run typescript`               | Type-check all packages                                                                        |
 | `npm run format`                   | Run oxfmt across all files                                                                     |

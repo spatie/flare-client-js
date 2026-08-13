@@ -117,6 +117,43 @@ jobs:
       - name: Typecheck e2e harness
         run: npm run typecheck:e2e
 
+  playgrounds:
+    name: Build playgrounds
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+
+      - name: Restore node_modules
+        id: node-modules-cache
+        uses: actions/cache@v6
+        with:
+          path: '**/node_modules'
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies (cache miss fallback)
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+
+      - name: Unpack dist
+        run: tar -xzf dist.tar.gz
+
+      # Smoke test for the bundler plugins: this is the only place `next build` runs
+      # withFlareSourcemaps end to end. Sourcemap upload stays off without VITE_FLARE_URL.
+      - name: Build playgrounds
+        run: npm run build:playgrounds
+
   e2e:
     name: E2E
     needs: setup

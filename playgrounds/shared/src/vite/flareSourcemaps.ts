@@ -7,9 +7,9 @@ const REAL_FLARE_ENDPOINT = 'https://flareapp.io/api/sourcemaps';
  * Wires @flareapp/vite into a playground build so every playground exercises the real
  * sourcemap upload plugin.
  *
- * Uploading is opt-in, because the repo root `npm run build` builds the playgrounds too and
- * should not talk to flareapp.io on its own. It turns on when VITE_FLARE_URL is set (the e2e
- * run, pointing at the fake Flare server) or when FLARE_UPLOAD_SOURCEMAPS=1 is exported.
+ * Uploading is opt-in, because a plain playground build should not talk to flareapp.io on its
+ * own. It turns on when VITE_FLARE_URL is set (the e2e run, pointing at the fake Flare server)
+ * or when FLARE_UPLOAD_SOURCEMAPS=1 is exported.
  *
  * @param mode The vite mode, from `defineConfig(({ mode }) => ...)`.
  */
