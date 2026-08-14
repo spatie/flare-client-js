@@ -114,21 +114,78 @@ internals change. This removes the special case rather than adding a second one 
 
 ### Configuration
 
-Two options:
+Four options:
 
 - `enableBreadcrumbs: boolean`, default `true`
 - `maxBreadcrumbs: number`, default `100`
+- `maxBreadcrumbBytes: number`, default `64_000`
+- `maxBreadcrumbEntryBytes: number`, default `8_000`
 
-One shared buffer across all recorders, dropping oldest. This is Sentry's number and Sentry's
-behaviour. The buffer is not cleared on route change, so it spans the whole page session.
+One shared buffer across all recorders, dropping oldest. The buffer is not cleared on route change,
+so it spans the whole page session.
 
 PHP's per-recorder `withErrors`, `withTraces` and max-items exist in the recorder structure but are
 not exposed yet. Exposing them later needs no rewrite.
 
 PHP defaults to 100 items _per recorder_. That number is not copied, because a PHP recorder lives for
-one request and a browser recorder lives for a whole session. A shared 100 is the deliberate choice.
-Its known weakness: a chatty application can fill the buffer with requests and push out the clicks.
-Per-recorder caps are the fix, and they arrive with per-recorder config.
+one request and a browser recorder lives for a whole session. A shared 100 is the deliberate choice,
+and it is Sentry's number and Sentry's behaviour.
+
+#### The buffer is bounded twice: by entries and by bytes
+
+A count alone does not bound the payload. The automatic entries are small and predictable, but
+`glow.metaData` is arbitrary host data with no size limit of its own (`glowsToEvents.ts:13` passes it
+straight through), so 100 entries can mean 20 KB or 20 MB.
+
+Serialized size of one entry, measured against the shapes in this document:
+
+| Entry                      | Bytes |
+| -------------------------- | ----- |
+| Click                      | 228   |
+| Form input                 | 213   |
+| Fetch, short URL           | 269   |
+| Fetch, long query string   | 417   |
+| Route change               | 264   |
+| Glow, small context object | 190   |
+
+A completely full buffer of automatic entries is 24 KB (click-heavy page) to 41 KB (100 long-URL
+fetches, the worst automatic case).
+
+`maxBreadcrumbBytes: 64_000` sits above that worst case on purpose. It must never fire during normal
+use, or it silently shortens the timeline for busy applications; the only realistic way to reach it
+is fat glow context, which is exactly the input that needs a ceiling. It also keeps breadcrumbs a
+minority share of the report, where stack-trace snippets already dominate at up to 41 lines per frame
+and 1000 characters per line (`fileReader.ts:68`).
+
+Enforcement mirrors `TelemetryBuffer.trim()` (`TelemetryBuffer.ts:229`): drop oldest until the buffer
+is under the ceiling.
+
+`maxBreadcrumbEntryBytes: 8_000` covers what trimming cannot. One oversized entry is not fixable by
+dropping the entries around it, so a single glow carrying a serialized API response would evict the
+whole click history and still leave the buffer over budget. An entry over this cap is dropped whole
+rather than truncated: a half-serialized context object reads as real data to whoever is debugging.
+At 8 KB a normal entry has twenty times the headroom it uses, so nothing legitimate is refused.
+
+Size is measured when the entry is added, not when the report is sent. `glow.metaData` is held by
+reference, so a host can mutate it afterwards and the recorded size drifts. That is accepted here.
+The equivalent drift is re-measured on the keepalive path (`envelope.ts:60`) because a browser limit
+is hard and an estimate is not; the report has no such limit, so an estimate on add is enough.
+
+#### Glows keep a reserved floor
+
+Today `maxGlowsPerReport: 30` is space nothing else can take. Moving glows into one shared buffer
+removes that guarantee, and the loss is worse than it first looks: a page firing 100 requests would
+evict every breadcrumb a developer deliberately placed, and keep the automatic noise that pushed them
+out.
+
+So eviction skips glows while the buffer holds 30 or fewer of them, and falls back to plain
+drop-oldest when glows are all that is left. Existing behaviour is preserved exactly: an application
+that only calls `flare.glow()` still gets its 30, and an application that calls it rarely never loses
+those calls to click noise.
+
+The remaining known weakness is unchanged from PHP: a chatty application can still fill the
+non-reserved part of the buffer with requests and push out the clicks. Per-recorder caps are the fix,
+and they arrive with per-recorder config.
 
 ### Interception is subscriber-driven
 
@@ -217,8 +274,13 @@ already knows from the tracing work.
   implementation rather than assuming.
 - The timeline labels `browser_route_change` as "Navigation".
 
-No ingest changes. `v1/errors` accepts 550,000 characters, well above what 100 buffered entries
-produce.
+No ingest changes expected, but confirm the limit before implementing rather than after. The figure
+carried into this design was 550,000 characters for `v1/errors`, and it is unverified: nothing in the
+client repo records it. A full breadcrumb buffer measures 24 KB to 41 KB (see Configuration), so the
+margin looks comfortable, but the failure mode is not graceful. `Api.report()` sends one POST and
+only logs the response when `debug` is on (`Api.ts:132`), so a report over the limit loses the whole
+error, not just its breadcrumbs. If the real limit is materially lower than 550,000, revisit
+`maxBreadcrumbBytes`.
 
 ## Testing
 
@@ -227,6 +289,9 @@ produce.
   the trace is unsampled.
 - Core tests for the recorder base classes and for glows continuing to behave identically through
   the new path.
+- Core tests for the two byte limits: the buffer trims oldest once it passes `maxBreadcrumbBytes`, an
+  entry over `maxBreadcrumbEntryBytes` is dropped instead of truncated and does not evict anything,
+  and eviction leaves 30 glows alone until nothing else is left to drop.
 - A Playwright scenario in the playgrounds that clicks through a page, navigates, triggers a request
   and then throws, asserting the merged `events` array on the fake server.
 
@@ -236,5 +301,9 @@ produce.
 - Per-recorder configuration, deferred but structurally allowed for.
 - Writing breadcrumbs into the current span, deferred but structurally allowed for.
 - Whether `HttpRequestEventItem` renders the browser request attributes unchanged.
-- How `maxAttributesPerSpanEvent` and the report size interact once 100 entries are typical.
+- Confirming the real `v1/errors` size limit (see Backend design).
+- Whether report entries should get an attribute-count cap of their own. `maxAttributesPerSpanEvent`
+  looks like it covers this but does not: it is wired into the tracer only (`Tracer.ts:428` into
+  `Span.ts:91`), and `Report.events` never passes through `Span.addEvent()`. The byte limits above
+  bound the payload either way, so this is about readability, not size.
 - PHP's backtracing recorders record where an event came from in the code. Not mirrored.
