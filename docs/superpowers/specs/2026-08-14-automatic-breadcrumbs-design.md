@@ -109,20 +109,39 @@ trace spans through the tracing listener, which is unchanged.
 ### Glows become a recorder
 
 `Scope.glows`, its cap, `clearGlows()` and `glowsToEvents()` are replaced by a glow recorder on the
-same path as the automatic ones. `flare.glow()` keeps its current signature and behaviour; only the
-internals change. This removes the special case rather than adding a second one beside it.
+same path as the automatic ones. This removes the special case rather than adding a second one beside
+it.
+
+`flare.glow()` and `clearGlows()` keep their signatures. One behaviour does change: the 30-glow cap
+becomes a 30-glow reserve, so glow-heavy applications send more than they used to. That is the only
+user-visible difference, and it is described under Configuration.
 
 ### Configuration
 
-Four options:
+Four new options:
 
 - `enableBreadcrumbs: boolean`, default `true`
 - `maxBreadcrumbs: number`, default `100`
 - `maxBreadcrumbBytes: number`, default `64_000`
 - `maxBreadcrumbEntryBytes: number`, default `8_000`
 
+One existing option changes meaning rather than being removed:
+
+- `maxGlowsPerReport: number`, default `30`, now the reserved glow floor rather than a hard ceiling
+
 One shared buffer across all recorders, dropping oldest. The buffer is not cleared on route change,
 so it spans the whole page session.
+
+#### `maxGlowsPerReport` survives with a new meaning
+
+It is public and documented (`types.ts:29`, `Flare.ts:45`, `Scope.ts:38`, and
+`javascript/reference/configuration.md` on flareapp.io), so removing it would be a breaking change
+for no gain. It keeps its name and its default and becomes the size of the glow reserve described
+below. Raising it reserves more room for deliberate notes; lowering it gives automatic entries more
+of the buffer.
+
+The semantics do change, from a ceiling on glows to a floor under them, and that is a real
+behavioural change rather than a rename. See the note at the end of the reserve section.
 
 PHP's per-recorder `withErrors`, `withTraces` and max-items exist in the recorder structure but are
 not exposed yet. Exposing them later needs no rewrite.
@@ -154,7 +173,7 @@ fetches, the worst automatic case).
 `maxBreadcrumbBytes: 64_000` sits above that worst case on purpose. It must never fire during normal
 use, or it silently shortens the timeline for busy applications; the only realistic way to reach it
 is fat glow context, which is exactly the input that needs a ceiling. It also keeps breadcrumbs a
-minority share of the report, where stack-trace snippets already dominate at up to 41 lines per frame
+minority share of the report, where stack-trace snippets already dominate at up to 40 lines per frame
 and 1000 characters per line (`fileReader.ts:68`).
 
 Enforcement mirrors `TelemetryBuffer.trim()` (`TelemetryBuffer.ts:229`): drop oldest until the buffer
@@ -166,10 +185,21 @@ whole click history and still leave the buffer over budget. An entry over this c
 rather than truncated: a half-serialized context object reads as real data to whoever is debugging.
 At 8 KB a normal entry has twenty times the headroom it uses, so nothing legitimate is refused.
 
+**Keep the entry cap below the buffer cap.** At 8,000 against 64,000 no single entry can exceed the
+buffer ceiling, which is what lets eviction be a plain loop. `TelemetryBuffer` carries a "never trim
+to empty" guard (`TelemetryBuffer.ts:230`) precisely because it has no such relationship between its
+two limits, and a lone oversized record there would otherwise loop the buffer down to nothing. Raise
+`maxBreadcrumbEntryBytes` above `maxBreadcrumbBytes` and that bug comes back.
+
 Size is measured when the entry is added, not when the report is sent. `glow.metaData` is held by
 reference, so a host can mutate it afterwards and the recorded size drifts. That is accepted here.
 The equivalent drift is re-measured on the keepalive path (`envelope.ts:60`) because a browser limit
 is hard and an estimate is not; the report has no such limit, so an estimate on add is enough.
+
+**These bytes do not touch the keepalive allowance.** `maxBreadcrumbBytes: 64_000` sits close enough
+to the browser keepalive ceiling that logs and traces already share that the collision is worth ruling
+out once, in writing. There is none: reports are sent with `keepalive: false` (`Api.ts:51`) and
+`report()` never requests it (`Api.ts:116`). Breadcrumbs are charged against the report only.
 
 #### Glows keep a reserved floor
 
@@ -178,10 +208,37 @@ removes that guarantee, and the loss is worse than it first looks: a page firing
 evict every breadcrumb a developer deliberately placed, and keep the automatic noise that pushed them
 out.
 
-So eviction skips glows while the buffer holds 30 or fewer of them, and falls back to plain
-drop-oldest when glows are all that is left. Existing behaviour is preserved exactly: an application
-that only calls `flare.glow()` still gets its 30, and an application that calls it rarely never loses
-those calls to click noise.
+So eviction skips glows while the buffer holds `maxGlowsPerReport` or fewer of them, and falls back to
+plain drop-oldest when glows are all that is left. An application that calls `flare.glow()` rarely
+never loses those calls to click noise.
+
+**This is a floor, not the old ceiling, and that is a behavioural change.** Today `maxGlowsPerReport`
+caps glows hard: an application calling `flare.glow()` a hundred times sends thirty. Under the reserve
+it sends a hundred, because nothing evicts glows until something else needs the room. The guarantee
+delivered is "at least 30 glows survive", not "no more than 30 are sent", and glow-heavy applications
+will see their reports grow on upgrade. The byte ceiling is what bounds them now, which is the more
+honest limit anyway: thirty glows carrying fat context were always the larger payload risk than a
+hundred carrying none.
+
+#### Eviction, as one algorithm
+
+The entry cap, the byte ceiling and the glow reserve all evict, so their order is defined rather than
+left to the implementation. On add:
+
+1. Measure the serialized entry. If it exceeds `maxBreadcrumbEntryBytes`, drop it and stop. Nothing
+   else in the buffer is touched.
+2. Append it, and add its size to the running total.
+3. While the buffer is over `maxBreadcrumbs` entries or over `maxBreadcrumbBytes`, evict one entry:
+   the oldest entry that is not a glow, or the oldest entry of any kind once the buffer holds more
+   than `maxGlowsPerReport` glows.
+4. If step 3 finds nothing evictable, meaning every remaining entry is a glow and there are
+   `maxGlowsPerReport` or fewer of them, evict the oldest glow anyway. The caps are hard; the reserve
+   yields to them rather than the other way round.
+
+Step 1 before step 2 is what keeps an oversized entry from evicting history on its way to being
+rejected. Because `maxBreadcrumbEntryBytes` is below `maxBreadcrumbBytes`, step 3 always terminates
+with at least one entry left, so no equivalent of `TelemetryBuffer`'s "never trim to empty" guard is
+needed.
 
 The remaining known weakness is unchanged from PHP: a chatty application can still fill the
 non-reserved part of the buffer with requests and push out the clicks. Per-recorder caps are the fix,
@@ -274,24 +331,45 @@ already knows from the tracing work.
   implementation rather than assuming.
 - The timeline labels `browser_route_change` as "Navigation".
 
-No ingest changes expected, but confirm the limit before implementing rather than after. The figure
-carried into this design was 550,000 characters for `v1/errors`, and it is unverified: nothing in the
-client repo records it. A full breadcrumb buffer measures 24 KB to 41 KB (see Configuration), so the
-margin looks comfortable, but the failure mode is not graceful. `Api.report()` sends one POST and
-only logs the response when `debug` is on (`Api.ts:132`), so a report over the limit loses the whole
-error, not just its breadcrumbs. If the real limit is materially lower than 550,000, revisit
-`maxBreadcrumbBytes`.
+No ingest changes. The limit is confirmed: `routes/ingress.php:22` applies
+`maximumContentCharacters:550000` to `v1/errors`, and despite the name the middleware reads
+`CONTENT_LENGTH` (`MaximumContentCharacters.php:13`), so it is 550,000 **bytes** and compares directly
+against the budget above with no character-to-byte conversion in between. Over it, a 422.
+
+The margin is comfortable: a full breadcrumb buffer measures 24 KB to 41 KB of automatic entries, and
+`maxBreadcrumbBytes` caps the whole buffer at 64 KB, under 12% of the allowance. The failure mode is
+not graceful, which is why the ceiling exists at all rather than being left to the ingest limit:
+`Api.report()` sends one POST and only logs the response when `debug` is on (`Api.ts:132`), so a
+report over the limit loses the whole error, not just its breadcrumbs.
+
+## Implementation order
+
+This is more than one plan's worth of work, and the pieces have a natural order.
+
+1. **The glow migration and the buffer.** Recorder base classes, the shared buffer with its eviction
+   algorithm, glows moved onto it, `maxGlowsPerReport` given its new meaning. This is the only part
+   that changes behaviour every SDK already ships, so it lands on its own where a regression is
+   unambiguous rather than tangled up with new capture code.
+2. **The interception refactors.** Subscriber-driven install for fetch, XHR and the navigation seam,
+   with tracing as the only subscriber at first. Pure refactor: no new payload, and the existing
+   tracing tests are the proof.
+3. **The recorders and the backend.** Clicks, requests and navigation, plus the enum cases, attribute
+   keys and Debug tab components. Only here does anything new reach the wire.
+
+Steps 1 and 2 are independent of each other and can land in either order.
 
 ## Testing
 
 - Per-recorder unit tests in `packages/js/tests/`: selector building, the no-text and no-value
   guarantee, subscriber-driven install and uninstall, and that a breadcrumb is still recorded when
   the trace is unsampled.
-- Core tests for the recorder base classes and for glows continuing to behave identically through
-  the new path.
-- Core tests for the two byte limits: the buffer trims oldest once it passes `maxBreadcrumbBytes`, an
-  entry over `maxBreadcrumbEntryBytes` is dropped instead of truncated and does not evict anything,
-  and eviction leaves 30 glows alone until nothing else is left to drop.
+- Core tests for the recorder base classes, and for `flare.glow()` keeping its signature, its
+  ordering and its attributes through the new path. Its cap deliberately does not: assert the new
+  floor behaviour rather than the old ceiling.
+- Core tests for the eviction algorithm, one per numbered step: an entry over
+  `maxBreadcrumbEntryBytes` is dropped whole and evicts nothing; the buffer trims oldest once it
+  passes `maxBreadcrumbs` or `maxBreadcrumbBytes`; eviction passes over glows while there are
+  `maxGlowsPerReport` or fewer; a buffer of nothing but reserved glows still yields to a hard cap.
 - A Playwright scenario in the playgrounds that clicks through a page, navigates, triggers a request
   and then throws, asserting the merged `events` array on the fake server.
 
@@ -301,7 +379,6 @@ error, not just its breadcrumbs. If the real limit is materially lower than 550,
 - Per-recorder configuration, deferred but structurally allowed for.
 - Writing breadcrumbs into the current span, deferred but structurally allowed for.
 - Whether `HttpRequestEventItem` renders the browser request attributes unchanged.
-- Confirming the real `v1/errors` size limit (see Backend design).
 - Whether report entries should get an attribute-count cap of their own. `maxAttributesPerSpanEvent`
   looks like it covers this but does not: it is wired into the tracer only (`Tracer.ts:428` into
   `Span.ts:91`), and `Report.events` never passes through `Span.addEvent()`. The byte limits above
