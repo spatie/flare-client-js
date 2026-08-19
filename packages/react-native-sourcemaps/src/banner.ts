@@ -1,26 +1,19 @@
 export type FailureBannerInfo = {
-    /** Human-readable reason shown after "Reason:". */
     reason: string;
-    /** Resolved sourcemap path, interpolated into the recovery command. */
+    // Resolved values, interpolated into the recovery command the banner prints. Anything unset shows a
+    // labelled placeholder instead.
     sourcemap?: string;
-    /** Resolved relative_filename, interpolated into the recovery command. */
     bundleFilename?: string;
-    /** Resolved version, interpolated into the recovery command. */
     version?: string;
-    /** Resolved API key, interpolated into the recovery command. */
     apiKey?: string;
-    /** Resolved API endpoint; only included in the recovery command when set (custom endpoint). */
+    /** Only included in the recovery command when set, i.e. a custom endpoint. */
     apiEndpoint?: string;
 };
 
 const BORDER = '='.repeat(60);
 
-/**
- * Mask an API key for display in a build log, which CI commonly archives. A key
- * long enough to stay unguessable keeps a short head/tail so the user can still
- * recognise WHICH key it was; a short key is fully masked. Never returns the key
- * in full, so the secret cannot leak through the failure banner.
- */
+/** CI commonly archives build logs. A long key keeps a head/tail hint so it stays recognisable; a short
+ *  one is masked completely. Never returns the key in full. */
 export function maskApiKey(apiKey: string): string {
     if (apiKey.length <= 12) {
         return '*'.repeat(apiKey.length);
@@ -28,15 +21,7 @@ export function maskApiKey(apiKey: string): string {
     return `${apiKey.slice(0, 4)}${'*'.repeat(8)}${apiKey.slice(-4)}`;
 }
 
-/**
- * The deliberately large failure banner. A one-line "failed to upload" is too easy
- * to miss in a long native-build log, so this is a bordered block surrounded by
- * blank lines. Resolved values are interpolated into the re-run command so the
- * user can copy-paste it; unknown values show a labelled placeholder (in the
- * version-unset case `version` stays a placeholder — it is the value to supply).
- * The API key is the one exception: it is MASKED, never printed in full, because
- * this banner lands in the native build log.
- */
+/** Deliberately large: a one-line "failed to upload" is too easy to miss in a native build log. */
 export function formatFailureBanner(info: FailureBannerInfo): string {
     const sourcemap = info.sourcemap ?? '<path-to-map>';
     const bundleFilename = info.bundleFilename ?? '<bundle-filename>';

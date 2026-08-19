@@ -8,6 +8,8 @@ export const testIds = {
     confirmation: 'confirmation',
     brokenTrigger: (scenarioId: string) => `trigger-${scenarioId}`,
     logTrigger: (scenarioId: string) => `log-trigger-${scenarioId}`,
+    httpTrigger: (scenarioId: string) => `http-trigger-${scenarioId}`,
+    httpResult: 'http-result',
     boundaryFallback: 'boundary-fallback',
     boundaryReset: 'boundary-reset',
 } as const;

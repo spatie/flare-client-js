@@ -2,7 +2,10 @@
     "extends": "../../tsconfig.json",
     "compilerOptions": {
         "jsx": "react-jsx",
-        "types": ["@testing-library/jest-dom"]
+        "types": ["@testing-library/jest-dom"],
+        "paths": {
+            "@flareapp/test-helpers": ["../test-helpers/src/index.ts"]
+        }
     },
     "include": ["src", "tests"]
 }

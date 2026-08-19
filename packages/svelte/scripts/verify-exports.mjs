@@ -41,7 +41,9 @@ const paths = [];
     if (typeof node === 'string') {
         paths.push(node);
     } else if (node && typeof node === 'object') {
-        for (const v of Object.values(node)) collect(v);
+        for (const v of Object.values(node)) {
+            collect(v);
+        }
     }
 })(inject);
 for (const p of paths) {
@@ -50,22 +52,32 @@ for (const p of paths) {
     }
 }
 
-// Grep the RUNTIME target the map actually resolves to (not a hardcoded path) for the surface.
-const runtimeTarget = inject.import?.default ?? inject.svelte;
-const entry = runtimeTarget ? resolve(pkgDir, runtimeTarget) : null;
-if (!entry || !existsSync(entry)) {
-    fail(`runtime target ${runtimeTarget} does not exist (build first)`);
-} else {
+// Grep whatever target each entry actually resolves to, not a hardcoded path. Both entries need the
+// full set, because importSource decides which one the injected import points at.
+const expectedExports = [
+    'createFlareErrorHandler',
+    'FlareErrorBoundary',
+    '__flareRegisterComponent',
+    '__flareProfileComponent',
+    'withFlareConfig',
+    'flarePreprocessor',
+];
+const root = pkg.exports?.['.'];
+const entriesToCheck = {
+    '.': root?.import?.default ?? root?.svelte,
+    './inject': inject.import?.default ?? inject.svelte,
+};
+
+for (const [entryName, runtimeTarget] of Object.entries(entriesToCheck)) {
+    const entry = runtimeTarget ? resolve(pkgDir, runtimeTarget) : null;
+    if (!entry || !existsSync(entry)) {
+        fail(`exports["${entryName}"]: runtime target ${runtimeTarget} does not exist (build first)`);
+        continue;
+    }
     const src = readFileSync(entry, 'utf8');
-    for (const name of [
-        'createFlareErrorHandler',
-        'FlareErrorBoundary',
-        '__flareRegisterComponent',
-        'withFlareConfig',
-        'flarePreprocessor',
-    ]) {
+    for (const name of expectedExports) {
         if (!new RegExp(`\\b${name}\\b`).test(src)) {
-            fail(`${runtimeTarget} is missing export: ${name}`);
+            fail(`exports["${entryName}"] (${runtimeTarget}) is missing export: ${name}`);
         }
     }
 }
@@ -74,5 +86,5 @@ if (failed) {
     process.exit(1);
 }
 console.log(
-    `[verify-exports] OK — exports["./inject"] targets match (${paths.length} paths) and the runtime entry exposes the expected surface.`,
+    `[verify-exports] OK — exports["./inject"] targets match (${paths.length} paths) and both the root and inject entries expose the expected surface.`,
 );

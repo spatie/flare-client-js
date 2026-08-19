@@ -11,6 +11,19 @@ class FlareApiError extends Error {
 
 const RETRIABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
 
+function describeNetworkError(error: unknown): string {
+    if (!(error instanceof Error)) {
+        return String(error);
+    }
+    const cause = error.cause;
+    if (!(cause instanceof Error)) {
+        return error.message;
+    }
+    const code = (cause as { code?: unknown }).code;
+    const detail = typeof code === 'string' ? `${code}: ${cause.message}` : cause.message;
+    return detail ? `${error.message} (${detail})` : error.message;
+}
+
 export class FlareApi {
     constructor(
         private readonly endpoint: string,
@@ -56,8 +69,7 @@ export class FlareApi {
                 }
 
                 if (attempt === maxRetries) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    throw new Error(`Network error after ${maxRetries} attempts: ${message}`, {
+                    throw new Error(`Network error after ${maxRetries} attempts: ${describeNetworkError(error)}`, {
                         cause: error,
                     });
                 }

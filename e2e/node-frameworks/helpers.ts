@@ -7,14 +7,18 @@ import type { FakeFlareRecord } from '../fake-flare-server/types';
 
 const fakeBaseUrl = (): string => {
     const url = process.env.FAKE_FLARE_URL;
-    if (!url) throw new Error('FAKE_FLARE_URL not set. globalSetup must run before these tests.');
+    if (!url) {
+        throw new Error('FAKE_FLARE_URL not set. globalSetup must run before these tests.');
+    }
     return url;
 };
 
 /** Clear all captured reports on the fake server. */
 export const resetReports = async (): Promise<void> => {
     const res = await fetch(`${fakeBaseUrl()}/__inspect/reset`, { method: 'POST' });
-    if (!res.ok) throw new Error(`inspect reset returned ${res.status}`);
+    if (!res.ok) {
+        throw new Error(`inspect reset returned ${res.status}`);
+    }
 };
 
 /** Poll the fake server until a recorded report matches `predicate`, or time out. */
@@ -26,11 +30,15 @@ export const waitForReport = async (
     let lastCount = 0;
     while (Date.now() < deadline) {
         const res = await fetch(`${fakeBaseUrl()}/__inspect/reports`);
-        if (!res.ok) throw new Error(`inspect reports returned ${res.status}`);
+        if (!res.ok) {
+            throw new Error(`inspect reports returned ${res.status}`);
+        }
         const records = (await res.json()) as FakeFlareRecord[];
         const reports = records.filter((r) => r.endpoint === 'reports');
         const match = reports.find(predicate);
-        if (match) return match;
+        if (match) {
+            return match;
+        }
         lastCount = reports.length;
         await new Promise((r) => setTimeout(r, 50));
     }
@@ -62,7 +70,7 @@ export const close = (server: Server): Promise<void> =>
  * handlers so a framework-caught error never exits the test process.
  */
 export const setupFlare = (): void => {
-    flare.configure({ ingestUrl: `${fakeBaseUrl()}/api/reports` });
+    flare.configure({ ingestUrl: `${fakeBaseUrl()}/v1/errors` });
     flare.configureNode({ uncaughtExceptionMode: 'off', unhandledRejectionMode: 'off' });
     // Synthetic key on purpose: reports go to the fake server, not real Flare. Do not wire an env key here.
     flare.light('node-frameworks-test');

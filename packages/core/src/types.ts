@@ -1,3 +1,6 @@
+import type { FrameworkName } from './framework';
+import type { SpanTypeName } from './spanTypes';
+
 export type MessageLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
 
 export type AttributeValue = string | number | boolean | null | AttributeValue[] | { [key: string]: AttributeValue };
@@ -5,14 +8,10 @@ export type AttributeValue = string | number | boolean | null | AttributeValue[]
 export type Attributes = Record<string, AttributeValue>;
 
 /**
- * An identified user passed to `Flare.setUser`. The four known fields project to the
- * report keys the Flare backend reads: `id`→`user.id`, `email`→`user.email`,
- * `fullName`→`user.full_name`, `ipAddress`→`client.address`. Any OTHER key is bundled
- * into `user.attributes`.
- *
- * Caveat: the open index signature means a misspelled known field (e.g. `fullname` or
- * `full_name` instead of `fullName`) does NOT raise a type error — it silently lands in
- * `user.attributes` rather than the identity key. Spell the four known fields exactly.
+ * An identified user passed to `Flare.setUser`. Known fields map to the backend keys: `id`->`user.id`,
+ * `email`->`user.email`, `fullName`->`user.full_name`, `ipAddress`->`client.address`. Any other key lands in
+ * `user.attributes`. Caveat: the open index signature means a misspelled known field (e.g. `full_name` for `fullName`)
+ * silently lands in `user.attributes` with no type error. Spell the four known fields exactly.
  */
 export type User = {
     id?: string | number;
@@ -42,6 +41,29 @@ export type Config = {
     logFlushIntervalMs: number;
     logFlushMaxBytes: number;
     keepaliveMaxBytes: number;
+    enableTracing: boolean;
+    tracesIngestUrl: string;
+    tracesSampleRate: number;
+    tracesSampler?: TracesSampler;
+    /**
+     * URLs a W3C `traceparent` header may be attached to on outgoing requests. Default (unset): same-origin + relative
+     * only; `[]` disables all injection. Each entry matches by String.includes (string) or RegExp.test. Attaching
+     * cross-origin forces a CORS preflight; the target server must allow the `traceparent` request header.
+     */
+    tracePropagationTargets?: (string | RegExp)[];
+    /** Idle-span: ms of no open child spans before a pageload/navigation root closes. Browser default 1000. */
+    idleTimeout?: number;
+    /** Idle-span: hard cap in ms from root start before it closes regardless of activity. Browser default 30000. */
+    finalTimeout?: number;
+    /** Idle-span: if a child span stays open this many ms, the root closes anyway. Browser default 15000. */
+    childSpanTimeout?: number;
+    maxSpanBufferSize: number;
+    spanFlushIntervalMs: number;
+    spanFlushMaxBytes: number;
+    maxSpansPerTrace: number;
+    maxAttributesPerSpan: number;
+    maxEventsPerSpan: number;
+    maxAttributesPerSpanEvent: number;
     beforeEvaluate: (error: Error) => Error | false | null | Promise<Error | false | null>;
     beforeSubmit: (report: Report) => Report | false | null | Promise<Report | false | null>;
 };
@@ -96,6 +118,9 @@ export type Glow = {
     metaData: Record<string, unknown> | Record<string, unknown>[];
 };
 
+/** The values the backend accepts for `flare.entry_point.type`. Anything else is dropped. */
+export type EntryPointType = 'web' | 'queue' | 'cli';
+
 export type EntryPointHandler = {
     identifier?: string;
     name?: string;
@@ -104,9 +129,14 @@ export type EntryPointHandler = {
 
 export type SdkInfo = { name: string; version: string };
 
-export type Framework = { name: string; version?: string };
+/**
+ * The framework identity an SDK reports. `name` is wire format, not a display string: first-party
+ * SDKs use a `FrameworkName`. A host app may call `setFramework` with its own value (e.g. `express`),
+ * which the backend treats as unknown rather than rejecting, so the type stays open.
+ */
+export type Framework = { name: FrameworkName | (string & {}); version?: string };
 
-// --- Logging ---
+// Logging
 
 export type AnyValue =
     | { stringValue: string }
@@ -153,4 +183,99 @@ export type BufferedLog = {
     message: string;
     recordAttributes: KeyValue[];
     resourceAttributes: Attributes;
+};
+
+// Tracing
+
+/** OTel status codes. Wire format: these numbers ship in the span envelope, so the values never change. */
+export const SpanStatusCode = {
+    Unset: 0,
+    Ok: 1,
+    Error: 2,
+} as const;
+
+export type SpanStatusCode = (typeof SpanStatusCode)[keyof typeof SpanStatusCode];
+
+export type SpanStatus = { code: SpanStatusCode; message?: string };
+
+export type SpanOptions = {
+    parent?: Span | { traceId: string; spanId: string };
+    attributes?: Attributes;
+    startTimeUnixNano?: number;
+    spanType?: SpanTypeName;
+    /**
+     * Start this span as a new trace root, ignoring any ambient active span, so a
+     * root opened inside `withSpan(...)` does not become a mid-trace child.
+     */
+    forceRoot?: boolean;
+    /** Use this exact span id instead of generating one (manual span stitching). */
+    spanId?: string;
+    /** This span's slot against `maxSpansPerTrace` was already taken by `Tracer.claimSpanSlot`. */
+    claimed?: boolean;
+};
+
+export interface Span {
+    readonly traceId: string;
+    readonly spanId: string;
+    readonly parentSpanId: string | null;
+    name: string;
+    readonly isRecording: boolean;
+    readonly endTimeUnixNano: number;
+    setAttribute(key: string, value: AttributeValue): this;
+    setStatus(status: SpanStatus): this;
+    addEvent(name: string, attributes?: Attributes): this;
+    end(endTimeUnixNano?: number): void;
+}
+
+export type SamplingContext = {
+    name: string;
+    parentSampled?: boolean;
+    attributes: Attributes;
+    spanType?: SpanTypeName;
+};
+
+export type TracesSampler = (ctx: SamplingContext) => number | boolean;
+
+export type BufferedSpanEvent = {
+    name: string;
+    timeUnixNano: number;
+    attributes: KeyValue[];
+    droppedAttributesCount: number;
+};
+
+export type BufferedSpan = {
+    traceId: string;
+    spanId: string;
+    parentSpanId: string | null;
+    name: string;
+    startTimeUnixNano: number;
+    endTimeUnixNano: number;
+    status: SpanStatus;
+    recordAttributes: KeyValue[];
+    droppedAttributesCount: number;
+    droppedEventsCount: number;
+    events: BufferedSpanEvent[];
+};
+
+export type OtelSpan = {
+    traceId: string;
+    spanId: string;
+    parentSpanId: string | null; // always present; null for roots
+    name: string;
+    startTimeUnixNano: number;
+    endTimeUnixNano: number;
+    status: SpanStatus;
+    attributes: KeyValue[];
+    events: BufferedSpanEvent[];
+    droppedAttributesCount: number;
+    droppedEventsCount: number;
+    links: never[];
+    droppedLinksCount: number;
+};
+
+export type TracesEnvelope = {
+    resourceSpans: Array<{
+        resource: OtelResource;
+        scopeSpans: Array<{ scope: OtelScope; spans: OtelSpan[] }>;
+    }>;
 };

@@ -1,5 +1,5 @@
-import type { Attributes, Config, ContextCollector } from '@flareapp/core';
-import { redactUrlQuery } from '@flareapp/core';
+import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
+import { redactUrlQuery, urlAttributes } from '@flareapp/core';
 
 import type { AsyncLocalStorageScopeProvider } from '../scope/AsyncLocalStorageScopeProvider';
 import type { ResolvedNodeOptions } from '../types';
@@ -8,24 +8,11 @@ import { findHeader, projectHeaders } from './headers';
 import { collectProcessAttributes } from './process';
 
 /**
- * Build the Node-side `ContextCollector` that core's `Flare` calls on every
- * report. The returned function projects two sources into OTel-style report
- * attributes:
+ * Turns process info (always) and the active request scope (only inside `runWithContext`) into
+ * OTel-style attributes. User identity is not handled here: `Flare.setUser` writes straight to
+ * `pendingAttributes`.
  *
- * 1. **Process info** — runtime version, pid, hostname, etc. Always present.
- * 2. **Active request scope** — method, path/url (with query-string keys
- *    redacted), headers (with the denylist applied), and optional body. Present
- *    when `runWithContext(...)` is active; falls back to the shared scope
- *    otherwise (no request attrs emitted then). User identity is no longer
- *    projected here: `Flare.setUser` writes it straight to `pendingAttributes`.
- *
- * Both `provider` and `getOptions` are passed in (not captured by reference to
- * concrete instances) so the closure stays decoupled from `NodeFlare`'s
- * internals. `getOptions` is a getter (not a value) so that `configureNode(...)`
- * changes are visible on subsequent reports without rebuilding the collector.
- *
- * The function returned matches `ContextCollector = (config) => Attributes`,
- * which is core's interface for `Flare`'s third constructor parameter.
+ * `getOptions` is a getter so `configureNode(...)` shows up on later reports without rebuilding this.
  */
 export function makeNodeContextCollector(
     provider: AsyncLocalStorageScopeProvider,
@@ -40,30 +27,22 @@ export function makeNodeContextCollector(
     >,
 ): ContextCollector {
     return (config: Readonly<Config>): Attributes => {
-        // Always-on baseline: server entry point + Node runtime info.
+        // Always-on baseline: web entry point + Node runtime info.
         const attrs: Attributes = {
-            'flare.entry_point.type': 'server',
+            'flare.entry_point.type': 'web' satisfies EntryPointType,
             ...collectProcessAttributes(),
         };
 
-        // Pull the active scope (either the per-request NodeScope inside a
-        // runWithContext callback, or the shared fallback outside one). Either
-        // way `request` is a real RequestContext object; unset fields are just
-        // `undefined`.
         const scope = provider.active();
         const { request } = scope;
 
-        if (request.method) attrs['http.request.method'] = request.method;
+        if (request.method) {
+            attrs['http.request.method'] = request.method;
+        }
 
-        // `request.path` is a server-relative path with an optional query
-        // string (the shape of `req.url` from `node:http`). Project to:
-        // - `url.path`: everything before `?`
-        // - `url.query`: everything after `?`, with denylisted keys redacted
-        //
-        // We piggy-back on core's `redactUrlQuery` (which expects a full path
-        // or URL with `?`) by passing the whole `request.path` and then
-        // slicing off the prefix back out of the result. Avoids reimplementing
-        // the redact-query logic in two places.
+        // `request.path` has the shape of `req.url` from `node:http`: server-relative, optional query.
+        // Redacting the whole path and slicing the prefix back off reuses core's `redactUrlQuery` rather
+        // than reimplementing query redaction here.
         if (request.path) {
             const queryStart = request.path.indexOf('?');
             if (queryStart === -1) {
@@ -76,30 +55,28 @@ export function makeNodeContextCollector(
             }
         }
 
-        // `request.url` is the absolute URL when the caller has it (after
-        // proxy/host resolution). Goes to `url.full` with its query string
-        // redacted. Independent of `request.path` — callers can set either,
-        // both, or neither.
+        // The absolute URL when the caller has it, post proxy/host resolution. Independent of
+        // `request.path`: either, both or neither may be set. We only take url.full and url.scheme
+        // from it. url.path and url.query come from `request.path`, which is what the server routed on.
         if (request.url) {
-            attrs['url.full'] = redactUrlQuery(request.url, config.urlDenylist);
+            const fromUrl = urlAttributes(request.url, config.urlDenylist);
+            attrs['url.full'] = fromUrl['url.full'];
+            if (fromUrl['url.scheme'] !== undefined) {
+                attrs['url.scheme'] = fromUrl['url.scheme'];
+            }
         }
 
-        // Fetch the live node options once per call. `headerDenylist`,
-        // `headerAllowlist`, body settings — all already-sanitized by
-        // `configureNode`, so we can use them directly.
+        // Already sanitized by `configureNode`, so used directly.
         const opts = getOptions();
         Object.assign(attrs, projectHeaders(request.headers, opts));
 
-        // Body capture is off by default. When on, look up `content-type`
-        // case-insensitively (HTTP header names are case-insensitive but
-        // `request.headers` is just a Record so callers may use either case).
-        // `captureBody` returns null when the content type isn't allowed,
-        // the body is missing, or serialization fails; we only emit the
-        // attribute when there's something to emit.
+        // `findHeader` because header names are case-insensitive while `request.headers` is a plain Record.
         if (opts.captureRequestBody) {
             const contentType = findHeader(request.headers, 'content-type');
             const body = captureBody(request.body, contentType, opts);
-            if (body !== null) attrs['http.request.body'] = body;
+            if (body !== null) {
+                attrs['http.request.body'] = body;
+            }
         }
 
         return attrs;

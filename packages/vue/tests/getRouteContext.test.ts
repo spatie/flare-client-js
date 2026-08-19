@@ -2,10 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { resolveDenylist } from '../src/constants';
 import { getRouteContext } from '../src/getRouteContext';
-
-function createMockRouter(route: Record<string, unknown>) {
-    return { currentRoute: { value: route } };
-}
+import { createMockRouter } from './helpers';
 
 describe('getRouteContext', () => {
     test('returns null when router is null', () => {
@@ -188,6 +185,20 @@ describe('getRouteContext', () => {
             });
 
             expect(getRouteContext(router)!.params).toEqual({ sessionId: '[redacted]', id: '42' });
+        });
+
+        test('redacts a denylisted param whose value is a non-string (object)', () => {
+            const router = createMockRouter({
+                name: 'r',
+                path: '/',
+                fullPath: '/',
+                params: { token: { nested: 'secret' }, id: '42' },
+                query: {},
+                hash: '',
+                matched: [],
+            });
+
+            expect(getRouteContext(router)!.params).toEqual({ token: '[redacted]', id: '42' });
         });
 
         test('accepts a custom denylist', () => {

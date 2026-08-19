@@ -2,7 +2,7 @@ export interface FileReader {
     read(url: string): Promise<string | null>;
 }
 
-const cachedFiles: { [key: string]: string } = {};
+const cachedFiles: { [key: string]: Promise<string | null> } = {};
 
 type CodeSnippet = { [key: number]: string };
 
@@ -42,15 +42,23 @@ export function getCodeSnippet(
 }
 
 function readFile(fileReader: FileReader, url: string): Promise<string | null> {
-    if (cachedFiles[url] !== undefined) {
-        return Promise.resolve(cachedFiles[url]);
+    const cached = cachedFiles[url];
+    if (cached !== undefined) {
+        return cached;
     }
-    return fileReader.read(url).then((text) => {
-        if (text !== null) {
-            cachedFiles[url] = text;
+
+    // We store the promise instead of the file contents, so all the frames pointing at the same file share one
+    // request, instead of duplicating the file requests per frame.
+    const pending = fileReader.read(url).then((text) => {
+        // A failed read stays out of the cache, so a later report can try the file again.
+        if (text === null) {
+            delete cachedFiles[url];
         }
         return text;
     });
+
+    cachedFiles[url] = pending;
+    return pending;
 }
 
 export function readLinesFromFile(
@@ -69,7 +77,9 @@ export function readLinesFromFile(
 
     for (let i = -half; i <= half; i++) {
         const currentLineIndex = errorLineIndex + i;
-        if (currentLineIndex < 0 || !lines[currentLineIndex]) continue;
+        if (currentLineIndex < 0 || !lines[currentLineIndex]) {
+            continue;
+        }
         const displayLine = currentLineIndex + 1;
         const line = lines[currentLineIndex];
         if (line.length > maxSnippetLineLength) {
@@ -92,5 +102,7 @@ export function readLinesFromFile(
 
 // Clearing the cache is useful in tests.
 export function __clearFileReaderCacheForTests(): void {
-    for (const key of Object.keys(cachedFiles)) delete cachedFiles[key];
+    for (const key of Object.keys(cachedFiles)) {
+        delete cachedFiles[key];
+    }
 }

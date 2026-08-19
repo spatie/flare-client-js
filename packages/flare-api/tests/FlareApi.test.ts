@@ -106,6 +106,34 @@ describe('FlareApi', () => {
             expect(fetch).toHaveBeenCalledTimes(2);
         });
 
+        test('surfaces the cause of a network error, not just "fetch failed"', async () => {
+            // What an untrusted local certificate looks like: Node hides the reason on `cause`.
+            const cause = Object.assign(new Error('unable to verify the first certificate'), {
+                code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+            });
+            vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed', { cause }));
+
+            const api = new FlareApi('https://flare.test/api', 'key', 'v1');
+            const promise = api.uploadSourcemap({ originalFile: '/app.js', content: '{}' });
+            const assertion = expect(promise).rejects.toThrow(
+                'Network error after 3 attempts: fetch failed (UNABLE_TO_VERIFY_LEAF_SIGNATURE: unable to verify the first certificate)',
+            );
+
+            await vi.advanceTimersByTimeAsync(3000);
+            await assertion;
+        });
+
+        test('falls back to the plain message when there is no cause', async () => {
+            vi.mocked(fetch).mockRejectedValue(new TypeError('boom'));
+
+            const api = new FlareApi('https://flare.test/api', 'key', 'v1');
+            const promise = api.uploadSourcemap({ originalFile: '/app.js', content: '{}' });
+            const assertion = expect(promise).rejects.toThrow('Network error after 3 attempts: boom');
+
+            await vi.advanceTimersByTimeAsync(3000);
+            await assertion;
+        });
+
         test('throws after max retries exhausted', async () => {
             vi.mocked(fetch).mockResolvedValue(new Response('', { status: 503 }));
 

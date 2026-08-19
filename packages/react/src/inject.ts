@@ -1,6 +1,5 @@
-// Electron-safe entry. NO @flareapp/js root import, NO default registration, NO
-// import-time identity. The caller MUST pass a `flare` instance; resolveFlare
-// throws at wiring time if absent.
+// Electron-safe entry: no @flareapp/js root import, no default registration, no import-time
+// identity. The caller must pass a `flare` instance; resolveFlare throws at wiring time if absent.
 export {
     FlareErrorBoundary,
     type FlareErrorBoundaryProps,

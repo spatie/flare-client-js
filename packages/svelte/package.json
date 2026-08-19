@@ -14,12 +14,7 @@
         "email": "info@spatie.be"
     },
     "contributors": [
-        "Adriaan Marain <adriaan@spatie.be>",
-        "Alex Vanderbist <alex@spatie.be>",
-        "Dries Heyninck <dries@spatie.be>",
-        "Freek Van der Herten <freek@spatie.be>",
-        "Sebastian De Deyne <sebastian@spatie.be>",
-        "Sébastien Henau <seba@spatie.be>"
+        "Dries Heyninck <dries@spatie.be>"
     ],
     "type": "module",
     "files": [
@@ -67,6 +62,8 @@
     "devDependencies": {
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
+        "@flareapp/test-helpers": "*",
+        "@jridgewell/trace-mapping": "^0.3.31",
         "@sveltejs/package": "^2.5.7",
         "@sveltejs/vite-plugin-svelte": "^5.0.0",
         "@testing-library/svelte": "^5.0.0",
@@ -84,6 +81,7 @@
     },
     "dependencies": {
         "@flareapp/core": "2.7.0",
-        "error-stack-parser": "^2.1.4"
+        "error-stack-parser": "^2.1.4",
+        "magic-string": "^0.30.21"
     }
 }

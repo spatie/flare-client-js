@@ -39,13 +39,13 @@ describe('@flareapp/react/inject reports through an injected RendererFlare', () 
         // SDK identity stays electron's (injected instance's own sdkInfo, never clobbered)...
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
         // ...while react tags the framework. Core emits framework as an attribute.
-        expect(parsed.attributes['flare.framework.name']).toBe('React');
+        expect(parsed.attributes['flare.framework.name']).toBe('react');
         // React context survives the serialize + (would-be) IPC trip intact.
         const reactCtx = parsed.attributes['context.custom'].react;
         expect(Array.isArray(reactCtx.componentStack)).toBe(true);
         expect(reactCtx.componentStack.join(' ')).toContain('App');
-        // No-root is guarded authoritatively by react's dist-grep (verify:inject); importing
-        // the inject entry here additionally must not have installed any global flare singleton.
+        // react's dist-grep (verify:inject) guards no-root; here we also check the inject entry
+        // installed no global flare singleton.
         expect((globalThis as Record<string, unknown>).flare).toBeUndefined();
     });
 });

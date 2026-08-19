@@ -1,4 +1,5 @@
 import { flare } from '@flareapp/js';
+import { showcaseUser } from '@flareapp/playgrounds-shared';
 
 export const initFlare = (): void => {
     const url = import.meta.env.VITE_FLARE_URL;
@@ -7,7 +8,13 @@ export const initFlare = (): void => {
     if (url) {
         flare.configure({
             ingestUrl: url,
-            logsIngestUrl: url.replace('/api/reports', '/api/logs'),
+            logsIngestUrl: url.replace('/v1/errors', '/v1/logs'),
+            tracesIngestUrl: url.replace('/v1/errors', '/v1/traces'),
+            // e2e-only timing: keep the pageload/navigation root active long enough for a
+            // prompt Playwright click to land and nest under it, then flush an ended root
+            // fast so arrival assertions don't need to wait out the (5s) production default.
+            idleTimeout: 2000,
+            spanFlushIntervalMs: 500,
         });
     }
 
@@ -17,6 +24,8 @@ export const initFlare = (): void => {
         // and fail like the error reports do). The fake-server logsIngestUrl
         // override above only applies under e2e (VITE_FLARE_URL set).
         enableLogs: true,
+        enableTracing: true,
+        tracesSampleRate: 1,
         beforeEvaluate: (error) => {
             if (error.message === 'hook-drop-report') return null;
             return error;
@@ -31,6 +40,9 @@ export const initFlare = (): void => {
             return report;
         },
     });
+
+    // Every showcase report carries a signed-in shopper (see playgrounds/SCREENSHOTS.md).
+    flare.setUser(showcaseUser);
 
     flare.light(key, true);
 

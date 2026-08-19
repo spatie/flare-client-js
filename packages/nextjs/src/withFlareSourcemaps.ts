@@ -10,7 +10,10 @@ type WebpackConfig = { plugins: unknown[]; devtool?: string | false } & Record<s
 type WebpackContext = { isServer: boolean; dev?: boolean } & Record<string, unknown>;
 
 export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjsPluginOptions): NextConfig {
-    const removeSourcemaps = options.removeSourcemaps ?? false;
+    // On by default because this wrapper force-enables productionBrowserSourceMaps below, so the client
+    // .map files would otherwise sit in the served output for anyone to download. Client pass only:
+    // server maps are never served to a browser, and deleting them costs local stack debugging.
+    const removeSourcemaps = options.removeSourcemaps ?? true;
     const version = options.version ?? randomUUID();
 
     const existingExperimental = (nextConfig.experimental as Record<string, unknown> | undefined) ?? {};
@@ -31,22 +34,21 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                 );
             }
 
-            // The webpack plugin auto-detects the server compiler (via target/name) and emits
-            // base-free originalFile paths, so registering it for every build is safe.
+            // The webpack plugin auto-detects the server compiler and emits base-free paths, so
+            // registering it for every build is safe.
             config.plugins.push(
                 new FlareWebpackPlugin({
                     apiKey: options.apiKey,
                     apiEndpoint: options.apiEndpoint,
                     version,
                     runInDevelopment: options.runInDevelopment,
-                    removeSourcemaps,
+                    removeSourcemaps: removeSourcemaps && !context.isServer,
                     publicPath: options.publicPath,
                 }),
             );
 
-            // Make sure the server build emits .js.map files so the plugin has something to
-            // upload. Only set this for production server builds, and never override a devtool
-            // the user has already configured.
+            // Emit .js.map for production server builds so the plugin has something to upload.
+            // Never override a devtool the user already configured.
             if (context.isServer && !context.dev && config.devtool == null) {
                 config.devtool = 'source-map';
             }

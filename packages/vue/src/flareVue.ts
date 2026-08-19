@@ -1,4 +1,4 @@
-import { convertToError, type AttributeValue, type Attributes } from '@flareapp/core';
+import { convertToError, toCustomContext, type AttributeValue, type Attributes } from '@flareapp/core';
 import type { App, ComponentPublicInstance, Plugin } from 'vue';
 
 import { buildComponentHierarchy } from './buildComponentHierarchy';
@@ -8,8 +8,10 @@ import { getComponentName } from './getComponentName';
 import { getErrorOrigin } from './getErrorOrigin';
 import { getRouteContext } from './getRouteContext';
 import { registerVueSdkInfo, tagVueFramework } from './identify';
+import { createComponentMatcher, createComponentProfilerMixin } from './profileVueComponents';
 import { resolveFlare } from './resolveFlare';
 import { serializeProps } from './serializeProps';
+import { traceVueRouter } from './traceVueRouter';
 import { FlareVueContext, FlareVueOptions, FlareVueWarningContext } from './types';
 
 export function vueContextToAttributes(context: FlareVueContext): Attributes {
@@ -28,7 +30,7 @@ export function vueContextToAttributes(context: FlareVueContext): Attributes {
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { vue } };
+    return toCustomContext('vue', vue);
 }
 
 export function vueWarningContextToAttributes(context: FlareVueWarningContext): Attributes {
@@ -43,12 +45,11 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
         vue.route = context.vue.route as AttributeValue;
     }
 
-    return { 'context.custom': { vue } };
+    return toCustomContext('vue', vue);
 }
 
-// Tracks installed apps so calling app.use(flareVue) twice on the same app is a no-op. WeakSet so
-// we don't keep apps alive in memory after they're disposed (notably matters for SSR test harnesses
-// that spin up an app per request).
+// Tracks installed apps so app.use(flareVue) twice on the same app is a no-op. WeakSet so we don't
+// keep disposed apps alive (matters for SSR harnesses that spin up an app per request).
 const installedApps = new WeakSet<App>();
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
@@ -56,18 +57,15 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         return;
     }
 
-    // Resolve BEFORE marking the app installed, so a throw (an /inject consumer that forgot the
-    // `flare` option) doesn't leave the app recorded in installedApps. NOTE: this only enables a
-    // retry when the plugin is invoked DIRECTLY (`flareVue(app, opts)`). Via the public
-    // `app.use(flareVue)` API a retry is blocked regardless — Vue adds the plugin to its own
-    // installed-set BEFORE calling install, so a failed `app.use` cannot be re-applied to the same
-    // app. The ordering here is still correct/defensive; it just isn't reachable through `app.use`.
+    // Resolve before marking the app installed, so a throw does not leave a half-installed app in
+    // installedApps. Only reachable through a direct flareVue(app, opts) call: app.use blocks the retry
+    // itself, since Vue adds the plugin to its own installed set before calling install.
     const flare = resolveFlare(options?.flare);
 
     installedApps.add(app);
 
-    // Web default (no injected instance): set the SDK identity on the singleton, as before.
-    // Injected instance: tag framework only — never setSdkInfo (would clobber @flareapp/electron).
+    // Web default (no injected instance): set SDK identity on the singleton. Injected instance: tag
+    // framework only, never setSdkInfo (would clobber @flareapp/electron).
     if (!options?.flare) {
         registerVueSdkInfo(flare);
     }
@@ -77,8 +75,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     const propsMaxDepth = options?.propsMaxDepth ?? 2;
     const propsDenylist = resolveDenylist(options?.propsDenylist, options?.replaceDefaultDenylist);
 
-    // Capture any errorHandler the app already set so we can chain it. If we replaced it blindly we'd
-    // silently disable user-defined handlers (e.g. one provided by a higher-level framework like Nuxt).
+    // Capture any errorHandler the app already set so we can chain it; replacing it blindly would
+    // silently disable user-defined handlers (e.g. one from a higher-level framework like Nuxt).
     const initialErrorHandler = app.config.errorHandler;
 
     app.config.errorHandler = (error: unknown, instance: ComponentPublicInstance | null, info: string) => {
@@ -123,9 +121,9 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             return;
         }
 
-        // No prior handler: log so the error is visible during development without re-throwing.
+        // No prior handler: log so the error is visible in development without re-throwing.
         // Re-throwing would trigger window.onerror and produce a duplicate report (one with Vue
-        // context from this handler, one without from the global catchWindowErrors listener).
+        // context from here, one without from the global catchWindowErrors listener).
         console.error(error);
     };
 
@@ -154,5 +152,37 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
                 initialWarnHandler(msg, instance, trace);
             }
         };
+    }
+
+    // Wired unconditionally. `flare.configure({ enableTracing: true })` may come after app.use(flareVue),
+    // and browser.ts starts tracing from that call, so there is nothing to gate on here. Gating made the
+    // plugin order dependent while the other four integrations are not.
+    if (options?.router) {
+        try {
+            const stopRouterTracing = traceVueRouter(options.router);
+            // Vue 3.5 and up; the declared peer floor is ^3.0.0. Without this an SSR harness making one
+            // app per request leaves every previous router's guards attached with no way to remove them.
+            if (typeof app.onUnmount === 'function') {
+                app.onUnmount(stopRouterTracing);
+            }
+        } catch {
+            // never break plugin install
+        }
+    }
+
+    // Register the mixin whenever an allowlist asked for it. An empty allowlist is the same as off,
+    // rather than "an array was passed". Tracing being off is not gated here: configure() can turn it
+    // on later, and the hook does nothing past its first call while there is no root to record under.
+    const profile = options?.profileComponents;
+    const wantsProfiling = profile === true || (Array.isArray(profile) && profile.length > 0);
+
+    if (!wantsProfiling) {
+        return;
+    }
+
+    try {
+        app.mixin(createComponentProfilerMixin(createComponentMatcher(profile)));
+    } catch {
+        // never break plugin install
     }
 };

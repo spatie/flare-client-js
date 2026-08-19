@@ -6,6 +6,7 @@
         "suspicious": "warn"
     },
     "rules": {
+        "curly": "error",
         "no-console": "off",
         "no-underscore-dangle": "off",
         "typescript/no-explicit-any": "warn",
@@ -27,5 +28,12 @@
             }
         }
     ],
-    "ignorePatterns": ["dist", "node_modules", "*.config.*", "playgrounds", "test-results"]
+    "ignorePatterns": [
+        "dist",
+        "node_modules",
+        "*.config.*",
+        "playgrounds",
+        "test-results",
+        "**/src/tracing/webvitals/**"
+    ]
 }

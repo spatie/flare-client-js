@@ -1,4 +1,4 @@
-import { redactQueryParams } from '../redactQueryParams.js';
+import { redactParams, redactQueryParams } from '../redactQueryParams.js';
 import type { SvelteKitRouteContext } from '../types.js';
 
 interface RequestEvent {
@@ -27,7 +27,7 @@ export function getRouteContext(event?: unknown): SvelteKitRouteContext {
     return {
         routeId: event.route?.id ?? null,
         url: event.url.pathname,
-        params: { ...event.params },
+        params: redactParams(event.params),
         query: redactQueryParams(event.url.searchParams),
     };
 }

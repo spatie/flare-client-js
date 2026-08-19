@@ -17,7 +17,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -35,6 +35,7 @@ const PUBLISHED_PACKAGES = [
     'webpack',
     'nextjs',
     'electron',
+    'inertia',
 ];
 
 function pkgDir(name) {
@@ -58,9 +59,17 @@ function referencedPaths(pkg) {
     const paths = new Set();
 
     const addIfRelative = (value) => {
-        if (typeof value !== 'string') return;
-        if (!value.startsWith('.') && !value.startsWith('/')) return; // bare specifier
-        if (value.includes('*')) return; // glob subpath pattern, can't check statically
+        if (typeof value !== 'string') {
+            return;
+        }
+        // bare specifier
+        if (!value.startsWith('.') && !value.startsWith('/')) {
+            return;
+        }
+        // glob subpath pattern, can't check statically
+        if (value.includes('*')) {
+            return;
+        }
         paths.add(normalize(value));
     };
 
@@ -68,15 +77,21 @@ function referencedPaths(pkg) {
         addIfRelative(pkg[field]);
     }
 
-    if (typeof pkg.bin === 'string') addIfRelative(pkg.bin);
-    else if (pkg.bin && typeof pkg.bin === 'object') {
-        for (const v of Object.values(pkg.bin)) addIfRelative(v);
+    if (typeof pkg.bin === 'string') {
+        addIfRelative(pkg.bin);
+    } else if (pkg.bin && typeof pkg.bin === 'object') {
+        for (const v of Object.values(pkg.bin)) {
+            addIfRelative(v);
+        }
     }
 
     const walkExports = (node) => {
-        if (typeof node === 'string') addIfRelative(node);
-        else if (node && typeof node === 'object') {
-            for (const v of Object.values(node)) walkExports(v);
+        if (typeof node === 'string') {
+            addIfRelative(node);
+        } else if (node && typeof node === 'object') {
+            for (const v of Object.values(node)) {
+                walkExports(v);
+            }
         }
     };
     walkExports(pkg.exports);
@@ -100,7 +115,9 @@ export function checkPack(names = PUBLISHED_PACKAGES) {
 
     for (const name of names) {
         const pkg = readPkgJson(name);
-        if (pkg.private) continue;
+        if (pkg.private) {
+            continue;
+        }
 
         const referenced = referencedPaths(pkg);
         const packed = packedFiles(name);
@@ -109,7 +126,9 @@ export function checkPack(names = PUBLISHED_PACKAGES) {
         if (missing.length > 0) {
             failures.push({ name: pkg.name, missing });
             console.error(`  FAIL ${pkg.name}: manifest references files absent from the tarball:`);
-            for (const m of missing) console.error(`         - ${m}`);
+            for (const m of missing) {
+                console.error(`         - ${m}`);
+            }
         } else {
             console.log(`  ok   ${pkg.name} (${referenced.size} referenced files present)`);
         }
@@ -119,7 +138,9 @@ export function checkPack(names = PUBLISHED_PACKAGES) {
 }
 
 // Run directly: `node scripts/check-pack.mjs [pkg ...]`
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL, not a `file://` template: argv[1] is a raw path, so any repo path that
+// percent-encodes (a space, for one) would never match and the whole script would no-op.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const args = process.argv.slice(2);
     const names = args.length > 0 ? args : PUBLISHED_PACKAGES;
     const failures = checkPack(names);

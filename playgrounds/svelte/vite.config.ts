@@ -2,8 +2,10 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
-    plugins: [tailwindcss(), sveltekit()],
-    server: { port: 5183, strictPort: true },
-    preview: { port: 5183, strictPort: true },
-});
+import { flareSourcemapsForPlayground, playgroundAllowedHosts } from '../shared/src/vite';
+
+export default defineConfig(({ mode }) => ({
+    plugins: [tailwindcss(), sveltekit(), flareSourcemapsForPlayground(mode)],
+    server: { port: 5183, strictPort: true, allowedHosts: playgroundAllowedHosts },
+    preview: { port: 5183, strictPort: true, allowedHosts: playgroundAllowedHosts },
+}));

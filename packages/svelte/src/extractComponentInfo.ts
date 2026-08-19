@@ -17,10 +17,11 @@ export function extractComponentInfo(
         return { componentName: null, componentHierarchy: [] };
     }
 
-    // Try the preprocessor-based component tree first.
-    // Walk each .svelte frame until we find one that was registered.
+    // Preprocessor-based component tree first: walk each .svelte frame until one was registered.
     for (const frame of svelteFrames) {
-        if (!frame.fileName) continue;
+        if (!frame.fileName) {
+            continue;
+        }
 
         const treeHierarchy = lookupComponentTree(frame.fileName, ancestor);
 

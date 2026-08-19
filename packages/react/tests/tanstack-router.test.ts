@@ -1,0 +1,396 @@
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const nav = vi.hoisted(() => ({
+    startNavigation: vi.fn(),
+    setActiveRouteName: vi.fn(),
+    settleNavigation: vi.fn(),
+    unregister: vi.fn(),
+}));
+vi.mock('@flareapp/js/browser', async (importOriginal) =>
+    (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
+);
+
+import { STALE_NAVIGATION_TIMEOUT_MS, traceTanStackRouter } from '../src/tanstack-router';
+import type { TanStackMatchLike } from '../src/vendor/tanstackRouterTypes';
+
+const PRODUCT_MATCHES: TanStackMatchLike[] = [
+    { routeId: '__root__' },
+    { routeId: '/product/$id', fullPath: '/product/$id' },
+];
+
+function fakeRouter(opts: { matches?: TanStackMatchLike[]; location?: { pathname: string; search: unknown } } = {}) {
+    const subs: Record<string, (e: unknown) => void> = {};
+    const unsub = { onBeforeLoad: vi.fn(), onResolved: vi.fn() };
+    const router = {
+        state: { location: opts.location ?? { pathname: '/', search: {} } },
+        matchRoutes: vi.fn(() => opts.matches ?? PRODUCT_MATCHES),
+        subscribe: vi.fn((type: 'onBeforeLoad' | 'onResolved', cb: (e: unknown) => void) => {
+            subs[type] = cb;
+            return unsub[type];
+        }),
+    };
+    return { router, unsub, emit: (type: string, e: unknown) => subs[type]?.(e) };
+}
+
+beforeEach(() => {
+    nav.startNavigation.mockClear();
+    nav.setActiveRouteName.mockClear();
+    nav.settleNavigation.mockClear();
+    nav.unregister.mockClear();
+});
+
+// Every RouteName now carries the destination url so the root's url.full tracks redirect hops. These
+// fakes omit TanStack's `href`, so hrefOf falls back to origin + pathname (the `href` shape is
+// pinned separately below).
+const u = (path: string): string => `${window.location.origin}${path}`;
+
+describe('traceTanStackRouter', () => {
+    it('enriches the pageload root from the current location at registration', () => {
+        const { router } = fakeRouter({ location: { pathname: '/product/p01', search: {} } });
+        traceTanStackRouter(router);
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
+    });
+
+    it('corrects the pageload name on the initial onResolved (loader redirect), no nav root', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockReturnValue([
+            { routeId: '__root__' },
+            { routeId: '/login', fullPath: '/login' },
+        ]);
+        emit('onResolved', { fromLocation: undefined, toLocation: { pathname: '/login', search: {} } });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/login', source: 'route', url: u('/login') });
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('starts one navigation root on a real navigation and finalizes on resolve', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        const from = { pathname: '/', search: {}, state: {} };
+        const to = { pathname: '/product/p01', search: {}, state: {} };
+        emit('onBeforeLoad', { fromLocation: from, toLocation: to });
+        expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', hold: true });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
+        emit('onResolved', { fromLocation: from, toLocation: to });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
+    });
+
+    it('opens the nav root held and settles it on resolve', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        const from = { pathname: '/', search: {}, state: {} };
+        const to = { pathname: '/product/p01', search: {}, state: {} };
+
+        emit('onBeforeLoad', { fromLocation: from, toLocation: to });
+        expect(nav.startNavigation).toHaveBeenCalledWith({ path: '/product/p01', hold: true });
+
+        emit('onResolved', { fromLocation: from, toLocation: to });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
+    });
+
+    it('settles a navigation that never resolves, and accepts the next one', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            traceTanStackRouter(router);
+            const from = { pathname: '/', search: {}, state: {} };
+
+            // RouterProvider unmounted mid-navigation: onResolved comes from React's Transitioner,
+            // so nothing is left to settle this one.
+            emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/a', search: {}, state: {} } });
+            expect(nav.settleNavigation).not.toHaveBeenCalled();
+
+            vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS);
+            expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+
+            // inFlight is clear again, so a later navigation still opens its own root.
+            nav.startNavigation.mockClear();
+            emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
+            expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not settle twice when the router resolves before the stale timer', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            traceTanStackRouter(router);
+            const from = { pathname: '/', search: {}, state: {} };
+            const to = { pathname: '/product/p01', search: {}, state: {} };
+
+            emit('onBeforeLoad', { fromLocation: from, toLocation: to });
+            emit('onResolved', { fromLocation: from, toLocation: to });
+            vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS * 2);
+
+            expect(nav.settleNavigation).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // The stale timer is ours, so nothing else catches it: a throw here would surface as a window
+    // error and Flare would report it as an error of the host app's own.
+    it('swallows a throw from the stale-timer settle', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            traceTanStackRouter(router);
+            nav.settleNavigation.mockImplementationOnce(() => {
+                throw new Error('seam boom');
+            });
+            emit('onBeforeLoad', {
+                fromLocation: { pathname: '/', search: {}, state: {} },
+                toLocation: { pathname: '/a', search: {}, state: {} },
+            });
+            expect(() => vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS)).not.toThrow();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('clears the stale timer on cleanup', () => {
+        vi.useFakeTimers();
+        try {
+            const { router, emit } = fakeRouter();
+            const stop = traceTanStackRouter(router);
+            emit('onBeforeLoad', {
+                fromLocation: { pathname: '/', search: {}, state: {} },
+                toLocation: { pathname: '/a', search: {}, state: {} },
+            });
+            stop();
+            vi.advanceTimersByTime(STALE_NAVIGATION_TIMEOUT_MS * 2);
+            expect(nav.settleNavigation).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('skips the initial pageload onBeforeLoad', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        emit('onBeforeLoad', { fromLocation: undefined, toLocation: { pathname: '/', search: {} } });
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('skips a no-op reload (identical location state)', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        const state = {};
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/x', search: {}, state },
+            toLocation: { pathname: '/x', search: {}, state },
+        });
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('skips a no-op reload reported by the router flag, even with distinct state objects', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/x', search: {}, state: {} },
+            toLocation: { pathname: '/x', search: {}, state: {} },
+            hrefChanged: false,
+        });
+        expect(nav.startNavigation).not.toHaveBeenCalled();
+    });
+
+    it('a redirect chain produces exactly one navigation root, renamed per hop', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        const from = { pathname: '/', search: {}, state: {} };
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockReturnValue([
+            { routeId: '__root__' },
+            { routeId: '/a', fullPath: '/a' },
+        ]);
+        emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/a', search: {}, state: {} } });
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockReturnValue([
+            { routeId: '__root__' },
+            { routeId: '/b', fullPath: '/b' },
+        ]);
+        emit('onBeforeLoad', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
+        expect(nav.startNavigation).toHaveBeenCalledTimes(1);
+        emit('onResolved', { fromLocation: from, toLocation: { pathname: '/b', search: {}, state: {} } });
+        expect(nav.settleNavigation).toHaveBeenCalledWith({ name: '/b', source: 'route', url: u('/b') });
+    });
+
+    it('falls back to the URL name when only __root__ matches', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockReturnValue([{ routeId: '__root__' }]);
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, state: {} },
+            toLocation: { pathname: '/nope', search: {}, state: {} },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/nope', source: 'url', url: u('/nope') });
+    });
+
+    it('falls back to routeId when fullPath is empty', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockReturnValue([
+            { routeId: '__root__' },
+            { routeId: '/layout', fullPath: '' },
+        ]);
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, state: {} },
+            toLocation: { pathname: '/layout', search: {}, state: {} },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/layout', source: 'route', url: u('/layout') });
+    });
+
+    // TanStack's real ParsedLocation.href is pathname + search + hash without the origin. Taking
+    // `pathname` instead would silently drop the query string.
+    it("builds the url from TanStack's origin-relative href, not the bare pathname", () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: { tab: 'specs' },
+                href: '/product/p01?tab=specs',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01?tab=specs'),
+        });
+    });
+
+    it('is inert for a value that is not a router', () => {
+        expect(() => traceTanStackRouter({} as never)()).not.toThrow();
+        expect(() => traceTanStackRouter(null as never)()).not.toThrow();
+        // Registering is not free: it takes navigation-root detection away from the built-in History
+        // listener for the whole page, so a value we cannot drive must never reach the seam.
+        expect(nav.setActiveRouteName).not.toHaveBeenCalled();
+    });
+
+    it('cleanup unsubscribes and unregisters', () => {
+        const { router, unsub } = fakeRouter();
+        const stop = traceTanStackRouter(router);
+        stop();
+        expect(unsub.onBeforeLoad).toHaveBeenCalled();
+        expect(unsub.onResolved).toHaveBeenCalled();
+        expect(nav.unregister).toHaveBeenCalled();
+    });
+
+    // install() runs unwrapped inside instrumentOnce, so a throw from the router's own subscribe
+    // would otherwise escape straight into the host's bootstrap code.
+    it('never lets a throwing subscribe reach the host, and unwinds the first subscription plus the nav-source registration', () => {
+        const { router, unsub } = fakeRouter();
+        const realSubscribe = router.subscribe;
+        router.subscribe = vi.fn((type: 'onBeforeLoad' | 'onResolved', cb: (e: unknown) => void) => {
+            if (type === 'onResolved') {
+                throw new Error('subscribe boom');
+            }
+            return realSubscribe(type, cb);
+        });
+
+        expect(() => traceTanStackRouter(router)).not.toThrow();
+        expect(unsub.onBeforeLoad).toHaveBeenCalled(); // the successful first subscription is torn down
+        expect(nav.unregister).toHaveBeenCalled(); // and so is the nav-source registration
+    });
+
+    it('replaces its own instrumentation rather than stacking a second subscription', () => {
+        const { router, unsub } = fakeRouter();
+        traceTanStackRouter(router);
+        traceTanStackRouter(router);
+
+        // Two event types per install. The first install's pair must have been unsubscribed.
+        expect(router.subscribe).toHaveBeenCalledTimes(4);
+        expect(unsub.onBeforeLoad).toHaveBeenCalledTimes(1);
+        expect(unsub.onResolved).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to the URL name when matchRoutes throws', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        (router.matchRoutes as ReturnType<typeof vi.fn>).mockImplementation(() => {
+            throw new Error('router boom');
+        });
+        expect(() =>
+            emit('onBeforeLoad', {
+                fromLocation: { pathname: '/', search: {}, state: {} },
+                toLocation: { pathname: '/kaboom', search: {}, state: {} },
+            }),
+        ).not.toThrow();
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({ name: '/kaboom', source: 'url', url: u('/kaboom') });
+    });
+});
+
+// A `basepath` is applied as a rewrite, so it is stripped from `href` and kept only on `publicHref`.
+// Reading `href` for an app served from `/app/` reports `/product/p01` for the real
+// `/app/product/p01`: an address the server does not have, and one that overwrites the correct
+// url.full the pageload root already had.
+describe('traceTanStackRouter url.full keeps the basepath', () => {
+    it('prefers publicHref over the rewritten href', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/app/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/app/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/app/product/p01'),
+        });
+    });
+
+    // No basepath means no rewrite, and then TanStack sets publicHref and href to the same value.
+    it('is unchanged when the two agree', () => {
+        const { router, emit } = fakeRouter();
+        traceTanStackRouter(router);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/product/p01'),
+        });
+    });
+});

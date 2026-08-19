@@ -5,6 +5,8 @@ import { GlobalScopeProvider, USER_FIELD_KEYS, USER_IDENTITY_KEYS, type ScopePro
 import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
 import { NullFileReader } from './stacktrace/NullFileReader';
+import { ActiveSpanHolder, InMemoryActiveSpanHolder } from './tracing/context';
+import { Tracer } from './tracing/Tracer';
 import {
     AttributeValue,
     Attributes,
@@ -15,9 +17,15 @@ import {
     MessageLevel,
     Report,
     SdkInfo,
+    Span,
+    SpanOptions,
     User,
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
+
+/** Scope attributes a span never inherits. Derived from `USER_IDENTITY_KEYS` so a future user field is
+ *  excluded automatically, without anyone needing to remember to list it here. See `getScopeAttributes`. */
+const SPAN_SCOPE_EXCLUDED_KEYS: readonly string[] = USER_IDENTITY_KEYS.filter((key) => key !== USER_FIELD_KEYS.id);
 
 export type ContextCollector = (config: Readonly<Config>) => Attributes;
 
@@ -27,6 +35,7 @@ export class Flare {
     private inflight = new Set<Promise<void>>();
 
     private _logger!: Logger;
+    private _tracer!: Tracer;
 
     private _config: Config = {
         key: null,
@@ -48,22 +57,33 @@ export class Flare {
         logFlushIntervalMs: 5000,
         logFlushMaxBytes: 800_000,
         keepaliveMaxBytes: 60_000,
+        enableTracing: false,
+        tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
+        tracesSampleRate: 1,
+        maxSpanBufferSize: 100,
+        spanFlushIntervalMs: 5000,
+        spanFlushMaxBytes: 800_000,
+        maxSpansPerTrace: 1024,
+        maxAttributesPerSpan: 128,
+        maxEventsPerSpan: 128,
+        maxAttributesPerSpanEvent: 128,
     };
 
     private sdkInfo: SdkInfo = { name: DEFAULT_SDK_NAME, version: CLIENT_VERSION };
     private framework: Framework | null = null;
 
     /**
-     * @param api              sends the report over HTTP.
-     * @param contextCollector returns per-report attributes (browser DOM info, Node
-     *                         process info, etc). Default is a no-op.
-     * @param fileReader       reads source files for stack-trace snippets. Default
-     *                         returns null (no snippets); `@flareapp/js` injects a
-     *                         fetch-based reader, `@flareapp/node` injects a disk reader.
-     * @param scopeProvider    returns the current `Scope` (per-call mutable state:
-     *                         glows, pendingAttributes, entryPoint). Browser uses a
-     *                         single global scope; Node uses an AsyncLocalStorage-
-     *                         backed provider so each request gets its own.
+     * @param api              fetch transport for reports, logs and traces. Stateless: ingest url and
+     *                         key are passed per call, so tests swap in a fake.
+     * @param contextCollector per-report attributes (browser DOM, Node process). No-op by default.
+     * @param fileReader       source files for stack-trace snippets. Defaults to no snippets;
+     *                         `@flareapp/js` injects a fetch reader, `@flareapp/node` a disk reader.
+     * @param scopeProvider    the current `Scope`. Browser uses one global scope; Node an
+     *                         AsyncLocalStorage-backed provider so each request gets its own.
+     * @param scheduler        drains the log and span buffers when the host's lifecycle ends (browser
+     *                         unload, process exit). No-op by default, leaving only size/timer flushes.
+     * @param activeSpanHolder tracks the active span so new spans auto-parent to it. In-memory by
+     *                         default; a platform can back it with AsyncLocalStorage instead.
      */
     constructor(
         public api: Api = new Api(),
@@ -71,6 +91,7 @@ export class Flare {
         private fileReader: FileReader = new NullFileReader(),
         private scopeProvider: ScopeProvider = new GlobalScopeProvider(),
         scheduler: FlushScheduler = new NoopFlushScheduler(),
+        activeSpanHolder: ActiveSpanHolder = new InMemoryActiveSpanHolder(),
     ) {
         this._logger = new Logger({
             api: this.api,
@@ -81,58 +102,27 @@ export class Flare {
             track: (p) => this.track(p),
             scheduler,
         });
+
+        this._tracer = new Tracer({
+            api: this.api,
+            getConfig: () => this._config,
+            getSdkInfo: () => this.sdkInfo,
+            getFramework: () => this.framework,
+            getScopeAttributes: () => this.getScopeAttributes(),
+            getResourceAttributes: () => this.spanResourceAttributes(),
+            track: (p) => this.track(p),
+            scheduler,
+            activeSpanHolder,
+        });
     }
 
     /**
-     * Register an in-flight report so `flush()` can wait for it. Called by
-     * every public report entry point (`report`, `reportSilently`,
-     * `reportMessage`, `reportUnhandledRejection`, `test`); each wraps its
-     * full async pipeline (beforeEvaluate -> stack trace + source snippets ->
-     * beforeSubmit -> `api.report()`) so the entire roundtrip is what's
-     * tracked, not just the HTTP send at the end.
+     * Register an in-flight report so `flush()` can wait for it. Every entry point wraps its whole async
+     * pipeline, from beforeEvaluate through api.report, so flush() waits on all of it.
      *
-     * Two problems this method solves at once.
-     *
-     * Problem 1: hold a reference to the work without leaking rejections.
-     *
-     *   `p` is the real report pipeline; it can reject (network failure,
-     *   `beforeSubmit` throws, etc). If we stored `p` directly in `inflight`
-     *   and no caller attached a `.catch` (the global error listeners use
-     *   `reportSilently` which DOES catch, but the path is still subtle), an
-     *   eventual rejection would surface as an unhandled-rejection warning
-     *   on Node and a console error in the browser. Bad citizen.
-     *
-     *   So we build a SHADOW promise that mirrors `p`'s timing but cannot
-     *   reject:
-     *
-     *     p.then(
-     *         () => undefined,   // on fulfilment, value is undefined
-     *         () => undefined,   // on rejection, ALSO resolve with undefined
-     *     )
-     *
-     *   Providing the second argument means we have "handled" any rejection
-     *   from `p`. The shadow always resolves with `undefined`, and `p`'s
-     *   rejection is consumed at the boundary. From the runtime's point of
-     *   view, the shadow is well-behaved.
-     *
-     * Problem 2: self-cleaning entry.
-     *
-     *   `tracked.finally(() => this.inflight.delete(tracked))`. `finally`
-     *   fires whether the shadow resolves or rejects, but the shadow can no
-     *   longer reject (problem 1 normalized it), so this is effectively
-     *   "when the underlying report has settled, remove me from the Set."
-     *   No GC magic, no external cleanup, no race window.
-     *
-     *   Note that `.finally` itself returns a new promise that we drop on
-     *   the floor. If the cleanup callback ever throws, that would surface
-     *   as an unhandled rejection on the dropped promise; `delete` does not
-     *   throw so we are safe today, but anything more elaborate added here
-     *   should be wrapped in try/catch.
-     *
-     * The return value is the ORIGINAL `p`. The caller awaits real success
-     * or failure; the tracking is completely invisible to them. This is why
-     * `await flare.report(err)` inside a fatal handler observes network
-     * errors the same as before tracking was added.
+     * What goes in the Set is a shadow promise that mirrors `p`'s timing but cannot reject, so a failed
+     * report never surfaces as an unhandled rejection warning. `p` itself is returned untouched, so the
+     * caller still observes real success or failure.
      */
     private track<T>(p: Promise<T>): Promise<T> {
         const tracked = p.then(
@@ -145,88 +135,20 @@ export class Flare {
     }
 
     /**
-     * Wait until every in-flight report settles, or until `timeoutMs`
-     * elapses, whichever comes first. Always resolves; never rejects.
+     * Wait until every in-flight report settles or `timeoutMs` elapses. Always resolves, never rejects.
+     * Written for `@flareapp/node`'s fatal handler, which awaits the fatal report itself then flushes to
+     * drain any other concurrent reports before `process.exit`.
      *
-     * The main consumer is `@flareapp/node`'s fatal handler:
-     *
-     *     process.on('uncaughtException', async (err) => {
-     *         process.exitCode = 1;
-     *         try { await flare.report(err); } catch {}
-     *         await flare.flush(shutdownTimeoutMs);
-     *         process.exit(1);
-     *     });
-     *
-     * The fatal `report` is awaited explicitly; `flush` then drains any
-     * OTHER reports that were already in flight (a request handler that
-     * fired `flare.report(...)` concurrently with the crash). The timeout
-     * caps the wait so a hung HTTP request cannot indefinitely block
-     * shutdown.
-     *
-     * Walking the implementation:
-     *
-     *   const pending = [...this.inflight];
-     *
-     *     Spread takes a SNAPSHOT of the Set at this instant. Reports that
-     *     start AFTER this line are not included in `pending`, so they are
-     *     not awaited by THIS flush call. This is intentional: it bounds
-     *     the wait. Without the snapshot, a handler that kept emitting
-     *     reports during shutdown could keep flush alive forever and block
-     *     the process from exiting.
-     *
-     *   if (pending.length === 0) return Promise.resolve();
-     *
-     *     Fast path. No timer scheduled, no promise constructor needed.
-     *     Resolves on the microtask queue. Cheap.
-     *
-     *   return new Promise<void>((resolve) => {
-     *       const timer = setTimeout(resolve, timeoutMs);
-     *       Promise.allSettled(pending).then(() => {
-     *           clearTimeout(timer);
-     *           resolve();
-     *       });
-     *   });
-     *
-     *     The race between two outcomes, both calling the same `resolve`:
-     *
-     *     1. `setTimeout(resolve, timeoutMs)` schedules a "give up" call.
-     *        After `timeoutMs` it fires, calling `resolve()` from the
-     *        timer-queue side. The outer promise resolves immediately,
-     *        even if reports are still pending. Those reports are abandoned
-     *        (they continue running but the process is about to die).
-     *
-     *     2. `Promise.allSettled(pending)` returns a promise that resolves
-     *        when every promise in `pending` has either fulfilled or
-     *        rejected. It NEVER rejects on its own. We use `allSettled`
-     *        rather than `Promise.all` because `all` short-circuits on the
-     *        first rejection -- we want to wait for everyone regardless of
-     *        whether their HTTP calls succeed or fail. (Our shadows cannot
-     *        reject anyway because `track` normalized them, but using
-     *        `allSettled` documents the intent and survives future changes
-     *        to shadow construction.) When it resolves, we call
-     *        `clearTimeout(timer)` to cancel the pending timer (so it does
-     *        not fire later and call `resolve` a second time -- a no-op,
-     *        but wasted work) and then `resolve()` ourselves.
-     *
-     *   Resolve can only meaningfully fire once. Subsequent calls to the
-     *   same `resolve` are silently ignored by the Promise spec, so the
-     *   race is safe even if for some reason both branches fired together.
-     *
-     * Things flush() deliberately does NOT do:
-     *
-     *   - It does not reject. Even if every report failed, allSettled
-     *     resolves. Callers do not need a `.catch`.
-     *   - It does not retry. One pipeline attempt per report, then move on.
-     *   - It does not stop new reports from starting. The Flare instance
-     *     is still usable after flush resolves. flush is "wait for what is
-     *     in flight," not "freeze the SDK."
-     *   - It does not drain reports started after the snapshot. Call flush
-     *     again if you need to wait for those too.
+     * Snapshotting the Set bounds the wait: reports started after this line are not awaited, so a handler
+     * that keeps emitting during shutdown cannot block the process forever. Call flush again for those.
      */
     flush(timeoutMs = 2000): Promise<void> {
         this._logger.flush();
+        this._tracer.flush();
         const pending = [...this.inflight];
-        if (pending.length === 0) return Promise.resolve();
+        if (pending.length === 0) {
+            return Promise.resolve();
+        }
         return new Promise<void>((resolve) => {
             const timer = setTimeout(resolve, timeoutMs);
             Promise.allSettled(pending).then(() => {
@@ -248,17 +170,37 @@ export class Flare {
         return this._logger;
     }
 
+    get tracer(): Tracer {
+        return this._tracer;
+    }
+
+    /** Starts a span the caller must end. Unlike `withSpan`, it does not become the active span,
+     *  so spans started after it do not auto-parent to it. */
+    startSpan(name: string, opts?: SpanOptions): Span {
+        return this._tracer.startSpan(name, opts);
+    }
+
+    /**
+     * Runs `fn` with the span active, so spans started inside auto-parent to it, then ends it.
+     * Records an error status first if `fn` throws or its returned promise rejects.
+     */
+    withSpan<T>(name: string, fn: (span: Span) => T, opts?: SpanOptions): T {
+        return this._tracer.withSpan(name, fn, opts);
+    }
+
     light(key: string = KEY, debug?: boolean): this {
         this._config.key = key;
         if (debug !== undefined) {
             this._config.debug = debug;
         }
         this._logger.flush();
+        this._tracer.flush();
         return this;
     }
 
     configure(config: Partial<Config>): this {
         const wasLogsEnabled = this._config.enableLogs;
+        const wasTracingEnabled = this._config.enableTracing;
 
         this._config = { ...this._config, ...config };
 
@@ -266,10 +208,18 @@ export class Flare {
             this._config.sampleRate = Math.max(0, Math.min(1, config.sampleRate));
         }
 
-        this._config.urlDenylist = resolveDenylist(
-            config.urlDenylist,
-            config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
-        );
+        if (config.tracesSampleRate !== undefined) {
+            this._config.tracesSampleRate = Math.max(0, Math.min(1, config.tracesSampleRate));
+        }
+
+        // Only when this call carries denylist config. Re-resolving with an undefined `custom` would reset a
+        // custom denylist to the default, silently re-exposing data the user asked to redact.
+        if (config.urlDenylist !== undefined || config.replaceDefaultUrlDenylist !== undefined) {
+            this._config.urlDenylist = resolveDenylist(
+                config.urlDenylist,
+                config.replaceDefaultUrlDenylist ?? this._config.replaceDefaultUrlDenylist,
+            );
+        }
 
         // Only clear the buffer/timer on a real enabled->disabled transition.
         if (wasLogsEnabled && this._config.enableLogs === false) {
@@ -277,6 +227,13 @@ export class Flare {
         }
         if (config.key !== undefined) {
             this._logger.flush();
+        }
+
+        if (wasTracingEnabled && this._config.enableTracing === false) {
+            this._tracer.clear();
+        }
+        if (config.key !== undefined) {
+            this._tracer.flush();
         }
 
         return this;
@@ -288,7 +245,9 @@ export class Flare {
 
     private async testInternal(): Promise<void> {
         const report = await this.createReportFromError(new Error('The Flare client is set up correctly!'));
-        if (!report) return;
+        if (!report) {
+            return;
+        }
         return this.sendReport(report);
     }
 
@@ -330,27 +289,38 @@ export class Flare {
     }
 
     /**
-     * Attach an identified user to the active scope. Fields are projected to the
-     * keys the Flare backend reads: `user.id`, `user.email`, `user.full_name`,
-     * and `client.address`. Any extra keys are bundled into `user.attributes`.
-     * Pass `null` to clear the user. Scope-aware: in Node this targets the
-     * per-request scope via the scope provider.
+     * Maps the known fields onto the keys the Flare backend reads (see `USER_FIELD_KEYS`) and bundles
+     * anything else into `user.attributes`. Pass `null` to clear. In Node this targets the per-request scope.
      */
     setUser(user: User | null): this {
         const scope = this.scopeProvider.active();
-        for (const key of USER_IDENTITY_KEYS) delete scope.pendingAttributes[key];
-        if (!user) return this;
+        for (const key of USER_IDENTITY_KEYS) {
+            delete scope.pendingAttributes[key];
+        }
+        if (!user) {
+            return this;
+        }
 
         const { id, email, fullName, ipAddress, ...rest } = user;
-        if (id !== undefined && id !== null) scope.setAttribute(USER_FIELD_KEYS.id, String(id));
-        if (email !== undefined) scope.setAttribute(USER_FIELD_KEYS.email, email);
-        if (fullName !== undefined) scope.setAttribute(USER_FIELD_KEYS.fullName, fullName);
-        if (ipAddress !== undefined) scope.setAttribute(USER_FIELD_KEYS.ipAddress, ipAddress);
+        if (id !== undefined && id !== null) {
+            scope.setAttribute(USER_FIELD_KEYS.id, String(id));
+        }
+        if (email !== undefined) {
+            scope.setAttribute(USER_FIELD_KEYS.email, email);
+        }
+        if (fullName !== undefined) {
+            scope.setAttribute(USER_FIELD_KEYS.fullName, fullName);
+        }
+        if (ipAddress !== undefined) {
+            scope.setAttribute(USER_FIELD_KEYS.ipAddress, ipAddress);
+        }
 
         const extras = Object.fromEntries(
             Object.entries(rest).filter(([, value]) => value !== undefined),
         ) as Attributes;
-        if (Object.keys(extras).length > 0) scope.setAttribute('user.attributes', extras);
+        if (Object.keys(extras).length > 0) {
+            scope.setAttribute('user.attributes', extras);
+        }
 
         return this;
     }
@@ -375,19 +345,25 @@ export class Flare {
     }
 
     private async reportInternal(error: Error, attributes: Attributes = {}): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+            return;
+        }
 
         const seenAtUnixNano = Date.now() * 1_000_000;
 
-        // Coerce non-Error values (strings, rejected promises, etc) so we always have a real Error
-        // to walk a stack from. Typed as Error for ergonomics, but consumers may pass anything.
-        const coerced = error instanceof Error ? error : new Error(typeof error === 'string' ? error : String(error));
+        // Turn a non-Error value into a real Error, so there is always a stack to walk. The parameter is
+        // typed as Error to keep the common call easy, but consumers may pass anything.
+        const coerced = error instanceof Error ? error : new Error(String(error));
 
         const errorToReport = await this._config.beforeEvaluate(coerced);
-        if (!errorToReport) return;
+        if (!errorToReport) {
+            return;
+        }
 
         const report = await this.createReportFromError(errorToReport, attributes, seenAtUnixNano);
-        if (!report) return;
+        if (!report) {
+            return;
+        }
 
         return this.sendReport(report);
     }
@@ -401,7 +377,9 @@ export class Flare {
     }
 
     private async reportUnhandledRejectionInternal(message: string, attributes: Attributes = {}): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+            return;
+        }
 
         const seenAtUnixNano = Date.now() * 1_000_000;
 
@@ -428,7 +406,9 @@ export class Flare {
         level?: MessageLevel,
         attributes: Attributes = {},
     ): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) return;
+        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+            return;
+        }
 
         const seenAtUnixNano = Date.now() * 1_000_000;
         const stackTrace = await createStackTrace(new Error(), this._config.debug, this.fileReader);
@@ -484,10 +464,18 @@ export class Flare {
             'flare.language.name': 'javascript',
         };
 
-        if (this._config.stage) baseAttributes['service.stage'] = this._config.stage;
-        if (this._config.version) baseAttributes['service.version'] = this._config.version;
-        if (this.framework?.name) baseAttributes['flare.framework.name'] = this.framework.name;
-        if (this.framework?.version) baseAttributes['flare.framework.version'] = this.framework.version;
+        if (this._config.stage) {
+            baseAttributes['service.stage'] = this._config.stage;
+        }
+        if (this._config.version) {
+            baseAttributes['service.version'] = this._config.version;
+        }
+        if (this.framework?.name) {
+            baseAttributes['flare.framework.name'] = this.framework.name;
+        }
+        if (this.framework?.version) {
+            baseAttributes['flare.framework.version'] = this.framework.version;
+        }
 
         return baseAttributes;
     }
@@ -503,13 +491,19 @@ export class Flare {
 
         const entryPoint = activeScope.entryPoint;
         const entryPointOverrides: Attributes = {};
-        if (entryPoint?.identifier !== undefined)
+        if (entryPoint?.identifier !== undefined) {
             entryPointOverrides['flare.entry_point.handler.identifier'] = entryPoint.identifier;
-        if (entryPoint?.type !== undefined) entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
-        if (entryPoint?.name !== undefined) entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
+            // The OTel name for the same value. Set both here so they cannot drift apart.
+            entryPointOverrides['http.route'] = entryPoint.identifier;
+        }
+        if (entryPoint?.type !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.type'] = entryPoint.type;
+        }
+        if (entryPoint?.name !== undefined) {
+            entryPointOverrides['flare.entry_point.handler.name'] = entryPoint.name;
+        }
 
-        // entryPointOverrides come after the collector so explicitly-set entry-point values
-        // win over any defaults the collector provided.
+        // entryPointOverrides come after the collector so explicit entry-point values win over collector defaults.
         const attributes: Attributes = {
             ...baseAttributes,
             ...collectorAttributes,
@@ -518,9 +512,7 @@ export class Flare {
             ...extraAttributes,
         };
 
-        // Deep-merge context.custom: combine the scope's pendingAttributes['context.custom']
-        // with the user-supplied extra context.custom per-key (user wins) so scope-set context
-        // is not clobbered by the spread above.
+        // Deep-merge context.custom per-key (user wins) so the spread above does not clobber scope-set context.
         const pendingCustom = activeScope.pendingAttributes['context.custom'];
         const extraCustom = extraAttributes['context.custom'];
         if (
@@ -537,8 +529,7 @@ export class Flare {
             };
         }
 
-        // Inject the framework name into context.custom so it is emitted even inside a fresh
-        // request scope that carries no other custom context.
+        // Inject framework name into context.custom so it is emitted even in a fresh request scope with no other custom context.
         if (this.framework?.name) {
             const existing = (attributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
             attributes['context.custom'] = { ...existing, framework: this.framework.name.toLowerCase() };
@@ -555,6 +546,30 @@ export class Flare {
         };
     }
 
+    /**
+     * Local roots only, snapshotted by the Tracer at span START so a long-lived root does not drift into
+     * the next page's scope. Children get none, and no span ever runs the DOM collector.
+     *
+     * Everything assembled is inherited except user identity (excluding the opaque `user.id`): a root span
+     * goes out for every page view, so email, full name, IP and `user.attributes` would turn normal
+     * browsing into PII traffic. The rest — `context.custom`, `addContextGroup` bags — stays in, because
+     * the trace viewer renders any span attribute whose key does not start with `flare.`.
+     */
+    private getScopeAttributes(): Attributes {
+        const all = this.assembleAttributes({}, {}, false);
+        const scoped: Attributes = { ...all };
+        for (const key of SPAN_SCOPE_EXCLUDED_KEYS) {
+            delete scoped[key];
+        }
+        return scoped;
+    }
+
+    private spanResourceAttributes(): Attributes {
+        // Only the resource partition: record-level context (cookies, url) is heavy and drifts, and this is
+        // evaluated once per flush rather than per span.
+        return partitionAttributes(this.contextCollector(this._config)).resource;
+    }
+
     private buildReport(input: {
         exceptionClass: string;
         message: string;
@@ -568,10 +583,8 @@ export class Flare {
         const activeScope = this.scopeProvider.active();
         const attributes = this.assembleAttributes(this.contextCollector(this._config), input.extraAttributes, true);
 
-        // seenAtUnixNano: real nanoseconds. Date.now() * 1_000_000 exceeds Number.MAX_SAFE_INTEGER
-        // by ~3 bits (~256 ns of drift), but browser clocks are millisecond-precision so the lost
-        // bits are below source resolution. PHP's json_decode reads the resulting 19-digit literal
-        // as a 64-bit int (PHP_INT_MAX ~ 9.22e18 vs our value ~ 1.78e18).
+        // seenAtUnixNano overflows MAX_SAFE_INTEGER by ~3 bits (~256ns), which is below the millisecond
+        // resolution browser clocks actually have. PHP reads the 19-digit literal as a 64-bit int.
         const report: Report = {
             exceptionClass: input.exceptionClass,
             message: input.message,
@@ -604,7 +617,9 @@ export class Flare {
         }
 
         const reportToSubmit = await this._config.beforeSubmit(report);
-        if (!reportToSubmit) return;
+        if (!reportToSubmit) {
+            return;
+        }
 
         return this.api.report(
             reportToSubmit,

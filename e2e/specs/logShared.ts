@@ -43,3 +43,19 @@ export const runLogScenario = async (page: Page, fakeFlare: FakeFlare, scenario:
 };
 
 export const logScenariosFor = (framework: Framework): LogScenario[] => logCoverageFor(framework);
+
+/** The message bodies of every record in an OTLP logs envelope. */
+export const logMessagesOf = (bodyJson: unknown): string[] =>
+    (
+        (bodyJson as { resourceLogs?: Array<{ scopeLogs?: Array<{ logRecords?: Array<{ body?: unknown }> }> }> })
+            .resourceLogs ?? []
+    )
+        .flatMap((resourceLog) => resourceLog.scopeLogs ?? [])
+        .flatMap((scopeLog) => scopeLog.logRecords ?? [])
+        .map((record) => (record.body as { stringValue?: string } | undefined)?.stringValue ?? '');
+
+/** Wait for the logs envelope carrying a record whose message starts with `prefix`. */
+export const waitForLogMessage = (fakeFlare: FakeFlare, prefix: string) =>
+    fakeFlare.waitForLog({
+        predicate: (record) => logMessagesOf(record.bodyJson).some((message) => message.startsWith(prefix)),
+    });

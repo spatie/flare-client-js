@@ -23,7 +23,7 @@ export function defaultTrustPolicy(frame: SenderFrame, opts: ResolvedElectronOpt
     }
     const scheme = parsed.protocol.replace(/:$/, '');
     if (scheme === 'file') {
-        // file: with a foreign host is unusual and untrusted; accept only host-less or localhost file URLs.
+        // A foreign host on file: is untrusted; accept only host-less or localhost file URLs.
         return parsed.hostname === '' || parsed.hostname === 'localhost';
     }
     const isLoopback =
@@ -48,10 +48,9 @@ function isTrusted(frame: SenderFrame | undefined, opts: ResolvedElectronOptions
 }
 
 /**
- * Minimal top-level structural guard for a parsed report. This is intentionally NOT an exhaustive
- * validator of every StackFrame / SpanEvent: the renderer builds the report with our own Flare code,
- * and a compromised renderer could forge any valid-looking shape anyway. The real security boundary
- * is the sender-trust check plus the byte-size cap; this guard only rejects obviously-wrong payloads.
+ * Minimal top-level structural guard for a parsed report, not an exhaustive StackFrame/SpanEvent
+ * validator: a compromised renderer could forge any valid-looking shape anyway. The security boundary
+ * is the sender-trust check plus the byte-size cap; this only rejects obviously-wrong payloads.
  */
 function isReportShape(value: unknown): value is Report {
     if (typeof value !== 'object' || value === null) {

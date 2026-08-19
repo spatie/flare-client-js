@@ -1,4 +1,4 @@
-export type FakeFlareEndpoint = 'reports' | 'sourcemaps' | 'logs';
+export type FakeFlareEndpoint = 'reports' | 'sourcemaps' | 'logs' | 'traces';
 
 export type FakeFlareRecord = {
     endpoint: FakeFlareEndpoint;
@@ -22,7 +22,9 @@ export type FakeFlareServer = {
     reports(): FakeFlareRecord[];
     sourcemaps(): FakeFlareRecord[];
     logs(): FakeFlareRecord[];
+    traces(): FakeFlareRecord[];
     reset(): void;
     waitForReport(options?: WaitForOptions): Promise<FakeFlareRecord>;
+    waitForTrace(options?: WaitForOptions): Promise<FakeFlareRecord>;
     stop(): Promise<void>;
 };

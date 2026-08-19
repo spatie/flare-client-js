@@ -79,8 +79,7 @@ describe('captureBody', () => {
     it('emits only suffix when budget is too small', () => {
         const big = { v: 'x'.repeat(100) };
         const out = captureBody(big, undefined, { ...opts, bodyMaxBytes: 5 });
-        // 5 bytes can't fit 14-byte suffix + any payload. Result should be the
-        // suffix truncated to 5 bytes, staying within the byte budget.
+        // 5 bytes can't fit the 14-byte suffix plus payload: result is the suffix truncated to 5 bytes.
         expect(Buffer.byteLength(out!, 'utf8')).toBeLessThanOrEqual(5);
     });
 

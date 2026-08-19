@@ -6,12 +6,10 @@ export type FlareConfig = {
 };
 
 /**
- * Read flare.json from an EXPLICIT path. The hooks run from android/ or ios/, so
- * resolving relative to process.cwd() would read the wrong file — callers always
- * pass --config. Missing or malformed file → empty config, so resolution falls
- * through to env, then to the no-key skip-with-banner. Any `version` key is
- * deliberately ignored: in the auto path the version flows only through
- * FLARE_SOURCEMAP_VERSION (see resolveAutoVersion / the design doc).
+ * Read flare.json from an explicit path. Hooks run from android/ or ios/, so resolving relative to
+ * cwd would read the wrong file; callers always pass --config. Missing or malformed file yields an
+ * empty config, so resolution falls through to env then to the no-key skip-with-banner. Any `version`
+ * key is ignored: in the auto path version flows only through FLARE_SOURCEMAP_VERSION.
  */
 export function readFlareConfig(configPath?: string): FlareConfig {
     if (!configPath) {

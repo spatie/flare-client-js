@@ -15,6 +15,9 @@ function browserCollector(_config: Readonly<Config>): Attributes {
     const attrs: Attributes = { 'flare.entry_point.type': 'web' };
     if (typeof window !== 'undefined' && window?.location?.pathname) {
         attrs['flare.entry_point.handler.identifier'] = window.location.pathname;
+        // The real browser collector also sets http.route. Copy that here so the tests below can
+        // check both keys move together.
+        attrs['http.route'] = window.location.pathname;
         attrs['flare.entry_point.handler.type'] = 'browser';
     }
     return attrs;
@@ -40,6 +43,7 @@ test('default entry point handler is pathname + browser', async () => {
 
     const a = fakeApi.lastReport!.attributes;
     expect(a['flare.entry_point.handler.identifier']).toBe('/users/42');
+    expect(a['http.route']).toBe('/users/42');
     expect(a['flare.entry_point.handler.type']).toBe('browser');
     expect(a['flare.entry_point.handler.name']).toBeUndefined();
 });
@@ -51,6 +55,8 @@ test('setEntryPoint overrides identifier, type, and name', async () => {
 
     const a = fakeApi.lastReport!.attributes;
     expect(a['flare.entry_point.handler.identifier']).toBe('/users/:id');
+    // http.route copies the identifier, so the override has to win here too.
+    expect(a['http.route']).toBe('/users/:id');
     expect(a['flare.entry_point.handler.type']).toBe('vue_route');
     expect(a['flare.entry_point.handler.name']).toBe('UserShow');
 });
@@ -74,6 +80,7 @@ test('setEntryPoint with only name falls back to collector defaults for identifi
     const a = fakeApi.lastReport!.attributes;
     // identifier falls back to default pathname from browser collector
     expect(a['flare.entry_point.handler.identifier']).toBe('/users/42');
+    expect(a['http.route']).toBe('/users/42');
     // type falls back to default 'browser' from browser collector
     expect(a['flare.entry_point.handler.type']).toBe('browser');
 });

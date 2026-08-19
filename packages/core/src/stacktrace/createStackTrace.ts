@@ -40,12 +40,9 @@ export function createStackTrace(error: Error, debug: boolean, fileReader: FileR
     });
 }
 
-// Hermes (React Native's default engine) emits stack frames like
-// `onPress@address at index.android.bundle:1:1234`. error-stack-parser keeps the
-// `address at ` literal as part of the fileName, which breaks both sourcemap matching
-// (the backend matches the bundle path against the uploaded relative_filename) and
-// source display. Strip the prefix so `file` is the real bundle path. No real file
-// path begins with `address at `, so this is a no-op on other engines.
+// Hermes (RN's default engine) emits frames like `onPress@address at index.android.bundle:1:1234`. error-stack-parser
+// keeps the `address at ` literal in the fileName, breaking sourcemap matching and source display. Strip it so `file`
+// is the real bundle path. No real path begins with `address at `, so this is a no-op on other engines.
 const HERMES_ADDRESS_PREFIX = 'address at ';
 
 function normalizeFileName(fileName: string | undefined): string | undefined {
@@ -70,7 +67,9 @@ function fallbackFrame(reason: string): StackFrame {
 // constructed but never thrown. Treat that as "no stack" so we fall back instead of parsing garbage.
 // Also accepts the legacy `stacktrace` and Opera `opera#sourceloc` properties.
 function hasStack(err: unknown): boolean {
-    if (!err || typeof err !== 'object') return false;
+    if (!err || typeof err !== 'object') {
+        return false;
+    }
     const e = err as Record<string, unknown>;
     const stack = e.stack ?? e.stacktrace ?? e['opera#sourceloc'];
     return (
@@ -80,9 +79,15 @@ function hasStack(err: unknown): boolean {
 }
 
 function isApplicationFrame(fileName: string | undefined): boolean {
-    if (!fileName) return true;
+    if (!fileName) {
+        return true;
+    }
     // node_modules and webpack-style vendor chunks should not count as application code
-    if (/[/\\]node_modules[/\\]/.test(fileName)) return false;
-    if (/(^|[/\\])(vendor|vendors)[.~-][^/\\]*\.js/i.test(fileName)) return false;
+    if (/[/\\]node_modules[/\\]/.test(fileName)) {
+        return false;
+    }
+    if (/(^|[/\\])(vendor|vendors)[.~-][^/\\]*\.js/i.test(fileName)) {
+        return false;
+    }
     return true;
 }

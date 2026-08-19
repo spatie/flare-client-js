@@ -1,25 +1,41 @@
-import type { Attributes, Config, ContextCollector } from '@flareapp/core';
+import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
 import { redactUrlQuery } from '@flareapp/core';
 
 import cookie from './cookie';
 import request from './request';
-import requestData from './requestData';
 
-export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
+export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): Attributes {
     if (typeof window === 'undefined') {
-        return { 'flare.entry_point.type': 'server' };
+        return { 'flare.entry_point.type': 'web' satisfies EntryPointType };
     }
 
     const attrs: Attributes = {
-        'flare.entry_point.type': 'web',
+        'flare.entry_point.type': 'web' satisfies EntryPointType,
     };
 
-    if (window?.location?.href) {
-        attrs['flare.entry_point.value'] = redactUrlQuery(window.location.href, config.urlDenylist);
-        if (window.location.pathname) {
-            attrs['flare.entry_point.handler.identifier'] = window.location.pathname;
+    // Prefer a caller-supplied destination (framework nav integrations pass it because the router
+    // knows the destination before the URL commits); otherwise the live location.
+    const href = urlOverride ? urlOverride.href : window?.location?.href;
+    if (href) {
+        attrs['flare.entry_point.value'] = redactUrlQuery(href, config.urlDenylist);
+        const pathname = urlOverride ? urlOverride.pathname : window?.location?.pathname;
+        if (pathname) {
+            attrs['flare.entry_point.handler.identifier'] = pathname;
+            attrs['http.route'] = pathname;
             attrs['flare.entry_point.handler.type'] = 'browser';
         }
+    }
+
+    return attrs;
+}
+
+export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
+    const attrs: Attributes = { ...browserEntryPoint(config) };
+
+    // No window (SSR/node): browserEntryPoint already returned the entry point type on its own.
+    // request()/cookie() below touch window unguarded, so stop here.
+    if (typeof window === 'undefined') {
+        return attrs;
     }
 
     // host.name is resource-level (see partition.ts RESOURCE_PREFIXES) so it lands in
@@ -30,8 +46,7 @@ export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attr
     }
 
     Object.assign(attrs, request(config.urlDenylist));
-    Object.assign(attrs, requestData(config.urlDenylist));
-    Object.assign(attrs, cookie());
+    Object.assign(attrs, cookie(config.urlDenylist));
 
     return attrs;
 };

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Api } from '../src/api';
 import { NoopFlushScheduler } from '../src/logging/FlushScheduler';
-import { Logger } from '../src/logging/Logger';
+import { Logger, type LoggerDeps } from '../src/logging/Logger';
 import type { Attributes, Config, Framework, SdkInfo } from '../src/types';
 import { FakeApi } from './helpers/FakeApi';
 
@@ -31,7 +31,7 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
     };
 }
 
-function makeLogger(config: Config, api: Api = new Api()) {
+function makeLogger(config: Config, api: Api = new Api(), over: Partial<LoggerDeps> = {}) {
     const sdkInfo: SdkInfo = { name: '@flareapp/core', version: '0.0.0' };
     const framework: Framework | null = null;
     return new Logger({
@@ -42,6 +42,7 @@ function makeLogger(config: Config, api: Api = new Api()) {
         buildLogAttributes: (userAttributes: Attributes) => ({ record: { ...userAttributes }, resource: {} }),
         track: (p) => p,
         scheduler: new NoopFlushScheduler(),
+        ...over,
     });
 }
 
@@ -62,9 +63,8 @@ describe('Logger record/buffer', () => {
     });
 
     it('drops a single record larger than logFlushMaxBytes at capture', () => {
-        // Cap sits above a minimal record's serialized size (~140B incl. timestamp,
-        // severity, empty attribute maps) but below the 500-char record (~640B), so
-        // only the big one is dropped at capture.
+        // Cap sits above a minimal record (~140B) but below the 500-char record (~640B), so only the big one is
+        // dropped at capture.
         const logger = makeLogger(makeConfig({ logFlushMaxBytes: 300, maxLogBufferSize: 100 }));
         logger.info('x'.repeat(500));
         expect(logger.bufferLength()).toBe(0);
@@ -73,11 +73,12 @@ describe('Logger record/buffer', () => {
     });
 
     it('trims oldest records past maxLogBufferSize (keyless, so the count-cap flush no-ops)', () => {
-        // With a key, hitting the count cap would flush-and-clear, so the buffer
-        // would never accumulate to the cap. key: null makes flush no-op, so the
-        // hard trim is what bounds the buffer — which is exactly what we assert.
+        // With a key, hitting the count cap would flush-and-clear so the buffer never reaches the cap. key: null makes
+        // flush a no-op, so the hard trim is what bounds the buffer, which is what we assert.
         const logger = makeLogger(makeConfig({ key: null, maxLogBufferSize: 3, logFlushIntervalMs: 999_999 }));
-        for (let i = 0; i < 10; i++) logger.info(`m${i}`);
+        for (let i = 0; i < 10; i++) {
+            logger.info(`m${i}`);
+        }
         expect(logger.bufferLength()).toBe(3);
     });
 });
@@ -169,11 +170,11 @@ describe('Logger triggers', () => {
         expect(bodies).toContainEqual({ stringValue: 'small-1' });
         expect(bodies).toContainEqual({ stringValue: 'small-2' });
         expect(bodies.some((b) => 'stringValue' in b && b.stringValue.length > 1000)).toBe(false);
-        // The over-budget record is not dropped — a backgrounded tab may resume.
+        // The over-budget record is not dropped; a backgrounded tab may resume.
         expect(logger.bufferLength()).toBe(1);
     });
 
-    it('backgrounded tab keeps over-keepalive records and ships them on a later normal flush', () => {
+    it('ships the whole buffer without keepalive when nothing fits the keepalive budget', () => {
         const api = new FakeApi();
         const logger = makeLogger(
             makeConfig({ keepaliveMaxBytes: 2000, logFlushMaxBytes: 1_000_000, logFlushIntervalMs: 999_999 }),
@@ -181,14 +182,10 @@ describe('Logger triggers', () => {
         );
         logger.info('x'.repeat(5000)); // > keepaliveMaxBytes, < logFlushMaxBytes
 
-        // visibilitychange:hidden on a backgrounded (not unloading) tab. Nothing fits
-        // the keepalive budget, so no envelope ships and the record must survive.
+        // visibilitychange:hidden, possibly on a tab that is unloading. Nothing fits the keepalive budget, so
+        // packForKeepalive selects nothing; a cancellable normal fetch beats retaining the record behind a
+        // timer that may never fire again.
         logger.flush({ keepalive: true });
-        expect(api.logEnvelopes).toHaveLength(0);
-        expect(logger.bufferLength()).toBe(1);
-
-        // Tab resumes; a normal flush ships the retained record.
-        logger.flush();
         expect(api.logEnvelopes).toHaveLength(1);
         expect(api.lastLogKeepalive).toBe(false);
         const bodies = api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords.map((r) => r.body);
@@ -204,7 +201,10 @@ describe('Logger triggers', () => {
             logFlushIntervalMs: 999_999,
         });
         const logger = makeLogger(config, api);
-        for (let i = 0; i < 30; i++) logger.info('x'.repeat(200)); // each ~200B; 30 would blow 1500B
+        // each ~200B; 30 would blow 1500B
+        for (let i = 0; i < 30; i++) {
+            logger.info('x'.repeat(200));
+        }
         logger.flush({ keepalive: true });
         expect(api.logEnvelopes).toHaveLength(1);
         const serialized = new TextEncoder().encode(JSON.stringify(api.logEnvelopes[0])).length;
@@ -213,9 +213,8 @@ describe('Logger triggers', () => {
 
     it('weight cap flushes-and-clears with a key (ships, does not trim away)', () => {
         const api = new FakeApi();
-        // logFlushMaxBytes chosen so a SINGLE record stays under it (no oversized
-        // drop at capture), but TWO cross it — so the 2nd push fires the weight
-        // trigger. Each ~250-char message serializes to ~380B incl. envelope keys.
+        // logFlushMaxBytes chosen so a single record stays under it (no oversized drop), but two cross it, so the 2nd
+        // push fires the weight trigger. Each ~250-char message serializes to ~380B incl. envelope keys.
         const logger = makeLogger(
             makeConfig({ logFlushMaxBytes: 700, maxLogBufferSize: 100, logFlushIntervalMs: 999_999 }),
             api,
@@ -236,6 +235,56 @@ describe('Logger triggers', () => {
         vi.advanceTimersByTime(5000);
         expect(api.logEnvelopes).toHaveLength(1); // the re-armed timer fired
         vi.useRealTimers();
+    });
+
+    it('re-arms the flush timer after a flush that no-ops on a disabled signal', () => {
+        // The disabled early return skips clearTimer() on purpose (the buffer survives a temporary disable), so the
+        // timer callback has to reset its own state first. Before it did, a no-op timer flush left timerActive true
+        // with a spent handle and armTimer refused to arm again for the rest of the Logger's life.
+        vi.useFakeTimers();
+        const api = new FakeApi();
+        const config = makeConfig({ logFlushIntervalMs: 5000 });
+        const logger = makeLogger(config, api);
+
+        logger.info('a'); // arms the timer
+        config.enableLogs = false;
+        vi.advanceTimersByTime(5000); // fires, and flush no-ops on the enable gate
+        expect(api.logEnvelopes).toHaveLength(0);
+        expect(logger.bufferLength()).toBe(1); // retained, not dropped
+
+        config.enableLogs = true;
+        logger.info('b'); // has to be able to arm a fresh timer
+        vi.advanceTimersByTime(5000);
+        expect(api.logEnvelopes).toHaveLength(1);
+        expect(api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(2);
+        vi.useRealTimers();
+    });
+
+    it('sizes the keepalive envelope without rebuilding it per candidate', () => {
+        // The old packer built and serialized a whole trial envelope per candidate, so envelope construction grew
+        // with buffer depth. Sizing from parts builds it a fixed three times per flush, whatever the depth:
+        // once for the resource identity, once for the empty envelope, once for the batch that ships.
+        const sdkReadsForKeepaliveFlush = (recordCount: number): number => {
+            const getSdkInfo = vi.fn((): SdkInfo => ({ name: '@flareapp/core', version: '0.0.0' }));
+            const api = new FakeApi();
+            const logger = makeLogger(
+                makeConfig({ keepaliveMaxBytes: 1_000_000, logFlushMaxBytes: 1_000_000, logFlushIntervalMs: 999_999 }),
+                api,
+                { getSdkInfo },
+            );
+            for (let i = 0; i < recordCount; i++) {
+                logger.info(`m${i}`);
+            }
+            getSdkInfo.mockClear();
+            logger.flush({ keepalive: true });
+
+            // Everything fit the budget, so depth is the only variable left.
+            expect(api.logEnvelopes[0].resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(recordCount);
+            return getSdkInfo.mock.calls.length;
+        };
+
+        expect(sdkReadsForKeepaliveFlush(2)).toBe(3);
+        expect(sdkReadsForKeepaliveFlush(50)).toBe(3);
     });
 
     it('reads SDK identity lazily at flush (not snapshotted at construction)', () => {

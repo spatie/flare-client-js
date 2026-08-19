@@ -28,9 +28,9 @@ export default withFlareSourcemaps(
 This will:
 
 - Enable `productionBrowserSourceMaps` (unless you explicitly set it to `false`)
-- Add the Flare webpack plugin to client-side builds only
+- Add the Flare webpack plugin to every build (client, server and edge)
 - Upload sourcemaps to Flare after each production build
-- Remove `.map` files from build output by default
+- Remove the client `.map` files from build output by default; server maps stay on disk
 
 ## Options
 
@@ -39,7 +39,7 @@ This will:
 | `apiKey`           | `string`  | (required)                           | Your Flare API key                              |
 | `apiEndpoint`      | `string`  | `https://flareapp.io/api/sourcemaps` | Sourcemap upload endpoint                       |
 | `version`          | `string`  | random UUID                          | Sourcemap version identifier                    |
-| `removeSourcemaps` | `boolean` | `true`                               | Delete `.map` files after upload                |
+| `removeSourcemaps` | `boolean` | `true`                               | Delete the client `.map` files after upload     |
 | `runInDevelopment` | `boolean` | `false`                              | Upload sourcemaps in development builds         |
 | `publicPath`       | `string`  | from webpack config                  | Override the public path prepended to filenames |
 

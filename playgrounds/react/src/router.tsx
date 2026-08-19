@@ -5,6 +5,7 @@ import { brokenRoute } from './routes/broken';
 import { cartRoute } from './routes/cart';
 import { checkoutRoute } from './routes/checkout';
 import { confirmationRoute } from './routes/confirmation';
+import { httpRoute } from './routes/http';
 import { indexRoute } from './routes/index';
 import { productRoute } from './routes/product.$id';
 import { reactInvariantRoute } from './routes/reactInvariant';
@@ -16,6 +17,7 @@ const routeTree = rootRoute.addChildren([
     checkoutRoute,
     confirmationRoute,
     brokenRoute,
+    httpRoute,
     reactInvariantRoute,
 ]);
 

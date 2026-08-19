@@ -63,6 +63,15 @@ flare.setUser({ id: 123, email: 'jane@example.com', fullName: 'Jane Doe' });
 
 See the [JavaScript identifying-users docs](https://flareapp.io/docs/javascript/data-collection/identifying-users) for the full field list. Pass `null` to clear.
 
+## Hover-preloaded fetches in traces
+
+SvelteKit's recommended default, `data-sveltekit-preload-data="hover"`, starts a route's `load`
+function, including its `fetch`, as soon as a visitor hovers a link — before they click it. If they
+never click, a trace for the page they were on can still show a fetch for the route they hovered but
+never opened. That is a correct record of what the browser did, not a bug, but it can read as wrong
+data in a waterfall. Setting `data-sveltekit-preload-data` to a less eager value (for example `"tap"`)
+avoids it.
+
 ## Documentation
 
 Full documentation on `handleErrorWithFlare`, `captureError`, `trackRouteContext`, lifecycle callbacks, and more is

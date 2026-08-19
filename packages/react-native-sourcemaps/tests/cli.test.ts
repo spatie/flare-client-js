@@ -5,8 +5,8 @@ import { readFlareConfig } from '../src/config';
 import { uploadSourcemaps } from '../src/uploadSourcemaps';
 
 vi.mock('../src/uploadSourcemaps', () => ({ uploadSourcemaps: vi.fn().mockResolvedValue(undefined) }));
-// flare.json reading is covered in config.test.ts; here we stub it so the CLI's
-// key/endpoint resolution falls through to flags/env deterministically.
+// flare.json reading is covered in config.test.ts; stub it here so key/endpoint resolution falls
+// through to flags/env deterministically.
 vi.mock('../src/config', () => ({ readFlareConfig: vi.fn().mockReturnValue({}) }));
 
 afterEach(() => {

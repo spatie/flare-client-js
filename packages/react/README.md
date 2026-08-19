@@ -82,7 +82,59 @@ at [flareapp.io/docs/react/general/installation](https://flareapp.io/docs/react/
 
 - React 16, 17, 18, 19
 - `flareReactErrorHandler` requires React 19+
+- `withFlareProfiler` forwards `ref` on React 19 only
 
 ## License
 
 The MIT License (MIT). Please see [License File](../../LICENSE.md) for more information.
+
+## Component profiler (`@flareapp/react/profiler`)
+
+Opt-in mount profiling: wrap a component to record a `browser_component` span for
+its mount, nested under the active page-load / navigation trace. Requires tracing to be
+enabled (`enableTracing: true`).
+
+```tsx
+import { FlareProfiler, withFlareProfiler } from '@flareapp/react/profiler';
+
+// Wrap at the definition:
+export default withFlareProfiler(ProductPage);
+
+// Or wrap an inline subtree:
+<FlareProfiler name="Gallery">
+    <ProductGallery />
+</FlareProfiler>;
+```
+
+Spans nest into a tree: a profiled child nests under its nearest profiled ancestor;
+unprofiled components in between are transparent. A component with no active trace
+(tracing off, or no page-load/navigation root) records nothing and renders normally.
+
+A component that mounts later inside an already-mounted profiled ancestor still nests
+under that ancestor, whose own span closed when it finished mounting. The tree is
+correct, but the waterfall shows the child starting after its parent ended. A page body
+swapped inside a persistent layout is the usual way to see this.
+
+**Import the main entry somewhere too.** `@flareapp/react/profiler` is deliberately dependency-free, so
+it does not register React as the framework. That identity (`flare.framework.name`) is what tells Flare a
+component span came from React, and importing `@flareapp/react` anywhere in the app sets it. An app that
+uses only the `/profiler` entry reports `js` instead, and its component spans are attributed to plain
+JavaScript rather than React.
+
+**Naming:** the span name is `name` (prop or `withFlareProfiler(Component, { name })`),
+then `Component.displayName`, then `Component.name`. Minified production builds can
+mangle `Component.name`, so pass an explicit `name` or set `displayName` for production.
+
+**Suspense (v1 limitation):** a `<Suspense>` boundary inside a profiled subtree can end a
+parent span before a suspended child resumes, so the child may appear outside its parent
+in the waterfall, and its duration includes the data wait. If the wait outlasts the
+trace's idle window the child span is dropped rather than attached to a closed trace.
+
+**Render-phase start:** the span starts when the component first renders, not when React commits it. A
+render React defers or discards (`useDeferredValue`, an interrupted transition, an `<Activity mode="hidden">`
+prerender revealed later) bills that whole gap to the component.
+
+**Refs and statics:** the wrapper is a plain function component. It forwards no `ref` through `forwardRef`
+and hoists no statics. On React 19 `ref` is a normal prop and passes straight through, so this only affects
+the React 16-18 half of the peer range; there, wrap with `FlareProfiler` inside the component instead of
+applying `withFlareProfiler` to it.

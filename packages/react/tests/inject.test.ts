@@ -13,7 +13,7 @@ describe('@flareapp/react/inject entry', () => {
 
         await import('../src/inject');
 
-        // root module never imported -> its mock factory never ran, no window.flare installed
+        // Root module never imported -> its mock factory never ran, no window.flare installed.
         expect(rootFactory).not.toHaveBeenCalled();
         expect((window as any).flare).toBeUndefined();
     });
@@ -26,7 +26,7 @@ describe('@flareapp/react/inject entry', () => {
 
     test('boundary from inject entry throws at construction when no instance and no default', async () => {
         const { FlareErrorBoundary } = await import('../src/inject');
-        // No registerDefaultFlare ran (root not imported) -> resolveFlare throws.
+        // No registerDefaultFlare ran (root not imported), so resolveFlare throws.
         expect(() => new (FlareErrorBoundary as any)({})).toThrow(/No Flare instance available/);
     });
 });

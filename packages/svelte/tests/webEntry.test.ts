@@ -13,12 +13,17 @@ describe('@flareapp/svelte web entry', () => {
 
         await import('../src/index.js');
 
-        // SvelteKit contract: identity is set at IMPORT (module load), not deferred.
+        // SvelteKit contract: identity is set at import (module load), not deferred.
         expect(setSdkInfo).toHaveBeenCalledWith(expect.objectContaining({ name: '@flareapp/svelte' }));
-        expect(setFramework).toHaveBeenCalledWith({ name: 'Svelte' });
+        expect(setFramework).toHaveBeenCalledWith({ name: 'svelte' });
 
         // default provider registered for no-option usage
         const { resolveFlare } = await import('../src/resolveFlare.js');
         expect(resolveFlare()).toBe(singleton);
+    });
+
+    test('exports __flareProfileComponent for the preprocessor to import', async () => {
+        const mod = await import('../src/index.js');
+        expect(typeof mod.__flareProfileComponent).toBe('function');
     });
 });

@@ -3,19 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ReactNativeFlare } from '../src/Flare';
 import { FakeApi } from './helpers/FakeApi';
-
-type Handler = (error: unknown, isFatal?: boolean) => void;
-
-function stubErrorUtils() {
-    let current: Handler | undefined;
-    (globalThis as Record<string, unknown>).ErrorUtils = {
-        getGlobalHandler: () => current,
-        setGlobalHandler: (cb: Handler) => {
-            current = cb;
-        },
-    };
-    return { emit: (e: unknown, f?: boolean) => current?.(e, f) };
-}
+import { stubErrorUtils } from './helpers/stubErrorUtils';
 
 /** Swap core's Api for a FakeApi so reports are captured, not sent. */
 function withFakeApi(flare: ReactNativeFlare): FakeApi {
@@ -25,14 +13,13 @@ function withFakeApi(flare: ReactNativeFlare): FakeApi {
 }
 
 afterEach(() => {
-    delete (globalThis as Record<string, unknown>).ErrorUtils;
+    vi.unstubAllGlobals();
     AppState.__reset();
     vi.restoreAllMocks();
 });
 
-// `{ enable: null }` disables the rejection hook so light() does NOT enable a
-// real global rejection tracker as a leaking side effect (the `promise` package
-// may resolve in the node test env, or a HermesInternal stub could be present).
+// `{ enable: null }` disables the rejection hook so light() installs no leaking global tracker (the
+// `promise` package may resolve in the node test env, or a HermesInternal stub could be present).
 function makeFlare(): ReactNativeFlare {
     return new ReactNativeFlare({ enable: null });
 }
@@ -78,9 +65,7 @@ describe('ReactNativeFlare', () => {
         const flare = makeFlare();
         const fake = withFakeApi(flare);
         flare.light('k');
-        // setUser is inherited from core: the known fields project to the
-        // backend-read `user.*` keys (written to the global scope), and any extra
-        // key lands in `user.attributes`.
+        // setUser (inherited from core): known fields project to `user.*` keys, extras to `user.attributes`.
         flare.setUser({ id: 42, email: 'u@x.io', fullName: 'Neo Anderson', role: 'admin' });
 
         ctl.emit(new Error('with-user'), false);
@@ -184,19 +169,21 @@ describe('ReactNativeFlare', () => {
 });
 
 describe('ReactNativeFlare framework identity', () => {
-    it('tags the framework as React Native by default (no boundary needed)', async () => {
+    it('tags the framework as react-native by default (no boundary needed)', async () => {
         const flare = makeFlare();
         const fake = withFakeApi(flare);
         flare.light('k');
 
         await flare.report(new Error('x'));
 
-        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('React Native');
+        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('react-native');
+        // context.custom lowercases the name, which is now a no-op: the wire vocabulary is already
+        // lowercase, so both paths carry the same token.
         const custom = fake.lastReport?.attributes['context.custom'] as Record<string, unknown> | undefined;
-        expect(custom?.framework).toBe('react native');
+        expect(custom?.framework).toBe('react-native');
     });
 
-    it('coerces the wrapped @flareapp/react boundary tag (React) to React Native', async () => {
+    it('coerces the wrapped @flareapp/react boundary tag to react-native', async () => {
         const flare = makeFlare();
         const fake = withFakeApi(flare);
         flare.light('k');
@@ -207,7 +194,7 @@ describe('ReactNativeFlare framework identity', () => {
 
         await flare.report(new Error('x'));
 
-        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('React Native');
+        expect(fake.lastReport?.attributes['flare.framework.name']).toBe('react-native');
         // The React version the boundary supplied is preserved.
         expect(fake.lastReport?.attributes['flare.framework.version']).toBe('19.2.3');
     });

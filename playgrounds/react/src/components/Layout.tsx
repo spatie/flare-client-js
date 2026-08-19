@@ -1,7 +1,6 @@
 import { testIds } from '@flareapp/playgrounds-shared';
+import { useCartCount } from '@flareapp/playgrounds-shared/react';
 import { Link, Outlet } from '@tanstack/react-router';
-
-import { useCartCount } from '../cart';
 
 export const Layout = () => {
     const count = useCartCount();
@@ -22,6 +21,9 @@ export const Layout = () => {
                         </Link>
                         <Link to="/broken" className="text-sm font-medium hover:text-brand">
                             Broken
+                        </Link>
+                        <Link to="/http" className="text-sm font-medium hover:text-brand">
+                            HTTP
                         </Link>
                         <Link
                             to="/cart"

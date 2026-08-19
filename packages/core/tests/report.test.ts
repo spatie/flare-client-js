@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { frozenClock } from '@flareapp/test-helpers';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
@@ -120,8 +121,7 @@ test('events is always an array — never undefined', async () => {
 });
 
 test('seenAtUnixNano reflects report() entry time, not post-stacktrace time', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-28T12:00:00.000Z'));
+    frozenClock();
     const entryNs = Date.now() * 1_000_000;
 
     client.configure({

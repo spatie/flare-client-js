@@ -1,0 +1,12 @@
+export { Tracer, defaultNowNano, DEFAULT_MAX_LIVE_TRACES } from './Tracer';
+export type { TracerDeps, SpanPhase, SpanLifecycleEvent, SpanLifecycleListener } from './Tracer';
+export { SpanBuffer } from './SpanBuffer';
+export type { SpanBufferDeps } from './SpanBuffer';
+export { SpanImpl } from './Span';
+export type { SpanInit, SpanDeps } from './Span';
+export { InMemoryActiveSpanHolder } from './context';
+export type { ActiveSpanHolder } from './context';
+export { resolveSampling } from './sampler';
+export { buildTracesEnvelope } from './envelope';
+export { buildTraceparent, parseTraceparent } from './traceparent';
+export { randomHex, traceId, spanId } from './ids';

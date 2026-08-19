@@ -8,7 +8,7 @@ vi.mock('@flareapp/js', () => ({
 }));
 
 const mockPage = await vi.hoisted(async () => {
-    const mod = await import('../../tests/__mocks__/app-state');
+    const mod = await import('../../tests/__mocks__/app-state.svelte');
     return mod.page;
 });
 
@@ -48,6 +48,15 @@ describe('getRouteContext', () => {
             password: '[redacted]',
             token: '[redacted]',
         });
+    });
+
+    test('redacts sensitive route params by key', () => {
+        mockPage.url = new URL('http://localhost/reset-password/tok');
+        mockPage.params = { token: 'tok', id: '42' };
+
+        const context = getRouteContext();
+
+        expect(context.params).toEqual({ token: '[redacted]', id: '42' });
     });
 
     test('handles null route id', () => {
