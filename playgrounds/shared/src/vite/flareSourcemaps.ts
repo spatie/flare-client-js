@@ -24,10 +24,18 @@ export function flareSourcemapsForPlayground(mode: string): PluginOption {
         return false;
     }
 
+    // Staging splits the two: ingest sits on ingress-staging.flareapp.io, sourcemaps on
+    // staging.flareapp.io. Deriving one from the other only works when they share a host.
+    const endpointOverride = env.FLARE_SOURCEMAP_ENDPOINT;
+
     return flareSourcemaps({
         apiKey: env.VITE_FLARE_KEY,
         // VITE_FLARE_URL points at the error ingest path, so keep only its origin.
-        apiEndpoint: ingestUrl ? new URL('/api/sourcemaps', ingestUrl).href : REAL_FLARE_ENDPOINT,
+        apiEndpoint: endpointOverride
+            ? endpointOverride
+            : ingestUrl
+              ? new URL('/api/sourcemaps', ingestUrl).href
+              : REAL_FLARE_ENDPOINT,
         runInDevelopment: false,
         removeSourcemaps: false,
     });
