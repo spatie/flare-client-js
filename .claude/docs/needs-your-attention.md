@@ -6,7 +6,7 @@ task briefs and review comments.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-20, at branch tip `9700b23` (Task 4, the glow cutover, complete and reviewed).
+Last updated 2026-08-20, on `feat/breadcrumb-buffer`, covering work through the glow buffer cutover (Task 4).
 
 **For agents:** you may append to this file. See the house rules at the bottom.
 
@@ -50,10 +50,16 @@ get glows(): readonly Glow[] {
 
 Before this branch, `glows` was a plain `Glow[]` field, so `scope.glows = [...]` was legal. It is now a
 getter with no setter, so the same assignment throws (`TypeError: Cannot set property glows of #<Scope>
-which has only a getter`) in strict mode, or silently no-ops in loose mode. Same semver note as 1.2: nothing
-in this monorepo assigns to `.glows` directly (everything goes through `Flare.glow()` /
-`Flare.clearGlows()`), but it is a breaking change to a public class's public surface if anything outside
-this repo did.
+which has only a getter`) in strict mode, or silently no-ops in loose mode. Same semver note as 1.2: this is
+a breaking change to a public class's public surface if anything outside this repo assigns to `.glows`
+directly.
+
+**Verified:** nothing inside this monorepo assigns to `.glows` (everything goes through `Flare.glow()` /
+`Flare.clearGlows()`). Checked with `grep -rn "\.glows\s*=" packages/*/src packages/*/tests`, no matches;
+also checked for `.glows.push(`, `.glows.splice(`, `.glows.pop(` and bracket-index writes (`.glows[`),
+also no matches. The only other hits for `.glows` in `src`/`tests` are two doc-comment mentions of
+`Flare.glows` (`packages/core/src/breadcrumbs/SpanEventsRecorder.ts:10`,
+`packages/core/src/breadcrumbs/types.ts:22`), not code.
 
 ---
 
@@ -73,6 +79,6 @@ When you add an item:
 - Put it in the right section, and say plainly what happens if it is ignored.
 - Cite `file:line` where there is one.
 - **Mark what you verified and what you did not.** An unverified claim recorded as fact is worse than no
-  entry, because this file gets trusted. Section 4.2 shows the shape.
+  entry, because this file gets trusted. Item 1.3 shows the shape.
 - Update the "Last updated" line at the top with the date and branch tip.
 - Delete items once they are genuinely resolved, rather than growing a graveyard.
