@@ -33,7 +33,10 @@ export type Config = {
     maxGlowsPerReport: number;
     /** Entries in the shared breadcrumb buffer, glows included. */
     maxBreadcrumbs: number;
-    /** Serialized ceiling for the whole buffer. Sized to never fire on automatic entries; fat glow context is what reaches it. */
+    /**
+     * Serialized ceiling for the whole buffer. Sized to never fire on automatic entries; fat glow context
+     * is what reaches it.
+     */
     maxBreadcrumbBytes: number;
     /** Serialized ceiling for one entry. Kept below `maxBreadcrumbBytes` so eviction can be a plain loop. */
     maxBreadcrumbEntryBytes: number;

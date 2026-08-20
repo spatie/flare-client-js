@@ -90,6 +90,19 @@ describe('BreadcrumbBuffer', () => {
         expect(buffer.glows().map((g) => g.name)).toEqual(['kept-1', 'kept-2']);
     });
 
+    // Step 3 of the eviction algorithm, over the reserve.
+    test('eviction takes the oldest entry of any kind once glow count exceeds the reserve', () => {
+        const buffer = new BreadcrumbBuffer();
+        const reserve = limits({ maxBreadcrumbs: 3, maxGlowsPerReport: 2 });
+        buffer.add(glow('a'), reserve);
+        buffer.add(glow('b'), reserve);
+        buffer.add(glow('c'), reserve);
+        buffer.add(click(), reserve);
+
+        expect(buffer.toEvents().map((e) => e.type)).toEqual(['php_glow', 'php_glow', 'browser_click']);
+        expect(buffer.glows().map((g) => g.name)).toEqual(['b', 'c']);
+    });
+
     // Step 4 of the eviction algorithm.
     test('a buffer of nothing but reserved glows still yields to a hard cap', () => {
         const buffer = new BreadcrumbBuffer();
