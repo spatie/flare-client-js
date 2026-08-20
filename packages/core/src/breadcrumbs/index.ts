@@ -1,4 +1,5 @@
 export { BreadcrumbBuffer } from './BreadcrumbBuffer';
+export { GlowRecorder } from './GlowRecorder';
 export { Recorder } from './Recorder';
 export type { RecorderDeps } from './Recorder';
 export { SpanEventsRecorder } from './SpanEventsRecorder';
