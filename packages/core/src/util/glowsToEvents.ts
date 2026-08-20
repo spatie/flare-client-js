@@ -15,6 +15,6 @@ export function glowToEvent(glow: Glow): SpanEvent {
     };
 }
 
-export function glowsToEvents(glows: Glow[]): SpanEvent[] {
+export function glowsToEvents(glows: readonly Glow[]): SpanEvent[] {
     return glows.map(glowToEvent);
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { RecorderType } from '../src/breadcrumbs';
 import { GlobalScopeProvider, Scope } from '../src/Scope';
 import type { Glow } from '../src/types';
+import { breadcrumbLimits } from './helpers';
 
 const glow = (name: string): Glow => ({
     name,
@@ -29,7 +30,7 @@ describe('Scope', () => {
                 recorder: RecorderType.Glow,
                 glow: glow('a'),
             },
-            { maxBreadcrumbs: 100, maxBreadcrumbBytes: 64_000, maxBreadcrumbEntryBytes: 8_000, maxGlowsPerReport: 30 },
+            breadcrumbLimits(),
         );
 
         expect(scope.glows.map((g) => g.name)).toEqual(['a']);

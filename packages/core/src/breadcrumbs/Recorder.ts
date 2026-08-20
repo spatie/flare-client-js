@@ -13,7 +13,8 @@ export type RecorderDeps = {
 
 /**
  * Mirrors PHP's `Recorder`. `withErrors` and `withTraces` are the per-recorder switches from the PHP
- * config; they are not exposed as options yet, so each recorder sets them in its own constructor.
+ * config; they are not exposed as options yet, so a subclass overrides the defaults below when it needs
+ * to. `GlowRecorder` has no constructor and keeps them as-is.
  */
 export abstract class Recorder {
     protected withErrors = true;

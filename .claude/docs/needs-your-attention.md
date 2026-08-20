@@ -6,7 +6,8 @@ task briefs and review comments.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-20, on `feat/breadcrumb-buffer`, covering work through the glow buffer cutover (Task 4).
+Last updated 2026-08-20, on `feat/breadcrumb-buffer`, covering work through the final whole-branch review
+fixes (base `d7f3004`).
 
 **For agents:** you may append to this file. See the house rules at the bottom.
 
@@ -60,6 +61,78 @@ also checked for `.glows.push(`, `.glows.splice(`, `.glows.pop(` and bracket-ind
 also no matches. The only other hits for `.glows` in `src`/`tests` are two doc-comment mentions of
 `Flare.glows` (`packages/core/src/breadcrumbs/SpanEventsRecorder.ts:10`,
 `packages/core/src/breadcrumbs/types.ts:22`), not code.
+
+**Recommendation (not a decision — the release version is your call):** take the major on `@flareapp/core`
+for 1.2 and 1.3 rather than adding deprecated `addGlow` / `clearGlows` shims. Reasoning: `Scope` is exported
+mainly so `@flareapp/node`'s `NodeScope` can extend it; `@flareapp/js` pins `@flareapp/core` to an exact
+version, so the bump cascades to nothing there; and a compatibility shim would reintroduce the special case
+this branch exists to delete (glows as a thing separate from the buffer).
+
+### 1.4 An oversized glow is now dropped whole, and only tells you in debug mode
+
+`packages/core/src/breadcrumbs/SpanEventsRecorder.ts:35-41`: when a glow's serialized event exceeds
+`maxBreadcrumbEntryBytes` (default 8,000 bytes, `packages/core/src/Flare.ts:48`), `BreadcrumbBuffer.add`
+returns `false` and the entry never enters the buffer. `SpanEventsRecorder` logs that drop with
+`console.error` only `if (this.deps.getConfig().debug)` — a production app, which normally runs with
+`debug: false`, gets no signal at all.
+
+Before this branch, every glow shipped on the report regardless of size (`glowsToEvents` had no size check).
+This is the second of the two intended behavioural changes on the branch (the plan calls it out explicitly,
+`docs/superpowers/plans/2026-08-20-breadcrumb-buffer.md`, Global Constraints).
+
+If ignored: a customer glowing something non-trivial (an API response body, a Redux/Pinia state slice) loses
+that glow silently after upgrading, with no report-side trace that it happened, only in production where
+`debug` is off. Worth a release-notes mention and worth considering whether the drop should also surface
+some other way (a report-level attribute counting drops, for example) — that is a design call, not something
+this item resolves.
+
+**Verified:** the `if (!kept) return false` path and the `debug`-gated `console.error`
+(`SpanEventsRecorder.ts:39-41`); the 8,000-byte default (`Flare.ts:48`); pinned by
+`packages/core/tests/glows.test.ts`, "a glow over maxBreadcrumbEntryBytes is dropped whole, not shipped".
+**Not verified:** whether flareapp.io's configuration reference already documents a size limit on glow
+context; that page lives in another repository.
+
+---
+
+## 2. Findings deliberately left unfixed
+
+### 2.1 `safeClone`'s truncation is bounded in walk cost, not in output size
+
+`packages/core/src/util/flatJsonStringify.ts:8-9` runs `JSON.stringify(safeClone(value, { mode: 'json' }))`.
+`safeClone` (`packages/core/src/util/safeClone.ts`) charges one unit of a 50,000-node budget
+(`MAX_TRAVERSAL_NODES`, `packages/core/src/util/traversalBudget.ts:12`) per node visited via `spendNode`. Once
+the budget is spent, `walk()` returns the 22-character `TRUNCATED` marker in O(1)
+(`safeClone.ts:29-31`) — but its callers do not stop iterating: the array branch's `.map()`
+(`safeClone.ts:66`) and the object branch's `for` loop (`safeClone.ts:87-97`) still call `walk` once per
+remaining child of every container already entered, each call just returning `TRUNCATED` immediately. The
+node budget bounds how much real work each call does; it does not bound how many `TRUNCATED` strings end up
+in the output.
+
+Concretely: `flare.glow('x', 'info', { items: <1 million numbers> })` builds a JSON array of roughly one
+million `"[truncated: too large]"` strings, a synchronous string of about 24 MB, before
+`BreadcrumbBuffer.add` measures it and discards it for being over `maxBreadcrumbEntryBytes` (default 8,000
+bytes). The same hazard already exists today at report time: `Api.report` (`packages/core/src/api/Api.ts:48`)
+runs every report body through the same `flatJsonStringify`, so an application that puts a huge object into
+`addContext` (or any other path that flows into a report's attributes) already pays this cost once per
+report. This branch does not introduce the hazard — it raises how often it can fire, from once per report to
+once per `flare.glow()` call, since a glow that used to ship at any size now measures its size synchronously
+on every call.
+
+**Ruling: document, do not fix.** The fix belongs in `safeClone`, not here: stop iterating a container's
+children once `spendNode` fails partway through it, and emit one `TRUNCATED` marker for the whole container
+instead of one per remaining child. That changes the serialized shape of every truncated payload across
+every SDK that calls `flatJsonStringify` (glows, `addContext`, log attributes, span attributes), so it
+deserves its own change with its own tests rather than riding in on this branch. Fixing it would also close
+the equivalent report-time hazard described above, for free.
+
+**Verified:** the `walk()` early-return at `safeClone.ts:29-31` and that its callers keep iterating past a
+spent budget (`safeClone.ts:59-72` for arrays, `safeClone.ts:82-101` for objects); the 22-character length of
+`TRUNCATED` (`traversalBudget.ts:29`, checked with `"[truncated: too large]".length` — 22); that
+`flatJsonStringify` is the only thing standing between `BreadcrumbBuffer.add` and this cost
+(`BreadcrumbBuffer.ts:18`); that `Api.report` uses the same `flatJsonStringify` on the whole report body
+(`Api.ts:48`). **Not verified:** an actual timed run of the 1-million-item case; the "roughly 24 MB" and
+"synchronously" characterization is arithmetic (1,000,000 × ~24 bytes per quoted `TRUNCATED` entry plus
+separators) and code-path reading, not a measured benchmark.
 
 ---
 

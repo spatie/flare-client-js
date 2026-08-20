@@ -2,21 +2,17 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { BreadcrumbBuffer, GlowRecorder, RecorderType, type RecorderDeps } from '../src/breadcrumbs';
 import type { Config } from '../src/types';
+import { breadcrumbLimits } from './helpers';
 
-function setup() {
+function setup(nowNano: () => number = () => 0) {
     const buffer = new BreadcrumbBuffer();
-    const config = {
-        maxBreadcrumbs: 100,
-        maxBreadcrumbBytes: 64_000,
-        maxBreadcrumbEntryBytes: 8_000,
-        maxGlowsPerReport: 30,
-    } as Config;
+    const config = breadcrumbLimits() as Config;
 
     const deps: RecorderDeps = {
         getConfig: () => config,
         buffer: () => buffer,
         getActiveSpan: () => undefined,
-        nowNano: () => 0,
+        nowNano,
     };
 
     return { buffer, recorder: new GlowRecorder(deps) };
@@ -50,17 +46,18 @@ describe('GlowRecorder', () => {
         expect(buffer.glows()[0].messageLevel).toBe('warning');
     });
 
-    test('time is whole seconds and microtime carries the milliseconds', () => {
-        vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_123);
-        const { buffer, recorder } = setup();
+    test('time is whole seconds and microtime carries the sub-second precision', () => {
+        // 1,700,000,000.5s, expressed in nanoseconds, the unit deps.nowNano() returns.
+        const nowNano = 1_700_000_000_500_000_000;
+        const { buffer, recorder } = setup(() => nowNano);
 
         recorder.record('a', 'info', {});
 
         const [glow] = buffer.glows();
         expect(glow.time).toBe(1_700_000_000);
-        expect(glow.microtime).toBe(1_700_000_000.123);
-        // The wire timestamp comes off microtime, so two glows in one second no longer collide.
-        expect(buffer.toEvents()[0].startTimeUnixNano).toBe(Math.round(1_700_000_000.123 * 1_000_000_000));
+        expect(glow.microtime).toBe(1_700_000_000.5);
+        // The wire timestamp comes off microtime, not time, so two glows in one second no longer collide.
+        expect(buffer.toEvents()[0].startTimeUnixNano).toBe(nowNano);
     });
 
     test('clear removes only glow entries', () => {
@@ -70,7 +67,7 @@ describe('GlowRecorder', () => {
                 event: { type: 'browser_click', startTimeUnixNano: 1, endTimeUnixNano: null, attributes: {} },
                 recorder: RecorderType.Click,
             },
-            { maxBreadcrumbs: 100, maxBreadcrumbBytes: 64_000, maxBreadcrumbEntryBytes: 8_000, maxGlowsPerReport: 30 },
+            breadcrumbLimits(),
         );
         recorder.record('a', 'info', {});
 

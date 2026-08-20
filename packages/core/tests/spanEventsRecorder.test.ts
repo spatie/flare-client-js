@@ -96,4 +96,13 @@ describe('SpanEventsRecorder', () => {
         expect(buffer.size).toBe(1);
         expect(events).toEqual([{ name: 'browser_click' }]);
     });
+
+    test('withErrors off and withTraces on still writes the span, nothing lands in the buffer', () => {
+        const { span, events } = fakeSpan(true);
+        const { buffer, recorder } = setup({ withErrors: false, withTraces: true, span });
+        recorder.record();
+
+        expect(buffer.size).toBe(0);
+        expect(events).toEqual([{ name: 'browser_click' }]);
+    });
 });

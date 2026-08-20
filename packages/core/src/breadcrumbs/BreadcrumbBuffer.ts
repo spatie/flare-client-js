@@ -13,7 +13,11 @@ export class BreadcrumbBuffer {
     private entries: StoredEntry[] = [];
     private bufferedBytes = 0;
 
-    /** @returns false when the entry was over `maxBreadcrumbEntryBytes` and nothing was recorded. */
+    /**
+     * @returns false when the entry was over `maxBreadcrumbEntryBytes` and nothing was recorded. A true
+     * does not guarantee the entry survives: a `maxBreadcrumbEntryBytes` above `maxBreadcrumbBytes` can
+     * still have eviction remove the entry that was just accepted.
+     */
     add(entry: BreadcrumbEntry, limits: BreadcrumbLimits): boolean {
         const bytes = utf8Bytes(flatJsonStringify(entry.event));
 
@@ -25,7 +29,10 @@ export class BreadcrumbBuffer {
         this.entries.push({ ...entry, bytes });
         this.bufferedBytes += bytes;
 
-        while (this.entries.length > limits.maxBreadcrumbs || this.bufferedBytes > limits.maxBreadcrumbBytes) {
+        while (
+            this.entries.length > 0 &&
+            (this.entries.length > limits.maxBreadcrumbs || this.bufferedBytes > limits.maxBreadcrumbBytes)
+        ) {
             this.evictOne(limits);
         }
 
@@ -61,11 +68,6 @@ export class BreadcrumbBuffer {
             kept.push(entry);
         }
         this.entries = kept;
-    }
-
-    clear(): void {
-        this.entries = [];
-        this.bufferedBytes = 0;
     }
 
     get size(): number {

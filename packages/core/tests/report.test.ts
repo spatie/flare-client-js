@@ -136,6 +136,7 @@ test('seenAtUnixNano reflects report() entry time, not post-stacktrace time', as
     expect(fakeApi.lastReport!.seenAtUnixNano).toBe(entryNs);
 
     vi.useRealTimers();
+    vi.restoreAllMocks();
 });
 
 test('coerces non-Error inputs to a string message and Error class', async () => {

@@ -1,6 +1,5 @@
 import type { Glow, MessageLevel } from '../types';
 import { glowToEvent } from '../util/glowsToEvents';
-import { now } from '../util/now';
 import { SpanEventsRecorder } from './SpanEventsRecorder';
 import { RecorderType } from './types';
 
@@ -12,15 +11,15 @@ export class GlowRecorder extends SpanEventsRecorder {
     readonly recorderType = RecorderType.Glow;
 
     record(name: string, level: MessageLevel, data: Record<string, unknown> | Record<string, unknown>[]): void {
-        // `time` is a whole-second unix timestamp, `microtime` the same instant with milliseconds, matching
-        // PHP's Glow. The event's nanosecond timestamp is derived from microtime, so a page that glows twice
-        // in one second still sorts right on the timeline. now() rounds, so past the half-second the two differ.
+        // Derived from the same nowNano clock as every other recorder, so a glow sorts correctly against
+        // clicks and requests on the Debug tab timeline instead of drifting on Date.now().
+        const microtime = this.deps.nowNano() / 1e9;
         const glow: Glow = {
             name,
             messageLevel: level,
             metaData: data,
-            time: now(),
-            microtime: Date.now() / 1000,
+            time: Math.floor(microtime),
+            microtime,
         };
 
         const event = glowToEvent(glow);

@@ -34,6 +34,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     if (originalLocation) {
         Object.defineProperty(window, 'location', originalLocation);

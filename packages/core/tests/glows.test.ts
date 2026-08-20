@@ -2,7 +2,7 @@
 import { beforeEach, expect, test } from 'vitest';
 
 import { Flare, GlobalScopeProvider, RecorderType } from '../src';
-import { FakeApi } from './helpers';
+import { breadcrumbLimits, FakeApi } from './helpers';
 
 let fakeApi: FakeApi;
 let client: Flare;
@@ -59,7 +59,7 @@ test('clearGlows only clears the glow recorder, leaving other entries alone', ()
             event: { type: 'click', startTimeUnixNano: 1, endTimeUnixNano: null, attributes: {} },
             recorder: RecorderType.Click,
         },
-        { maxBreadcrumbs: 100, maxBreadcrumbBytes: 64_000, maxBreadcrumbEntryBytes: 8_000, maxGlowsPerReport: 30 },
+        breadcrumbLimits(),
     );
 
     scopedClient.clearGlows();
@@ -75,5 +75,14 @@ test('clearGlows only clears the glow recorder, leaving other entries alone', ()
 
 test('events array is empty when no glows recorded', async () => {
     await client.report(new Error('x'));
+    expect(fakeApi.lastReport!.events).toEqual([]);
+});
+
+test('a glow over maxBreadcrumbEntryBytes is dropped whole, not shipped', async () => {
+    client.configure({ maxBreadcrumbEntryBytes: 50 });
+    client.glow('rendering checkout', 'info', { cart: 'x'.repeat(200) });
+
+    await client.reportMessage('hello');
+
     expect(fakeApi.lastReport!.events).toEqual([]);
 });
