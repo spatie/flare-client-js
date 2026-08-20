@@ -37,7 +37,7 @@ export class Flare {
 
     private _logger!: Logger;
     private _tracer!: Tracer;
-    private glowRecorder: GlowRecorder;
+    private readonly glowRecorder: GlowRecorder;
 
     private _config: Config = {
         key: null,

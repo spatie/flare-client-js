@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { BreadcrumbBuffer, GlowRecorder, RecorderType, type RecorderDeps } from '../src/breadcrumbs';
 import type { Config } from '../src/types';
@@ -23,6 +23,10 @@ function setup() {
 }
 
 describe('GlowRecorder', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     test('produces a php_glow span event with the documented attributes', () => {
         const { buffer, recorder } = setup();
         recorder.record('rendering checkout', 'info', { cartId: 7 });
@@ -47,7 +51,7 @@ describe('GlowRecorder', () => {
     });
 
     test('time is whole seconds and microtime carries the milliseconds', () => {
-        const clock = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_123);
+        vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_123);
         const { buffer, recorder } = setup();
 
         recorder.record('a', 'info', {});
@@ -57,7 +61,6 @@ describe('GlowRecorder', () => {
         expect(glow.microtime).toBe(1_700_000_000.123);
         // The wire timestamp comes off microtime, so two glows in one second no longer collide.
         expect(buffer.toEvents()[0].startTimeUnixNano).toBe(Math.round(1_700_000_000.123 * 1_000_000_000));
-        clock.mockRestore();
     });
 
     test('clear removes only glow entries', () => {

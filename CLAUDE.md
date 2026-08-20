@@ -99,7 +99,7 @@ it and injects the browser-specific seams. Paths below are relative to each pack
 - `stacktrace/createStackTrace.ts` — Stack trace parsing (uses `error-stack-parser`)
 - `stacktrace/fileReader.ts` — Source code snippet reading from stack frames (`FileReader` interface + cache)
 - `Scope.ts` — Active scope: the breadcrumb buffer, pending attributes, user, entry point
-- `breadcrumbs/` — the shared breadcrumb buffer and the PHP-shaped recorder base classes; `GlowRecorder` is the only recorder today
+- `breadcrumbs/` — the breadcrumb buffer and PHP-shaped recorder base classes; `GlowRecorder` is the only recorder
 - `util/rejection.ts` — Routes `unhandledrejection` reasons to the right report method
 - `types.ts` — Core TypeScript interfaces (Config, Report, StackFrame, Attributes, etc.)
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test } from 'vitest';
 
-import { Flare } from '../src';
+import { Flare, GlobalScopeProvider, RecorderType } from '../src';
 import { FakeApi } from './helpers';
 
 let fakeApi: FakeApi;
@@ -45,11 +45,32 @@ test('a hard cap still evicts glows once nothing else is left to drop', async ()
     expect(fakeApi.lastReport!.events.map((e) => e.attributes['glow.name'])).toEqual(['b', 'c']);
 });
 
-test('clearGlows empties the buffer', () => {
-    client.glow('a').glow('b');
-    client.clearGlows();
+test('clearGlows only clears the glow recorder, leaving other entries alone', () => {
+    // A plain glow count can't tell clearRecorder(Glow) apart from a full clear(); pin the buffer directly.
+    const scopeProvider = new GlobalScopeProvider();
+    const scopedClient = new Flare(fakeApi, undefined, undefined, scopeProvider).configure({
+        key: 'key',
+        debug: true,
+    });
 
-    expect(client.glows).toHaveLength(0);
+    scopedClient.glow('a').glow('b');
+    scopeProvider.active().breadcrumbs.add(
+        {
+            event: { type: 'click', startTimeUnixNano: 1, endTimeUnixNano: null, attributes: {} },
+            recorder: RecorderType.Click,
+        },
+        { maxBreadcrumbs: 100, maxBreadcrumbBytes: 64_000, maxBreadcrumbEntryBytes: 8_000, maxGlowsPerReport: 30 },
+    );
+
+    scopedClient.clearGlows();
+
+    expect(scopedClient.glows).toHaveLength(0);
+    expect(
+        scopeProvider
+            .active()
+            .breadcrumbs.toEvents()
+            .map((e) => e.type),
+    ).toEqual(['click']);
 });
 
 test('events array is empty when no glows recorded', async () => {
