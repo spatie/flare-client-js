@@ -26,12 +26,23 @@ test('glows are serialized into php_glow span events on report', async () => {
     expect(event.attributes['glow.context']).toEqual({ cartId: 7 });
 });
 
-test('glow buffer respects maxGlowsPerReport', () => {
+test('maxGlowsPerReport is a floor, not a ceiling: glows beyond it are still sent', async () => {
     client.configure({ maxGlowsPerReport: 2 });
     client.glow('a').glow('b').glow('c');
 
-    expect(client.glows).toHaveLength(2);
-    expect(client.glows.map((g) => g.name)).toEqual(['b', 'c']);
+    await client.reportMessage('hello');
+
+    expect(client.glows.map((g) => g.name)).toEqual(['a', 'b', 'c']);
+    expect(fakeApi.lastReport!.events.map((e) => e.attributes['glow.name'])).toEqual(['a', 'b', 'c']);
+});
+
+test('a hard cap still evicts glows once nothing else is left to drop', async () => {
+    client.configure({ maxGlowsPerReport: 30, maxBreadcrumbs: 2 });
+    client.glow('a').glow('b').glow('c');
+
+    await client.reportMessage('hello');
+
+    expect(fakeApi.lastReport!.events.map((e) => e.attributes['glow.name'])).toEqual(['b', 'c']);
 });
 
 test('clearGlows empties the buffer', () => {

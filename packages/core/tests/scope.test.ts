@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { RecorderType } from '../src/breadcrumbs';
 import { GlobalScopeProvider, Scope } from '../src/Scope';
 import type { Glow } from '../src/types';
 
@@ -15,23 +16,23 @@ describe('Scope', () => {
     it('starts empty', () => {
         const scope = new Scope();
         expect(scope.glows).toEqual([]);
+        expect(scope.breadcrumbs.size).toBe(0);
         expect(scope.pendingAttributes).toEqual({});
         expect(scope.entryPoint).toBeNull();
     });
 
-    it('adds glows and caps at max', () => {
+    it('glows is derived from the breadcrumb buffer', () => {
         const scope = new Scope();
-        scope.addGlow(glow('a'), 2);
-        scope.addGlow(glow('b'), 2);
-        scope.addGlow(glow('c'), 2);
-        expect(scope.glows.map((g) => g.name)).toEqual(['b', 'c']);
-    });
+        scope.breadcrumbs.add(
+            {
+                event: { type: 'php_glow', startTimeUnixNano: 1, endTimeUnixNano: null, attributes: {} },
+                recorder: RecorderType.Glow,
+                glow: glow('a'),
+            },
+            { maxBreadcrumbs: 100, maxBreadcrumbBytes: 64_000, maxBreadcrumbEntryBytes: 8_000, maxGlowsPerReport: 30 },
+        );
 
-    it('clears glows', () => {
-        const scope = new Scope();
-        scope.addGlow(glow('a'), 10);
-        scope.clearGlows();
-        expect(scope.glows).toEqual([]);
+        expect(scope.glows.map((g) => g.name)).toEqual(['a']);
     });
 
     it('sets and merges attributes', () => {
