@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 describe('@flareapp/js side-effect split', () => {
-    it('importing src/browser.ts has NO import-time side effects', async () => {
+    it('importing src/browser.ts does not install window.flare', async () => {
         // Fresh module graph so index.ts side effects from other tests do not leak.
         vi.resetModules();
         // @ts-expect-error test global

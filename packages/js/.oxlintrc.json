@@ -4,13 +4,5 @@
     "env": {
         "browser": true
     },
-    "ignorePatterns": ["src/tracing/webvitals"],
-    "overrides": [
-        {
-            "files": ["src/instrument/**"],
-            "rules": {
-                "unicorn/no-useless-spread": "off"
-            }
-        }
-    ]
+    "ignorePatterns": ["src/tracing/webvitals"]
 }

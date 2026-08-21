@@ -92,7 +92,7 @@ const INLINE_SCHEMES = new Set(['data:', 'blob:']);
  * Build the context for one outgoing request, or null when nothing should see it. Three reasons to
  * drop: the SDK marked the request as its own, it targets a Flare ingest endpoint, or it is a
  * `data:`/`blob:` read that never touches the network. All three live here rather than in one
- * consumer, or the next consumer records the traffic this one correctly ignores.
+ * consumer, otherwise the next consumer records traffic this one correctly ignores.
  */
 function openRequest(
     kind: RequestKind,
@@ -133,7 +133,11 @@ function askForTraceparent(context: RequestContext): string | null {
     }
 }
 
-/** Settles at most once per request: fetch can reject after resolving, and XHR can abort mid-flight. */
+/**
+ * Settles at most once per closure, not per request: `createXHROpen`'s abort path builds a second
+ * closure over the same context, so cross-closure dedup is `state.ended` there and the WeakMap delete
+ * in `traceRequests.ts`, not this.
+ */
 function settleOnce(context: RequestContext): (result: Omit<RequestResult, 'endTimeUnixNano'>) => void {
     let settled = false;
     return (result) => {

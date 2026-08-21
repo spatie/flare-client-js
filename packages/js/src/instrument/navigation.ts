@@ -16,6 +16,10 @@ export type NavigationHandler = {
 const lifecycle = createPatchLifecycle({ install() {}, uninstall() {} });
 const handlers = createHandlerSet<NavigationHandler>(lifecycle);
 
+// No reset-for-tests export here, unlike `request.ts`: `handlers.clear()` would evict the
+// permanently-registered tracing handler (see its registration in browserTracing.ts) and break every
+// later test in a file.
+
 let navToken: object | null = null;
 
 export function addNavigationHandler(handler: NavigationHandler): Unsubscribe {

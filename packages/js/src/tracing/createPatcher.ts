@@ -49,7 +49,7 @@ export function createPatcher<T extends object>(): Patcher<T> {
         /**
          * All or nothing: if a third party wrapped ours, restore nothing and stay `installed`, so the next
          * `install` is a no-op instead of adding a second layer. Our wrappers stay in place but idle, because
-         * they check `enableTracing` themselves.
+         * they check `hasHandlers()` themselves before doing anything.
          */
         uninstall(target: T): void {
             if (!installed) {

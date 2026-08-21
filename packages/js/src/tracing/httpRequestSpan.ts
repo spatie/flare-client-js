@@ -10,7 +10,7 @@ import {
 
 import { shouldPropagate } from './propagation';
 
-/** The subset of the Flare surface the fetch/XHR wrappers need. `Flare` satisfies this structurally. */
+/** The subset of the Flare surface the tracing request handlers need. `Flare` satisfies this structurally. */
 export type HttpTracer = {
     readonly config: Config;
     startSpan(name: string, opts?: SpanOptions): Span;

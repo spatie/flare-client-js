@@ -357,7 +357,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
     };
 }
 
-/** Idempotent. */
+/** Idempotent. Does not remove `navigationHandler`; see its registration below for why. */
 export function stopBrowserTracing(): void {
     withLiveController((live) => live.endNow());
     controller = null;

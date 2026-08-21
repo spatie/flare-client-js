@@ -59,7 +59,7 @@ export function createHandlerSet<H>(lifecycle: { retain(): Unsubscribe }): Handl
             };
         },
         each(run: (handler: H) => void): void {
-            for (const handler of [...releases.keys()]) {
+            for (const handler of Array.from(releases.keys())) {
                 try {
                     run(handler);
                 } catch {
@@ -68,7 +68,7 @@ export function createHandlerSet<H>(lifecycle: { retain(): Unsubscribe }): Handl
             }
         },
         clear(): void {
-            for (const release of [...releases.values()]) {
+            for (const release of Array.from(releases.values())) {
                 release();
             }
             releases.clear();
