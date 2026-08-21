@@ -1,9 +1,10 @@
 import { defaultNowNano, type Attributes, type Config, type Span, type SpanOptions, type Tracer } from '@flareapp/core';
 
 import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
+import { activeNavigationToken, addNavigationHandler, type NavigationHandler } from '../instrument/navigation';
 import { fill, unfill } from './fill';
 import { DEFAULT_IDLE_TIMEOUTS, IdleRootController, type IdleTimeouts } from './IdleRootController';
-import { currentPath, type NavigationSource, type RouteName } from './navigation';
+import { currentPath, type RouteName } from './navigation';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 import { BrowserSpanType } from './spanTypes';
 import {
@@ -32,7 +33,6 @@ let lastPath = '';
 // re-enabling after a disable fabricating a second backdated pageload.
 let pageloadTraced = false;
 
-let navSource: object | null = null;
 let activeFlare: BrowserTracingFlare | null = null;
 let currentRoot: Span | null = null;
 // A route name a navigation source handed over while no root was open, kept for the pageload root. An
@@ -166,7 +166,7 @@ function onUrlChanged(flare: BrowserTracingFlare): void {
     }
     lastPath = path;
     // a framework integration drives navigation; keep lastPath current, open no root
-    if (navSource) {
+    if (activeNavigationToken()) {
         return;
     }
     withLiveController((live) => live.endNow());
@@ -285,7 +285,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
         const owner = pendingRouteNameOwner;
         pendingRouteName = null;
         pendingRouteNameOwner = null;
-        if (owner === navSource) {
+        if (owner === activeNavigationToken()) {
             applyRouteName(route);
         }
     }
@@ -439,67 +439,50 @@ function applyRouteName(route: RouteName, owner?: object): void {
 }
 
 /**
- * While registered, the built-in History detection opens no roots and the caller drives navigation
- * through the returned handle. Last-wins, and a stale handle no-ops, so an HMR-replaced bootstrap
- * cannot tear down a newer registration.
+ * What tracing does with the navigation a router integration drives: a root per navigation, renamed as
+ * the route resolves. While a source is registered the built-in History detection opens no roots.
  */
-export function registerNavigationSource(): NavigationSource {
-    const token = {};
-    if (navSource && activeFlare?.config.debug) {
-        console.debug('Flare: navigation source replaced');
-    }
-    navSource = token;
-    function active(): boolean {
-        return navSource === token;
-    }
+const navigationHandler: NavigationHandler = {
+    onStart({ path, url, hold }) {
+        if (!activeFlare) {
+            return;
+        }
+        lastPath = path;
+        withLiveController((live) => live.endNow());
+        startRoot(activeFlare, {
+            spanType: BrowserSpanType.Navigation,
+            startTimeUnixNano: defaultNowNano(),
+            name: path,
+            urlOverride: url,
+            hold,
+        });
+    },
+    onRouteName(route) {
+        applyRouteName(route, activeNavigationToken() ?? undefined);
+    },
+    onSettle(route) {
+        applyRouteName(route, activeNavigationToken() ?? undefined);
+        withLiveController((live) => live.releaseHold());
+    },
+    onUnregister() {
+        // Release any hold so a navigation root opened held (awaiting a settle that will now never
+        // come, e.g. route-provider unmount or HMR mid-navigation) does not stay idle-suppressed until
+        // the finalTimeout force-close. A childless root then closes now; one with an open child
+        // resumes the normal idle lifecycle.
+        withLiveController((live) => live.releaseHold());
+        lastPath = currentPath();
+        // A name this source handed over before any root picked it up is now for a page this source no
+        // longer traces; a later pageload root must not inherit it.
+        pendingRouteName = null;
+        pendingRouteNameOwner = null;
+    },
+};
 
-    return {
-        startNavigation(opts) {
-            if (!active() || !activeFlare) {
-                return;
-            }
-            const path = opts?.path ?? currentPath();
-            lastPath = path;
-            withLiveController((live) => live.endNow());
-            startRoot(activeFlare, {
-                spanType: BrowserSpanType.Navigation,
-                startTimeUnixNano: defaultNowNano(),
-                name: path,
-                urlOverride: opts?.url,
-                hold: opts?.hold,
-            });
-        },
-        setActiveRouteName(route) {
-            if (!active()) {
-                return;
-            }
-            applyRouteName(route, token);
-        },
-        settleNavigation(route) {
-            if (!active()) {
-                return;
-            }
-            applyRouteName(route, token);
-            withLiveController((live) => live.releaseHold());
-        },
-        unregister() {
-            if (!active()) {
-                return;
-            }
-            // Release any hold so a navigation root opened held (awaiting a settle that will now
-            // never come, e.g. route-provider unmount or HMR mid-navigation) does not stay
-            // idle-suppressed until the finalTimeout force-close. A childless root then closes now;
-            // one with an open child resumes the normal idle lifecycle.
-            withLiveController((live) => live.releaseHold());
-            navSource = null;
-            lastPath = currentPath();
-            // A name this source handed over before any root picked it up is now for a page this
-            // source no longer traces; a later pageload root must not inherit it.
-            pendingRouteName = null;
-            pendingRouteNameOwner = null;
-        },
-    };
-}
+// Registered on import, not from startBrowserTracing: a route name handed over while tracing is off is
+// held for the pageload root of the next session, and a handler that only lived for the length of a
+// session would never hear it. There is no patch behind this instrumentation, so an always-on handler
+// costs nothing while tracing is off.
+addNavigationHandler(navigationHandler);
 
 /** For sibling tracing modules (the component-profiler seam) that need the live tracer. */
 export function activeTracingFlare(): BrowserTracingFlare | null {

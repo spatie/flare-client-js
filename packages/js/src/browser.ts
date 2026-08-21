@@ -61,7 +61,7 @@ export { catchWindowErrors } from './browser/catchWindowErrors';
 export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
-export { registerNavigationSource } from './tracing/browserTracing';
+export { registerNavigationSource } from './instrument/navigation';
 export { currentPath, resolveHref, routeName, type NavigationSource, type RouteName } from './tracing/navigation';
 export { insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/instrumentationGuard';
 export { absoluteHref, absoluteUrl } from './tracing/absoluteHref';
