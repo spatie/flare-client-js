@@ -360,16 +360,19 @@ export function createXHRSend(original: XhrSend, urls: UrlContext): XhrSend {
         }
         state.context = context;
 
+        // Ask the owner on every request, even one whose app already set its own header: the owner
+        // opens this request's span here, exactly as today's wrapper does unconditionally. Only the
+        // write below is suppressed, never the ask.
+        // Guarded separately from the context setup above: the context already exists, so a throwing
+        // owner costs the header only. The request still settles, so it ends with a real status on
+        // DONE.
+        let traceparent: string | null = null;
+        try {
+            traceparent = askForTraceparent(context);
+        } catch {
+            // no traceparent on this request
+        }
         if (!state.hasAppTraceparent) {
-            // Guarded separately from the context setup above: the context already exists, so a
-            // throwing owner costs the header only. The request still settles, so it ends with a real
-            // status on DONE.
-            let traceparent: string | null = null;
-            try {
-                traceparent = askForTraceparent(context);
-            } catch {
-                // no traceparent on this request
-            }
             setTraceparentHeader(this, traceparent);
         }
 

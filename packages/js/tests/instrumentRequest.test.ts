@@ -4,12 +4,16 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { setInstrumentationConfig } from '../src/instrument/config';
 import {
     addRequestSettleHandler,
+    createXHROpen,
+    createXHRSend,
+    createXHRSetRequestHeader,
     resetRequestInstrumentationForTests,
     type RequestContext,
     type RequestResult,
     setRequestStartHandler,
 } from '../src/instrument/request';
 import { internalRequestInit } from '../src/tracing/internalRequest';
+import { fixedUrls } from './helpers';
 
 const nativeFetch = globalThis.fetch;
 
@@ -174,5 +178,39 @@ describe('request instrumentation', () => {
         expect(second).not.toHaveBeenCalled();
         stopSecond();
         stopFirst();
+    });
+
+    // Same wiring as instrumentXHR.test.ts: the three factories patched onto a minimal fake XHR.
+    test('an XHR with its own traceparent still asks the owner, but never overwrites the header', () => {
+        const owner = vi.fn(() => '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01');
+        const stopStart = setRequestStartHandler(owner);
+        const { stop } = recordSettles();
+
+        const setHeaderSpy = vi.fn();
+        const xhr = {
+            readyState: 1,
+            status: 0,
+            open(..._args: unknown[]) {},
+            send(_body?: unknown) {},
+            setRequestHeader(name: string, value: string) {
+                setHeaderSpy(name, value);
+            },
+            addEventListener(_type: string, _cb: () => void) {},
+            removeEventListener(_type: string, _cb: () => void) {},
+        };
+        xhr.open = createXHROpen(xhr.open as any) as any;
+        xhr.setRequestHeader = createXHRSetRequestHeader(xhr.setRequestHeader as any) as any;
+        xhr.send = createXHRSend(xhr.send as any, fixedUrls('https://app.test')) as any;
+
+        xhr.open('GET', 'https://api.test/products');
+        xhr.setRequestHeader('traceparent', 'app-own-value');
+        xhr.send();
+
+        expect(owner).toHaveBeenCalledTimes(1);
+        expect(setHeaderSpy).toHaveBeenCalledTimes(1);
+        expect(setHeaderSpy).toHaveBeenCalledWith('traceparent', 'app-own-value');
+
+        stopStart();
+        stop();
     });
 });
