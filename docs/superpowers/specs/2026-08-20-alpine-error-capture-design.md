@@ -2,6 +2,7 @@
 
 - Date: 2026-08-20
 - Status: design approved, not implemented
+- Revised: 2026-08-21, after a probe measured Alpine 3.16.2 in jsdom
 - Deliverable: `@flareapp/js/alpine`
 
 ## Summary
@@ -22,18 +23,20 @@ Flare sees that rethrow through the global `error` listener in
 `packages/js/src/browser/catchWindowErrors.ts`. This works today, but it loses information and it drops
 some errors completely.
 
-There are three gains:
+There are three gains. Each one is measured against what Flare receives today, and that depends on the
+shape of the expression. Read "Alpine leaks a second rejection" below before you read these.
 
-1. **Errors that Flare drops today start to arrive.** `catchWindowErrors` reports only when
-   `event.error instanceof Error`. Alpine builds its rethrow value with
-   `Object.assign(error ?? { message: '...' }, { el, expression })`. A rejection with a plain object
-   stays a plain object after this assign, so the listener drops it. An `x-on:click` handler that awaits
-   a request and rejects with a plain object produces no report at all right now.
+1. **Errors that Flare drops today start to arrive.** The `error` listener in `catchWindowErrors`
+   reports only when `event.error instanceof Error`. Alpine builds its rethrow value with
+   `Object.assign(error ?? { message: '...' }, { el, expression })`, so a plain object stays a plain
+   object and the listener drops it. `x-on:click="doWork"`, where `doWork` is a method that rejects with
+   a plain object, produces no report at all today.
 2. **The element and the expression reach the backend.** Alpine puts both on the error object. The Flare
    serializer does not read arbitrary error properties, so both are lost. A custom handler can put them
    in `context.custom.alpine`.
-3. **One report for each error.** The handler does not rethrow, so the global listener never sees a
-   second copy.
+3. **One report for each error.** The handler does not rethrow, so the `error` listener never sees a
+   second copy. The other half of this gain is the leaked rejection, and that one needs
+   `markRejectionReported`.
 
 ## What this does not do
 
@@ -63,6 +66,39 @@ replace the handler, the last writer wins, and we reimplement the `console.warn`
 **The third argument is not always a string.** In the 3.16.2 bundle, `runIfTypeOfFunction` calls
 `handleError(error, el, value)` where `value` is a function, not an expression string. A plain
 `String(expression)` writes a whole function body into the report.
+
+**Alpine leaks a second rejection, and Flare reports it twice.** Measured against Alpine 3.16.2 in
+jsdom.
+
+An expression can call an async method in its called form, for example `x-on:click="doWork()"`. Alpine
+then gives the rejection to two consumers, and only one of them catches it. The generated
+`AsyncFunction` body is `__self.result = doWork(); __self.finished = true`. Nothing awaits the method
+there, so `finished` is true while `result` is still a pending promise. Alpine takes the synchronous
+branch and calls `runIfTypeOfFunction`, which does `value.then((i) => receiver(i))` with no `catch`. At
+the same time the outer promise adopts the same rejection, and its `.catch` calls `handleError`. One
+rejection, one call to the error handler, one unhandled rejection.
+
+This is Alpine's behaviour, not ours. It happens with the default handler too. Today it makes Flare send
+two reports for that shape: one from the `setTimeout` rethrow through the `error` listener, one from the
+leak through the `unhandledrejection` listener. Replacing the handler removes the rethrow but not the
+leak, so the count stays at two unless we do more.
+
+The probe measured these shapes:
+
+- Called form of an async method, `doWork()`: the handler runs, and the rejection leaks.
+- Bare reference, `doWork`: the handler runs, and nothing leaks.
+- `await doWork()` inside the expression: the handler runs, and nothing leaks.
+- A synchronous throw: the handler runs, and nothing leaks.
+- The handler always runs before the host treats the rejection as unhandled.
+
+The last line is what makes a fix possible. The handler marks the raw value that Alpine gave it, through
+a new `markRejectionReported` in `@flareapp/core`. `routeRejection` then skips a marked value. The mark
+lives in a `WeakSet`, so we never write a property onto an object the application owns.
+
+**jsdom cannot measure the rethrow.** jsdom does not dispatch a `window` `error` event for a throw
+inside a `setTimeout` callback. Every statement above about the `error` listener is read from the
+browser specification and from our own listener code, not measured. The end to end suite runs real
+Chromium and is the place that proves it.
 
 **Only bundler users are reachable.** `@flareapp/js` builds CJS and ESM only. There is no IIFE build and
 no global build. Alpine is often loaded from a CDN with no bundler, and those projects cannot use
@@ -126,13 +162,15 @@ dependency.
 
 The installed handler runs these steps in order:
 
-1. Convert the value with `convertToError` from `@flareapp/core`. This is what makes a non-Error
+1. Mark the raw value with `markRejectionReported` from `@flareapp/core`. This must be first, because
+   the same value can leak to the `unhandledrejection` listener a moment later.
+2. Convert the value with `convertToError` from `@flareapp/core`. This is what makes a non-Error
    rejection reportable.
-2. Call `options.beforeEvaluate`.
-3. Build the context (see below).
-4. Call `options.beforeSubmit` and use its return value when it returns one.
-5. Call `flare.reportSilently(error, toCustomContext('alpine', context))`.
-6. Write the same `console.warn` that Alpine writes by default, so development output does not change.
+3. Call `options.beforeEvaluate`.
+4. Build the context (see below).
+5. Call `options.beforeSubmit` and use its return value when it returns one.
+6. Call `flare.reportSilently(error, toCustomContext('alpine', context))`.
+7. Write the same `console.warn` that Alpine writes by default, so development output does not change.
 
 The handler never rethrows. A rethrow produces a second report from `catchWindowErrors`. This is the
 same reasoning as the comment in `packages/vue/src/flareVue.ts`.
@@ -209,10 +247,17 @@ New, in `packages/js/src`:
 - `alpine/elementContext.ts` — turns an element and an expression into the context payload.
 - `alpine/types.ts` — `AlpineLike`, `FlareAlpineOptions`, `FlareAlpineContext`.
 
-Changed:
+Changed, in `packages/js`:
 
-- `packages/js/package.json` — add `src/alpine.ts` to the tsdown entry list in the `build` script, add an
-  `./alpine` key to `exports`, add `alpinejs` to `devDependencies`.
+- `package.json` — add `src/alpine.ts` to the tsdown entry list in the `build` script. Add an `./alpine`
+  key to `exports`. Add `alpinejs` and `@types/alpinejs` to `devDependencies`.
+
+Changed, in `packages/core/src`:
+
+- `util/rejection.ts` — add `markRejectionReported`, and make `routeRejection` skip a marked reason.
+- `index.ts` — export `markRejectionReported`.
+
+`@flareapp/react-native` uses `routeRejection` too, so the skip helps that SDK as well.
 
 ## Tests
 
@@ -220,17 +265,24 @@ Unit tests go in `packages/js/tests/alpine/`. They drive the real `alpinejs` pac
 a fake object with one method. The version floor and the shape of the third argument are both facts about
 Alpine, and a fake cannot hold us honest about them.
 
+Alpine keeps its `started` flag and its error handler in module scope, so each test calls
+`vi.resetModules()` and imports Alpine again. Without that, the second test in a file runs against a
+started Alpine and against the handler the first test installed.
+
 Cases:
 
 - A synchronous throw in `x-on:click` produces one report with `expression` and `directive`.
 - An asynchronous throw after `await` produces one report.
-- A rejection with a plain object produces one report. This case produces zero reports today.
+- A rejection with a plain object produces one report.
 - A function third argument sets `method` and leaves `expression` absent.
-- The handler does not rethrow, so a `window` error listener sees nothing.
+- The called form of an async method marks the rejection, so `routeRejection` skips the leak.
 - `attachElement` off leaves `outerHtml` absent. On, it truncates at `elementMaxLength`.
 - `beforeSubmit` can replace the context.
 - A second `flareAlpine` call is a no-op.
 - An Alpine object without `setErrorHandler` does not throw.
+
+The core tests cover `markRejectionReported` on its own: a marked object is skipped, an unmarked one is
+routed, and a primitive reason is routed because a `WeakSet` cannot hold it.
 
 ## Playground and e2e
 
@@ -245,15 +297,24 @@ mutation observer of Alpine initialises those new nodes, so no extra call is nee
 
 Shared fixtures:
 
-- `playgrounds/shared/src/errorScenarios.ts` gains an `alpine` value in `ErrorScenarioKind`, plus two
-  scenarios: `alpine-expression-throw` and `alpine-non-error-rejection`.
-- `playgrounds/shared/src/coverage.ts` excludes both scenarios for `react`, `vue` and `svelte`. This is
-  the same mechanism that `sourcemap-mapped` and `sveltekit-server-throw` already use.
-- `e2e/specs/shared.ts` gains an `alpine` branch in `runScenario`. The branch clicks the trigger and waits
-  for one report whose custom context holds an `alpine` group.
+- `playgrounds/shared/src/errorScenarios.ts` gains an `alpine` value in `ErrorScenarioKind`, plus three
+  scenarios.
+- `playgrounds/shared/src/coverage.ts` excludes all three for `react`, `vue` and `svelte`. This is the
+  same mechanism that `sourcemap-mapped` and `sveltekit-server-throw` already use.
+- `e2e/specs/shared.ts` gains an `alpine` branch in `runScenario`. The branch clicks the trigger and
+  waits for one report whose custom context holds an `alpine` group. It then waits again and counts the
+  reports, so a duplicate cannot pass.
 
-`alpine-non-error-rejection` is the scenario that matters. It fails against the current client and passes
-after the change, so it is the proof that gain 1 is real.
+Each scenario proves one claim in a real browser:
+
+| Scenario                     | Expression                                              | Today                         | After                          |
+| ---------------------------- | ------------------------------------------------------- | ----------------------------- | ------------------------------ |
+| `alpine-expression-throw`    | `x-on:click="broken()"`, throws an `Error`              | one report, no Alpine context | one report with Alpine context |
+| `alpine-non-error-rejection` | `x-on:click="broken"`, rejects with a plain object      | no report                     | one report                     |
+| `alpine-async-duplicate`     | `x-on:click="broken()"`, async, rejects with an `Error` | two reports                   | one report                     |
+
+`alpine-non-error-rejection` proves gain 1. `alpine-async-duplicate` proves gain 3 and the
+`markRejectionReported` work. Both fail against the current client.
 
 ## Risks
 
