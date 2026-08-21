@@ -1,4 +1,5 @@
 import { Api } from './api';
+import { GlowRecorder } from './breadcrumbs';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { Logger, NoopFlushScheduler, partitionAttributes, type FlushScheduler } from './logging';
 import { GlobalScopeProvider, USER_FIELD_KEYS, USER_IDENTITY_KEYS, type ScopeProvider } from './Scope';
@@ -6,7 +7,7 @@ import { createStackTrace } from './stacktrace';
 import type { FileReader } from './stacktrace/fileReader';
 import { NullFileReader } from './stacktrace/NullFileReader';
 import { ActiveSpanHolder, InMemoryActiveSpanHolder } from './tracing/context';
-import { Tracer } from './tracing/Tracer';
+import { defaultNowNano, Tracer } from './tracing/Tracer';
 import {
     AttributeValue,
     Attributes,
@@ -21,7 +22,7 @@ import {
     SpanOptions,
     User,
 } from './types';
-import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
+import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, resolveDenylist } from './util';
 
 /** Scope attributes a span never inherits. Derived from `USER_IDENTITY_KEYS` so a future user field is
  *  excluded automatically, without anyone needing to remember to list it here. See `getScopeAttributes`. */
@@ -36,6 +37,7 @@ export class Flare {
 
     private _logger!: Logger;
     private _tracer!: Tracer;
+    private readonly glowRecorder: GlowRecorder;
 
     private _config: Config = {
         key: null,
@@ -43,6 +45,9 @@ export class Flare {
         sourcemapVersionId: SOURCEMAP_VERSION,
         stage: '',
         maxGlowsPerReport: 30,
+        maxBreadcrumbs: 100,
+        maxBreadcrumbBytes: 64_000,
+        maxBreadcrumbEntryBytes: 8_000,
         ingestUrl: 'https://ingress.flareapp.io/v1/errors',
         reportBrowserExtensionErrors: false,
         debug: false,
@@ -113,6 +118,13 @@ export class Flare {
             track: (p) => this.track(p),
             scheduler,
             activeSpanHolder,
+        });
+
+        this.glowRecorder = new GlowRecorder({
+            getConfig: () => this._config,
+            buffer: () => this.scopeProvider.active().breadcrumbs,
+            getActiveSpan: () => this._tracer.getActiveSpan(),
+            nowNano: defaultNowNano,
         });
     }
 
@@ -256,22 +268,12 @@ export class Flare {
         level: MessageLevel = 'info',
         data: Record<string, unknown> | Record<string, unknown>[] = [],
     ): this {
-        const time = now();
-        this.scopeProvider.active().addGlow(
-            {
-                name,
-                messageLevel: level,
-                metaData: data,
-                time,
-                microtime: time,
-            },
-            this._config.maxGlowsPerReport,
-        );
+        this.glowRecorder.record(name, level, data);
         return this;
     }
 
     clearGlows(): this {
-        this.scopeProvider.active().clearGlows();
+        this.glowRecorder.clear();
         return this;
     }
 
@@ -590,7 +592,7 @@ export class Flare {
             message: input.message,
             seenAtUnixNano: input.seenAtUnixNano,
             stacktrace: input.stacktrace,
-            events: glowsToEvents(activeScope.glows),
+            events: activeScope.breadcrumbs.toEvents(),
             attributes,
         };
 

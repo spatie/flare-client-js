@@ -343,7 +343,7 @@ test.describe('svelte http tracing', () => {
         );
         expect(span).toBeTruthy();
         // The playground is served over http://, and status 0 on an http(s) URL means "no HTTP response",
-        // so the span is an OTel error (instrumentXHR.ts:163).
+        // so the span is an OTel error (the zeroIsError rule in tracing/traceRequests.ts).
         expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 0 });
         expect(span!.status?.code ?? 0).toBe(2);
 

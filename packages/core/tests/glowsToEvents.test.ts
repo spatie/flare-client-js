@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { glowsToEvents } from '../src/util';
+import { glowToEvent, glowsToEvents } from '../src/util';
 
 describe('glowsToEvents', () => {
     test('produces a php_glow span event per glow', () => {
@@ -37,5 +37,16 @@ describe('glowsToEvents', () => {
 
     test('returns empty array for empty input', () => {
         expect(glowsToEvents([])).toEqual([]);
+    });
+
+    test('glowToEvent maps one glow', () => {
+        const event = glowToEvent({ name: 'x', messageLevel: 'info', metaData: { a: 1 }, time: 3, microtime: 3.5 });
+
+        expect(event).toEqual({
+            type: 'php_glow',
+            startTimeUnixNano: 3_500_000_000,
+            endTimeUnixNano: null,
+            attributes: { 'glow.name': 'x', 'glow.level': 'info', 'glow.context': { a: 1 } },
+        });
     });
 });

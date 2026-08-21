@@ -1,4 +1,4 @@
-import type { Report } from '@flareapp/core';
+import type { BreadcrumbLimits, Report } from '@flareapp/core';
 import { type Mock, vi } from 'vitest';
 
 /** A minimal valid Report; override any field per test. */
@@ -10,6 +10,17 @@ export function makeReport(overrides: Partial<Report> = {}): Report {
         stacktrace: [],
         events: [],
         attributes: {},
+        ...overrides,
+    };
+}
+
+/** The real `Config` defaults for the breadcrumb buffer; override any field per test. */
+export function breadcrumbLimits(overrides: Partial<BreadcrumbLimits> = {}): BreadcrumbLimits {
+    return {
+        maxBreadcrumbs: 100,
+        maxBreadcrumbBytes: 64_000,
+        maxBreadcrumbEntryBytes: 8_000,
+        maxGlowsPerReport: 30,
         ...overrides,
     };
 }

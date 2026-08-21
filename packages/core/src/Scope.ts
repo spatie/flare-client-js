@@ -1,3 +1,4 @@
+import { BreadcrumbBuffer } from './breadcrumbs/BreadcrumbBuffer';
 import type { Attributes, AttributeValue, EntryPointHandler, Glow } from './types';
 
 /** `USER_IDENTITY_KEYS` derives from this, so adding a field here can never leave the clear pass stale. */
@@ -30,20 +31,14 @@ export function userIdentityAttributes(scope: Scope): Attributes {
  * into each other). `@flareapp/node`'s `NodeScope` extends this with a `request` bucket.
  */
 export class Scope {
-    glows: Glow[] = [];
+    /** One buffer per scope: the browser has one for the page session, Node one per request. */
+    breadcrumbs = new BreadcrumbBuffer();
     pendingAttributes: Attributes = {};
     entryPoint: EntryPointHandler | null = null;
 
-    /** Caps at `maxGlowsPerReport` by dropping the oldest, so the payload stays bounded. */
-    addGlow(glow: Glow, maxGlowsPerReport: number): void {
-        this.glows.push(glow);
-        if (this.glows.length > maxGlowsPerReport) {
-            this.glows = this.glows.slice(this.glows.length - maxGlowsPerReport);
-        }
-    }
-
-    clearGlows(): void {
-        this.glows = [];
+    /** Read side only. Glows are written through `Flare.glow()`, which goes via the glow recorder. */
+    get glows(): readonly Glow[] {
+        return this.breadcrumbs.glows();
     }
 
     setAttribute(key: string, value: AttributeValue): void {

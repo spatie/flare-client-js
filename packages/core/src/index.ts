@@ -40,6 +40,7 @@ export {
     extractCode,
     flatJsonStringify,
     glowsToEvents,
+    glowToEvent,
     now,
     redactObjectValues,
     redactUrlQuery,
@@ -64,6 +65,9 @@ export type { ContextCollector } from './Flare';
 
 export { Scope, GlobalScopeProvider, USER_IDENTITY_KEYS, userIdentityAttributes } from './Scope';
 export type { ScopeProvider } from './Scope';
+
+export { BreadcrumbBuffer, GlowRecorder, Recorder, RecorderType, SpanEventsRecorder } from './breadcrumbs';
+export type { BreadcrumbEntry, BreadcrumbLimits, RecorderDeps, SpanEventOptions } from './breadcrumbs';
 
 export { Logger, NoopFlushScheduler } from './logging';
 export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';

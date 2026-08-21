@@ -98,7 +98,8 @@ it and injects the browser-specific seams. Paths below are relative to each pack
 - `api/Api.ts` — HTTP communication with Flare backend via fetch
 - `stacktrace/createStackTrace.ts` — Stack trace parsing (uses `error-stack-parser`)
 - `stacktrace/fileReader.ts` — Source code snippet reading from stack frames (`FileReader` interface + cache)
-- `Scope.ts` — Active scope: glows, pending attributes, user, entry point
+- `Scope.ts` — Active scope: the breadcrumb buffer, pending attributes, user, entry point
+- `breadcrumbs/` — the breadcrumb buffer and PHP-shaped recorder base classes; `GlowRecorder` is the only recorder
 - `util/rejection.ts` — Routes `unhandledrejection` reasons to the right report method
 - `types.ts` — Core TypeScript interfaces (Config, Report, StackFrame, Attributes, etc.)
 
@@ -110,6 +111,10 @@ it and injects the browser-specific seams. Paths below are relative to each pack
 - `browser/FetchFileReader.ts` — Fetches source files for snippets (http(s) only, HTTP 200 only, cached)
 - `browser/context/collectBrowser.ts` — Collects browser context (entry point, host, request, query, cookies)
 - `browser/context/request.ts`, `cookie.ts`, `requestData.ts` — Individual context collectors
+- `instrument/` — every browser patch lives here, behind a handler registry: the first handler installs
+  the patch, the last one removes it. `request.ts` owns fetch and XHR (one exclusive start handler that
+  returns a `traceparent`, any number of settle handlers), `navigation.ts` owns
+  `registerNavigationSource`. Tracing is a handler like any other.
 - `tracing/webVitals.ts` — Web Vitals collection and the `browser_page_vitals` span plan
 - `tracing/webvitals/` — verbatim vendored `web-vitals` fork, excluded from lint and format
 

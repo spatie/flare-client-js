@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test } from 'vitest';
 
-import { Flare } from '../src';
-import { FakeApi } from './helpers';
+import { Flare, GlobalScopeProvider, RecorderType } from '../src';
+import { breadcrumbLimits, FakeApi } from './helpers';
 
 let fakeApi: FakeApi;
 let client: Flare;
@@ -26,22 +26,63 @@ test('glows are serialized into php_glow span events on report', async () => {
     expect(event.attributes['glow.context']).toEqual({ cartId: 7 });
 });
 
-test('glow buffer respects maxGlowsPerReport', () => {
+test('maxGlowsPerReport is a floor, not a ceiling: glows beyond it are still sent', async () => {
     client.configure({ maxGlowsPerReport: 2 });
     client.glow('a').glow('b').glow('c');
 
-    expect(client.glows).toHaveLength(2);
-    expect(client.glows.map((g) => g.name)).toEqual(['b', 'c']);
+    await client.reportMessage('hello');
+
+    expect(client.glows.map((g) => g.name)).toEqual(['a', 'b', 'c']);
+    expect(fakeApi.lastReport!.events.map((e) => e.attributes['glow.name'])).toEqual(['a', 'b', 'c']);
 });
 
-test('clearGlows empties the buffer', () => {
-    client.glow('a').glow('b');
-    client.clearGlows();
+test('a hard cap still evicts glows once nothing else is left to drop', async () => {
+    client.configure({ maxGlowsPerReport: 30, maxBreadcrumbs: 2 });
+    client.glow('a').glow('b').glow('c');
 
-    expect(client.glows).toHaveLength(0);
+    await client.reportMessage('hello');
+
+    expect(fakeApi.lastReport!.events.map((e) => e.attributes['glow.name'])).toEqual(['b', 'c']);
+});
+
+test('clearGlows only clears the glow recorder, leaving other entries alone', () => {
+    // A plain glow count can't tell clearRecorder(Glow) apart from a full clear(); pin the buffer directly.
+    const scopeProvider = new GlobalScopeProvider();
+    const scopedClient = new Flare(fakeApi, undefined, undefined, scopeProvider).configure({
+        key: 'key',
+        debug: true,
+    });
+
+    scopedClient.glow('a').glow('b');
+    scopeProvider.active().breadcrumbs.add(
+        {
+            event: { type: 'click', startTimeUnixNano: 1, endTimeUnixNano: null, attributes: {} },
+            recorder: RecorderType.Click,
+        },
+        breadcrumbLimits(),
+    );
+
+    scopedClient.clearGlows();
+
+    expect(scopedClient.glows).toHaveLength(0);
+    expect(
+        scopeProvider
+            .active()
+            .breadcrumbs.toEvents()
+            .map((e) => e.type),
+    ).toEqual(['click']);
 });
 
 test('events array is empty when no glows recorded', async () => {
     await client.report(new Error('x'));
+    expect(fakeApi.lastReport!.events).toEqual([]);
+});
+
+test('a glow over maxBreadcrumbEntryBytes is dropped whole, not shipped', async () => {
+    client.configure({ maxBreadcrumbEntryBytes: 50 });
+    client.glow('rendering checkout', 'info', { cart: 'x'.repeat(200) });
+
+    await client.reportMessage('hello');
+
     expect(fakeApi.lastReport!.events).toEqual([]);
 });

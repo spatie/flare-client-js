@@ -6,6 +6,7 @@ export {
     extractCode,
     flatJsonStringify,
     glowsToEvents,
+    glowToEvent,
     now,
     redactObjectValues,
     redactUrlQuery,

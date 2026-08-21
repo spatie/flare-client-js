@@ -3,12 +3,8 @@ import type { Config, Span, SpanOptions } from '@flareapp/core';
 import { resetNavigationSource } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    registerNavigationSource,
-    startBrowserTracing,
-    stopBrowserTracing,
-    type BrowserTracingFlare,
-} from '../src/tracing/browserTracing';
+import { registerNavigationSource } from '../src/instrument/navigation';
+import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/browserTracing';
 
 function recordingSpan(name: string) {
     const attrs: Record<string, unknown> = {};

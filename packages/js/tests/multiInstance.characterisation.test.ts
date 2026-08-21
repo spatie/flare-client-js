@@ -8,10 +8,9 @@ import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
+import { resetRequestInstrumentationForTests } from '../src/instrument/request';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { createPatcher } from '../src/tracing/createPatcher';
-import { unpatchFetch } from '../src/tracing/instrumentFetch';
-import { unpatchXHR } from '../src/tracing/instrumentXHR';
 
 describe('multi-instance tracing (characterisation)', () => {
     describe('two Flare instances share one module-level fetch patch', () => {
@@ -19,15 +18,14 @@ describe('multi-instance tracing (characterisation)', () => {
         const originalFetch = g.fetch;
 
         afterEach(() => {
-            // instrumentFetch/browserTracing/instrumentXHR are module-level singletons: every test in
+            // The request handlers and browserTracing are module-level singletons: every test in
             // this process shares them, so a leftover install here would leak into unrelated files.
             stopBrowserTracing();
-            unpatchFetch();
-            unpatchXHR();
+            resetRequestInstrumentationForTests();
             g.fetch = originalFetch;
         });
 
-        it('instance B disabling tracing tears down instance A and A never re-arms', () => {
+        it('instance B disabling tracing no longer tears down instance A', () => {
             const nativeFetch = nativeFetchStub();
             g.fetch = nativeFetch;
 
@@ -43,14 +41,14 @@ describe('multi-instance tracing (characterisation)', () => {
 
             b.configure({ enableTracing: false });
 
-            // Today: B's teardown removes the patch A installed, and A is not told.
-            expect(g.fetch).toBe(nativeFetch);
+            // The handler registry changed this pin: B's start registration was refused and its
+            // settle registration deduplicated, so B's teardown releases nothing. Before the
+            // registry, B's disable unpatched the fetch A installed.
+            expect(g.fetch).toBe(patchedByA);
             expect(a.config.enableTracing).toBe(true);
 
-            // And A cannot get it back: its own config never transitioned false to true, so calling
-            // configure again with the value it already holds installs nothing.
             a.configure({ enableTracing: true });
-            expect(g.fetch).toBe(nativeFetch);
+            expect(g.fetch).toBe(patchedByA);
         });
     });
 

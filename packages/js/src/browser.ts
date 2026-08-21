@@ -13,18 +13,15 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import {
-    instrumentFetch,
-    instrumentXHR,
-    startBrowserTracing,
-    stopBrowserTracing,
-    unpatchFetch,
-    unpatchXHR,
-} from './tracing';
+import { setInstrumentationConfig, type Unsubscribe } from './instrument';
+import { browserUrlContext, startBrowserTracing, stopBrowserTracing } from './tracing';
+import { startTracingRequests } from './tracing/traceRequests';
 
 export { createFlareResolver } from './createFlareResolver';
 
 export class Flare extends CoreFlare {
+    private stopTracingRequests: Unsubscribe | null = null;
+
     constructor(
         api: Api = new Api(),
         contextCollector: ContextCollector = collectBrowser,
@@ -37,6 +34,9 @@ export class Flare extends CoreFlare {
         // Framework packages overwrite this: they import this root (constructing the singleton, which
         // runs this line) before tagging their own name, so the more specific value always wins.
         this.setFramework({ name: FrameworkName.Js });
+        // In the constructor, not in configure(): any feature can be the one that turns the
+        // instrumentation on first, and they all read the config through this.
+        setInstrumentationConfig(() => this.config);
     }
 
     override configure(config: Partial<Config>): this {
@@ -45,13 +45,12 @@ export class Flare extends CoreFlare {
         const nowTracing = this.config.enableTracing;
 
         if (!wasTracing && nowTracing) {
-            instrumentFetch(this);
-            instrumentXHR(this);
+            this.stopTracingRequests = startTracingRequests(this, browserUrlContext());
             startBrowserTracing(this);
         } else if (wasTracing && !nowTracing) {
             stopBrowserTracing();
-            unpatchFetch();
-            unpatchXHR();
+            this.stopTracingRequests?.();
+            this.stopTracingRequests = null;
         }
 
         return this;
@@ -62,7 +61,7 @@ export { catchWindowErrors } from './browser/catchWindowErrors';
 export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
-export { registerNavigationSource } from './tracing/browserTracing';
+export { registerNavigationSource } from './instrument/navigation';
 export { currentPath, resolveHref, routeName, type NavigationSource, type RouteName } from './tracing/navigation';
 export { insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/instrumentationGuard';
 export { absoluteHref, absoluteUrl } from './tracing/absoluteHref';

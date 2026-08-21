@@ -2,14 +2,14 @@ import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
-import { unpatchFetch } from '../src/tracing/instrumentFetch';
+import { resetRequestInstrumentationForTests } from '../src/instrument/request';
 
 describe('js Flare tracing auto-wiring', () => {
     const g = globalThis as { fetch: typeof fetch };
     const originalFetch = g.fetch;
 
     afterEach(() => {
-        unpatchFetch();
+        resetRequestInstrumentationForTests();
         g.fetch = originalFetch;
     });
 
