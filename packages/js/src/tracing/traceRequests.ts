@@ -61,7 +61,7 @@ function onSettle(context: RequestContext, result: RequestResult): void {
         span.end();
         return;
     }
-    if (result.error !== undefined) {
+    if ('error' in result) {
         finishHttpSpanError(span, result.error);
         return;
     }

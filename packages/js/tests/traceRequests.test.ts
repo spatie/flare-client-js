@@ -85,6 +85,21 @@ describe('tracingRequestHandlers', () => {
         expect(startSpan).toHaveBeenCalledOnce();
     });
 
+    test('opens no span and returns no traceparent when tracing is off', () => {
+        const { tracer, startSpan, calls } = makeTracer({ enableTracing: false });
+        const { onStart, onSettle } = tracingRequestHandlers(tracer, URLS);
+        const ctx = context();
+
+        const traceparent = onStart(ctx);
+
+        expect(traceparent).toBeNull();
+        expect(startSpan).not.toHaveBeenCalled();
+
+        onSettle(ctx, result());
+
+        expect(calls.ended).toBe(false);
+    });
+
     test('ends the span with the response status', () => {
         const { tracer, calls } = makeTracer();
         const { onStart, onSettle } = tracingRequestHandlers(tracer, URLS);
