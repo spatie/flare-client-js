@@ -6,8 +6,8 @@ task briefs and review comments.
 Anything here is either a decision only you can make, a check no automated suite can run, or a finding that
 was deliberately left alone. Nothing here is a bug that slipped through review.
 
-Last updated 2026-08-20, on `feat/breadcrumb-buffer`, covering work through the final whole-branch review
-fixes (base `d7f3004`).
+Last updated 2026-08-21, on `feat/breadcrumb-buffer`, covering work through Task 6 (documentation and
+whole-repository verification) of the instrumentation-handlers plan (base `7d7e823`).
 
 **For agents:** you may append to this file. See the house rules at the bottom.
 
@@ -92,6 +92,32 @@ this item resolves.
 **Not verified:** whether flareapp.io's configuration reference already documents a size limit on glow
 context; that page lives in another repository.
 
+### 1.5 A third behaviour change: a navigation handler's errors are now swallowed silently
+
+`packages/js/src/instrument/handlers.ts:61-69`, `createHandlerSet.each`, wraps every call to a
+registered handler in a `try`/`catch` that discards the error, with no logging even under
+`debug: true`. Tracing's navigation handler (`packages/js/src/tracing/browserTracing.ts:445-466`) runs
+through this path: `onStart` calls `startRoot`, `onRouteName` and `onSettle` call `applyRouteName`, all
+invoked from `instrument/navigation.ts:46-58` inside that swallowed `try`/`catch`.
+
+Before this branch, `main`'s `browserTracing.ts` called `startRoot` and `applyRouteName` directly from
+`startNavigation`, `setActiveRouteName` and `settleNavigation`, with nothing catching a throw. An
+exception there reached the router integration that had called the method — a TanStack Router or
+vue-router callback, for example.
+
+The plan's own self-review names exactly two intended behaviour changes for this branch. This is a
+third one that no plan document lists.
+
+If ignored: an exception inside `applyRouteName` or `startRoot` (a bad route name, a tracer bug) now
+disappears with no trace, in production and with `debug: true` alike, instead of surfacing as an
+uncaught error pointing at the real cause.
+
+**Verified:** the `try`/`catch` and its comment at `handlers.ts:61-69`; that `navigationHandler`'s three
+methods (`browserTracing.ts:446`, `:460`, `:463`) call `startRoot`/`applyRouteName` directly and run
+only inside `handlers.each` (`instrument/navigation.ts:46-58`); that on `main`,
+`startNavigation`/`setActiveRouteName`/`settleNavigation` called the same functions with nothing
+catching a throw (`git show main:packages/js/src/tracing/browserTracing.ts`, lines 460-483).
+
 ---
 
 ## 2. Findings deliberately left unfixed
@@ -133,6 +159,189 @@ spent budget (`safeClone.ts:59-72` for arrays, `safeClone.ts:82-101` for objects
 (`Api.ts:48`). **Not verified:** an actual timed run of the 1-million-item case; the "roughly 24 MB" and
 "synchronously" characterization is arithmetic (1,000,000 × ~24 bytes per quoted `TRUNCATED` entry plus
 separators) and code-path reading, not a measured benchmark.
+
+### 2.2 The design spec says tracing subscribes to navigation "when `enableTracing`"; the code always does
+
+`docs/superpowers/specs/2026-08-14-automatic-breadcrumbs-design.md:281` describes two navigation
+subscribers: tracing, "subscribed when `enableTracing`," and breadcrumbs, subscribed when
+`enableBreadcrumbs`. The code does not gate tracing that way. `packages/js/src/tracing/browserTracing.ts:485`
+registers tracing's navigation handler once, at module top level, on import — not from
+`startBrowserTracing`, and not conditioned on `enableTracing` anywhere.
+
+This was a deliberate deviation, not an oversight. On `main`, three of the four navigation methods
+(`setActiveRouteName`, `settleNavigation`, `unregister`) already ran unconditionally regardless of
+whether tracing was on, so a route name handed over before tracing started still parked for the next
+pageload root. Subscribing only for the length of a tracing session would silently drop that. The
+comment at `browserTracing.ts:481-484` explains the choice.
+
+Making the spec true again is bigger than a docs fix: it means moving the pending-route-name parking
+out of `browserTracing.ts` and into `instrument/navigation.ts`, so a late subscriber can still be
+replayed a name that arrived before it registered. That is next-step-sized work.
+
+If ignored: a reader who trusts the spec's wording will expect tracing's navigation handler to come and
+go with `enableTracing`. It does not — the handler is live from the moment `@flareapp/js/browser` is
+imported, whether or not tracing is on.
+
+**Verified:** the spec wording at `docs/superpowers/specs/2026-08-14-automatic-breadcrumbs-design.md:281`;
+the unconditional module-level call at `packages/js/src/tracing/browserTracing.ts:485`; that
+`packages/js/src/browser.ts:17` imports `./tracing` unconditionally, so every consumer of `browser.ts`
+pulls this in; that on `main`, `setActiveRouteName`/`settleNavigation`/`unregister` ran with no
+`enableTracing` check, only `startNavigation` checked `activeFlare` (`git show
+main:packages/js/src/tracing/browserTracing.ts`).
+
+### 2.3 Two comments claim `@flareapp/js/browser` has no import-time side effects; it now has one
+
+`packages/js/tests/browserExport.test.ts:5` titles a test "importing src/browser.ts has NO import-time
+side effects." `packages/react/src/tanstack-router.ts:1-2` tells the reader that the navigation-source
+export "comes from `@flareapp/js/browser` (side-effect-free)." Both are wrong now: `browser.ts:17`
+imports `./tracing`, and `tracing/browserTracing.ts:485` runs `addNavigationHandler(...)` at module top
+level (see 2.2) — an import-time side effect.
+
+Nothing breaks today: the effect only touches Flare's own module-level state, not anything the test
+actually asserts (`window.flare` stays undefined), and not anything the Electron-safe entry point's
+promise of no runtime dependency on `@flareapp/js`'s root actually needs. But the test's title no
+longer matches what it proves, so it would not catch a future, less benign top-level call landing in
+the same file.
+
+The test title is fixable here. The comment is not: `tanstack-router.ts` lives in `packages/react`, one
+of the four router packages this plan was not allowed to touch.
+
+If ignored: two confidently-worded, stale claims stay in the tree, and the test keeps passing for the
+wrong reason — it asserts something the new side effect doesn't touch, not that there is no side
+effect.
+
+**Verified:** both comments at the cited lines; the import chain `browser.ts:17` -> `tracing/index.ts`
+-> `browserTracing.ts:485` (see 2.2); that the test's actual assertions only check `window.flare` and
+the shape of `browser.ts`'s exports (`browserExport.test.ts:5-16`), not the absence of side effects in
+general.
+
+### 2.4 `npm run typescript` never type-checks `packages/js/tests`
+
+`packages/js/tsconfig.json` sets `"include": ["src"]`, and the package's own `typescript` script is
+plain `tsc --noEmit` (`packages/js/package.json:58`). A type error inside `packages/js/tests` compiles
+clean through both `npx vitest run` (Vitest uses its own transform) and `npm run typescript`, which
+never looks at that directory. The same pattern holds elsewhere in the monorepo:
+`packages/core/tsconfig.json` also sets `"include": ["src"]`, and no package has a separate `tsconfig.json`
+for its `tests` directory.
+
+This is pre-existing, not introduced by this branch; it surfaced while writing this branch's tests.
+
+If ignored: a test file can carry a real type error (a wrong mock shape, a stale import) that only
+shows up as a runtime failure, or not at all if the mistyped path isn't exercised, never as a
+build-time signal.
+
+**Verified:** `packages/js/tsconfig.json`'s `include` field; `packages/js/package.json:58`'s
+`typescript` script; the same `include: ["src"]` shape in `packages/core/tsconfig.json`; no
+`tsconfig.json` under `packages/js/tests` (`find packages/js/tests -iname "tsconfig*"`, no results).
+**Not verified:** every other package's tsconfig individually — only `core` and `js` were checked.
+
+### 2.5 Multi-instance ingest-URL checks now read the last-constructed client, not the one that installed the patch
+
+`packages/js/src/instrument/config.ts` holds one module-global config getter, overwritten by whichever
+`Flare` instance constructs last (`setInstrumentationConfig`, called from the constructor). `openRequest`
+in `packages/js/src/instrument/request.ts:106` reads that getter to decide whether a request targets
+Flare's own ingest endpoint and should be dropped from instrumentation.
+
+Before this branch, that same ingest check read the config of whichever client had installed the
+fetch/XHR patch — not necessarily the last one constructed. Under two `Flare` instances with different
+`ingestUrl`s, one instance's own flush request can now be checked against the other instance's ingest
+list, so it stops being recognised as internal traffic.
+
+This is an accepted trade-off, not an oversight:
+`packages/js/tests/multiInstance.characterisation.test.ts` already documents multi-instance patch
+ownership as unplanned and unfixed, and this is one more instance of the same gap.
+
+If ignored: an application running two Flare clients against different backends (a staging and a
+production project, for instance) could see one client's own outgoing report traffic recorded as a
+breadcrumb or request span, or the reverse.
+
+**Verified:** `instrumentationConfig()`'s "last constructed client wins" comment and implementation
+(`packages/js/src/instrument/config.ts:3-15`); `openRequest`'s use of it to build the ingest-drop check
+(`packages/js/src/instrument/request.ts:104-113`); that
+`packages/js/tests/multiInstance.characterisation.test.ts`'s header comment still calls multi-instance
+patch ownership "deliberately unplanned."
+**Not verified:** an actual two-instance run reproducing the misclassification; this is code-path
+reading, not a measured reproduction.
+
+---
+
+## 3. Left for the next step
+
+### 3.1 `enableBreadcrumbs` does not exist yet
+
+Searching the whole `packages/` tree for `enableBreadcrumbs` finds nothing: no config field, no reader,
+no test. This plan built the neutral instrumentation layer underneath breadcrumbs — the handler
+registry, the request and navigation hook points — but nothing yet turns any of it into a recorded
+breadcrumb. The four recorders (click, input, request, navigation) are the next step's work.
+
+If ignored: releasing this branch without the next step ships a layer that records nothing, silently,
+because there is no flag yet to even try to turn it on.
+
+**Verified:** `grep -rn "enableBreadcrumbs" packages/ --include="*.ts"` returns no matches anywhere in
+the repository, tests included.
+
+### 3.2 Three backend `SpanEventType` cases are still unbuilt
+
+The next step's recorders need `browser_click`, `browser_input` and `browser_route_change` as
+`SpanEventType` values on the Flare backend (`~/srv/flareapp.io`). This repository's client code
+defines none of them yet either — searching `packages/core/src` and `packages/js/src` for those three
+names finds nothing outside this note. The next step cannot ship breadcrumbs for clicks, inputs or
+route changes until the backend accepts them.
+
+If ignored: the next step either blocks on backend work nobody scheduled, or ships a client that sends
+span-event types the backend rejects or silently drops.
+
+**Verified:** `grep -rn "browser_click\|browser_input\|browser_route_change\|SpanEventType"
+packages/core/src packages/js/src` (excluding tests) returns no matches, confirming the client side
+carries no trace of these values yet.
+**Not verified:** the backend's current state directly — `~/srv/flareapp.io` is outside this
+repository and outside this task's scope.
+
+### 3.3 Navigation broadcasts cover router-driven sources only
+
+`registerNavigationSource()` in `packages/js/src/instrument/navigation.ts` is the only path into the
+navigation handler registry, and the four router packages (`react`'s `tanstack-router.ts` and
+`react-router.ts`, `vue`'s `traceVueRouter.ts`, `sveltekit`'s `traceSvelteKitRouter.svelte.ts`,
+`inertia`'s `traceInertiaRouter.ts`) are its only callers. The vanilla History-API fallback
+(`pushState`/`replaceState`/`popstate` detection) and the initial pageload root both live inside
+`startBrowserTracing` (`packages/js/src/tracing/browserTracing.ts:257-275` and `:294-345`), patch
+`history` directly, and call `startRoot` without ever going through `addNavigationHandler`. Both only
+run when tracing turns on.
+
+So an application with no router integration, running breadcrumbs with tracing off, would record no
+navigation breadcrumbs at all — not on route change, and not on the initial page load, which the
+design spec asks for explicitly
+(`docs/superpowers/specs/2026-08-14-automatic-breadcrumbs-design.md:291`: "The initial page load emits
+the same `browser_route_change`...").
+
+The next step's plan has to choose: move the History-API and pageload detection into
+`instrument/navigation.ts` so breadcrumbs can subscribe to them independently of `enableTracing`, or
+accept that navigation breadcrumbs only exist for applications using one of the four router
+integrations. This plan deliberately built neither.
+
+If ignored: the next step ships navigation breadcrumbs that silently don't fire for any application not
+using TanStack Router, React Router v7, vue-router or SvelteKit, without anyone having decided that on
+purpose.
+
+**Verified:** the four router packages are `registerNavigationSource`'s only callers (`grep -rn
+"registerNavigationSource(" packages/react packages/vue packages/sveltekit packages/inertia`); the
+History-API patch and the pageload `startRoot` call both live inside `startBrowserTracing`, with no
+`addNavigationHandler` call anywhere in that function (`packages/js/src/tracing/browserTracing.ts:257-345`);
+the spec's pageload wording at
+`docs/superpowers/specs/2026-08-14-automatic-breadcrumbs-design.md:291`.
+
+### 3.4 Twenty-three more deferred, non-blocking items live in the plan's working ledger
+
+Every task review in this plan recorded minor findings directly in the working ledger at
+`.superpowers/sdd/2026-08-21-instrumentation-handlers/progress.md`, on lines starting `Task N: minor
+(deferred):` — stale comments, gaps in test strength, one file-size note. None of them block anything.
+Two of the more consequential ones are written up above as their own items (2.3's stale comments, 1.5's
+silent error swallow); the other twenty-three are still only in that ledger. A whole-branch review is
+expected to triage them next — decide which are worth a follow-up commit and which are not — so they
+are not copied here.
+
+**Verified:** `grep -c "^Task [0-9]*: minor (deferred):" progress.md` in that plan's directory returns
+25; 2 of those are promoted above, leaving 23 untouched in the ledger.
 
 ---
 

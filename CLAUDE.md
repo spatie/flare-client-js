@@ -111,6 +111,10 @@ it and injects the browser-specific seams. Paths below are relative to each pack
 - `browser/FetchFileReader.ts` — Fetches source files for snippets (http(s) only, HTTP 200 only, cached)
 - `browser/context/collectBrowser.ts` — Collects browser context (entry point, host, request, query, cookies)
 - `browser/context/request.ts`, `cookie.ts`, `requestData.ts` — Individual context collectors
+- `instrument/` — every browser patch lives here, behind a handler registry: the first handler installs
+  the patch, the last one removes it. `request.ts` owns fetch and XHR (one exclusive start handler that
+  returns a `traceparent`, any number of settle handlers), `navigation.ts` owns
+  `registerNavigationSource`. Tracing is a handler like any other.
 - `tracing/webVitals.ts` — Web Vitals collection and the `browser_page_vitals` span plan
 - `tracing/webvitals/` — verbatim vendored `web-vitals` fork, excluded from lint and format
 
