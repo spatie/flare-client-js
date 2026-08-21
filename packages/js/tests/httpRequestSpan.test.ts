@@ -1,21 +1,18 @@
-import type { Config, Span } from '@flareapp/core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Config } from '@flareapp/core';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     browserUrlContext,
     endHttpRequestSpan,
     finishHttpSpanError,
-    type HttpTracer,
     isFlareIngestUrl,
     requestSpanAttributes,
     safeAbsolute,
-    startHttpRequestSpan,
     traceparentFor,
 } from '../src/tracing/httpRequestSpan';
-import { fakeRecordingSpan, fixedUrls } from './helpers';
+import { fakeRecordingSpan } from './helpers';
 
 const ORIGIN = 'https://app.example';
-const URLS = fixedUrls(ORIGIN);
 const config = {
     urlDenylist: /token/,
     ingestUrl: 'https://ingress.flareapp.io/v1/errors',
@@ -24,16 +21,6 @@ const config = {
 } as unknown as Config;
 
 describe('httpRequestSpan helpers', () => {
-    it('does not trace a data: or blob: request', () => {
-        const tracer = { config, startSpan: vi.fn() } as unknown as HttpTracer;
-        for (const url of ['data:text/plain;base64,' + btoa('x'.repeat(2000)), 'blob:https://app.example/abc']) {
-            expect(
-                startHttpRequestSpan(tracer, { method: 'GET', url, urls: URLS, spanType: 'browser_fetch' }),
-            ).toBeNull();
-        }
-        expect(tracer.startSpan).not.toHaveBeenCalled();
-    });
-
     it('truncates url.full so an overlong URL cannot bloat a span', () => {
         const attributes = requestSpanAttributes(
             'GET',
@@ -184,73 +171,6 @@ describe('httpRequestSpan helpers', () => {
             const { span } = fakeRecordingSpan();
             const url = 'https://other.example/api';
             expect(traceparentFor(span, safeAbsolute(url, ORIGIN), url, ORIGIN, config)).toBeNull();
-        });
-    });
-
-    describe('startHttpRequestSpan', () => {
-        const tracer = (): { tracer: HttpTracer; startSpan: ReturnType<typeof vi.fn> } => {
-            const startSpan = vi.fn(() => ({ traceId: 't', spanId: 's', isRecording: true }) as unknown as Span);
-            return { tracer: { config, startSpan } as unknown as HttpTracer, startSpan };
-        };
-
-        it('names the span from the method and the resolved pathname', () => {
-            const { tracer: t, startSpan } = tracer();
-
-            const started = startHttpRequestSpan(t, {
-                method: 'POST',
-                url: '/api/orders?token=abc',
-                urls: URLS,
-                spanType: 'browser_fetch',
-            });
-
-            expect(started).not.toBeNull();
-            expect(started!.absoluteUrl?.href).toBe(`${ORIGIN}/api/orders?token=abc`);
-            expect(startSpan).toHaveBeenCalledWith('POST /api/orders', {
-                spanType: 'browser_fetch',
-                attributes: expect.objectContaining({ 'http.request.method': 'POST' }),
-            });
-        });
-
-        it('resolves a bare-relative url against the document base, not the origin', () => {
-            const { tracer: t, startSpan } = tracer();
-
-            const started = startHttpRequestSpan(t, {
-                method: 'GET',
-                url: 'api/products',
-                urls: fixedUrls(ORIGIN, `${ORIGIN}/store/`),
-                spanType: 'browser_fetch',
-            });
-
-            expect(started!.absoluteUrl?.href).toBe(`${ORIGIN}/store/api/products`);
-            expect(startSpan).toHaveBeenCalledWith('GET /store/api/products', expect.anything());
-        });
-
-        it('falls back to the raw url when it cannot be resolved', () => {
-            const { tracer: t, startSpan } = tracer();
-
-            const started = startHttpRequestSpan(t, {
-                method: 'GET',
-                url: 'http://[',
-                urls: URLS,
-                spanType: 'browser_xhr',
-            });
-
-            expect(started!.absoluteUrl).toBeNull();
-            expect(startSpan).toHaveBeenCalledWith('GET http://[', expect.anything());
-        });
-
-        it('returns null for a Flare ingest URL and opens no span', () => {
-            const { tracer: t, startSpan } = tracer();
-
-            const started = startHttpRequestSpan(t, {
-                method: 'POST',
-                url: 'https://ingress.flareapp.io/v1/traces',
-                urls: URLS,
-                spanType: 'browser_fetch',
-            });
-
-            expect(started).toBeNull();
-            expect(startSpan).not.toHaveBeenCalled();
         });
     });
 });

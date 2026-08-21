@@ -16,8 +16,6 @@ export type HttpTracer = {
     startSpan(name: string, opts?: SpanOptions): Span;
 };
 
-const INLINE_SCHEMES = new Set(['data:', 'blob:']);
-
 /**
  * The two URL facts a request needs, kept apart on purpose. `base` is what the browser resolves a
  * relative request URL against (`document.baseURI`: the document URL, or a `<base href>`), while
@@ -139,37 +137,4 @@ export function traceparentFor(
         return null;
     }
     return buildTraceparent(span.traceId, span.spanId, span.isRecording);
-}
-
-/**
- * Open a request span for one outgoing fetch or XHR call. Null means the URL is one of Flare's own
- * ingest endpoints, so the caller passes the request through untraced.
- *
- * `absoluteUrl` comes back with the span because both callers need it afterwards: for the traceparent
- * gate, and for XHR's http(s)-only status-0 rule.
- */
-export function startHttpRequestSpan(
-    tracer: HttpTracer,
-    request: { method: string; url: string; urls: UrlContext; spanType: string },
-): { span: Span; absoluteUrl: URL | null } | null {
-    const { method, url, urls, spanType } = request;
-    const config = tracer.config;
-
-    const base = urls.base();
-    const resolved = safeAbsolute(url, base);
-    if (isFlareIngestUrl(resolved, config, base)) {
-        return null;
-    }
-    // A data:/blob: read is not network traffic, and a data: URL carries its whole payload in the url.
-    if (resolved && INLINE_SCHEMES.has(resolved.protocol)) {
-        return null;
-    }
-
-    const pathname = resolved ? resolved.pathname : url;
-    const span = tracer.startSpan(`${method} ${pathname}`, {
-        spanType,
-        attributes: requestSpanAttributes(method, resolved, url, config),
-    });
-
-    return { span, absoluteUrl: resolved };
 }

@@ -1,29 +1,23 @@
-import type { Config } from '@flareapp/core';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { setInstrumentationConfig } from '../src/instrument/config';
 import {
     addRequestSettleHandler,
     createXHROpen,
     createXHRSend,
     createXHRSetRequestHeader,
     resetRequestInstrumentationForTests,
-    type RequestContext,
-    type RequestResult,
     setRequestStartHandler,
 } from '../src/instrument/request';
 import { internalRequestInit } from '../src/tracing/internalRequest';
-import { fixedUrls } from './helpers';
+import { fixedUrls, recordSettles, useInstrumentationConfig } from './helpers';
 
 const nativeFetch = globalThis.fetch;
 
-// Same shape as `makeTracer` in tests/helpers/fakeTracer.ts: only the keys the instrumentation reads.
-const config = {
-    enableTracing: true,
+const INGEST = {
     ingestUrl: 'https://ingest.test/v1/errors',
     logsIngestUrl: 'https://ingest.test/v1/logs',
     tracesIngestUrl: 'https://ingest.test/v1/traces',
-} as unknown as Config;
+};
 
 // The patch keeps the `supportsNativeFetch` guard, and a bare `vi.fn` fails it: its toString carries
 // no "[native code]". The `.bind` hides the implementation the way `nativeFetchStub` does, while the
@@ -35,15 +29,9 @@ function stubFetch(impl: () => Promise<Response>): void {
     globalThis.fetch = fetchMock.bind(null) as unknown as typeof fetch;
 }
 
-function recordSettles(): { entries: Array<{ context: RequestContext; result: RequestResult }>; stop: () => void } {
-    const entries: Array<{ context: RequestContext; result: RequestResult }> = [];
-    const stop = addRequestSettleHandler((context, result) => entries.push({ context, result }));
-    return { entries, stop };
-}
-
 describe('request instrumentation', () => {
     beforeEach(() => {
-        setInstrumentationConfig(() => config);
+        useInstrumentationConfig(INGEST);
         stubFetch(async () => new Response('ok', { status: 200 }));
     });
 
@@ -180,7 +168,7 @@ describe('request instrumentation', () => {
         stopFirst();
     });
 
-    // Same wiring as instrumentXHR.test.ts: the three factories patched onto a minimal fake XHR.
+    // Same wiring as requestXhrPatch.test.ts: the three factories patched onto a minimal fake XHR.
     test('an XHR with its own traceparent still asks the owner, but never overwrites the header', () => {
         const owner = vi.fn(() => '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01');
         const stopStart = setRequestStartHandler(owner);

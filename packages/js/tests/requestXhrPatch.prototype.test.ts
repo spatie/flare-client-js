@@ -1,77 +1,88 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { instrumentXHR, unpatchXHR } from '../src/tracing/instrumentXHR';
-import { makeTracer } from './helpers';
+import {
+    addRequestSettleHandler,
+    resetRequestInstrumentationForTests,
+    setRequestStartHandler,
+} from '../src/instrument/request';
+import { recordSettles, useInstrumentationConfig } from './helpers';
 
-describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
-    afterEach(() => unpatchXHR());
+// Registration is the handle on the patch: the first handler installs it, the last unsubscribe takes
+// it off again. Install and uninstall are deliberately private to the module.
+describe('the XMLHttpRequest.prototype patch', () => {
+    beforeEach(() => {
+        useInstrumentationConfig();
+    });
+
+    afterEach(() => {
+        resetRequestInstrumentationForTests();
+    });
 
     it('patches open/send/setRequestHeader and restores them', () => {
         const proto = XMLHttpRequest.prototype as unknown as Record<string, { __flare_original__?: unknown }>;
         const nativeSend = proto.send;
-        const { tracer } = makeTracer();
 
-        instrumentXHR(tracer);
+        const stop = addRequestSettleHandler(() => {});
         expect(proto.send).not.toBe(nativeSend);
         expect((proto.send as { __flare_original__?: unknown }).__flare_original__).toBe(nativeSend);
         expect((proto.open as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
         expect((proto.setRequestHeader as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
 
-        unpatchXHR();
+        stop();
         expect(proto.send).toBe(nativeSend);
     });
 
-    it('is idempotent (a second instrumentXHR does not stack a wrapper)', () => {
+    it('is idempotent (a second handler does not stack a wrapper)', () => {
         const proto = XMLHttpRequest.prototype as unknown as Record<string, unknown>;
-        const { tracer } = makeTracer();
 
-        instrumentXHR(tracer);
+        addRequestSettleHandler(() => {});
         const firstSend = proto.send;
-        instrumentXHR(tracer);
+        addRequestSettleHandler(() => {});
         expect(proto.send).toBe(firstSend);
     });
 
-    it('open without send creates no span (reused instance stays inert until send)', () => {
-        const { tracer, startSpan } = makeTracer();
-        instrumentXHR(tracer);
+    it('open without send reports nothing (reused instance stays inert until send)', () => {
+        const { entries } = recordSettles();
 
         const xhr = new XMLHttpRequest();
         xhr.open('GET', 'https://app.example/one');
-        // open again reuses the instance; still no send() -> still no span.
+        // open again reuses the instance; still no send() -> still nothing to report.
         xhr.open('GET', 'https://app.example/two');
-        expect(startSpan).not.toHaveBeenCalled();
+        expect(entries).toHaveLength(0);
     });
 
     it('a third party wrapping send leaves the other two patched methods restorable', () => {
         const proto = XMLHttpRequest.prototype as unknown as Record<string, { __flare_original__?: unknown }>;
-        const { tracer, startSpan } = makeTracer();
+        // The start owner is asked synchronously inside send(), so it counts how many of our send
+        // wrappers a request went through. A settle would only arrive at DONE, long after this test.
+        const owner = vi.fn(() => null);
 
-        instrumentXHR(tracer);
+        const stopStart = setRequestStartHandler(owner);
         const flareSend = proto.send;
 
-        // A third party wraps `send` on top of Flare's wrapper, so unpatchXHR cannot restore it.
+        // A third party wraps `send` on top of Flare's wrapper, so the last unsubscribe cannot restore it.
         const thirdParty = function (this: XMLHttpRequest, ...args: unknown[]): unknown {
             return (flareSend as unknown as (...a: unknown[]) => unknown).apply(this, args);
         };
         proto.send = thirdParty as unknown as { __flare_original__?: unknown };
 
-        unpatchXHR();
+        stopStart();
         expect(proto.send).toBe(thirdParty); // the leak is real
 
-        instrumentXHR(tracer); // re-enable must not permanently wedge `open`
+        setRequestStartHandler(owner); // re-registering must not permanently wedge `open`
 
-        // (a) open is still Flare's wrapper -> tracing is not permanently dead.
+        // (a) open is still Flare's wrapper -> the instrumentation is not permanently dead.
         expect((proto.open as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
 
-        // (b) one traced request through open() -> send() creates exactly one span, so
-        // re-instrumenting did not stack a second `send` wrapper under the leaked third party.
+        // (b) one request through open() -> send() asks the owner exactly once, so re-registering did
+        // not stack a second `send` wrapper under the leaked third party.
         const xhr = new XMLHttpRequest();
         xhr.open('GET', 'https://app.example/one');
         xhr.send();
-        expect(startSpan).toHaveBeenCalledTimes(1);
+        expect(owner).toHaveBeenCalledTimes(1);
 
-        // Unwind the third party so afterEach's unpatchXHR can fully restore natives.
+        // Unwind the third party so the afterEach reset can fully restore the natives.
         proto.send = flareSend;
     });
 
@@ -79,9 +90,8 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         const realXHR = globalThis.XMLHttpRequest;
         const proto = realXHR.prototype as unknown as Record<string, unknown>;
         const nativeSend = proto.send;
-        const { tracer } = makeTracer();
 
-        instrumentXHR(tracer);
+        const stop = addRequestSettleHandler(() => {});
         expect(proto.send).not.toBe(nativeSend);
 
         // A polyfill or test harness swaps the constructor after we installed.
@@ -93,15 +103,15 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         globalThis.XMLHttpRequest = ReplacementXHR as unknown as typeof XMLHttpRequest;
 
         try {
-            unpatchXHR();
+            stop();
             expect(proto.send).toBe(nativeSend);
 
-            instrumentXHR(tracer);
+            addRequestSettleHandler(() => {});
             expect(
                 (ReplacementXHR.prototype.send as unknown as { __flare_original__?: unknown }).__flare_original__,
             ).toBeDefined();
         } finally {
-            unpatchXHR();
+            resetRequestInstrumentationForTests();
             globalThis.XMLHttpRequest = realXHR;
         }
     });

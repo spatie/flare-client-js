@@ -3,6 +3,7 @@ import { fakeRecordingSpan } from '@flareapp/test-helpers';
 import { vi } from 'vitest';
 
 import type { HttpTracer } from '../../src/tracing/httpRequestSpan';
+import { fakeConfig } from './instrumentation';
 
 export { fakeRecordingSpan };
 
@@ -14,13 +15,7 @@ export { fakeRecordingSpan };
 export function makeTracer(overrides: Partial<Config> = {}) {
     const first = fakeRecordingSpan();
     const spans: Array<ReturnType<typeof fakeRecordingSpan>['calls']> = [];
-    const config = {
-        enableTracing: true,
-        ingestUrl: 'https://ingress.flareapp.io/v1/errors',
-        logsIngestUrl: 'https://ingress.flareapp.io/v1/logs',
-        tracesIngestUrl: 'https://ingress.flareapp.io/v1/traces',
-        ...overrides,
-    } as unknown as Config;
+    const config = fakeConfig(overrides);
     const startSpan = vi.fn((_name: string, _opts?: SpanOptions) => {
         const { span, calls } = spans.length === 0 ? first : fakeRecordingSpan();
         spans.push(calls);

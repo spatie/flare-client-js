@@ -1,7 +1,6 @@
-import type { Config } from '@flareapp/core';
+import type { SpanOptions } from '@flareapp/core';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { setInstrumentationConfig } from '../src/instrument/config';
 import {
     resetRequestInstrumentationForTests,
     setRequestStartHandler,
@@ -9,7 +8,7 @@ import {
     type RequestResult,
 } from '../src/instrument/request';
 import { startTracingRequests, tracingRequestHandlers } from '../src/tracing/traceRequests';
-import { fixedUrls, makeTracer } from './helpers';
+import { fixedUrls, makeTracer, useInstrumentationConfig } from './helpers';
 
 function context(overrides: Partial<RequestContext> = {}): RequestContext {
     return {
@@ -30,8 +29,8 @@ const ORIGIN = 'https://api.test';
 const URLS = fixedUrls(ORIGIN);
 
 describe('tracingRequestHandlers', () => {
-    // Belt and braces: test 13 releases its own registration, but this guards the rest of the suite
-    // (and the run) against the module-global start slot staying claimed if it doesn't.
+    // Belt and braces: the registration test releases its own handlers, but this guards the rest of
+    // the suite (and the run) against the module-global start slot staying claimed if it doesn't.
     afterEach(() => {
         resetRequestInstrumentationForTests();
     });
@@ -54,6 +53,38 @@ describe('tracingRequestHandlers', () => {
         });
     });
 
+    test('names the span from the method and the resolved pathname, leaving the query out', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+
+        onStart(
+            context({ method: 'POST', url: '/orders?token=abc', absoluteUrl: new URL(`${ORIGIN}/orders?token=abc`) }),
+        );
+
+        expect(startSpan).toHaveBeenCalledWith('POST /orders', expect.anything());
+    });
+
+    test('falls back to the raw url in the span name when it could not be resolved', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+
+        onStart(context({ url: 'http://[', absoluteUrl: null }));
+
+        expect(startSpan).toHaveBeenCalledWith('GET http://[', expect.anything());
+    });
+
+    test('redacts denylisted query params in url.full and url.query', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+        const url = `${ORIGIN}/reset?token=abc123&page=2`;
+
+        onStart(context({ url, absoluteUrl: new URL(url) }));
+
+        const attributes = (startSpan.mock.calls[0][1] as SpanOptions).attributes as Record<string, string>;
+        expect(attributes['url.full']).toBe(`${ORIGIN}/reset?token=[redacted]&page=2`);
+        expect(attributes['url.query']).toBe('token=[redacted]&page=2');
+    });
+
     test('opens a browser_xhr span for an xhr context', () => {
         const { tracer, startSpan } = makeTracer();
         const { onStart } = tracingRequestHandlers(tracer, URLS);
@@ -71,6 +102,46 @@ describe('tracingRequestHandlers', () => {
 
         expect(traceparent).toBe(`00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`);
         expect(startSpan).toHaveBeenCalledOnce();
+    });
+
+    test('returns no traceparent cross-origin by default, but still opens the span', () => {
+        const { tracer, startSpan } = makeTracer();
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+        const url = 'https://third-party.example/track';
+
+        const traceparent = onStart(context({ url, absoluteUrl: new URL(url) }));
+
+        expect(traceparent).toBeNull();
+        expect(startSpan).toHaveBeenCalledOnce();
+    });
+
+    test('returns no traceparent when a cross-origin <base href> took a relative url off-origin', () => {
+        const { tracer } = makeTracer();
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+
+        // Injecting here would turn a simple request into a preflighted one and break it.
+        const traceparent = onStart(
+            context({ url: 'data.json', absoluteUrl: new URL('https://cdn.other.example/assets/data.json') }),
+        );
+
+        expect(traceparent).toBeNull();
+    });
+
+    test('returns a traceparent for a relative same-origin url when tracePropagationTargets is set', () => {
+        const { tracer } = makeTracer({ tracePropagationTargets: ['api.test'] });
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+
+        const traceparent = onStart(context({ url: '/products' }));
+
+        expect(traceparent).toBe(`00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`);
+    });
+
+    test('flags the traceparent 00 when the span is not recording', () => {
+        const { tracer, span } = makeTracer();
+        (span as { isRecording: boolean }).isRecording = false;
+        const { onStart } = tracingRequestHandlers(tracer, URLS);
+
+        expect(onStart(context())).toBe(`00-${'a'.repeat(32)}-${'b'.repeat(16)}-00`);
     });
 
     test('returns null for a url the propagation targets exclude', () => {
@@ -151,6 +222,19 @@ describe('tracingRequestHandlers', () => {
         expect(calls.ended).toBe(true);
     });
 
+    test('maps status 0 to an error for an xhr on plain http too', () => {
+        const { tracer, calls } = makeTracer();
+        const { onStart, onSettle } = tracingRequestHandlers(tracer, URLS);
+        const url = 'http://api.test/products';
+        const ctx = context({ kind: 'xhr', url, absoluteUrl: new URL(url) });
+
+        onStart(ctx);
+        onSettle(ctx, result({ status: 0 }));
+
+        expect(calls.attrs['http.response.status_code']).toBe(0);
+        expect(calls.status).toEqual({ code: 2 });
+    });
+
     test('leaves status 0 alone for an xhr on a file: url', () => {
         const { tracer, calls } = makeTracer();
         const { onStart, onSettle } = tracingRequestHandlers(tracer, URLS);
@@ -204,13 +288,11 @@ describe('tracingRequestHandlers', () => {
     });
 
     test('unsubscribing frees the start slot for the next owner', async () => {
-        const instrumentConfig = {
-            enableTracing: true,
+        useInstrumentationConfig({
             ingestUrl: 'https://ingest.test/v1/errors',
             logsIngestUrl: 'https://ingest.test/v1/logs',
             tracesIngestUrl: 'https://ingest.test/v1/traces',
-        } as unknown as Config;
-        setInstrumentationConfig(() => instrumentConfig);
+        });
 
         const nativeFetch = globalThis.fetch;
         // Native-looking (bound) stub, matching the pattern instrumentRequest.test.ts uses to satisfy
