@@ -136,6 +136,22 @@ describe('request instrumentation', () => {
         stop();
     });
 
+    test('a response whose status getter throws still reaches the caller', async () => {
+        const hostile = {};
+        Object.defineProperty(hostile, 'status', {
+            get() {
+                throw new Error('hostile status');
+            },
+        });
+        stubFetch(async () => hostile as Response);
+        const { entries, stop } = recordSettles();
+
+        await expect(fetch('https://api.test/products')).resolves.toBe(hostile);
+
+        expect(entries).toHaveLength(0);
+        stop();
+    });
+
     test('stamps a start and an end time', async () => {
         const { entries, stop } = recordSettles();
 

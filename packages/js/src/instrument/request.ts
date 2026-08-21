@@ -211,7 +211,12 @@ export function createFetchWrapper(original: typeof fetch, urls: UrlContext): ty
         }
 
         return promise.then((response) => {
-            settle({ status: response.status });
+            try {
+                settle({ status: response.status });
+            } catch {
+                // `status` is a host getter and can throw. Guard the read so a throwing getter costs
+                // the settle, never the host's response.
+            }
             return response;
         }, finishError);
     };
