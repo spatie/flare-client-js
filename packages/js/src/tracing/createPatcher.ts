@@ -2,7 +2,6 @@ import { fill, unfill } from './fill';
 
 type Wrapped<F> = F & { __flare_original__?: F };
 
-/** One wrapper factory per patched method, each typed against that method alone. */
 export type MethodPatches<T> = { [K in keyof T]?: (original: NonNullable<T[K]>) => T[K] };
 
 export type Patcher<T extends object> = {
@@ -12,11 +11,8 @@ export type Patcher<T extends object> = {
 };
 
 /**
- * One `installed` flag for the whole set, not one per method. XHR's `open` records what `send`
- * reads, so the set must never end up half patched.
- *
- * `install` and `uninstall` take the target per call. A captured target would have to resolve when
- * this module loads, and `XMLHttpRequest.prototype` does not exist under SSR.
+ * One `installed` flag for the whole set, not one per method: `open` remembers the URL that `send`
+ * reads, so a half patched set is broken.
  */
 export function createPatcher<T extends object>(): Patcher<T> {
     let installed = false;
@@ -27,12 +23,14 @@ export function createPatcher<T extends object>(): Patcher<T> {
             return installed;
         },
 
+        // We pass in the target (XMLHttpRequest.prototype for example), because if we would resolve them when this module loads
+        // instead of passing them in when something calls this function, we might run into trouble under SSR.
         install(target: T, patches: MethodPatches<T>): void {
             if (installed) {
                 return;
             }
-            // Generic over one key at a time: that is what keeps each wrapper correlated with its
-            // own method instead of the union of all of them.
+            // Inside the loop `name` is every key at once, so `fill` cannot match a wrapper to its
+            // method. A single type parameter narrows it to one.
             function applyOne<K extends keyof T>(name: K): void {
                 const wrap = patches[name];
                 if (wrap) {
@@ -46,14 +44,9 @@ export function createPatcher<T extends object>(): Patcher<T> {
             installed = true;
         },
 
-        /**
-         * Restore every method or none, because XHR's `open` records what `send` reads.
-         *
-         * A third party that wrapped on top of ours blocks the restore: `unfill` would find their
-         * wrapper, not the original. `installed` stays true then, so the next `install` adds nothing
-         * on top. Our wrappers stay in the chain and idle, because each one checks per call whether
-         * anything still needs it.
-         */
+        // Put back every method on the target, or none.
+        // Another library can wrap our wrapper. If that happens, we cannot find the original target we wrapped,
+        // so we put nothing back and keep `installed` true. That stops the next `install` from adding a second wrapper.
         uninstall(target: T): void {
             if (!installed) {
                 return;
