@@ -9,6 +9,7 @@ import {
     type ScopeProvider,
 } from '@flareapp/core';
 
+import { startBreadcrumbs } from './breadcrumbs';
 import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
@@ -37,11 +38,25 @@ export class Flare extends CoreFlare {
 
     /** Held so a later disable can give the mutation slot back. */
     private removeTracingSubscription: (() => void) | null = null;
+    private stopBreadcrumbs: (() => void) | null = null;
 
     override configure(config: Partial<Config>): this {
         const wasTracing = this.config.enableTracing;
+        const wasBreadcrumbs = this.config.enableBreadcrumbs;
         super.configure(config);
         const nowTracing = this.config.enableTracing;
+        const nowBreadcrumbs = this.config.enableBreadcrumbs;
+
+        if (!wasBreadcrumbs && nowBreadcrumbs) {
+            this.stopBreadcrumbs = startBreadcrumbs({
+                config: () => this.config,
+                record: (type, attributes, startTimeUnixNano) =>
+                    this.addBreadcrumb(type, attributes, startTimeUnixNano),
+            });
+        } else if (wasBreadcrumbs && !nowBreadcrumbs) {
+            this.stopBreadcrumbs?.();
+            this.stopBreadcrumbs = null;
+        }
 
         if (!wasTracing && nowTracing) {
             this.removeTracingSubscription = withRequestPatches(() => traceRequests(this, browserUrlContext()));
@@ -61,6 +76,7 @@ export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 export {
+    currentHref,
     currentPath,
     registerNavigationSource,
     resolveHref,

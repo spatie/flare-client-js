@@ -22,6 +22,11 @@ export function currentPath(): string {
     return typeof location !== 'undefined' ? location.pathname : '';
 }
 
+// The whole address, query string included
+export function currentHref(): string {
+    return typeof location !== 'undefined' ? location.href : '';
+}
+
 /**
  * Uses the router's route template (`/product/:id`) instead of the raw path, so all urls of one route
  * group together. If `derive` throws, we use the fallback path instead of breaking the app.

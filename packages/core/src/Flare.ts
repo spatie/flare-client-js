@@ -1,4 +1,5 @@
 import { Api } from './api';
+import { recordBreadcrumb } from './breadcrumbs/recordBreadcrumb';
 import { CLIENT_VERSION, KEY, SOURCEMAP_VERSION } from './env';
 import { Logger, NoopFlushScheduler, partitionAttributes, type FlushScheduler } from './logging';
 import { GlobalScopeProvider, USER_FIELD_KEYS, USER_IDENTITY_KEYS, type ScopeProvider } from './Scope';
@@ -275,6 +276,14 @@ export class Flare {
             this._config.maxGlowsPerReport,
         );
         return this;
+    }
+
+    /**
+     * Where the browser recorders write. Protected on purpose: `flare.glow()` is the public way to put
+     * something on the timeline by hand, and a second public way would need explaining forever.
+     */
+    protected addBreadcrumb(type: string, attributes: Attributes, startTimeUnixNano: number): void {
+        recordBreadcrumb(this.scopeProvider, this._config, type, attributes, startTimeUnixNano);
     }
 
     clearGlows(): this {
