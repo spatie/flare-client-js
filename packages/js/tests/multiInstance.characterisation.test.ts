@@ -9,9 +9,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
+import { unpatchXHR } from '../src/instrumentation/instrumentXHR';
+import { resetRequestInstrumentation } from '../src/instrumentation/requestInstrumentation';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { createPatcher } from '../src/tracing/createPatcher';
-import { unpatchXHR } from '../src/tracing/instrumentXHR';
 
 describe('multi-instance tracing (characterisation)', () => {
     describe('two Flare instances share one module-level fetch patch', () => {
@@ -24,6 +25,7 @@ describe('multi-instance tracing (characterisation)', () => {
             stopBrowserTracing();
             unpatchFetch();
             unpatchXHR();
+            resetRequestInstrumentation();
             g.fetch = originalFetch;
         });
 

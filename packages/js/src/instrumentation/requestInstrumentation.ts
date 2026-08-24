@@ -1,4 +1,5 @@
 import { instrumentFetch, unpatchFetch } from './instrumentFetch';
+import { instrumentXHR, unpatchXHR } from './instrumentXHR';
 
 let consumers = 0;
 
@@ -10,6 +11,7 @@ let consumers = 0;
 export function addRequestConsumer(subscribe: () => () => void): () => void {
     if (consumers === 0) {
         instrumentFetch();
+        instrumentXHR();
     }
     consumers++;
 
@@ -25,6 +27,7 @@ export function addRequestConsumer(subscribe: () => () => void): () => void {
         consumers--;
         if (consumers === 0) {
             unpatchFetch();
+            unpatchXHR();
         }
     };
 }

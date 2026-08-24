@@ -1,4 +1,6 @@
-import { claimRequestMutation, type RequestStart } from '../instrumentation/requestBus';
+import { type Span, SpanStatusCode } from '@flareapp/core';
+
+import { claimRequestMutation, type MutatedRequest, type RequestStart } from '../instrumentation/requestBus';
 import {
     endHttpRequestSpan,
     finishHttpSpanError,
@@ -9,6 +11,36 @@ import {
 } from './httpRequestSpan';
 import { mergeTraceparentHeader } from './propagation';
 import { BrowserSpanType } from './spanTypes';
+
+const SPAN_TYPES = { fetch: BrowserSpanType.Fetch, xhr: BrowserSpanType.Xhr };
+
+/**
+ * status 0 at DONE means "no HTTP response" for http(s) only. file:// and custom schemes, such as
+ * Electron's registerFileProtocol, return 0 on success. An unparseable URL is not an error either.
+ */
+function zeroIsError(absoluteUrl: URL | null): boolean {
+    return absoluteUrl !== null && (absoluteUrl.protocol === 'http:' || absoluteUrl.protocol === 'https:');
+}
+
+function propagate(
+    span: Span,
+    absoluteUrl: URL | null,
+    start: RequestStart,
+    urls: UrlContext,
+    tracer: HttpTracer,
+): MutatedRequest {
+    const traceparent = traceparentFor(span, absoluteUrl, start.url, urls.origin, tracer.config);
+    if (!traceparent) {
+        return {};
+    }
+    if (start.kind === 'xhr') {
+        return { headers: { traceparent } };
+    }
+    if (start.input === undefined) {
+        return {};
+    }
+    return { init: mergeTraceparentHeader(start.input, start.init, traceparent) };
+}
 
 /** Tracing takes the mutation slot rather than a plain subscription, to add `traceparent`. */
 export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void {
@@ -22,29 +54,35 @@ export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void 
             method: start.method,
             url: start.url,
             urls,
-            spanType: BrowserSpanType.Fetch,
+            spanType: SPAN_TYPES[start.kind],
         });
         if (!started) {
             return;
         }
         const { span, absoluteUrl } = started;
 
-        let init: RequestInit | undefined;
+        let mutated: MutatedRequest = {};
         try {
-            const traceparent = traceparentFor(span, absoluteUrl, start.url, urls.origin, tracer.config);
-            if (traceparent && start.input !== undefined) {
-                init = mergeTraceparentHeader(start.input, start.init, traceparent);
-            }
+            mutated = propagate(span, absoluteUrl, start, urls, tracer);
         } catch {
             // The span is already open, so it must still reach `onSettle` below.
-            init = undefined;
+            mutated = {};
         }
 
         return {
-            init,
-            onSettle({ status, error }): void {
+            ...mutated,
+            onSettle({ status, error, aborted }): void {
+                if (aborted) {
+                    span.setStatus({ code: SpanStatusCode.Error });
+                    span.end();
+                    return;
+                }
                 if (error !== undefined) {
                     finishHttpSpanError(span, error);
+                    return;
+                }
+                if (start.kind === 'xhr') {
+                    endHttpRequestSpan(span, status ?? 0, { zeroIsError: zeroIsError(absoluteUrl) });
                     return;
                 }
                 endHttpRequestSpan(span, status ?? 0);

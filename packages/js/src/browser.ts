@@ -14,7 +14,7 @@ import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
 import { addRequestConsumer } from './instrumentation/requestInstrumentation';
-import { instrumentXHR, startBrowserTracing, stopBrowserTracing, unpatchXHR } from './tracing';
+import { startBrowserTracing, stopBrowserTracing } from './tracing';
 import { browserUrlContext } from './tracing/httpRequestSpan';
 import { traceRequests } from './tracing/traceRequests';
 
@@ -45,13 +45,11 @@ export class Flare extends CoreFlare {
 
         if (!wasTracing && nowTracing) {
             this.removeTracingConsumer = addRequestConsumer(() => traceRequests(this, browserUrlContext()));
-            instrumentXHR(this);
             startBrowserTracing(this);
         } else if (wasTracing && !nowTracing) {
             stopBrowserTracing();
             this.removeTracingConsumer?.();
             this.removeTracingConsumer = null;
-            unpatchXHR();
         }
 
         return this;
