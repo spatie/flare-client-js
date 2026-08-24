@@ -18,12 +18,6 @@ import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
 const SPAN_TYPES = { fetch: BrowserSpanType.Fetch, xhr: BrowserSpanType.Xhr };
 
-/**
- * Records what a request did: method, url and the status it came back with.
- *
- * A request breadcrumb is a point in time, recorded when the request settles. Tracing already measures
- * how long a request took, and a duration here would be a second answer to the same question.
- */
 export class RequestRecorder implements BreadcrumbRecorder {
     readonly type = 'browser_request';
 
@@ -33,11 +27,11 @@ export class RequestRecorder implements BreadcrumbRecorder {
         this.onSettle = this.onSettle.bind(this);
     }
 
-    install(): () => void {
+    install() {
         return withRequestPatches(this.subscribe);
     }
 
-    private subscribe(): () => void {
+    private subscribe() {
         return subscribeToRequests(this.onStart);
     }
 

@@ -3,12 +3,6 @@ import { BrowserSpanEventType, defaultNowNano, type Attributes } from '@flareapp
 import { elementSelector, elementTestId } from './elementSelector';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
-/**
- * Records which form field a person finished, by name only. Never the value they typed.
- *
- * We listen to `change`, not `input`. `input` fires on every keystroke, so one email address is about
- * 25 entries and four fields would push every click and request out of the buffer.
- */
 export class FormChangeRecorder implements BreadcrumbRecorder {
     readonly type = BrowserSpanEventType.Input;
 
@@ -16,12 +10,12 @@ export class FormChangeRecorder implements BreadcrumbRecorder {
         this.onChange = this.onChange.bind(this);
     }
 
-    install(): () => void {
+    install() {
         document.addEventListener('change', this.onChange, true);
         return () => document.removeEventListener('change', this.onChange, true);
     }
 
-    private onChange(event: Event): void {
+    private onChange(event: Event) {
         const target = event.target;
         if (!(target instanceof Element)) {
             return;

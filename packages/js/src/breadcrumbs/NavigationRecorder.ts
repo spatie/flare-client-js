@@ -9,16 +9,11 @@ import {
 import { currentHref, subscribeToNavigation, type RouteName } from '../instrumentation/navigation';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
-/**
- * Records where a person went, as the url they came from and the url they landed on.
- *
- * We record when a navigation settles, not when it starts. React Router v7 opens a navigation before
- * the url is final, so an early record would say where the router was headed, not where it arrived.
- */
 export class NavigationRecorder implements BreadcrumbRecorder {
     readonly type = BrowserSpanEventType.RouteChange;
 
-    /** Empty until the first navigation, so the opening entry carries no `from`. */
+    // Empty until the first navigation, so the first
+    // recorded navigation breadcrumb has no `from`
     private previousHref = '';
 
     constructor(private host: BreadcrumbHost) {
@@ -26,8 +21,7 @@ export class NavigationRecorder implements BreadcrumbRecorder {
         this.onNavigationSettle = this.onNavigationSettle.bind(this);
     }
 
-    install(): () => void {
-        // The timeline opens where the person landed, instead of starting halfway through the session.
+    install() {
         this.record(currentHref());
 
         return subscribeToNavigation({

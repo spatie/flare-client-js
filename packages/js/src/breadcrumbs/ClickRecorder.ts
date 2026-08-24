@@ -10,13 +10,13 @@ export class ClickRecorder implements BreadcrumbRecorder {
         this.onClick = this.onClick.bind(this);
     }
 
-    install(): () => void {
+    install() {
         // Capture phase, so we still see a click an app stops from bubbling.
         document.addEventListener('click', this.onClick, true);
         return () => document.removeEventListener('click', this.onClick, true);
     }
 
-    private onClick(event: Event): void {
+    private onClick(event: Event) {
         const target = event.target;
         if (!(target instanceof Element)) {
             return;
