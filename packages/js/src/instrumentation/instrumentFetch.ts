@@ -16,42 +16,33 @@ function resolveRequest(input: FetchInput, init: RequestInit | undefined): { met
     return { method: (method ?? 'GET').toUpperCase(), url };
 }
 
-/**
- * Build a fetch replacement that publishes each call on the request bus and applies whatever the mutation
- * slot hands back. It knows nothing about spans or breadcrumbs: consumers decide what a request means.
- *
- * Pure factory, so it is unit-testable without a browser.
- */
 export function createFetchWrapper(original: typeof fetch): typeof fetch {
     return function (this: unknown, input: FetchInput, init?: RequestInit): Promise<Response> {
         const call = (i?: RequestInit): Promise<Response> =>
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
 
-        // Everything up to the handoff reads host-supplied input and user config, so any of it can
-        // throw. A throw here costs the instrumentation, never the request. The handoff itself must sit
-        // outside the try, or a synchronous throw from `call` gets swallowed by the catch below and
-        // retried here, invoking the underlying fetch twice.
-        let published: { settle(result: RequestSettle): void; init: RequestInit | undefined } | null = null;
+        // `call` stays outside the try: the catch would swallow a synchronous throw from the host
+        // fetch and then call it a second time.
+        let watched: { settle(result: RequestSettle): void; init: RequestInit | undefined } | null = null;
         try {
             if (hasRequestConsumers() && !isInternalRequest(init)) {
-                const resolved = resolveRequest(input, init);
-                published = publishRequestStart({
+                const request = resolveRequest(input, init);
+                watched = publishRequestStart({
                     kind: 'fetch',
-                    method: resolved.method,
-                    url: resolved.url,
+                    method: request.method,
+                    url: request.url,
                     input,
                     init,
                 });
             }
         } catch {
-            published = null;
+            watched = null;
         }
 
-        // Null means nothing is watching this request, so it must reach the original untouched.
-        if (!published) {
+        if (!watched) {
             return call(init);
         }
-        const settle = published.settle;
+        const settle = watched.settle;
 
         const finishError = (error: unknown): Promise<never> => {
             settle({ error });
@@ -60,7 +51,7 @@ export function createFetchWrapper(original: typeof fetch): typeof fetch {
 
         let promise: Promise<Response>;
         try {
-            promise = call(published.init);
+            promise = call(watched.init);
         } catch (error) {
             return finishError(error);
         }
@@ -74,15 +65,9 @@ export function createFetchWrapper(original: typeof fetch): typeof fetch {
 
 type FetchGlobals = { fetch?: typeof fetch };
 
-// A wrapper left behind by a failed unpatch stays live and checks `hasRequestConsumers` per call, so one
-// wrapper in the chain is always enough. See createPatcher for how install and uninstall stay in step.
 const patcher = createPatcher<FetchGlobals>();
 
-/**
- * Patch the global `fetch` so outgoing requests reach the bus. No-op when there is no `fetch` or it is
- * not native (a polyfilled/XHR-backed fetch is left for the XHR patch). Idempotent via `fill`.
- * Reversible via `unpatchFetch`.
- */
+/** A polyfilled fetch runs on XHR, where the XHR patch already sees it, so leave it alone. */
 export function instrumentFetch(): void {
     if (patcher.installed) {
         return;
@@ -99,7 +84,6 @@ export function instrumentFetch(): void {
     patcher.install(globals, { fetch: (original) => createFetchWrapper(original) });
 }
 
-/** Restore the original global `fetch`. Safe if never patched. */
 export function unpatchFetch(): void {
     patcher.uninstall(globalThis as FetchGlobals);
 }

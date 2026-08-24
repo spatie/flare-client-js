@@ -88,12 +88,12 @@ describe('the mutation slot', () => {
         warn.mockRestore();
     });
 
-    it('a superseded owner releasing does not empty the slot under the new owner', () => {
+    it('a replaced owner cannot empty the slot under the new owner', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const releaseFirst = claimRequestMutation(() => ({ init: { method: 'FIRST' } }));
+        const removeFirst = claimRequestMutation(() => ({ init: { method: 'FIRST' } }));
         claimRequestMutation(() => ({ init: { method: 'SECOND' } }));
 
-        releaseFirst();
+        removeFirst();
 
         expect(publishRequestStart(START)?.init).toEqual({ method: 'SECOND' });
         warn.mockRestore();

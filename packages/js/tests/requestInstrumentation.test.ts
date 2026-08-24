@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
 import { resetRequestBus, subscribeToRequests } from '../src/instrumentation/requestBus';
-import { resetRequestInstrumentation, useRequestBus } from '../src/instrumentation/requestInstrumentation';
+import { addRequestConsumer, resetRequestInstrumentation } from '../src/instrumentation/requestInstrumentation';
 
 const g = globalThis as { fetch: typeof fetch };
 let before: typeof fetch;
@@ -24,53 +24,53 @@ afterEach(() => {
 
 describe('the patch belongs to nobody', () => {
     it('installs on the first consumer and removes on the last', () => {
-        const release = useRequestBus(() => subscribeToRequests(() => {}));
+        const remove = addRequestConsumer(() => subscribeToRequests(() => {}));
         expect(g.fetch).not.toBe(native);
 
-        release();
+        remove();
         expect(g.fetch).toBe(native);
     });
 
     it('keeps the patch while a second consumer is still listening', () => {
-        const releaseA = useRequestBus(() => subscribeToRequests(() => {}));
+        const removeA = addRequestConsumer(() => subscribeToRequests(() => {}));
         const patched = g.fetch;
-        const releaseB = useRequestBus(() => subscribeToRequests(() => {}));
+        const removeB = addRequestConsumer(() => subscribeToRequests(() => {}));
         expect(g.fetch).toBe(patched);
 
         // Whichever one leaves first, the patch survives for the other.
-        releaseB();
+        removeB();
         expect(g.fetch).toBe(patched);
 
-        releaseA();
+        removeA();
         expect(g.fetch).toBe(native);
     });
 
     it('installs once, not once per consumer', () => {
-        useRequestBus(() => subscribeToRequests(() => {}));
+        addRequestConsumer(() => subscribeToRequests(() => {}));
         const patched = g.fetch;
-        useRequestBus(() => subscribeToRequests(() => {}));
+        addRequestConsumer(() => subscribeToRequests(() => {}));
 
         expect(g.fetch).toBe(patched);
         expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBe(native);
     });
 
     it('ignores a teardown called twice, so one consumer cannot unpatch for another', () => {
-        const releaseA = useRequestBus(() => subscribeToRequests(() => {}));
+        const removeA = addRequestConsumer(() => subscribeToRequests(() => {}));
         const patched = g.fetch;
-        useRequestBus(() => subscribeToRequests(() => {}));
+        addRequestConsumer(() => subscribeToRequests(() => {}));
 
-        releaseA();
-        releaseA();
+        removeA();
+        removeA();
 
         expect(g.fetch).toBe(patched);
     });
 
     it('unsubscribes its consumer from the bus on release', () => {
         const observer = vi.fn();
-        const release = useRequestBus(() => subscribeToRequests(observer));
-        release();
+        const remove = addRequestConsumer(() => subscribeToRequests(observer));
+        remove();
 
-        useRequestBus(() => subscribeToRequests(() => {}));
+        addRequestConsumer(() => subscribeToRequests(() => {}));
         void g.fetch('https://app.example/api/x');
 
         expect(observer).not.toHaveBeenCalled();

@@ -13,7 +13,7 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import { useRequestBus } from './instrumentation/requestInstrumentation';
+import { addRequestConsumer } from './instrumentation/requestInstrumentation';
 import { instrumentXHR, startBrowserTracing, stopBrowserTracing, unpatchXHR } from './tracing';
 import { browserUrlContext } from './tracing/httpRequestSpan';
 import { traceRequests } from './tracing/traceRequests';
@@ -35,8 +35,8 @@ export class Flare extends CoreFlare {
         this.setFramework({ name: FrameworkName.Js });
     }
 
-    /** Set while tracing consumes the request bus, so a later disable can hand its slot back. */
-    private releaseRequestBus: (() => void) | null = null;
+    /** Held so a later disable can give the mutation slot back. */
+    private removeTracingConsumer: (() => void) | null = null;
 
     override configure(config: Partial<Config>): this {
         const wasTracing = this.config.enableTracing;
@@ -44,13 +44,13 @@ export class Flare extends CoreFlare {
         const nowTracing = this.config.enableTracing;
 
         if (!wasTracing && nowTracing) {
-            this.releaseRequestBus = useRequestBus(() => traceRequests(this, browserUrlContext()));
+            this.removeTracingConsumer = addRequestConsumer(() => traceRequests(this, browserUrlContext()));
             instrumentXHR(this);
             startBrowserTracing(this);
         } else if (wasTracing && !nowTracing) {
             stopBrowserTracing();
-            this.releaseRequestBus?.();
-            this.releaseRequestBus = null;
+            this.removeTracingConsumer?.();
+            this.removeTracingConsumer = null;
             unpatchXHR();
         }
 

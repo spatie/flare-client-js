@@ -10,16 +10,10 @@ import {
 import { mergeTraceparentHeader } from './propagation';
 import { BrowserSpanType } from './spanTypes';
 
-/**
- * Subscribe tracing to the request bus, holding the mutation slot so it can attach `traceparent`.
- *
- * Tracing takes the slot rather than a plain subscription because it is the only consumer that changes
- * the request. Everything else observes.
- */
+/** Tracing takes the mutation slot rather than a plain subscription, to add `traceparent`. */
 export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void {
     return claimRequestMutation((start: RequestStart) => {
-        // Read per call, not at subscribe time: configure() can flip tracing at any point, and the
-        // patch stays installed for the other consumers either way.
+        // Per call, because `configure()` can turn tracing off while the patch stays installed.
         if (!tracer.config.enableTracing) {
             return;
         }
@@ -35,8 +29,7 @@ export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void 
         }
         const { span, absoluteUrl } = started;
 
-        // Guarded separately from the span above: the span already exists here, so a throw must leave
-        // it started and let it end normally. Losing the header only costs backend correlation.
+        // Guarded apart from the span above: the span is open now, so a throw must still let it end.
         let init: RequestInit | undefined;
         try {
             const traceparent = traceparentFor(span, absoluteUrl, start.url, urls.origin, tracer.config);

@@ -38,19 +38,19 @@ describe('multi-instance tracing (characterisation)', () => {
 
             const b = new Flare();
             b.configure({ enableTracing: true, tracesSampleRate: 1 });
-            // Same patch: the bus counts consumers, so B joins rather than re-installing.
+            // Same patch. The bus counts consumers, so B joins the install instead of a second one.
             expect(g.fetch).toBe(patched);
 
             b.configure({ enableTracing: false });
 
-            // FIXED by reference counting: B leaving no longer strips the patch A depends on.
+            // FIXED by the consumer count: B no longer removes the patch that A needs.
             expect(g.fetch).toBe(patched);
             expect(a.config.enableTracing).toBe(true);
 
-            // STILL BROKEN, differently: there is one mutation slot and B claimed it second (which
-            // logs the double-claim warning), so B's release empties it and A stops attaching
-            // traceparent even though A never disabled tracing. Multi-instance ownership of the slot
-            // is out of scope; see docs/superpowers/plans/2026-07-30-pr80-review-index.md.
+            // STILL BROKEN, in a new way: one mutation slot exists, B claimed it second, and B
+            // empties it on the way out. A then sends no traceparent, but still believes it traces.
+            // Slot ownership across instances is out of scope. See
+            // docs/superpowers/plans/2026-07-30-pr80-review-index.md.
         });
     });
 
