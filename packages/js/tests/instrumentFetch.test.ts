@@ -41,6 +41,17 @@ describe('traced fetch', () => {
         expect(calls.ended).toBe(true);
     });
 
+    it('takes the method from a Request object when the init has none', async () => {
+        const { tracer, startSpan } = makeTracer();
+        const wrapped = tracedFetch(tracer, okFetch(), URLS);
+
+        await wrapped(new Request('https://app.example/api/orders', { method: 'POST' }));
+
+        const [name, opts] = startSpan.mock.calls[0];
+        expect(name).toBe('POST /api/orders');
+        expect((opts as SpanOptions).attributes?.['http.request.method']).toBe('POST');
+    });
+
     it('redacts denylisted query params in url.full and url.query', async () => {
         const { tracer, startSpan } = makeTracer();
         const wrapped = tracedFetch(tracer, okFetch(), URLS);

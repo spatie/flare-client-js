@@ -80,12 +80,22 @@ export function resetRequestBus(): void {
 }
 
 /**
- * Returns null when nothing listens to this request.
+ * Tells every event bus subscriber that a request is about to go out, and collects whatever the
+ * subscribers give back.
  *
- * The caller must then run the real `fetch` or `send` directly, and skip its own code. That code
- * catches an error the browser throws right away, and returns a rejected promise instead. So
- * `try { fetch() } catch` stops working for the app. When nobody needs the data, the app must get
- * the same result it would get without Flare.
+ * The caller is our tracing wrapper around fetch or XHR. It gets the `init` and the `headers` to send, plus
+ * one `settle` callback. When the wrapper calls `settle` after the request finishes, every
+ * subscriber sees the result.
+ *
+ * Returns null when no subscriber took the request. That happens when nothing is subscribed, and
+ * also when every subscriber declines this one.
+ *
+ * On null the wrapper must call the real fetch or send, and skip the rest of its own code.
+ *
+ * Why: fetch can throw an error right away, before it returns a promise. The wrapper catches such an
+ * error and returns a rejected promise instead. A `try { fetch() } catch` in the app then never runs.
+ *
+ * A subscriber that throws is ignored. Instrumentation must never break the app's request.
  */
 export function publishRequestStart(start: RequestStart): {
     settle(result: RequestSettle): void;
@@ -115,9 +125,7 @@ export function publishRequestStart(start: RequestStart): {
                 }
                 headers = handler.headers;
             }
-        } catch {
-            // Without the header the backend cannot link this request to its trace. The request is fine.
-        }
+        } catch {}
     }
 
     if (handlers.length === 0 && init === start.init && headers === undefined) {

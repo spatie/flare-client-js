@@ -6,13 +6,16 @@ import { hasRequestConsumers, publishRequestStart, type RequestSettle } from './
 
 function resolveRequest(input: FetchInput, init: RequestInit | undefined): { method: string; url: string } {
     let url: string;
+    // Stays undefined on purpose: a Request object below can still supply the method.
     let method = init?.method;
+
     if (typeof Request !== 'undefined' && input instanceof Request) {
         url = input.url;
         method = method ?? input.method;
     } else {
         url = typeof input === 'string' ? input : String(input);
     }
+
     return { method: (method ?? 'GET').toUpperCase(), url };
 }
 
