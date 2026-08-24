@@ -268,11 +268,11 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
             withLiveController((live) => live.releaseHold());
         },
         onSourceUnregistered: () => {
-            // A root opened held waits for a settle that will never come, after a route provider
-            // unmounts or HMR replaces the router mid-navigation. Release the hold, or the root stays
-            // open until the finalTimeout closes it.
+            // A held root waits for a settle that never comes now, because the route provider
+            // unmounted or HMR replaced the router. Release the hold, or the root stays open until
+            // the finalTimeout closes it.
             withLiveController((live) => live.releaseHold());
-            // The name came from a source that no longer speaks for this page.
+            // This name came from a source that no longer speaks for this page.
             pendingRouteName = null;
             pendingRouteNameOwner = null;
         },

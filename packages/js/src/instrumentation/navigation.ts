@@ -5,9 +5,8 @@ export type RouteName = {
     name: string;
     source: 'route' | 'url';
     /**
-     * Where the navigation is going. Re-stamps the root's `url.full` alongside the name, so a redirected
-     * or superseded navigation reports where it ended rather than where it opened. Omit to keep the url
-     * the root started with.
+     * The URL where the navigation ends. Updates the root's `url.full` too, so a redirect reports the final
+     * url. Leave it out to keep the url the root opened with.
      */
     url?: string;
 };
@@ -19,15 +18,13 @@ export type NavigationSource = {
     unregister(): void;
 };
 
-/** The path the address bar is on, or '' outside a browser. */
 export function currentPath(): string {
     return typeof location !== 'undefined' ? location.pathname : '';
 }
 
 /**
- * Prefers the router's parameterized template over the raw path, so names aggregate per route rather
- * than per url. `derive` runs inside a try: a router that throws on an unresolved match chain falls back
- * to the url name instead of taking the host down.
+ * Uses the router's route template (`/product/:id`) instead of the raw path, so all urls of one route
+ * group together. If `derive` throws, we use the fallback path instead of breaking the app.
  */
 export function routeName(derive: () => string | undefined, fallbackPath: string, url?: string): RouteName {
     try {
@@ -40,14 +37,14 @@ export function routeName(derive: () => string | undefined, fallbackPath: string
 }
 
 /**
- * `build` is the router's own href builder (vue-router's `resolve`, React Router's `createHref`), which
- * is what puts the app's base path and hash prefix back on. Without it an app served from `/app/` reports
- * `/product/p01` for the real `/app/product/p01`. A router that throws still gets a url from `fallback`.
+ * `build` is the router's own href builder (vue-router `resolve`, React Router `createHref`). It puts
+ * the app's base path and hash prefix back. Without it, an app served from `/app/` reports
+ * `/product/p01` instead of `/app/product/p01`. If `build` throws, we use `fallback`.
  */
-export function resolveHref(build: () => string | null | undefined, fallback: string): string | undefined {
-    let href = fallback;
+export function resolveHref(build: () => string | null | undefined, fallbackHref: string): string | undefined {
+    let href = fallbackHref;
     try {
-        href = build() ?? fallback;
+        href = build() ?? fallbackHref;
     } catch {
         // no base path, but still a url
     }
@@ -55,11 +52,11 @@ export function resolveHref(build: () => string | null | undefined, fallback: st
 }
 
 /**
- * What a subscriber hears. Tracing listens to open and name its roots. Breadcrumbs listen to record
- * a route change. Neither one knows about the other.
+ * What a subscriber sees. Tracing uses it to open and name roots. Breadcrumbs use it to record a
+ * route change. Neither one knows about the other.
  */
 export type NavigationSubscriber = {
-    /** The browser changed the URL and no router drives navigation. */
+    /** The url changed and no router is registered. */
     onUrlChanged?(path: string): void;
     onNavigationStart?(opts: { path: string; url?: string; hold?: boolean }): void;
     onRouteName?(route: RouteName, owner: object): void;
@@ -69,8 +66,6 @@ export type NavigationSubscriber = {
 
 const subscribers = new Set<NavigationSubscriber>();
 let source: object | null = null;
-// The route a source named most recently. A router integration usually starts before the feature that
-// wants the name, so a new subscriber hears this one straight away.
 let currentRoute: { route: RouteName; owner: object } | null = null;
 let lastPath = '';
 let uninstallHistory: (() => void) | null = null;
@@ -85,8 +80,8 @@ function broadcast(tell: (subscriber: NavigationSubscriber) => void): void {
 }
 
 function onHistoryChange(): void {
-    // Another library can wrap pushState on top of ours. Then `unfill` cannot restore it and this
-    // function stays in the chain. `uninstallHistory` is also our installed flag, so it does nothing.
+    // Another library can wrap pushState on top of ours. Then `unfill` cannot remove us and this stays
+    // in the call chain. `uninstallHistory` is also the installed flag, so we stop here.
     if (!uninstallHistory) {
         return;
     }
@@ -95,7 +90,7 @@ function onHistoryChange(): void {
         return;
     }
     lastPath = path;
-    // A router drives navigation itself. We only keep `lastPath` current, and tell nobody.
+    // A router drives navigation itself. Keep `lastPath` current, tell nobody.
     if (source) {
         return;
     }
@@ -131,10 +126,10 @@ function installHistory(): void {
 }
 
 /**
- * Add one subscriber, and patch the History API while at least one is listening.
+ * Adds one subscriber. The History patch stays while at least one subscriber listens.
  *
- * We count the subscribers. Without that count, tracing turned off at runtime would remove the patch
- * that breadcrumbs still need.
+ * We count them. Without the count, tracing turned off at runtime would remove the patch that
+ * breadcrumbs still need.
  */
 export function addNavigationConsumer(subscriber: NavigationSubscriber): () => void {
     if (consumers === 0) {
@@ -166,11 +161,11 @@ export function addNavigationConsumer(subscriber: NavigationSubscriber): () => v
 }
 
 /**
- * A framework router takes over navigation. While it is registered, our own History detection tells
- * nobody, and the router drives every step through the handle it gets back.
+ * Hands navigation to a framework router. While it is registered, our History detection tells nobody,
+ * and the router drives every step through the handle it gets back.
  *
- * The newest registration wins, and an old handle does nothing. Vite HMR can replace a router while
- * the old one still holds a handle.
+ * The newest registration wins and an old handle does nothing, because Vite HMR can replace a router
+ * while the old one still holds a handle.
  */
 export function registerNavigationSource(): NavigationSource {
     const token = {};
@@ -215,13 +210,12 @@ export function registerNavigationSource(): NavigationSource {
     };
 }
 
-/** A name a source handed over earlier is only still valid while that source is registered. */
+/** A name from an earlier call is only valid while that source is still registered. */
 export function isActiveNavigationSource(token: object | null): boolean {
     return token !== null && source === token;
 }
 
-// This is a helper function for use in the test suite only.
-// The SDK never calls this.
+// Test helper. The SDK never calls this.
 export function resetNavigation(): void {
     uninstallHistory?.();
     uninstallHistory = null;

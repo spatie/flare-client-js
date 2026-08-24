@@ -282,10 +282,8 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
-    // CHANGED by the navigation module. Before, `stopBrowserTracing` dropped a name that was handed
-    // over earlier, so a later start fell back to the raw url. The navigation module now remembers the
-    // route its registered source last named, and hands it to every new subscriber. A router that is
-    // still registered is still right about the route, so the re-enabled session uses its name.
+    // Behavior change: `stopBrowserTracing` used to drop the held name, so a restart used the raw url.
+    // The navigation module now keeps the last named route and gives it to every new subscriber.
     it('a re-enabled session takes the name from the router that is still registered', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');

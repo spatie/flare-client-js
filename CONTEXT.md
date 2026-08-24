@@ -50,6 +50,10 @@ The internal broadcast that carries intercepted browser activity to whoever is i
 breadcrumbs both subscribe, and each decides on its own what to do with a message.
 _Avoid_: Event emitter, pubsub, dispatcher
 
+**Subscriber**:
+Something registered on the bus. A subscriber **sees** what the bus publishes.
+_Avoid_: "hears", and every other listening metaphor. You watch a bus, you do not listen to it.
+
 **Mutation slot**:
 The single-owner hook that may rewrite an outgoing request before it is sent. Separate from the bus,
 because a bus message cannot change anything. Only tracing holds it, to attach the `traceparent` header.
