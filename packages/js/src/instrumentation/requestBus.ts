@@ -48,12 +48,13 @@ export function subscribeToRequests(observer: RequestObserver): () => void {
 export function claimRequestMutation(owner: RequestMutator): () => void {
     if (mutator !== null) {
         console.warn(
-            '%c FLARE %c\n\n' +
-                'What: two things tried to add headers to outgoing requests. Only one can.\n\n' +
-                'Why it matters: the first one stopped. Requests can now go out without a ' +
-                'traceparent header, so Flare cannot link a browser request to its server trace.\n\n' +
-                'How to fix: use one Flare instance, and check your bundle for two copies of ' +
-                '@flareapp/js.',
+            `%c FLARE %c
+
+What: two things tried to add headers to outgoing requests. Only one can.
+
+Why it matters: the first one stopped. Requests can now go out without a traceparent header, so Flare cannot link a browser request to its server trace.
+
+How to fix: use one Flare instance, and check your bundle for two copies of @flareapp/js.`,
             'background:#e11d48;color:#fff;font-weight:bold;font-size:14px;padding:2px 6px',
             'color:#e11d48;font-size:13px',
         );
@@ -70,7 +71,8 @@ export function hasRequestConsumers(): boolean {
     return observers.size > 0 || mutator !== null;
 }
 
-/** Test seam. The SDK never calls this. */
+// This is a helper function for use in the test suite only.
+// The SDK never calls this.
 export function resetRequestBus(): void {
     observers.clear();
     mutator = null;
