@@ -13,14 +13,10 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import {
-    instrumentFetch,
-    instrumentXHR,
-    startBrowserTracing,
-    stopBrowserTracing,
-    unpatchFetch,
-    unpatchXHR,
-} from './tracing';
+import { useRequestBus } from './instrumentation/requestInstrumentation';
+import { instrumentXHR, startBrowserTracing, stopBrowserTracing, unpatchXHR } from './tracing';
+import { browserUrlContext } from './tracing/httpRequestSpan';
+import { traceRequests } from './tracing/traceRequests';
 
 export { createFlareResolver } from './createFlareResolver';
 
@@ -39,18 +35,22 @@ export class Flare extends CoreFlare {
         this.setFramework({ name: FrameworkName.Js });
     }
 
+    /** Set while tracing consumes the request bus, so a later disable can hand its slot back. */
+    private releaseRequestBus: (() => void) | null = null;
+
     override configure(config: Partial<Config>): this {
         const wasTracing = this.config.enableTracing;
         super.configure(config);
         const nowTracing = this.config.enableTracing;
 
         if (!wasTracing && nowTracing) {
-            instrumentFetch(this);
+            this.releaseRequestBus = useRequestBus(() => traceRequests(this, browserUrlContext()));
             instrumentXHR(this);
             startBrowserTracing(this);
         } else if (wasTracing && !nowTracing) {
             stopBrowserTracing();
-            unpatchFetch();
+            this.releaseRequestBus?.();
+            this.releaseRequestBus = null;
             unpatchXHR();
         }
 

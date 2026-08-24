@@ -1,21 +1,25 @@
 import type { SpanOptions } from '@flareapp/core';
 import { nativeFetchStub } from '@flareapp/test-helpers';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createFetchWrapper, instrumentFetch, unpatchFetch } from '../src/tracing/instrumentFetch';
+import { instrumentFetch, unpatchFetch } from '../src/instrumentation/instrumentFetch';
+import { resetRequestBus } from '../src/instrumentation/requestBus';
 import { internalRequestInit } from '../src/tracing/internalRequest';
-import { fixedUrls, makeTracer } from './helpers';
+import { traceRequests } from '../src/tracing/traceRequests';
+import { fixedUrls, makeTracer, tracedFetch } from './helpers';
 
 const ORIGIN = 'https://app.example';
 const URLS = fixedUrls(ORIGIN);
 
+beforeEach(() => resetRequestBus());
+
 const okFetch = (status = 200) => vi.fn(async () => new Response(null, { status })) as unknown as typeof fetch;
 
-describe('createFetchWrapper', () => {
+describe('traced fetch', () => {
     it('creates a browser_fetch span with method/url attributes and injects traceparent same-origin', async () => {
         const { tracer, startSpan, calls } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('https://app.example/api/products');
 
@@ -39,7 +43,7 @@ describe('createFetchWrapper', () => {
 
     it('redacts denylisted query params in url.full and url.query', async () => {
         const { tracer, startSpan } = makeTracer();
-        const wrapped = createFetchWrapper(tracer, okFetch(), URLS);
+        const wrapped = tracedFetch(tracer, okFetch(), URLS);
 
         await wrapped('https://app.example/api/reset?token=abc123&page=2');
 
@@ -51,7 +55,7 @@ describe('createFetchWrapper', () => {
     it('does NOT inject traceparent cross-origin by default (span still created)', async () => {
         const { tracer, startSpan } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('https://third-party.example/track');
 
@@ -66,7 +70,7 @@ describe('createFetchWrapper', () => {
     it('does not inject our traceparent when the app already set one (caller wins, matching XHR)', async () => {
         const { tracer } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('https://app.example/api/x', { headers: { traceparent: '00-appappapp-child-01' } });
 
@@ -76,7 +80,7 @@ describe('createFetchWrapper', () => {
 
     it('marks error status on HTTP >= 500', async () => {
         const { tracer, calls } = makeTracer();
-        const wrapped = createFetchWrapper(tracer, okFetch(503), URLS);
+        const wrapped = tracedFetch(tracer, okFetch(503), URLS);
 
         await wrapped('https://app.example/api/x');
 
@@ -89,7 +93,7 @@ describe('createFetchWrapper', () => {
         const original = vi.fn(async () => {
             throw new Error('network down');
         }) as unknown as typeof fetch;
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await expect(wrapped('https://app.example/api/x')).rejects.toThrow('network down');
         expect(calls.status).toEqual({ code: 2, message: 'network down' });
@@ -101,7 +105,7 @@ describe('createFetchWrapper', () => {
         const original = vi.fn(() => {
             throw new Error('sync boom');
         }) as unknown as typeof fetch;
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await expect(wrapped('https://app.example/api/x')).rejects.toThrow('sync boom');
         expect(calls.status).toEqual({ code: 2, message: 'sync boom' });
@@ -111,7 +115,7 @@ describe('createFetchWrapper', () => {
     it('skips Flare ingest URLs entirely (no span, passthrough)', async () => {
         const { tracer, startSpan } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('https://ingress.flareapp.io/v1/traces');
 
@@ -122,7 +126,7 @@ describe('createFetchWrapper', () => {
     it('skips a request marked internal, and does not propagate on it', async () => {
         const { tracer, startSpan } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         // A snippet fetch targets the app's own asset, so it is same-origin and would otherwise be
         // both traced and given a traceparent.
@@ -136,7 +140,7 @@ describe('createFetchWrapper', () => {
 
     it('does not trace the flush POST when the traces ingest URL is relative', async () => {
         const { tracer, startSpan } = makeTracer({ tracesIngestUrl: '/flare/v1/traces' });
-        const wrapped = createFetchWrapper(tracer, okFetch(), URLS);
+        const wrapped = tracedFetch(tracer, okFetch(), URLS);
 
         await wrapped('/flare/v1/traces', { method: 'POST' });
 
@@ -146,7 +150,7 @@ describe('createFetchWrapper', () => {
     it('passes through untouched when tracing is disabled', async () => {
         const { tracer, startSpan } = makeTracer({ enableTracing: false });
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('https://app.example/api/x');
 
@@ -159,7 +163,7 @@ describe('createFetchWrapper', () => {
         const original = vi.fn(() => {
             throw new Error('sync boom');
         }) as unknown as typeof fetch;
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         expect(() => wrapped('https://app.example/api/x')).toThrow('sync boom');
         expect(original).toHaveBeenCalledOnce();
@@ -170,7 +174,7 @@ describe('createFetchWrapper', () => {
         const original = vi.fn(() => {
             throw new Error('sync boom');
         }) as unknown as typeof fetch;
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         expect(() => wrapped('https://app.example/assets/index.js', internalRequestInit())).toThrow('sync boom');
         expect(original).toHaveBeenCalledOnce();
@@ -180,7 +184,7 @@ describe('createFetchWrapper', () => {
         const { tracer, span } = makeTracer();
         (span as { isRecording: boolean }).isRecording = false;
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('/api/x'); // relative → same-origin
 
@@ -192,7 +196,7 @@ describe('createFetchWrapper', () => {
 
     it('resolves a bare-relative URL against the document base, not the origin', async () => {
         const { tracer, startSpan } = makeTracer();
-        const wrapped = createFetchWrapper(tracer, okFetch(), fixedUrls(ORIGIN, `${ORIGIN}/store/`));
+        const wrapped = tracedFetch(tracer, okFetch(), fixedUrls(ORIGIN, `${ORIGIN}/store/`));
 
         await wrapped('api/products'); // the browser sends this to /store/api/products
 
@@ -205,7 +209,7 @@ describe('createFetchWrapper', () => {
     it('re-reads the base per request, so a pushState navigation relabels later fetches', async () => {
         const { tracer, startSpan } = makeTracer();
         let base = `${ORIGIN}/store/`;
-        const wrapped = createFetchWrapper(
+        const wrapped = tracedFetch(
             tracer,
             okFetch(),
             fixedUrls(ORIGIN, () => base),
@@ -224,7 +228,7 @@ describe('createFetchWrapper', () => {
     it('does NOT inject traceparent when a cross-origin <base href> takes a relative URL off-origin', async () => {
         const { tracer, startSpan } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, fixedUrls(ORIGIN, 'https://cdn.other.example/assets/'));
+        const wrapped = tracedFetch(tracer, original, fixedUrls(ORIGIN, 'https://cdn.other.example/assets/'));
 
         await wrapped('data.json');
 
@@ -240,7 +244,7 @@ describe('createFetchWrapper', () => {
     it('injects traceparent for a relative same-origin URL when tracePropagationTargets is set', async () => {
         const { tracer } = makeTracer({ tracePropagationTargets: ['app.example'] });
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS); // ORIGIN = 'https://app.example'
+        const wrapped = tracedFetch(tracer, original, URLS); // ORIGIN = 'https://app.example'
 
         await wrapped('/api/products'); // relative → absolutizes to https://app.example/api/products
 
@@ -253,14 +257,14 @@ describe('createFetchWrapper', () => {
 
 // The host's fetch must survive our tracing throwing. Every seam below is reachable from user input or
 // user config, so none of them can be assumed infallible.
-describe('createFetchWrapper never breaks the host fetch', () => {
+describe('traced fetch never breaks the host fetch', () => {
     it('still performs the request when starting the span throws', async () => {
         const { tracer } = makeTracer();
         tracer.startSpan = vi.fn(() => {
             throw new Error('span setup exploded');
         });
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         const response = await wrapped('https://app.example/api/x');
 
@@ -274,7 +278,7 @@ describe('createFetchWrapper never breaks the host fetch', () => {
             throw new Error('span setup exploded');
         });
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('https://app.example/api/x');
 
@@ -284,7 +288,7 @@ describe('createFetchWrapper never breaks the host fetch', () => {
     it('still performs the request when the input url getter throws', async () => {
         const { tracer } = makeTracer();
         const original = okFetch();
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
         const hostileInput = {
             toString() {
                 throw new Error('hostile input');
@@ -302,7 +306,7 @@ describe('createFetchWrapper never breaks the host fetch', () => {
         span.end = vi.fn(() => {
             throw new Error('end exploded');
         });
-        const wrapped = createFetchWrapper(tracer, okFetch(), URLS);
+        const wrapped = tracedFetch(tracer, okFetch(), URLS);
 
         const response = await wrapped('https://app.example/api/x');
 
@@ -318,7 +322,7 @@ describe('createFetchWrapper never breaks the host fetch', () => {
         const original = vi.fn(async () => {
             throw boom;
         }) as unknown as typeof fetch;
-        const wrapped = createFetchWrapper(tracer, original, URLS);
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await expect(wrapped('https://app.example/api/x')).rejects.toBe(boom);
     });
@@ -333,7 +337,8 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
 
         try {
             const { tracer, startSpan } = makeTracer();
-            instrumentFetch(tracer);
+            traceRequests(tracer, URLS);
+            instrumentFetch();
             expect(g.fetch).not.toBe(native); // wrapped
             expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBe(native);
 
@@ -355,7 +360,8 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
 
         try {
             const { tracer, startSpan } = makeTracer();
-            instrumentFetch(tracer);
+            traceRequests(tracer, URLS);
+            instrumentFetch();
             const flareWrapped = g.fetch;
 
             // A third party wraps on top of Flare's wrapper, so unpatchFetch cannot
@@ -368,7 +374,7 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
             unpatchFetch();
             expect(g.fetch).toBe(thirdParty); // the leak is real
 
-            instrumentFetch(tracer); // re-enable must not stack a second wrapper
+            instrumentFetch(); // re-enable must not stack a second wrapper
             expect(g.fetch).toBe(thirdParty);
 
             await g.fetch('https://app.example/api/x');
@@ -378,7 +384,7 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
             g.fetch = flareWrapped;
             unpatchFetch();
             expect(g.fetch).toBe(native);
-            instrumentFetch(tracer);
+            instrumentFetch();
             expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBe(native);
         } finally {
             unpatchFetch();
@@ -394,7 +400,8 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
 
         try {
             const { tracer } = makeTracer();
-            instrumentFetch(tracer);
+            traceRequests(tracer, URLS);
+            instrumentFetch();
             expect(g.fetch).toBe(polyfill); // untouched
         } finally {
             unpatchFetch();

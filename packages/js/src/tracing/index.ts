@@ -1,5 +1,5 @@
-export { createFetchWrapper, instrumentFetch, unpatchFetch } from './instrumentFetch';
 export { instrumentXHR, unpatchXHR } from './instrumentXHR';
+export { traceRequests } from './traceRequests';
 export { shouldPropagate, mergeTraceparentHeader } from './propagation';
 export { fill, unfill } from './fill';
 export { isNativeFetch, supportsNativeFetch } from './supportsNativeFetch';

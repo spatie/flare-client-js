@@ -8,9 +8,9 @@ import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
+import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { createPatcher } from '../src/tracing/createPatcher';
-import { unpatchFetch } from '../src/tracing/instrumentFetch';
 import { unpatchXHR } from '../src/tracing/instrumentXHR';
 
 describe('multi-instance tracing (characterisation)', () => {
@@ -27,30 +27,30 @@ describe('multi-instance tracing (characterisation)', () => {
             g.fetch = originalFetch;
         });
 
-        it('instance B disabling tracing tears down instance A and A never re-arms', () => {
+        it('instance B disabling tracing leaves the patch installed, but takes the mutation slot with it', () => {
             const nativeFetch = nativeFetchStub();
             g.fetch = nativeFetch;
 
             const a = new Flare();
             a.configure({ enableTracing: true, tracesSampleRate: 1 });
-            const patchedByA = g.fetch;
-            expect(patchedByA).not.toBe(nativeFetch);
+            const patched = g.fetch;
+            expect(patched).not.toBe(nativeFetch);
 
             const b = new Flare();
             b.configure({ enableTracing: true, tracesSampleRate: 1 });
-            // A's transition already happened, so B's `true` is a no-op: same patch, A still owns it.
-            expect(g.fetch).toBe(patchedByA);
+            // Same patch: the bus counts consumers, so B joins rather than re-installing.
+            expect(g.fetch).toBe(patched);
 
             b.configure({ enableTracing: false });
 
-            // Today: B's teardown removes the patch A installed, and A is not told.
-            expect(g.fetch).toBe(nativeFetch);
+            // FIXED by reference counting: B leaving no longer strips the patch A depends on.
+            expect(g.fetch).toBe(patched);
             expect(a.config.enableTracing).toBe(true);
 
-            // And A cannot get it back: its own config never transitioned false to true, so calling
-            // configure again with the value it already holds installs nothing.
-            a.configure({ enableTracing: true });
-            expect(g.fetch).toBe(nativeFetch);
+            // STILL BROKEN, differently: there is one mutation slot and B claimed it second (which
+            // logs the double-claim warning), so B's release empties it and A stops attaching
+            // traceparent even though A never disabled tracing. Multi-instance ownership of the slot
+            // is out of scope; see docs/superpowers/plans/2026-07-30-pr80-review-index.md.
         });
     });
 

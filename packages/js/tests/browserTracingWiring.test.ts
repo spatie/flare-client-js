@@ -3,8 +3,8 @@ import type { OtelSpan } from '@flareapp/core';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
+import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
-import { unpatchFetch } from '../src/tracing/instrumentFetch';
 import { unpatchXHR } from '../src/tracing/instrumentXHR';
 import { BrowserSpanType } from '../src/tracing/spanTypes';
 import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';
