@@ -6,6 +6,7 @@ export * from './createIdentityTagger';
 export * from './extractCode';
 export * from './flatJsonStringify';
 export * from './glowsToEvents';
+export * from './timelineEvents';
 export * from './now';
 export * from './redactUrl';
 export * from './rejection';

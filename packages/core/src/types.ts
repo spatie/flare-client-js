@@ -27,6 +27,8 @@ export type Config = {
     sourcemapVersionId: string;
     stage: string;
     maxGlowsPerReport: number;
+    enableBreadcrumbs: boolean;
+    maxBreadcrumbs: number;
     reportBrowserExtensionErrors: boolean;
     ingestUrl: string;
     debug: boolean;

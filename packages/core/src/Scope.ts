@@ -1,4 +1,4 @@
-import type { Attributes, AttributeValue, EntryPointHandler, Glow } from './types';
+import type { Attributes, AttributeValue, EntryPointHandler, Glow, SpanEvent } from './types';
 
 /** `USER_IDENTITY_KEYS` derives from this, so adding a field here can never leave the clear pass stale. */
 export const USER_FIELD_KEYS = {
@@ -31,6 +31,11 @@ export function userIdentityAttributes(scope: Scope): Attributes {
  */
 export class Scope {
     glows: Glow[] = [];
+    /**
+     * What the SDK recorded on its own: clicks, form changes, requests, route changes. A glow is the
+     * other half of the timeline, and a person wrote that one by hand.
+     */
+    breadcrumbs: SpanEvent[] = [];
     pendingAttributes: Attributes = {};
     entryPoint: EntryPointHandler | null = null;
 
@@ -44,6 +49,21 @@ export class Scope {
 
     clearGlows(): void {
         this.glows = [];
+    }
+
+    /** Drops the oldest when full, so a long-lived tab keeps the most recent events. */
+    addBreadcrumb(breadcrumb: SpanEvent, maxBreadcrumbs: number): void {
+        if (maxBreadcrumbs <= 0) {
+            return;
+        }
+        this.breadcrumbs.push(breadcrumb);
+        if (this.breadcrumbs.length > maxBreadcrumbs) {
+            this.breadcrumbs = this.breadcrumbs.slice(this.breadcrumbs.length - maxBreadcrumbs);
+        }
+    }
+
+    clearBreadcrumbs(): void {
+        this.breadcrumbs = [];
     }
 
     setAttribute(key: string, value: AttributeValue): void {

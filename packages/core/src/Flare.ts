@@ -21,7 +21,7 @@ import {
     SpanOptions,
     User,
 } from './types';
-import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, glowsToEvents, now, resolveDenylist } from './util';
+import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, now, resolveDenylist, timelineEvents } from './util';
 
 /** Scope attributes a span never inherits. Derived from `USER_IDENTITY_KEYS` so a future user field is
  *  excluded automatically, without anyone needing to remember to list it here. See `getScopeAttributes`. */
@@ -43,6 +43,8 @@ export class Flare {
         sourcemapVersionId: SOURCEMAP_VERSION,
         stage: '',
         maxGlowsPerReport: 30,
+        enableBreadcrumbs: false,
+        maxBreadcrumbs: 100,
         ingestUrl: 'https://ingress.flareapp.io/v1/errors',
         reportBrowserExtensionErrors: false,
         debug: false,
@@ -201,6 +203,7 @@ export class Flare {
     configure(config: Partial<Config>): this {
         const wasLogsEnabled = this._config.enableLogs;
         const wasTracingEnabled = this._config.enableTracing;
+        const wasBreadcrumbsEnabled = this._config.enableBreadcrumbs;
 
         this._config = { ...this._config, ...config };
 
@@ -227,6 +230,10 @@ export class Flare {
         }
         if (config.key !== undefined) {
             this._logger.flush();
+        }
+
+        if (wasBreadcrumbsEnabled && this._config.enableBreadcrumbs === false) {
+            this.scopeProvider.active().clearBreadcrumbs();
         }
 
         if (wasTracingEnabled && this._config.enableTracing === false) {
@@ -590,7 +597,7 @@ export class Flare {
             message: input.message,
             seenAtUnixNano: input.seenAtUnixNano,
             stacktrace: input.stacktrace,
-            events: glowsToEvents(activeScope.glows),
+            events: timelineEvents(activeScope.glows, activeScope.breadcrumbs),
             attributes,
         };
 
