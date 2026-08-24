@@ -12,11 +12,11 @@ export type Patcher<T extends object> = {
 };
 
 /**
- * One `installed` flag for the whole patch set, not per method: XHR's `open` records what `send` reads,
- * so a third party wrapping one of them must never leave the set half patched.
+ * One `installed` flag for the whole set, not one per method. XHR's `open` records what `send`
+ * reads, so the set must never end up half patched.
  *
- * Target is passed per call, not captured, because callers look it up fresh (`globalThis.fetch` may not
- * exist yet under SSR).
+ * `install` and `uninstall` take the target per call. A captured target would have to resolve when
+ * this module loads, and `XMLHttpRequest.prototype` does not exist under SSR.
  */
 export function createPatcher<T extends object>(): Patcher<T> {
     let installed = false;
@@ -47,9 +47,12 @@ export function createPatcher<T extends object>(): Patcher<T> {
         },
 
         /**
-         * All or nothing: if a third party wrapped ours, restore nothing and stay `installed`, so the next
-         * `install` is a no-op instead of adding a second layer. Our wrappers stay in place but idle, because
-         * they check `enableTracing` themselves.
+         * Restore every method or none, because XHR's `open` records what `send` reads.
+         *
+         * A third party that wrapped on top of ours blocks the restore: `unfill` would find their
+         * wrapper, not the original. `installed` stays true then, so the next `install` adds nothing
+         * on top. Our wrappers stay in the chain and idle, because each one checks per call whether
+         * anything still needs it.
          */
         uninstall(target: T): void {
             if (!installed) {

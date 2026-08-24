@@ -21,8 +21,6 @@ export function createFetchWrapper(original: typeof fetch): typeof fetch {
         const call = (i?: RequestInit): Promise<Response> =>
             (original as (input: FetchInput, init?: RequestInit) => Promise<Response>).call(this, input, i);
 
-        // `call` stays outside the try: the catch would swallow a synchronous throw from the host
-        // fetch and then call it a second time.
         let watched: { settle(result: RequestSettle): void; init: RequestInit | undefined } | null = null;
         try {
             if (hasRequestConsumers() && !isInternalRequest(init)) {
@@ -39,6 +37,8 @@ export function createFetchWrapper(original: typeof fetch): typeof fetch {
             watched = null;
         }
 
+        // Every `call` stays out of the try above, whose catch would swallow a synchronous throw
+        // from the host fetch and then call it a second time.
         if (!watched) {
             return call(init);
         }
@@ -67,7 +67,6 @@ type FetchGlobals = { fetch?: typeof fetch };
 
 const patcher = createPatcher<FetchGlobals>();
 
-/** A polyfilled fetch runs on XHR, where the XHR patch already sees it, so leave it alone. */
 export function instrumentFetch(): void {
     if (patcher.installed) {
         return;
@@ -77,6 +76,7 @@ export function instrumentFetch(): void {
     if (typeof globals.fetch !== 'function') {
         return;
     }
+    // A polyfilled fetch runs on XHR, where the XHR patch already sees it.
     if (!supportsNativeFetch()) {
         return;
     }

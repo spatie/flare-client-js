@@ -29,7 +29,6 @@ export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void 
         }
         const { span, absoluteUrl } = started;
 
-        // Guarded apart from the span above: the span is open now, so a throw must still let it end.
         let init: RequestInit | undefined;
         try {
             const traceparent = traceparentFor(span, absoluteUrl, start.url, urls.origin, tracer.config);
@@ -37,6 +36,7 @@ export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void 
                 init = mergeTraceparentHeader(start.input, start.init, traceparent);
             }
         } catch {
+            // The span is already open, so it must still reach `onSettle` below.
             init = undefined;
         }
 
