@@ -60,8 +60,14 @@ export { catchWindowErrors } from './browser/catchWindowErrors';
 export { collectBrowser } from './browser/context/collectBrowser';
 export { FetchFileReader } from './browser/FetchFileReader';
 export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
-export { registerNavigationSource } from './tracing/browserTracing';
-export { currentPath, resolveHref, routeName, type NavigationSource, type RouteName } from './tracing/navigation';
+export {
+    currentPath,
+    registerNavigationSource,
+    resolveHref,
+    routeName,
+    type NavigationSource,
+    type RouteName,
+} from './instrumentation/navigation';
 export { insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/instrumentationGuard';
 export { absoluteHref, absoluteUrl } from './tracing/absoluteHref';
 export {

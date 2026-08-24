@@ -3,12 +3,8 @@ import type { Config, Span, SpanOptions } from '@flareapp/core';
 import { resetNavigationSource } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    registerNavigationSource,
-    startBrowserTracing,
-    stopBrowserTracing,
-    type BrowserTracingFlare,
-} from '../src/tracing/browserTracing';
+import { registerNavigationSource } from '../src/instrumentation/navigation';
+import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/browserTracing';
 
 function recordingSpan(name: string) {
     const attrs: Record<string, unknown> = {};
@@ -286,7 +282,11 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
-    it('stopBrowserTracing clears a held name so a later start does not apply it', () => {
+    // CHANGED by the navigation module. Before, `stopBrowserTracing` dropped a name that was handed
+    // over earlier, so a later start fell back to the raw url. The navigation module now remembers the
+    // route its registered source last named, and hands it to every new subscriber. A router that is
+    // still registered is still right about the route, so the re-enabled session uses its name.
+    it('a re-enabled session takes the name from the router that is still registered', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');
         const src = registerNavigationSource();
@@ -297,8 +297,8 @@ describe('registerNavigationSource', () => {
         const { flare, spans } = fakeFlare();
         startBrowserTracing(flare);
 
-        expect(spans[0].span.name).not.toBe('/product/:id');
-        expect(spans[0].attrs['flare.route.source']).not.toBe('route');
+        expect(spans[0].span.name).toBe('/product/:id');
+        expect(spans[0].attrs['flare.route.source']).toBe('route');
         src.unregister();
     });
 

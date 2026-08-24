@@ -1,6 +1,6 @@
 import type { Attributes } from '@flareapp/core';
 
-import type { RouteName } from './navigation';
+import type { RouteName } from '../instrumentation/navigation';
 import { onCLS } from './webvitals/onCLS';
 import { onFCP } from './webvitals/onFCP';
 import { onINP } from './webvitals/onINP';

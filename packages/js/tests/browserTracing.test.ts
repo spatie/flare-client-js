@@ -3,11 +3,11 @@ import { resetNavigationSource } from '@flareapp/test-helpers';
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { registerNavigationSource } from '../src/instrumentation/navigation';
 import {
     pageloadContextForTests,
     pageloadRootForTests,
     pageloadRouteForTests,
-    registerNavigationSource,
     startBrowserTracing,
     stopBrowserTracing,
     type BrowserTracingFlare,
