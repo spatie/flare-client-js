@@ -52,7 +52,13 @@ _Avoid_: Event emitter, pubsub, dispatcher
 
 **Subscriber**:
 Something registered on the bus. A subscriber **sees** what the bus publishes.
-_Avoid_: "hears", and every other listening metaphor. You watch a bus, you do not listen to it.
+_Avoid_: Observer, consumer, listener. Also avoid "hears" and every other listening metaphor: you
+watch a bus, you do not listen to it.
+
+**Subscription**:
+One live registration on the bus. Counting them is what keeps a patch installed, so the count is not
+another word for subscriber.
+_Avoid_: Consumer count, refcount
 
 **Mutation slot**:
 The single-owner hook that may rewrite an outgoing request before it is sent. Separate from the bus,

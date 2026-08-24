@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
 import { unpatchXHR } from '../src/instrumentation/instrumentXHR';
-import { resetRequestInstrumentation } from '../src/instrumentation/requestInstrumentation';
+import { resetRequestPatches } from '../src/instrumentation/requestInstrumentation';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { BrowserSpanType } from '../src/tracing/spanTypes';
 import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';
@@ -52,8 +52,8 @@ describe('Flare browser tracing wiring', () => {
         stopBrowserTracing();
         unpatchFetch();
         unpatchXHR();
-        // Forcing the patches off here bypasses the consumer count, so put it back to zero.
-        resetRequestInstrumentation();
+        // Forcing the patches off here bypasses the subscription count, so put it back to zero.
+        resetRequestPatches();
         resetWebVitalsForTests();
     });
 

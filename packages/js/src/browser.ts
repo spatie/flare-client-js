@@ -13,7 +13,7 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import { addRequestConsumer } from './instrumentation/requestInstrumentation';
+import { withRequestPatches } from './instrumentation/requestInstrumentation';
 import { startBrowserTracing, stopBrowserTracing } from './tracing';
 import { browserUrlContext } from './tracing/httpRequestSpan';
 import { traceRequests } from './tracing/traceRequests';
@@ -36,7 +36,7 @@ export class Flare extends CoreFlare {
     }
 
     /** Held so a later disable can give the mutation slot back. */
-    private removeTracingConsumer: (() => void) | null = null;
+    private removeTracingSubscription: (() => void) | null = null;
 
     override configure(config: Partial<Config>): this {
         const wasTracing = this.config.enableTracing;
@@ -44,12 +44,12 @@ export class Flare extends CoreFlare {
         const nowTracing = this.config.enableTracing;
 
         if (!wasTracing && nowTracing) {
-            this.removeTracingConsumer = addRequestConsumer(() => traceRequests(this, browserUrlContext()));
+            this.removeTracingSubscription = withRequestPatches(() => traceRequests(this, browserUrlContext()));
             startBrowserTracing(this);
         } else if (wasTracing && !nowTracing) {
             stopBrowserTracing();
-            this.removeTracingConsumer?.();
-            this.removeTracingConsumer = null;
+            this.removeTracingSubscription?.();
+            this.removeTracingSubscription = null;
         }
 
         return this;

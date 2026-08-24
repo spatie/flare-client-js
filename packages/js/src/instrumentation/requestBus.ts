@@ -25,20 +25,20 @@ export type RequestHandlers = {
     onSettle?(settle: RequestSettle): void;
 };
 
-export type RequestObserver = (start: RequestStart) => RequestHandlers | void;
+export type RequestSubscriber = (start: RequestStart) => RequestHandlers | void;
 
 /** fetch uses `init`, XHR uses `headers`. Each one ignores the field it cannot apply. */
 export type MutatedRequest = { init?: RequestInit; headers?: Record<string, string> };
 
 export type RequestMutator = (start: RequestStart) => (RequestHandlers & MutatedRequest) | void;
 
-const observers = new Set<RequestObserver>();
+const subscribers = new Set<RequestSubscriber>();
 let mutator: RequestMutator | null = null;
 
-export function subscribeToRequests(observer: RequestObserver): () => void {
-    observers.add(observer);
+export function subscribeToRequests(subscriber: RequestSubscriber): () => void {
+    subscribers.add(subscriber);
     return () => {
-        observers.delete(observer);
+        subscribers.delete(subscriber);
     };
 }
 
@@ -68,14 +68,14 @@ How to fix: use one Flare instance, and check your bundle for two copies of @fla
     };
 }
 
-export function hasRequestConsumers(): boolean {
-    return observers.size > 0 || mutator !== null;
+export function hasRequestSubscribers(): boolean {
+    return subscribers.size > 0 || mutator !== null;
 }
 
 // This is a helper function for use in the test suite only.
 // The SDK never calls this.
 export function resetRequestBus(): void {
-    observers.clear();
+    subscribers.clear();
     mutator = null;
 }
 
@@ -104,9 +104,9 @@ export function publishRequestStart(start: RequestStart): {
 } | null {
     const handlers: RequestHandlers[] = [];
 
-    for (const observer of observers) {
+    for (const subscriber of subscribers) {
         try {
-            const handler = observer(start);
+            const handler = subscriber(start);
             if (handler) {
                 handlers.push(handler);
             }

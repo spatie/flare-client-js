@@ -69,19 +69,19 @@ let source: object | null = null;
 let currentRoute: { route: RouteName; owner: object } | null = null;
 let lastPath = '';
 let uninstallHistory: (() => void) | null = null;
-let consumers = 0;
 
-function broadcast(tell: (subscriber: NavigationSubscriber) => void): void {
+function broadcast(callback: (subscriber: NavigationSubscriber) => void): void {
     for (const subscriber of subscribers) {
         try {
-            tell(subscriber);
+            callback(subscriber);
         } catch {}
     }
 }
 
 function onHistoryChange(): void {
-    // Another library can wrap pushState on top of ours. Then `unfill` cannot remove us and this stays
-    // in the call chain. `uninstallHistory` is also the installed flag, so we stop here.
+    // Our wrapper can be stuck in the call chain forever. If another library wraps pushState after we
+    // did, `unfill` cannot remove us anymore: it only unwraps the function on top. Their wrapper keeps
+    // calling ours, also after we uninstalled. `uninstallHistory` is null by then, so we do nothing.
     if (!uninstallHistory) {
         return;
     }
@@ -90,7 +90,9 @@ function onHistoryChange(): void {
         return;
     }
     lastPath = path;
-    // A router drives navigation itself. Keep `lastPath` current, tell nobody.
+    // A registered router reports its navigations itself, and we would report the same one again:
+    // two roots for one navigation. We do keep `lastPath` in sync with the address bar, so the check
+    // above stays correct.
     if (source) {
         return;
     }
@@ -131,11 +133,10 @@ function installHistory(): void {
  * We count them. Without the count, tracing turned off at runtime would remove the patch that
  * breadcrumbs still need.
  */
-export function addNavigationConsumer(subscriber: NavigationSubscriber): () => void {
-    if (consumers === 0) {
+export function subscribeToNavigation(subscriber: NavigationSubscriber): () => void {
+    if (subscribers.size === 0) {
         installHistory();
     }
-    consumers++;
     subscribers.add(subscriber);
 
     if (currentRoute) {
@@ -151,8 +152,7 @@ export function addNavigationConsumer(subscriber: NavigationSubscriber): () => v
         }
         removed = true;
         subscribers.delete(subscriber);
-        consumers--;
-        if (consumers === 0) {
+        if (subscribers.size === 0) {
             uninstallHistory?.();
             uninstallHistory = null;
             lastPath = '';
@@ -223,5 +223,4 @@ export function resetNavigation(): void {
     source = null;
     currentRoute = null;
     lastPath = '';
-    consumers = 0;
 }

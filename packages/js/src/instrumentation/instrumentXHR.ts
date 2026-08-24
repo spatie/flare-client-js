@@ -1,5 +1,5 @@
 import { createPatcher } from '../tracing/createPatcher';
-import { hasRequestConsumers, publishRequestStart, type RequestSettle } from './requestBus';
+import { hasRequestSubscribers, publishRequestStart, type RequestSettle } from './requestBus';
 
 // `XMLHttpRequest.DONE` is 4. We write the number, because the tests run in node, where
 // XMLHttpRequest does not exist.
@@ -113,7 +113,7 @@ export function createXHRSend(original: XhrSend): XhrSend {
         const send = (): void => original.call(this, body);
 
         const state = xhrState.get(this);
-        if (!state || !hasRequestConsumers()) {
+        if (!state || !hasRequestSubscribers()) {
             return send();
         }
         // The app can call send() again on a finished request. The browser then throws

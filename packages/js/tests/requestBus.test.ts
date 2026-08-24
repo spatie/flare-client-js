@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     claimRequestMutation,
-    hasRequestConsumers,
+    hasRequestSubscribers,
     publishRequestStart,
     resetRequestBus,
     subscribeToRequests,
@@ -14,12 +14,12 @@ const START: RequestStart = { kind: 'fetch', method: 'GET', url: '/api/x', input
 beforeEach(() => resetRequestBus());
 
 describe('subscribers', () => {
-    it('reports no consumers until something subscribes', () => {
-        expect(hasRequestConsumers()).toBe(false);
+    it('reports no subscribers until something subscribes', () => {
+        expect(hasRequestSubscribers()).toBe(false);
         const off = subscribeToRequests(() => {});
-        expect(hasRequestConsumers()).toBe(true);
+        expect(hasRequestSubscribers()).toBe(true);
         off();
-        expect(hasRequestConsumers()).toBe(false);
+        expect(hasRequestSubscribers()).toBe(false);
     });
 
     it('hands every subscriber the start and then the settle', () => {
@@ -35,21 +35,21 @@ describe('subscribers', () => {
     });
 
     it('publishes nothing once a subscriber has torn down', () => {
-        const observer = vi.fn();
-        const off = subscribeToRequests(observer);
+        const subscriber = vi.fn();
+        const off = subscribeToRequests(subscriber);
         off();
 
         expect(publishRequestStart(START)).toBeNull();
-        expect(observer).not.toHaveBeenCalled();
+        expect(subscriber).not.toHaveBeenCalled();
     });
 });
 
 describe('the request passes through untouched when nothing acts on it', () => {
-    it('returns null with no consumers at all', () => {
+    it('returns null with no subscribers at all', () => {
         expect(publishRequestStart(START)).toBeNull();
     });
 
-    it('returns null when every consumer declines the request', () => {
+    it('returns null when every subscriber declines the request', () => {
         subscribeToRequests(() => undefined);
         claimRequestMutation(() => undefined);
 
@@ -100,8 +100,8 @@ describe('the mutation slot', () => {
     });
 });
 
-describe('a consumer that throws never reaches the host', () => {
-    it('keeps publishing to the others when one observer throws on start', () => {
+describe('a subscriber that throws never reaches the host', () => {
+    it('keeps publishing to the others when one subscriber throws on start', () => {
         const settle = vi.fn();
         subscribeToRequests(() => {
             throw new Error('boom');
@@ -126,7 +126,7 @@ describe('a consumer that throws never reaches the host', () => {
         expect(settle).toHaveBeenCalledOnce();
     });
 
-    it('still publishes to observers when the mutation slot throws', () => {
+    it('still publishes to subscribers when the mutation slot throws', () => {
         const settle = vi.fn();
         subscribeToRequests(() => ({ onSettle: settle }));
         claimRequestMutation(() => {

@@ -2,7 +2,7 @@ import { createPatcher } from '../tracing/createPatcher';
 import { isInternalRequest } from '../tracing/internalRequest';
 import type { FetchInput } from '../tracing/propagation';
 import { supportsNativeFetch } from '../tracing/supportsNativeFetch';
-import { hasRequestConsumers, publishRequestStart, type RequestSettle } from './requestBus';
+import { hasRequestSubscribers, publishRequestStart, type RequestSettle } from './requestBus';
 
 function resolveRequest(input: FetchInput, init: RequestInit | undefined): { method: string; url: string } {
     let url: string;
@@ -26,7 +26,7 @@ export function createFetchWrapper(original: typeof fetch): typeof fetch {
 
         let watched: { settle(result: RequestSettle): void; init: RequestInit | undefined } | null = null;
         try {
-            if (hasRequestConsumers() && !isInternalRequest(init)) {
+            if (hasRequestSubscribers() && !isInternalRequest(init)) {
                 const request = resolveRequest(input, init);
                 watched = publishRequestStart({
                     kind: 'fetch',

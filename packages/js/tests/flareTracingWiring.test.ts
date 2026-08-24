@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
-import { resetRequestInstrumentation } from '../src/instrumentation/requestInstrumentation';
+import { resetRequestPatches } from '../src/instrumentation/requestInstrumentation';
 
 describe('js Flare tracing auto-wiring', () => {
     const g = globalThis as { fetch: typeof fetch };
@@ -11,8 +11,8 @@ describe('js Flare tracing auto-wiring', () => {
 
     afterEach(() => {
         unpatchFetch();
-        // Forcing the patch off here bypasses the consumer count, so put it back to zero.
-        resetRequestInstrumentation();
+        // Forcing the patch off here bypasses the subscription count, so put it back to zero.
+        resetRequestPatches();
         g.fetch = originalFetch;
     });
 

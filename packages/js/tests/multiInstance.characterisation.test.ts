@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
 import { unpatchXHR } from '../src/instrumentation/instrumentXHR';
-import { resetRequestInstrumentation } from '../src/instrumentation/requestInstrumentation';
+import { resetRequestPatches } from '../src/instrumentation/requestInstrumentation';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { createPatcher } from '../src/tracing/createPatcher';
 
@@ -25,7 +25,7 @@ describe('multi-instance tracing (characterisation)', () => {
             stopBrowserTracing();
             unpatchFetch();
             unpatchXHR();
-            resetRequestInstrumentation();
+            resetRequestPatches();
             g.fetch = originalFetch;
         });
 
@@ -40,12 +40,12 @@ describe('multi-instance tracing (characterisation)', () => {
 
             const b = new Flare();
             b.configure({ enableTracing: true, tracesSampleRate: 1 });
-            // Same patch. The bus counts consumers, so B joins the install instead of a second one.
+            // Same patch. The count includes B, so B joins the install instead of making a second one.
             expect(g.fetch).toBe(patched);
 
             b.configure({ enableTracing: false });
 
-            // FIXED by the consumer count: B no longer removes the patch that A needs.
+            // FIXED by the subscription count: B no longer removes the patch that A needs.
             expect(g.fetch).toBe(patched);
             expect(a.config.enableTracing).toBe(true);
 

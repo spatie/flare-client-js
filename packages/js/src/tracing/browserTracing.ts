@@ -1,7 +1,7 @@
 import { defaultNowNano, type Attributes, type Config, type Span, type SpanOptions, type Tracer } from '@flareapp/core';
 
 import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
-import { addNavigationConsumer, isActiveNavigationSource, type RouteName } from '../instrumentation/navigation';
+import { subscribeToNavigation, isActiveNavigationSource, type RouteName } from '../instrumentation/navigation';
 import { DEFAULT_IDLE_TIMEOUTS, IdleRootController, type IdleTimeouts } from './IdleRootController';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 import { BrowserSpanType } from './spanTypes';
@@ -26,7 +26,7 @@ export type BrowserTracingFlare = {
 // document, no matter how many Flare instances are configured on the page.
 let controller: IdleRootController | null = null;
 let uninstall: (() => void) | null = null;
-let removeNavigationConsumer: (() => void) | null = null;
+let removeNavigationSubscription: (() => void) | null = null;
 // Page-global: a document's real pageload window can only be traced once. Guards against
 // re-enabling after a disable fabricating a second backdated pageload.
 let pageloadTraced = false;
@@ -259,7 +259,7 @@ export function startBrowserTracing(flare: BrowserTracingFlare): void {
 
     activeFlare = flare;
 
-    removeNavigationConsumer = addNavigationConsumer({
+    removeNavigationSubscription = subscribeToNavigation({
         onUrlChanged: (path) => openNavigationRoot(flare, { path }),
         onNavigationStart: (opts) => openNavigationRoot(flare, opts),
         onRouteName: (route, owner) => applyRouteName(route, owner),
@@ -348,8 +348,8 @@ export function stopBrowserTracing(): void {
         uninstall();
         uninstall = null;
     }
-    removeNavigationConsumer?.();
-    removeNavigationConsumer = null;
+    removeNavigationSubscription?.();
+    removeNavigationSubscription = null;
     activeFlare = null;
     currentRoot = null;
     // Safe to drop even though a source can outlive the stop: while tracing ran there was a root to
