@@ -12,6 +12,7 @@
         "typescript/no-explicit-any": "warn",
         "unicorn/no-null": "off",
         "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-sort": "off",
         "import/no-unassigned-import": [
             "warn",
             {
