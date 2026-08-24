@@ -5,18 +5,19 @@ export type RequestKind = 'fetch' | 'xhr';
 export type RequestStart = {
     kind: RequestKind;
     method: string;
+    /** Exactly what the caller passed, so it can be a relative path. */
     url: string;
-    /** Fetch only. `mergeTraceparentHeader` needs it to read headers off a `Request`. */
+    /** Fetch only. `mergeTraceparentHeader` reads headers from a `Request` object. */
     input?: FetchInput;
     /** Fetch only. */
     init?: RequestInit;
 };
 
 export type RequestSettle = {
-    /** Absent when the request got no response. */
+    /** Not set when the request got no response. */
     status?: number;
     error?: unknown;
-    /** XHR only. `open()` on an in-flight request kills it, and no DONE event follows. */
+    /** XHR only. A second `open()` stops a request that still runs, and no DONE event follows. */
     aborted?: boolean;
 };
 
@@ -26,7 +27,7 @@ export type RequestHandlers = {
 
 export type RequestObserver = (start: RequestStart) => RequestHandlers | void;
 
-/** `init` reaches fetch, `headers` reaches XHR. Each transport reads the one it can apply. */
+/** fetch uses `init`, XHR uses `headers`. Each one ignores the field it cannot apply. */
 export type MutatedRequest = { init?: RequestInit; headers?: Record<string, string> };
 
 export type RequestMutator = (start: RequestStart) => (RequestHandlers & MutatedRequest) | void;
@@ -42,8 +43,8 @@ export function subscribeToRequests(observer: RequestObserver): () => void {
 }
 
 /**
- * The last claim wins: Vite HMR runs boot code again against the `fetch` that survived the reload,
- * and first-wins would leave the stale owner in charge.
+ * The newest claim wins. Vite HMR runs the start-up code again, and the owner from before is gone.
+ * If the first claim won, that dead owner would keep the slot.
  */
 export function claimRequestMutation(owner: RequestMutator): () => void {
     if (mutator !== null) {
@@ -79,8 +80,12 @@ export function resetRequestBus(): void {
 }
 
 /**
- * Null means no consumer acted, and the caller must then send the original request untouched. Our
- * path turns a synchronous throw from the host fetch into a rejected promise.
+ * Returns null when nothing listens to this request.
+ *
+ * The caller must then run the real `fetch` or `send` directly, and skip its own code. That code
+ * catches an error the browser throws right away, and returns a rejected promise instead. So
+ * `try { fetch() } catch` stops working for the app. When nobody needs the data, the app must get
+ * the same result it would get without Flare.
  */
 export function publishRequestStart(start: RequestStart): {
     settle(result: RequestSettle): void;
@@ -111,7 +116,7 @@ export function publishRequestStart(start: RequestStart): {
                 headers = handler.headers;
             }
         } catch {
-            // A lost header only costs backend correlation.
+            // Without the header the backend cannot link this request to its trace. The request is fine.
         }
     }
 

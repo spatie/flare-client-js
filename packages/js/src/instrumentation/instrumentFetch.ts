@@ -37,8 +37,8 @@ export function createFetchWrapper(original: typeof fetch): typeof fetch {
             watched = null;
         }
 
-        // Every `call` stays out of the try above, whose catch would swallow a synchronous throw
-        // from the host fetch and then call it a second time.
+        // Never move `call` into the try above. Its catch would hide an error that fetch throws
+        // right away, and we would then call fetch a second time.
         if (!watched) {
             return call(init);
         }
@@ -76,7 +76,7 @@ export function instrumentFetch(): void {
     if (typeof globals.fetch !== 'function') {
         return;
     }
-    // A polyfilled fetch runs on XHR, where the XHR patch already sees it.
+    // A fetch polyfill runs on top of XHR, so the XHR patch already sees these requests.
     if (!supportsNativeFetch()) {
         return;
     }

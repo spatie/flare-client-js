@@ -15,8 +15,10 @@ import { BrowserSpanType } from './spanTypes';
 const SPAN_TYPES = { fetch: BrowserSpanType.Fetch, xhr: BrowserSpanType.Xhr };
 
 /**
- * status 0 at DONE means "no HTTP response" for http(s) only. file:// and custom schemes, such as
- * Electron's registerFileProtocol, return 0 on success. An unparseable URL is not an error either.
+ * For http and https, status 0 at DONE means the request got no response.
+ *
+ * Other schemes return 0 when they succeed. file:// does, and so do custom ones like Electron's
+ * registerFileProtocol. A URL we could not parse is not an error either.
  */
 function zeroIsError(absoluteUrl: URL | null): boolean {
     return absoluteUrl !== null && (absoluteUrl.protocol === 'http:' || absoluteUrl.protocol === 'https:');
@@ -42,10 +44,10 @@ function propagate(
     return { init: mergeTraceparentHeader(start.input, start.init, traceparent) };
 }
 
-/** Tracing takes the mutation slot rather than a plain subscription, to add `traceparent`. */
+/** Tracing takes the mutation slot, not a plain subscription, because it adds a `traceparent` header. */
 export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void {
     return claimRequestMutation((start: RequestStart) => {
-        // Per call, because `configure()` can turn tracing off while the patch stays installed.
+        // Check on every call: `configure()` can turn tracing off while the patch stays installed.
         if (!tracer.config.enableTracing) {
             return;
         }
@@ -65,7 +67,7 @@ export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void 
         try {
             mutated = propagate(span, absoluteUrl, start, urls, tracer);
         } catch {
-            // The span is already open, so it must still reach `onSettle` below.
+            // The span is already open, so it must still reach `onSettle` below. Send no header.
             mutated = {};
         }
 

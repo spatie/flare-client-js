@@ -1,8 +1,8 @@
 import { createPatcher } from '../tracing/createPatcher';
 import { hasRequestConsumers, publishRequestStart, type RequestSettle } from './requestBus';
 
-// Spelled out because the unit suite runs in node against a hand-built XHR stand-in, where the
-// global constructor does not exist.
+// `XMLHttpRequest.DONE` is 4. We write the number, because the tests run in node, where
+// XMLHttpRequest does not exist.
 const XHR_DONE = 4;
 
 type XhrOpen = XMLHttpRequest['open'];
@@ -14,20 +14,20 @@ type Watched = { settle(result: RequestSettle): void; headers: Record<string, st
 type XhrState = {
     method: string;
     url: string;
-    /** Lowercased names the app set itself. The caller always wins over a consumer. */
+    /** Header names the app set, in lower case. We never replace a header the app set. */
     appHeaders: Set<string>;
     watched?: Watched;
     onDone?: () => void;
     ended: boolean;
 };
 
-// One XHR runs across open() -> setRequestHeader()* -> send() -> readystatechange. A WeakMap keyed
-// by the instance carries state across those calls without touching the instance, and entries go
-// away with the request.
+// One request runs through open(), setRequestHeader(), send() and readystatechange. We keep the
+// state for those steps in a WeakMap, so we add nothing to the XHR object itself. The browser can
+// free the entry when it frees the request.
 const xhrState = new WeakMap<XMLHttpRequest, XhrState>();
 
-// The entry itself stays for the re-send `ended` guard, so without this the listener closure lives
-// as long as the app holds the XHR.
+// Drop the listener and the settle callback, or they stay in memory as long as the app keeps the
+// XHR. The entry itself stays, because `ended` must still be readable if the app sends again.
 function releaseRequestRefs(state: XhrState): void {
     state.watched = undefined;
     state.onDone = undefined;
@@ -40,8 +40,9 @@ function settleOnce(state: XhrState, result: RequestSettle): void {
 }
 
 /**
- * WHATWG: `open()` on an in-flight request kills it, and no DONE event follows. Settle it here, or
- * the next request's DONE settles this one with the wrong status.
+ * The browser stops a running request when the app calls `open()` again, and no DONE event follows.
+ * We must finish the old request here. If we do not, the next DONE event finishes it with the status
+ * of the new request.
  */
 export function createXHROpen(original: XhrOpen): XhrOpen {
     return function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
@@ -53,8 +54,8 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
             settleOnce(prior, { aborted: true });
         }
 
-        // A hostile method or URL can throw when stringified, and that must not stop the host from
-        // opening its request. With no state recorded, the later send() publishes nothing.
+        // Turning the method or the URL into a string can throw. That must not stop the app from
+        // opening its request. With no state saved, the later send() publishes nothing.
         try {
             if (method && url != null) {
                 xhrState.set(this, {
@@ -64,7 +65,7 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
                     ended: false,
                 });
             } else {
-                // A reused instance must not resurrect stale state on a later send().
+                // The app can reuse this XHR object. Delete the old state, or the next send() uses it.
                 xhrState.delete(this);
             }
         } catch {
@@ -75,13 +76,14 @@ export function createXHROpen(original: XhrOpen): XhrOpen {
 }
 
 /**
- * There is no `getRequestHeader`, so recording what the app set here is the only way to leave its
- * headers alone later. Repeat calls merge into one malformed header.
+ * The browser has no `getRequestHeader`, so this is the only place where we can see which headers
+ * the app sets. We need that, because a second call with the same name does not replace the header.
+ * The browser joins both values into one broken header.
  */
 export function createXHRSetRequestHeader(original: XhrSetHeader): XhrSetHeader {
     return function (this: XMLHttpRequest, name: string, value: string): void {
-        // Native call first: if it throws, the app's header never landed, so we must still be free
-        // to set our own. The throw is the app's, so let it through.
+        // Call the real method first. If it throws, the app's header was never set, so we must still
+        // be free to set ours. The error belongs to the app, so we do not catch it.
         original.call(this, name, value);
         if (typeof name === 'string') {
             xhrState.get(this)?.appHeaders.add(name.toLowerCase());
@@ -101,7 +103,7 @@ function applyHeaders(xhr: XMLHttpRequest, state: XhrState): void {
         try {
             xhr.setRequestHeader(name, value);
         } catch {
-            // setRequestHeader throws unless the request is OPENED.
+            // setRequestHeader throws when the request is not in the OPENED state.
         }
     }
 }
@@ -114,14 +116,14 @@ export function createXHRSend(original: XhrSend): XhrSend {
         if (!state || !hasRequestConsumers()) {
             return send();
         }
-        // A finished request re-sent without a fresh open() would publish a second start that the
-        // native send() then rejects with InvalidStateError.
+        // The app can call send() again on a finished request. The browser then throws
+        // InvalidStateError, so a second start would describe a request that never goes out.
         if (state.ended) {
             return send();
         }
 
-        // Publishing reads the captured URL and user config, so it can throw. A throw here costs the
-        // instrumentation, never the request.
+        // This reads the saved URL and the user config, so it can throw. An error here must cost us
+        // the instrumentation, never the request.
         let watched: Watched | null = null;
         try {
             watched = publishRequestStart({ kind: 'xhr', method: state.method, url: state.url });
@@ -147,7 +149,7 @@ export function createXHRSend(original: XhrSend): XhrSend {
             try {
                 status = this.status;
             } catch {
-                // Reading status can throw on some platforms. Treat it as no response.
+                // Reading status can throw on some platforms. Then we treat it as no response.
             }
             settleOnce(state, { status });
         };
@@ -157,7 +159,7 @@ export function createXHRSend(original: XhrSend): XhrSend {
         try {
             return send();
         } catch (error) {
-            // DONE never fires after a synchronous send throw, so detach here.
+            // When send() throws right away, no DONE event follows. Remove the listener here.
             this.removeEventListener('readystatechange', onDone);
             settleOnce(state, { error });
             throw error;
@@ -167,8 +169,8 @@ export function createXHRSend(original: XhrSend): XhrSend {
 
 const patcher = createPatcher<XMLHttpRequest>();
 
-// Uninstall must aim at the prototype we patched. A swapped-in constructor would send it elsewhere
-// and leave `installed` true forever.
+// We must remove our patch from the same prototype we patched. Something can replace
+// XMLHttpRequest after we start, and then `installed` would stay true forever.
 let patchedPrototype: XMLHttpRequest | null = null;
 
 export function instrumentXHR(): void {
@@ -195,8 +197,8 @@ export function unpatchXHR(): void {
         return;
     }
     patcher.uninstall(patchedPrototype);
-    // Only forget the target once it really came back. A blocked uninstall must keep it, so a later
-    // retry still aims at the right prototype.
+    // Only forget the prototype when the real methods are back. If another library blocked us, we
+    // keep it, so a later try still finds the right prototype.
     if (!patcher.installed) {
         patchedPrototype = null;
     }

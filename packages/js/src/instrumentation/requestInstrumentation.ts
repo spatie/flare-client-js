@@ -4,7 +4,8 @@ import { instrumentXHR, unpatchXHR } from './instrumentXHR';
 let consumers = 0;
 
 /**
- * Counted, so tracing turned off at runtime cannot remove a patch other consumers still need.
+ * We count the consumers. Without that count, tracing turned off at runtime would remove a patch
+ * that another consumer still needs.
  *
  * @param subscribe registers the consumer and returns its own teardown
  */
@@ -32,7 +33,8 @@ export function addRequestConsumer(subscribe: () => () => void): () => void {
     };
 }
 
-/** Test seam. The SDK never calls this. */
+// This is a helper function for use in the test suite only.
+// The SDK never calls this.
 export function resetRequestInstrumentation(): void {
     consumers = 0;
 }
