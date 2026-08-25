@@ -37,6 +37,35 @@ flare.setUser({
 
 Recognised fields: `id` (→ `user.id`), `email` (→ `user.email`), `fullName` (→ `user.full_name`), `ipAddress` (→ `client.address`). Any extra keys are collected under `user.attributes`. Pass `null` to clear the user on logout: `flare.setUser(null)`.
 
+## Cookie consent and GDPR
+
+The client can run behind a consent tool. When consent is off, it sends nothing: no errors, no logs, no traces. Before consent, it does not even assemble a report, so it reads no cookies.
+
+The switch is one method:
+
+```javascript
+flare.setConsent(true); // allow sending
+flare.setConsent(false); // stop sending, and drop anything captured earlier
+```
+
+Recommended flow: do not call `flare.light(key)` until consent is granted. With no key, nothing sends, so this covers the moment before your consent code runs. Use `setConsent` for withdrawal and re-grant, because once the key is set it is the only clean off switch.
+
+```javascript
+import { flare } from '@flareapp/js';
+
+// Cookiebot example. OneTrust exposes OptanonWrapper; the idea is the same.
+window.addEventListener('CookiebotOnAccept', () => {
+    flare.light('your-project-key'); // first grant: start the client
+    flare.setConsent(true); // and allow sending
+});
+
+window.addEventListener('CookiebotOnDecline', () => {
+    flare.setConsent(false); // withdrawal: stop all sends, drop buffers
+});
+```
+
+Consent defaults to on, so setups without a consent tool are unchanged. `setConsent(false)` stops data leaving the browser. It does not remove the `fetch` and `XHR` patches that tracing and breadcrumbs install, because those only read in memory and never send on their own. To remove those too, call `flare.configure({ enableTracing: false, enableBreadcrumbs: false })`.
+
 ## Logging
 
 Beyond errors, the client can send structured logs. Logs are opt-in: enable them with `enableLogs`, then call any of
