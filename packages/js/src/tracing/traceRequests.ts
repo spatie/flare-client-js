@@ -5,14 +5,12 @@ import {
     endHttpRequestSpan,
     finishHttpSpanError,
     type HttpTracer,
+    REQUEST_SPAN_TYPES,
     startHttpRequestSpan,
     traceparentFor,
     type UrlContext,
 } from './httpRequestSpan';
 import { mergeTraceparentHeader } from './propagation';
-import { BrowserSpanType } from './spanTypes';
-
-const SPAN_TYPES = { fetch: BrowserSpanType.Fetch, xhr: BrowserSpanType.Xhr };
 
 /**
  * For http and https, status 0 at DONE means the request got no response.
@@ -56,7 +54,7 @@ export function traceRequests(tracer: HttpTracer, urls: UrlContext): () => void 
             method: start.method,
             url: start.url,
             urls,
-            spanType: SPAN_TYPES[start.kind],
+            spanType: REQUEST_SPAN_TYPES[start.kind],
         });
         if (!started) {
             return;

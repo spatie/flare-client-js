@@ -64,7 +64,7 @@ export type { ContextCollector } from './Flare';
 
 export { Scope, GlobalScopeProvider, USER_IDENTITY_KEYS, userIdentityAttributes } from './Scope';
 export type { ScopeProvider } from './Scope';
-export { MAX_BREADCRUMB_URL_LENGTH, recordBreadcrumb, truncateBreadcrumbUrl } from './breadcrumbs/recordBreadcrumb';
+export { breadcrumbUrl, MAX_BREADCRUMB_URL_LENGTH, recordBreadcrumb } from './breadcrumbs/recordBreadcrumb';
 
 export { Logger, NoopFlushScheduler } from './logging';
 export type { FlushScheduler, FlushFn, LoggerDeps } from './logging';

@@ -1,10 +1,4 @@
-import {
-    BrowserSpanEventType,
-    defaultNowNano,
-    redactUrlQuery,
-    truncateBreadcrumbUrl,
-    type Attributes,
-} from '@flareapp/core';
+import { breadcrumbUrl, BrowserSpanEventType, defaultNowNano, type Attributes } from '@flareapp/core';
 
 import { currentHref, subscribeToNavigation, type RouteName } from '../instrumentation/navigation';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
@@ -54,6 +48,6 @@ export class NavigationRecorder implements BreadcrumbRecorder {
     }
 
     private clean(href: string): string {
-        return truncateBreadcrumbUrl(redactUrlQuery(href, this.host.config().urlDenylist));
+        return breadcrumbUrl(href, this.host.config().urlDenylist);
     }
 }

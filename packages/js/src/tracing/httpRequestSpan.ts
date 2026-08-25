@@ -1,5 +1,6 @@
 import {
     type Attributes,
+    BrowserSpanType,
     buildTraceparent,
     type Config,
     type Span,
@@ -8,7 +9,14 @@ import {
     urlAttributes,
 } from '@flareapp/core';
 
+import type { RequestKind } from '../instrumentation/requestBus';
 import { shouldPropagate } from './propagation';
+
+// A trace and a timeline describe the same request, so they must call it the same thing.
+export const REQUEST_SPAN_TYPES: Record<RequestKind, BrowserSpanType> = {
+    fetch: BrowserSpanType.Fetch,
+    xhr: BrowserSpanType.Xhr,
+};
 
 /** The subset of the Flare surface the fetch/XHR wrappers need. `Flare` satisfies this structurally. */
 export type HttpTracer = {

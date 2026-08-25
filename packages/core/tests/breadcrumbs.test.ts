@@ -1,13 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    MAX_BREADCRUMB_URL_LENGTH,
-    recordBreadcrumb,
-    truncateBreadcrumbUrl,
-} from '../src/breadcrumbs/recordBreadcrumb';
+import { breadcrumbUrl, MAX_BREADCRUMB_URL_LENGTH, recordBreadcrumb } from '../src/breadcrumbs/recordBreadcrumb';
 import { GlobalScopeProvider, Scope } from '../src/Scope';
 import type { Config, Glow, SpanEvent } from '../src/types';
-import { timelineEvents } from '../src/util';
+import { DEFAULT_URL_DENYLIST, timelineEvents } from '../src/util';
 
 function config(overrides: Partial<Config> = {}): Config {
     return { enableBreadcrumbs: true, maxBreadcrumbs: 100, ...overrides } as Config;
@@ -83,19 +79,31 @@ describe('recordBreadcrumb', () => {
     });
 });
 
-describe('truncateBreadcrumbUrl', () => {
+describe('breadcrumbUrl', () => {
     it('leaves a short url alone', () => {
-        expect(truncateBreadcrumbUrl('https://app.example/cart')).toBe('https://app.example/cart');
+        expect(breadcrumbUrl('https://app.example/cart', DEFAULT_URL_DENYLIST)).toBe('https://app.example/cart');
     });
 
     it('cuts a long url to the cap and adds no marker', () => {
         const long = 'https://app.example/search?q=' + 'a'.repeat(400);
 
-        const result = truncateBreadcrumbUrl(long);
+        const result = breadcrumbUrl(long, DEFAULT_URL_DENYLIST);
 
         expect(result).toHaveLength(MAX_BREADCRUMB_URL_LENGTH);
         expect(result).toBe(long.slice(0, MAX_BREADCRUMB_URL_LENGTH));
         expect(result.endsWith('…')).toBe(false);
+    });
+
+    it('takes the credentials out', () => {
+        expect(breadcrumbUrl('https://app.example/reset?token=abc123&page=2', DEFAULT_URL_DENYLIST)).toBe(
+            'https://app.example/reset?token=[redacted]&page=2',
+        );
+    });
+
+    it('redacts before it cuts, so a token past the cap cannot survive', () => {
+        const url = 'https://app.example/reset?q=' + 'a'.repeat(300) + '&token=abc123';
+
+        expect(breadcrumbUrl(url, DEFAULT_URL_DENYLIST)).not.toContain('abc123');
     });
 });
 

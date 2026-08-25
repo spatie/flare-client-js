@@ -1,10 +1,4 @@
-import {
-    BrowserSpanType,
-    defaultNowNano,
-    redactUrlQuery,
-    truncateBreadcrumbUrl,
-    type Attributes,
-} from '@flareapp/core';
+import { breadcrumbUrl, defaultNowNano, type Attributes } from '@flareapp/core';
 
 import {
     subscribeToRequests,
@@ -13,10 +7,8 @@ import {
     type RequestStart,
 } from '../instrumentation/requestBus';
 import { withRequestPatches } from '../instrumentation/requestInstrumentation';
-import { browserUrlContext, isFlareIngestUrl, safeAbsolute } from '../tracing/httpRequestSpan';
+import { browserUrlContext, isFlareIngestUrl, REQUEST_SPAN_TYPES, safeAbsolute } from '../tracing/httpRequestSpan';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
-
-const SPAN_TYPES = { fetch: BrowserSpanType.Fetch, xhr: BrowserSpanType.Xhr };
 
 export class RequestRecorder implements BreadcrumbRecorder {
     readonly type = 'browser_request';
@@ -51,7 +43,7 @@ export class RequestRecorder implements BreadcrumbRecorder {
         const url = absolute ? absolute.href : start.url;
         const attributes: Attributes = {
             'http.request.method': start.method,
-            'url.full': truncateBreadcrumbUrl(redactUrlQuery(url, this.host.config().urlDenylist)),
+            'url.full': breadcrumbUrl(url, this.host.config().urlDenylist),
         };
         if (absolute?.hostname) {
             attributes['server.address'] = absolute.hostname;
@@ -59,6 +51,6 @@ export class RequestRecorder implements BreadcrumbRecorder {
         if (settle.status !== undefined) {
             attributes['http.response.status_code'] = settle.status;
         }
-        this.host.record(SPAN_TYPES[start.kind], attributes, defaultNowNano());
+        this.host.record(REQUEST_SPAN_TYPES[start.kind], attributes, defaultNowNano());
     }
 }

@@ -1,17 +1,20 @@
 import type { ScopeProvider } from '../Scope';
 import type { Attributes, Config } from '../types';
+import { redactUrlQuery } from '../util/redactUrl';
 
 /** One URL on a breadcrumb never costs more than this. */
 export const MAX_BREADCRUMB_URL_LENGTH = 256;
 
 /**
- * Cuts a long URL down to size. The front identifies the endpoint, and the tail of a filter blob or a
- * signed token is what we would want gone anyway.
+ * How a breadcrumb carries a URL: credentials out first, then cut to length. Both steps, in that
+ * order, or a token sitting past the cap survives the cut and ships.
  *
- * No marker is added, because an ellipsis inside a URL reads as part of the URL.
+ * The front of a URL identifies the endpoint, and the tail of a filter blob is what we want gone
+ * anyway. No marker is added, because an ellipsis inside a URL reads as part of the URL.
  */
-export function truncateBreadcrumbUrl(url: string): string {
-    return url.length > MAX_BREADCRUMB_URL_LENGTH ? url.slice(0, MAX_BREADCRUMB_URL_LENGTH) : url;
+export function breadcrumbUrl(href: string, denylist: RegExp): string {
+    const redacted = redactUrlQuery(href, denylist);
+    return redacted.length > MAX_BREADCRUMB_URL_LENGTH ? redacted.slice(0, MAX_BREADCRUMB_URL_LENGTH) : redacted;
 }
 
 /**
