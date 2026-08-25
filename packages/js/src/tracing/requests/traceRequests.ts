@@ -1,16 +1,15 @@
 import { type Span, SpanStatusCode } from '@flareapp/core';
 
-import { claimRequestMutation, type MutatedRequest, type RequestStart } from '../instrumentation/requests';
+import { claimRequestMutation, type MutatedRequest, type RequestStart } from '../../instrumentation/requests';
 import {
     endHttpRequestSpan,
     finishHttpSpanError,
-    type HttpTracer,
     REQUEST_SPAN_TYPES,
     startHttpRequestSpan,
     traceparentFor,
-    type UrlContext,
 } from './httpRequestSpan';
 import { mergeTraceparentHeader } from './propagation';
+import type { HttpTracer, UrlContext } from './types';
 
 /**
  * For http and https, status 0 at DONE means the request got no response.

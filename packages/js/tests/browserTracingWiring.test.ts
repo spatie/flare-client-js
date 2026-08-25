@@ -6,9 +6,9 @@ import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/instrumentation/requests';
 import { unpatchXHR } from '../src/instrumentation/requests';
 import { resetRequestPatches } from '../src/instrumentation/requests';
-import { stopBrowserTracing } from '../src/tracing/browserTracing';
+import { stopBrowserTracing } from '../src/tracing/roots';
 import { BrowserSpanType } from '../src/tracing/spanTypes';
-import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';
+import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/vitals';
 import { FakeApi } from './helpers';
 
 /** OTLP KeyValue array back to a plain lookup. */

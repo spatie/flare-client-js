@@ -1,6 +1,6 @@
 import type { FileReader } from '@flareapp/core';
 
-import { internalRequestInit } from '../tracing/internalRequest';
+import { internalRequestInit } from '../tracing/requests';
 
 /**
  * Fetches source files so the stack-trace builder can render a snippet around the offending line.

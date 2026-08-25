@@ -3,8 +3,8 @@ import { FakeApi } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
-import { stopBrowserTracing } from '../src/tracing/browserTracing';
-import { activeComponentRoot, recordComponentSpan, reserveSpanId } from '../src/tracing/componentProfiler';
+import { stopBrowserTracing } from '../src/tracing/roots';
+import { activeComponentRoot, recordComponentSpan, reserveSpanId } from '../src/tracing/roots';
 
 function spansOf(api: FakeApi) {
     return api.traceEnvelopes.flatMap((e) => e.resourceSpans[0].scopeSpans[0].spans);

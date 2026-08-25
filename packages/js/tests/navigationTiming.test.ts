@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    computePageloadEndNano,
-    computePageloadStartNano,
-    resolvePageloadStartNano,
-} from '../src/tracing/navigationTiming';
+import { computePageloadEndNano, computePageloadStartNano, resolvePageloadStartNano } from '../src/tracing/roots';
 
 describe('computePageloadStartNano', () => {
     it('returns timeOrigin + entry.startTime in nanoseconds', () => {

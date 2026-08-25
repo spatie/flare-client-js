@@ -1,4 +1,4 @@
-import { createPatcher } from '../../tracing/createPatcher';
+import { createPatcher } from '../../tracing/utils/createPatcher';
 import { hasRequestSubscribers, publishRequestStart } from './requestBus';
 import type { RequestSettle } from './types';
 

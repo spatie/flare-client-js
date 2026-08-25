@@ -4,7 +4,7 @@ import { resetNavigationSource } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { registerNavigationSource } from '../src/instrumentation/navigation';
-import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/browserTracing';
+import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/roots';
 
 function recordingSpan(name: string) {
     const attrs: Record<string, unknown> = {};

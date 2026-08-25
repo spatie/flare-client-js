@@ -7,7 +7,7 @@ import {
     type RequestSettle,
     type RequestStart,
 } from '../instrumentation/requests';
-import { browserUrlContext, isFlareIngestUrl, REQUEST_SPAN_TYPES, safeAbsolute } from '../tracing/httpRequestSpan';
+import { browserUrlContext, isFlareIngestUrl, REQUEST_SPAN_TYPES, safeAbsolute } from '../tracing/requests';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
 export class RequestRecorder implements BreadcrumbRecorder {

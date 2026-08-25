@@ -2,7 +2,7 @@ import type { Config, SpanOptions } from '@flareapp/core';
 import { fakeRecordingSpan } from '@flareapp/test-helpers';
 import { vi } from 'vitest';
 
-import type { HttpTracer } from '../../src/tracing/httpRequestSpan';
+import type { HttpTracer } from '../../src/tracing/requests';
 
 export { fakeRecordingSpan };
 

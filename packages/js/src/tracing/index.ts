@@ -1,7 +1,11 @@
-export { traceRequests } from './traceRequests';
-export { shouldPropagate, mergeTraceparentHeader } from './propagation';
-export { fill, unfill } from './fill';
-export { isNativeFetch, supportsNativeFetch } from './supportsNativeFetch';
-export { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from './browserTracing';
-export { type HttpTracer } from './httpRequestSpan';
+export {
+    isNativeFetch,
+    mergeTraceparentHeader,
+    shouldPropagate,
+    supportsNativeFetch,
+    traceRequests,
+    type HttpTracer,
+} from './requests';
+export { fill, unfill } from './utils';
+export { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from './roots';
 export { BrowserSpanType } from './spanTypes';

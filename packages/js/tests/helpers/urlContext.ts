@@ -1,4 +1,4 @@
-import type { UrlContext } from '../../src/tracing/httpRequestSpan';
+import type { UrlContext } from '../../src/tracing/requests';
 
 /**
  * A `UrlContext` for tests. `base` defaults to the origin (what a page at the root sees); pass a

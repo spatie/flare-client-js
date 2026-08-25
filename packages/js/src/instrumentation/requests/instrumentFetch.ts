@@ -1,7 +1,7 @@
-import { createPatcher } from '../../tracing/createPatcher';
-import { isInternalRequest } from '../../tracing/internalRequest';
-import type { FetchInput } from '../../tracing/propagation';
-import { supportsNativeFetch } from '../../tracing/supportsNativeFetch';
+import { isInternalRequest } from '../../tracing/requests/internalRequest';
+import { supportsNativeFetch } from '../../tracing/requests/supportsNativeFetch';
+import type { FetchInput } from '../../tracing/requests/types';
+import { createPatcher } from '../../tracing/utils/createPatcher';
 import { hasRequestSubscribers, publishRequestStart } from './requestBus';
 import type { RequestSettle } from './types';
 

@@ -16,8 +16,7 @@ import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
 import { withRequestPatches } from './instrumentation/requests';
 import { startBrowserTracing, stopBrowserTracing } from './tracing';
-import { browserUrlContext } from './tracing/httpRequestSpan';
-import { traceRequests } from './tracing/traceRequests';
+import { browserUrlContext, traceRequests } from './tracing/requests';
 
 export { createFlareResolver } from './createFlareResolver';
 
@@ -84,8 +83,7 @@ export {
     type NavigationSource,
     type RouteName,
 } from './instrumentation/navigation';
-export { insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/instrumentationGuard';
-export { absoluteHref, absoluteUrl } from './tracing/absoluteHref';
+export { absoluteHref, absoluteUrl, insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/utils';
 export {
     activeComponentRoot,
     reserveSpanId,
@@ -94,5 +92,5 @@ export {
     nowNano,
     type ComponentSpanRecord,
     type ComponentTraceContext,
-} from './tracing/componentProfiler';
+} from './tracing/roots';
 export { BrowserSpanType } from './tracing/spanTypes';

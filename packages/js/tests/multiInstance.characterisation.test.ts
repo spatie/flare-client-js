@@ -11,8 +11,8 @@ import { Flare } from '../src/browser';
 import { unpatchFetch } from '../src/instrumentation/requests';
 import { unpatchXHR } from '../src/instrumentation/requests';
 import { resetRequestPatches } from '../src/instrumentation/requests';
-import { stopBrowserTracing } from '../src/tracing/browserTracing';
-import { createPatcher } from '../src/tracing/createPatcher';
+import { stopBrowserTracing } from '../src/tracing/roots';
+import { createPatcher } from '../src/tracing/utils';
 
 describe('multi-instance tracing (characterisation)', () => {
     describe('two Flare instances share one module-level fetch patch', () => {

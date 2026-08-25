@@ -11,8 +11,8 @@ import {
     startBrowserTracing,
     stopBrowserTracing,
     type BrowserTracingFlare,
-} from '../src/tracing/browserTracing';
-import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';
+} from '../src/tracing/roots';
+import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/vitals';
 
 function fakeSpan(name: string): Span {
     return {

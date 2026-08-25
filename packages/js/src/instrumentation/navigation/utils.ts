@@ -1,4 +1,4 @@
-import { absoluteHref } from '../../tracing/absoluteHref';
+import { absoluteHref } from '../../tracing/utils/absoluteHref';
 import type { RouteName } from './types';
 
 export function currentPath(): string {

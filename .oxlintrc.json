@@ -35,6 +35,6 @@
         "*.config.*",
         "playgrounds",
         "test-results",
-        "**/src/tracing/webvitals/**"
+        "**/src/tracing/vitals/webvitals/**"
     ]
 }

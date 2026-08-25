@@ -1,10 +1,8 @@
 import { defaultNowNano, type Attributes, type Config, type Span, type SpanOptions, type Tracer } from '@flareapp/core';
 
-import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../browser/context/collectBrowserSpanContext';
-import { subscribeToNavigation, isActiveNavigationSource, type RouteName } from '../instrumentation/navigation';
-import { DEFAULT_IDLE_TIMEOUTS, IdleRootController, type IdleTimeouts } from './IdleRootController';
-import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
-import { BrowserSpanType } from './spanTypes';
+import { browserSpanUrlAttributes, collectBrowserSpanContext } from '../../browser/context/collectBrowserSpanContext';
+import { subscribeToNavigation, isActiveNavigationSource, type RouteName } from '../../instrumentation/navigation';
+import { BrowserSpanType } from '../spanTypes';
 import {
     buildVitalsSpan,
     restoreWebVitals,
@@ -13,7 +11,9 @@ import {
     takeEarlyVitals,
     takeWebVitals,
     vitalAttributes,
-} from './webVitals';
+} from '../vitals';
+import { DEFAULT_IDLE_TIMEOUTS, IdleRootController, type IdleTimeouts } from './IdleRootController';
+import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 
 /** Structural subset of the js Flare this orchestrator needs. */
 export type BrowserTracingFlare = {

@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { instrumentFetch, unpatchFetch } from '../src/instrumentation/requests';
 import { resetRequestBus } from '../src/instrumentation/requests';
-import { internalRequestInit } from '../src/tracing/internalRequest';
-import { traceRequests } from '../src/tracing/traceRequests';
+import { internalRequestInit } from '../src/tracing/requests';
+import { traceRequests } from '../src/tracing/requests';
 import { fixedUrls, makeTracer, tracedFetch } from './helpers';
 
 const ORIGIN = 'https://app.example';

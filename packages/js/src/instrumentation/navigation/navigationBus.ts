@@ -1,4 +1,4 @@
-import { fill, unfill } from '../../tracing/fill';
+import { fill, unfill } from '../../tracing/utils/fill';
 import type { NavigationSource, NavigationSubscriber, RouteName } from './types';
 import { currentPath } from './utils';
 

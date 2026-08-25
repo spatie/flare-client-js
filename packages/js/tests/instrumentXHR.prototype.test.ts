@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { instrumentXHR, unpatchXHR } from '../src/instrumentation/requests';
 import { resetRequestBus } from '../src/instrumentation/requests';
-import { traceRequests } from '../src/tracing/traceRequests';
+import { traceRequests } from '../src/tracing/requests';
 import { fixedUrls, makeTracer } from './helpers';
 
 const URLS = fixedUrls('https://app.example');

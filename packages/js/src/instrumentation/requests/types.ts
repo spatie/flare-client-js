@@ -1,4 +1,4 @@
-import type { FetchInput } from '../../tracing/propagation';
+import type { FetchInput } from '../../tracing/requests/types';
 
 export type RequestKind = 'fetch' | 'xhr';
 
