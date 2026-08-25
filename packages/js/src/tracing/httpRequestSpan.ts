@@ -9,7 +9,7 @@ import {
     urlAttributes,
 } from '@flareapp/core';
 
-import type { RequestKind } from '../instrumentation/requestBus';
+import type { RequestKind } from '../instrumentation/requests';
 import { shouldPropagate } from './propagation';
 
 // A trace and a timeline describe the same request, so they must call it the same thing.

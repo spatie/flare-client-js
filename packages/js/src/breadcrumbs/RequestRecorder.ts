@@ -2,11 +2,11 @@ import { breadcrumbUrl, defaultNowNano, type Attributes } from '@flareapp/core';
 
 import {
     subscribeToRequests,
+    withRequestPatches,
     type RequestHandlers,
     type RequestSettle,
     type RequestStart,
-} from '../instrumentation/requestBus';
-import { withRequestPatches } from '../instrumentation/requestInstrumentation';
+} from '../instrumentation/requests';
 import { browserUrlContext, isFlareIngestUrl, REQUEST_SPAN_TYPES, safeAbsolute } from '../tracing/httpRequestSpan';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 

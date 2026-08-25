@@ -1,8 +1,8 @@
 import type { Config, SpanOptions } from '@flareapp/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createXHROpen, createXHRSend, createXHRSetRequestHeader } from '../src/instrumentation/instrumentXHR';
-import { resetRequestBus } from '../src/instrumentation/requestBus';
+import { createXHROpen, createXHRSend, createXHRSetRequestHeader } from '../src/instrumentation/requests';
+import { resetRequestBus } from '../src/instrumentation/requests';
 import type { HttpTracer } from '../src/tracing/httpRequestSpan';
 import { traceRequests } from '../src/tracing/traceRequests';
 import { fixedUrls, makeTracer } from './helpers';

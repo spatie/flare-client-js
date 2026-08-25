@@ -1,5 +1,6 @@
-import { createPatcher } from '../tracing/createPatcher';
-import { hasRequestSubscribers, publishRequestStart, type RequestSettle } from './requestBus';
+import { createPatcher } from '../../tracing/createPatcher';
+import { hasRequestSubscribers, publishRequestStart } from './requestBus';
+import type { RequestSettle } from './types';
 
 // `XMLHttpRequest.DONE`, written out because the tests run in node where XMLHttpRequest does not exist.
 const XHR_DONE = 4;

@@ -14,7 +14,7 @@ import { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 import { collectBrowser } from './browser/context/collectBrowser';
 import { FetchFileReader } from './browser/FetchFileReader';
 import { CLIENT_VERSION } from './env';
-import { withRequestPatches } from './instrumentation/requestInstrumentation';
+import { withRequestPatches } from './instrumentation/requests';
 import { startBrowserTracing, stopBrowserTracing } from './tracing';
 import { browserUrlContext } from './tracing/httpRequestSpan';
 import { traceRequests } from './tracing/traceRequests';

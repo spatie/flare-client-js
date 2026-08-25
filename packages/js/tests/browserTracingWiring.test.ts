@@ -3,9 +3,9 @@ import type { OtelSpan } from '@flareapp/core';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
-import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
-import { unpatchXHR } from '../src/instrumentation/instrumentXHR';
-import { resetRequestPatches } from '../src/instrumentation/requestInstrumentation';
+import { unpatchFetch } from '../src/instrumentation/requests';
+import { unpatchXHR } from '../src/instrumentation/requests';
+import { resetRequestPatches } from '../src/instrumentation/requests';
 import { stopBrowserTracing } from '../src/tracing/browserTracing';
 import { BrowserSpanType } from '../src/tracing/spanTypes';
 import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';

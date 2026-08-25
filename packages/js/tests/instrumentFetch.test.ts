@@ -2,8 +2,8 @@ import type { SpanOptions } from '@flareapp/core';
 import { nativeFetchStub } from '@flareapp/test-helpers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { instrumentFetch, unpatchFetch } from '../src/instrumentation/instrumentFetch';
-import { resetRequestBus } from '../src/instrumentation/requestBus';
+import { instrumentFetch, unpatchFetch } from '../src/instrumentation/requests';
+import { resetRequestBus } from '../src/instrumentation/requests';
 import { internalRequestInit } from '../src/tracing/internalRequest';
 import { traceRequests } from '../src/tracing/traceRequests';
 import { fixedUrls, makeTracer, tracedFetch } from './helpers';

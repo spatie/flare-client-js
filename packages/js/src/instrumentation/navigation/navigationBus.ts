@@ -1,66 +1,6 @@
-import { absoluteHref } from '../tracing/absoluteHref';
-import { fill, unfill } from '../tracing/fill';
-
-export type RouteName = {
-    name: string;
-    source: 'route' | 'url';
-    /** Where the navigation ends. Set on a redirect so the final url is reported; leave out to keep
-     *  the url the root opened with. */
-    url?: string;
-};
-
-export type NavigationSource = {
-    startNavigation(opts?: { path?: string; url?: string; hold?: boolean }): void;
-    setActiveRouteName(route: RouteName): void;
-    settleNavigation(route: RouteName): void;
-    unregister(): void;
-};
-
-export function currentPath(): string {
-    return typeof location !== 'undefined' ? location.pathname : '';
-}
-
-// The whole address, query string included
-export function currentHref(): string {
-    return typeof location !== 'undefined' ? location.href : '';
-}
-
-// Prefers the router's route template (`/product/:id`) over the raw path, so all urls of one route
-// group together. If `derive` throws, the fallback path is used instead of breaking the app.
-export function routeName(derive: () => string | undefined, fallbackPath: string, url?: string): RouteName {
-    try {
-        const name = derive();
-        if (name) {
-            return { name, source: 'route', url };
-        }
-    } catch {}
-    return { name: fallbackPath, source: 'url', url };
-}
-
-/**
- * `build` is the router's own href builder (vue-router `resolve`, React Router `createHref`). It puts
- * the app's base path and hash prefix back. Without it, an app served from `/app/` reports
- * `/product/p01` instead of `/app/product/p01`. If `build` throws, we use `fallback`.
- */
-export function resolveHref(build: () => string | null | undefined, fallbackHref: string): string | undefined {
-    let href = fallbackHref;
-    try {
-        href = build() ?? fallbackHref;
-    } catch {
-        // no base path, but still a url
-    }
-    return absoluteHref(href);
-}
-
-// Tracing and breadcrumbs both subscribe; neither knows about the other.
-export type NavigationSubscriber = {
-    /** The url changed and no router is registered. */
-    onUrlChanged?(path: string): void;
-    onNavigationStart?(opts: { path: string; url?: string; hold?: boolean }): void;
-    onRouteName?(route: RouteName, owner: object): void;
-    onNavigationSettle?(route: RouteName, owner: object): void;
-    onSourceUnregistered?(): void;
-};
+import { fill, unfill } from '../../tracing/fill';
+import type { NavigationSource, NavigationSubscriber, RouteName } from './types';
+import { currentPath } from './utils';
 
 const subscribers = new Set<NavigationSubscriber>();
 let source: object | null = null;

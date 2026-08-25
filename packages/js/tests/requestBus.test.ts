@@ -7,7 +7,7 @@ import {
     resetRequestBus,
     subscribeToRequests,
     type RequestStart,
-} from '../src/instrumentation/requestBus';
+} from '../src/instrumentation/requests';
 
 const START: RequestStart = { kind: 'fetch', method: 'GET', url: '/api/x', input: '/api/x', init: undefined };
 

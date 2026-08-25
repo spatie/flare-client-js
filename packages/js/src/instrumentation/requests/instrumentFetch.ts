@@ -1,8 +1,9 @@
-import { createPatcher } from '../tracing/createPatcher';
-import { isInternalRequest } from '../tracing/internalRequest';
-import type { FetchInput } from '../tracing/propagation';
-import { supportsNativeFetch } from '../tracing/supportsNativeFetch';
-import { hasRequestSubscribers, publishRequestStart, type RequestSettle } from './requestBus';
+import { createPatcher } from '../../tracing/createPatcher';
+import { isInternalRequest } from '../../tracing/internalRequest';
+import type { FetchInput } from '../../tracing/propagation';
+import { supportsNativeFetch } from '../../tracing/supportsNativeFetch';
+import { hasRequestSubscribers, publishRequestStart } from './requestBus';
+import type { RequestSettle } from './types';
 
 function resolveRequest(input: FetchInput, init: RequestInit | undefined): { method: string; url: string } {
     let url: string;

@@ -1,9 +1,9 @@
 import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { unpatchFetch } from '../src/instrumentation/instrumentFetch';
-import { resetRequestBus, subscribeToRequests } from '../src/instrumentation/requestBus';
-import { withRequestPatches, resetRequestPatches } from '../src/instrumentation/requestInstrumentation';
+import { unpatchFetch } from '../src/instrumentation/requests';
+import { resetRequestBus, subscribeToRequests } from '../src/instrumentation/requests';
+import { withRequestPatches, resetRequestPatches } from '../src/instrumentation/requests';
 
 const g = globalThis as { fetch: typeof fetch };
 let before: typeof fetch;

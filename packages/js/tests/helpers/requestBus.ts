@@ -1,4 +1,4 @@
-import { createFetchWrapper } from '../../src/instrumentation/instrumentFetch';
+import { createFetchWrapper } from '../../src/instrumentation/requests';
 import type { HttpTracer, UrlContext } from '../../src/tracing/httpRequestSpan';
 import { traceRequests } from '../../src/tracing/traceRequests';
 

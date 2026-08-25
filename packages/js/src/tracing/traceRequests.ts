@@ -1,6 +1,6 @@
 import { type Span, SpanStatusCode } from '@flareapp/core';
 
-import { claimRequestMutation, type MutatedRequest, type RequestStart } from '../instrumentation/requestBus';
+import { claimRequestMutation, type MutatedRequest, type RequestStart } from '../instrumentation/requests';
 import {
     endHttpRequestSpan,
     finishHttpSpanError,

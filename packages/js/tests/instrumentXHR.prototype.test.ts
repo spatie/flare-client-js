@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { instrumentXHR, unpatchXHR } from '../src/instrumentation/instrumentXHR';
-import { resetRequestBus } from '../src/instrumentation/requestBus';
+import { instrumentXHR, unpatchXHR } from '../src/instrumentation/requests';
+import { resetRequestBus } from '../src/instrumentation/requests';
 import { traceRequests } from '../src/tracing/traceRequests';
 import { fixedUrls, makeTracer } from './helpers';
 

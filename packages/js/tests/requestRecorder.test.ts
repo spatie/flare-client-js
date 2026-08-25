@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { RequestRecorder } from '../src/breadcrumbs/RequestRecorder';
 import type { BreadcrumbHost } from '../src/breadcrumbs/types';
-import { publishRequestStart, resetRequestBus } from '../src/instrumentation/requestBus';
-import { resetRequestPatches } from '../src/instrumentation/requestInstrumentation';
+import { publishRequestStart, resetRequestBus } from '../src/instrumentation/requests';
+import { resetRequestPatches } from '../src/instrumentation/requests';
 
 type Recorded = { type: string; attributes: Attributes };
 

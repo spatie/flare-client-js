@@ -17,13 +17,13 @@ The words in this file follow the glossary in `CONTEXT.md` at the repo root.
  |  patches, installed once, removed when the last subscriber    |
  |  leaves                                                       |
  |                                                               |
- |  instrumentFetch.ts    instrumentXHR.ts     navigation.ts     |
+ |  instrumentFetch.ts    instrumentXHR.ts     navigationBus.ts  |
  +---------------------------------------------------------------+
            |                    |                      |
            +---------+----------+                      |
                      v                                 v
                request bus                      navigation bus
-              (requestBus.ts)                   (navigation.ts)
+              (requests/)                       (navigation/)
                      |                                 |
          +-----------+-----------+          +----------+-----------+
          v                       v          v                      v
@@ -75,9 +75,9 @@ option widens or narrows this. A `traceparent` header that the app set itself al
 
 The patches install when the first subscriber arrives and uninstall when the last one leaves.
 The count matters. With tracing and breadcrumbs both on, turning tracing off must not remove
-the patch that breadcrumbs still need. `withRequestPatches` in `requestInstrumentation.ts` owns
-the count for the request patches. `subscribeToNavigation` in `navigation.ts` does the same for
-the History patch.
+the patch that breadcrumbs still need. `withRequestPatches` in `requests/requestPatches.ts` owns
+the count for the request patches. `subscribeToNavigation` in `navigation/navigationBus.ts` does
+the same for the History patch.
 
 ## Safety rules
 
@@ -90,19 +90,30 @@ Instrumentation must never break the app.
 
 ## Navigation
 
-`navigation.ts` does the same job for route changes. The History patch sees `pushState`,
+`navigation/navigationBus.ts` does the same job for route changes. The History patch sees `pushState`,
 `replaceState` and `popstate`, and broadcasts a url change when the path changed.
 
 A framework router can register as the navigation source. While one is registered, the built-in
 detection stays quiet, and the router reports every navigation itself: start, route name,
 settle. This is how the React, Vue, Svelte and Inertia packages plug in.
 
-## Files
+## Layout
 
-| File                        | Owns                                                                    |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `requestBus.ts`             | The bus for outgoing requests, and the mutation slot.                   |
-| `instrumentFetch.ts`        | The `fetch` wrapper. Publishes each call on the request bus.            |
-| `instrumentXHR.ts`          | The `XMLHttpRequest` wrapper for `open`, `setRequestHeader` and `send`. |
-| `requestInstrumentation.ts` | The subscription count. First subscriber installs, last one removes.    |
-| `navigation.ts`             | The History patch, the navigation bus and the navigation source seam.   |
+Each folder exports its public surface through its `index.ts`. Import the folder, not a file
+inside it.
+
+```
+requests/
+    types.ts            the shared types for the request bus
+    requestBus.ts       the bus and the mutation slot
+    instrumentFetch.ts  the fetch wrapper
+    instrumentXHR.ts    the XMLHttpRequest wrapper for open, setRequestHeader and send
+    requestPatches.ts   the subscription count: first subscriber installs, last one removes
+    index.ts            the public surface of this folder
+
+navigation/
+    types.ts            RouteName, NavigationSource, NavigationSubscriber
+    utils.ts            currentPath, currentHref, routeName, resolveHref
+    navigationBus.ts    the History patch, the bus and the navigation source seam
+    index.ts            the public surface of this folder
+```
