@@ -4,8 +4,8 @@ import { instrumentXHR, unpatchXHR } from './instrumentXHR';
 let subscriptions = 0;
 
 /**
- * We count the live subscriptions. Without that count, tracing turned off at runtime would remove a
- * patch that another subscriber still needs.
+ * Keeps fetch and XHR patched while at least one subscriber lives. Counted, so turning tracing off
+ * cannot remove a patch that breadcrumbs still need.
  *
  * @param subscribe registers one subscriber and returns its own teardown
  */
@@ -33,8 +33,7 @@ export function withRequestPatches(subscribe: () => () => void): () => void {
     };
 }
 
-// This is a helper function for use in the test suite only.
-// The SDK never calls this.
+// Test helper. The SDK never calls this.
 export function resetRequestPatches(): void {
     subscriptions = 0;
 }

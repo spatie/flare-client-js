@@ -28,23 +28,14 @@ export function reportWith(fakeFlare: FakeFlare, type: string): Promise<FakeFlar
     });
 }
 
-/**
- * Every playground has a `/broken` page with a button that throws. Clicking it gives us a click
- * breadcrumb and the error that carries it, in one step.
- *
- * Starts with a full page load, so the buffer holds only what this call produces.
- */
+// Starts with a full page load, so the breadcrumb buffer holds only what this call produces.
 export async function throwFrom(page: Page, testId: string): Promise<void> {
     await page.goto('/broken');
     await page.waitForLoadState('networkidle');
     await page.getByTestId(testId).click();
 }
 
-/**
- * Reaches `/broken` through the nav link and throws there, keeping whatever the session already
- * recorded. A `page.goto` would reload the document and empty the buffer, which is correct behaviour
- * and useless for a test about earlier activity.
- */
+// Reaches `/broken` through the nav link: a `page.goto` would reload the document and empty the buffer.
 export async function throwWithoutReload(page: Page, testId: string): Promise<void> {
     await page.getByRole('link', { name: 'Broken' }).first().click();
     await page.waitForURL('**/broken');
@@ -56,11 +47,7 @@ export function expectOrderedByTime(events: Breadcrumb[]): void {
     expect([...times].sort((a, b) => a - b)).toEqual(times);
 }
 
-/**
- * The one scenario that must hold in every framework: a route change is recorded with the url the
- * person came from and the url they landed on. Each router reaches the navigation seam its own way, so
- * this runs per playground rather than once.
- */
+// Runs per playground rather than once, because each router reaches the navigation seam its own way.
 export async function runRouteChangeScenario(page: Page, fakeFlare: FakeFlare, cartPath = '/cart'): Promise<void> {
     await page.goto('/');
     await page.waitForLoadState('networkidle');

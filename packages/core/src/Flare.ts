@@ -278,10 +278,7 @@ export class Flare {
         return this;
     }
 
-    /**
-     * Where the browser recorders write. Protected on purpose: `flare.glow()` is the public way to put
-     * something on the timeline by hand, and a second public way would need explaining forever.
-     */
+    // Protected: recorders write here. `flare.glow()` stays the only public way onto the timeline.
     protected addBreadcrumb(type: string, attributes: Attributes, startTimeUnixNano: number): void {
         recordBreadcrumb(this.scopeProvider, this._config, type, attributes, startTimeUnixNano);
     }

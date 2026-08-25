@@ -23,14 +23,12 @@ export function createPatcher<T extends object>(): Patcher<T> {
             return installed;
         },
 
-        // We pass in the target (XMLHttpRequest.prototype for example), because if we would resolve them when this module loads
-        // instead of passing them in when something calls this function, we might run into trouble under SSR.
+        // The target comes in per call: `globalThis.fetch` may not exist yet under SSR.
         install(target: T, patches: MethodPatches<T>): void {
             if (installed) {
                 return;
             }
-            // Inside the loop `name` is every key at once, so `fill` cannot match a wrapper to its
-            // method. A single type parameter narrows it to one.
+            // Generic per key, so each wrapper stays typed against its own method.
             function applyOne<K extends keyof T>(name: K): void {
                 const wrap = patches[name];
                 if (wrap) {
@@ -44,9 +42,9 @@ export function createPatcher<T extends object>(): Patcher<T> {
             installed = true;
         },
 
-        // Put back every method on the target, or none.
-        // Another library can wrap our wrapper. If that happens, we cannot find the original target we wrapped,
-        // so we put nothing back and keep `installed` true. That stops the next `install` from adding a second wrapper.
+        // All or nothing: when another library wrapped our wrapper we cannot restore the original,
+        // so we put nothing back and keep `installed` true. That stops the next `install` from
+        // stacking a second wrapper; ours stays in place but idle.
         uninstall(target: T): void {
             if (!installed) {
                 return;

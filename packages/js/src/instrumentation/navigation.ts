@@ -4,10 +4,8 @@ import { fill, unfill } from '../tracing/fill';
 export type RouteName = {
     name: string;
     source: 'route' | 'url';
-    /**
-     * The URL where the navigation ends. Updates the root's `url.full` too, so a redirect reports the final
-     * url. Leave it out to keep the url the root opened with.
-     */
+    /** Where the navigation ends. Set on a redirect so the final url is reported; leave out to keep
+     *  the url the root opened with. */
     url?: string;
 };
 
@@ -27,10 +25,8 @@ export function currentHref(): string {
     return typeof location !== 'undefined' ? location.href : '';
 }
 
-/**
- * Uses the router's route template (`/product/:id`) instead of the raw path, so all urls of one route
- * group together. If `derive` throws, we use the fallback path instead of breaking the app.
- */
+// Prefers the router's route template (`/product/:id`) over the raw path, so all urls of one route
+// group together. If `derive` throws, the fallback path is used instead of breaking the app.
 export function routeName(derive: () => string | undefined, fallbackPath: string, url?: string): RouteName {
     try {
         const name = derive();
@@ -56,10 +52,7 @@ export function resolveHref(build: () => string | null | undefined, fallbackHref
     return absoluteHref(href);
 }
 
-/**
- * What a subscriber sees. Tracing uses it to open and name roots. Breadcrumbs use it to record a
- * route change. Neither one knows about the other.
- */
+// Tracing and breadcrumbs both subscribe; neither knows about the other.
 export type NavigationSubscriber = {
     /** The url changed and no router is registered. */
     onUrlChanged?(path: string): void;
@@ -84,9 +77,8 @@ function broadcast(callback: (subscriber: NavigationSubscriber) => void): void {
 }
 
 function onHistoryChange(): void {
-    // Our wrapper can be stuck in the call chain forever. If another library wraps pushState after we
-    // did, `unfill` cannot remove us anymore: it only unwraps the function on top. Their wrapper keeps
-    // calling ours, also after we uninstalled. `uninstallHistory` is null by then, so we do nothing.
+    // If another library wrapped pushState on top of ours, `unfill` cannot remove us and their
+    // wrapper keeps calling this after uninstall. `uninstallHistory` is null by then, so do nothing.
     if (!uninstallHistory) {
         return;
     }
@@ -95,9 +87,8 @@ function onHistoryChange(): void {
         return;
     }
     lastPath = path;
-    // A registered router reports its navigations itself, and we would report the same one again:
-    // two roots for one navigation. We do keep `lastPath` in sync with the address bar, so the check
-    // above stays correct.
+    // A registered router reports its own navigations; broadcasting here would report each one twice.
+    // `lastPath` is still updated above so the change check stays correct.
     if (source) {
         return;
     }
@@ -132,12 +123,8 @@ function installHistory(): void {
     };
 }
 
-/**
- * Adds one subscriber. The History patch stays while at least one subscriber listens.
- *
- * We count them. Without the count, tracing turned off at runtime would remove the patch that
- * breadcrumbs still need.
- */
+// The History patch stays while at least one subscriber lives. Counted, so turning tracing off
+// cannot remove the patch that breadcrumbs still need.
 export function subscribeToNavigation(subscriber: NavigationSubscriber): () => void {
     if (subscribers.size === 0) {
         installHistory();
@@ -166,11 +153,9 @@ export function subscribeToNavigation(subscriber: NavigationSubscriber): () => v
 }
 
 /**
- * Hands navigation to a framework router. While it is registered, our History detection tells nobody,
- * and the router drives every step through the handle it gets back.
- *
- * The newest registration wins and an old handle does nothing, because Vite HMR can replace a router
- * while the old one still holds a handle.
+ * Hands navigation to a framework router: while registered, the built-in History detection stays
+ * quiet and the router drives every step through the returned handle. The newest registration wins
+ * and a stale handle no-ops, because HMR can replace a router that still holds one.
  */
 export function registerNavigationSource(): NavigationSource {
     const token = {};

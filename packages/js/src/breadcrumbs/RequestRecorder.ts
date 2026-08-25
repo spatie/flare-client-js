@@ -31,11 +31,10 @@ export class RequestRecorder implements BreadcrumbRecorder {
         const urls = browserUrlContext();
         const base = urls.base();
         const absolute = safeAbsolute(start.url, base);
-        // Our own report, log and trace POSTs are not something a person did.
+        // Never record Flare's own report, log and trace posts.
         if (isFlareIngestUrl(absolute, this.host.config(), base)) {
             return;
         }
-        // Bound with this request's own facts, so the settle handler needs no closure over them.
         return { onSettle: this.onSettle.bind(this, start, absolute) };
     }
 

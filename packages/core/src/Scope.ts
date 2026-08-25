@@ -31,10 +31,7 @@ export function userIdentityAttributes(scope: Scope): Attributes {
  */
 export class Scope {
     glows: Glow[] = [];
-    /**
-     * What the SDK recorded on its own: clicks, form changes, requests, route changes. A glow is the
-     * other half of the timeline, and a person wrote that one by hand.
-     */
+    // What the SDK recorded on its own (clicks, requests, route changes). Glows are the manual half.
     breadcrumbs: SpanEvent[] = [];
     pendingAttributes: Attributes = {};
     entryPoint: EntryPointHandler | null = null;
@@ -51,7 +48,7 @@ export class Scope {
         this.glows = [];
     }
 
-    /** Drops the oldest when full, so a long-lived tab keeps the most recent events. */
+    /** Drops the oldest when full. */
     addBreadcrumb(breadcrumb: SpanEvent, maxBreadcrumbs: number): void {
         if (maxBreadcrumbs <= 0) {
             return;

@@ -7,7 +7,7 @@ export type RequestStart = {
     method: string;
     /** Exactly what the caller passed, so it can be a relative path. */
     url: string;
-    /** Fetch only. `mergeTraceparentHeader` reads headers from a `Request` object. */
+    /** Fetch only. Kept so the mutator can read headers off a `Request` object. */
     input?: FetchInput;
     /** Fetch only. */
     init?: RequestInit;
@@ -27,7 +27,7 @@ export type RequestHandlers = {
 
 export type RequestSubscriber = (start: RequestStart) => RequestHandlers | void;
 
-/** fetch uses `init`, XHR uses `headers`. Each one ignores the field it cannot apply. */
+/** fetch applies `init`, XHR applies `headers`. */
 export type MutatedRequest = { init?: RequestInit; headers?: Record<string, string> };
 
 export type RequestMutator = (start: RequestStart) => (RequestHandlers & MutatedRequest) | void;
@@ -42,10 +42,8 @@ export function subscribeToRequests(subscriber: RequestSubscriber): () => void {
     };
 }
 
-/**
- * The newest claim wins. Vite HMR runs the start-up code again, and the owner from before is gone.
- * If the first claim won, that dead owner would keep the slot.
- */
+// The newest claim wins: after HMR re-runs the start-up code, the old owner is dead and must not
+// keep the slot.
 export function claimRequestMutation(owner: RequestMutator): () => void {
     if (mutator !== null) {
         console.warn(
@@ -72,30 +70,17 @@ export function hasRequestSubscribers(): boolean {
     return subscribers.size > 0 || mutator !== null;
 }
 
-// This is a helper function for use in the test suite only.
-// The SDK never calls this.
+// Test helper. The SDK never calls this.
 export function resetRequestBus(): void {
     subscribers.clear();
     mutator = null;
 }
 
 /**
- * Tells every event bus subscriber that a request is about to go out, and collects whatever the
- * subscribers give back.
- *
- * The caller is our tracing wrapper around fetch or XHR. It gets the `init` and the `headers` to send, plus
- * one `settle` callback. When the wrapper calls `settle` after the request finishes, every
- * subscriber sees the result.
- *
- * Returns null when no subscriber took the request. That happens when nothing is subscribed, and
- * also when every subscriber declines this one.
- *
- * On null the wrapper must call the real fetch or send, and skip the rest of its own code.
- *
- * Why: fetch can throw an error right away, before it returns a promise. The wrapper catches such an
- * error and returns a rejected promise instead. A `try { fetch() } catch` in the app then never runs.
- *
- * A subscriber that throws is ignored. Instrumentation must never break the app's request.
+ * Tells every subscriber a request is about to go out. Returns the (possibly mutated) `init` and
+ * `headers` plus one `settle` callback that fans the result out to every subscriber. Returns null
+ * when nothing acted on the request; the wrapper must then call the real fetch or send untouched.
+ * A subscriber that throws is skipped, so instrumentation never breaks the app's request.
  */
 export function publishRequestStart(start: RequestStart): {
     settle(result: RequestSettle): void;
