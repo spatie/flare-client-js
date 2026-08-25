@@ -58,9 +58,10 @@ The mutation slot is the one hook that can rewrite a request before it goes out.
 exactly one slot, so two features can never race on the same headers. Only tracing claims it,
 and the only rewrite in the SDK is the `traceparent` header.
 
-The newest claim wins. Vite HMR runs the start-up code again, and the owner from before is
-dead. A second claim while the first owner is alive logs a loud warning, because the page then
-probably has two copies of `@flareapp/js`.
+The newest claim wins. That keeps Vite HMR clean: HMR re-runs the start-up code, and the new
+claim replaces the stale one from the last load. A claim that arrives while the previous owner
+is still active usually means the page has two copies of `@flareapp/js`, so that one logs a
+warning.
 
 ## Why the traceparent header
 
@@ -74,8 +75,8 @@ option widens or narrows this. A `traceparent` header that the app set itself al
 ## Counted subscriptions
 
 The patches install when the first subscriber arrives and uninstall when the last one leaves.
-The count matters. With tracing and breadcrumbs both on, turning tracing off must not remove
-the patch that breadcrumbs still need. `withRequestPatches` in `requests/requestPatches.ts` owns
+The count is what keeps turning tracing off from removing the patch that breadcrumbs still
+need, when both are on. `withRequestPatches` in `requests/requestPatches.ts` owns
 the count for the request patches. `subscribeToNavigation` in `navigation/navigationBus.ts` does
 the same for the History patch.
 
@@ -90,7 +91,7 @@ Instrumentation must never break the app.
 
 ## Navigation
 
-`navigation/navigationBus.ts` does the same job for route changes. The History patch sees `pushState`,
+`navigation/navigationBus.ts` handles route changes. The History patch sees `pushState`,
 `replaceState` and `popstate`, and broadcasts a url change when the path changed.
 
 A framework router can register as the navigation source. While one is registered, the built-in
