@@ -1,8 +1,8 @@
 import { BrowserSpanEventType, defaultNowNano } from '@flareapp/core';
 
-import { onDocumentEvent } from './documentEvent';
-import { elementAttributes } from './elementSelector';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
+import { onDocumentEvent } from './utils/documentEvent';
+import { elementAttributes } from './utils/elementSelector';
 
 export class FormChangeRecorder implements BreadcrumbRecorder {
     readonly type = BrowserSpanEventType.Input;
