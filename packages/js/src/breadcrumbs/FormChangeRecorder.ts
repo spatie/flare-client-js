@@ -1,6 +1,7 @@
-import { BrowserSpanEventType, defaultNowNano, type Attributes } from '@flareapp/core';
+import { BrowserSpanEventType, defaultNowNano } from '@flareapp/core';
 
-import { elementSelector, elementTestId } from './elementSelector';
+import { onDocumentEvent } from './documentEvent';
+import { elementAttributes } from './elementSelector';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
 export class FormChangeRecorder implements BreadcrumbRecorder {
@@ -11,8 +12,7 @@ export class FormChangeRecorder implements BreadcrumbRecorder {
     }
 
     install() {
-        document.addEventListener('change', this.onChange, true);
-        return () => document.removeEventListener('change', this.onChange, true);
+        return onDocumentEvent('change', this.onChange);
     }
 
     private onChange(event: Event) {
@@ -20,11 +20,6 @@ export class FormChangeRecorder implements BreadcrumbRecorder {
         if (!(target instanceof Element)) {
             return;
         }
-        const attributes: Attributes = { 'browser.element.selector': elementSelector(target) };
-        const testId = elementTestId(target);
-        if (testId) {
-            attributes['browser.element.test_id'] = testId;
-        }
-        this.host.record(this.type, attributes, defaultNowNano());
+        this.host.record(this.type, elementAttributes(target), defaultNowNano());
     }
 }

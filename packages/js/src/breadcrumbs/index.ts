@@ -6,7 +6,7 @@ import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
 export type { BreadcrumbHost, BreadcrumbRecorder };
 export { ClickRecorder, FormChangeRecorder, NavigationRecorder, RequestRecorder };
-export { elementSelector, elementTestId, interactiveTarget } from './elementSelector';
+export { elementAttributes, elementSelector, elementTestId, interactiveTarget } from './elementSelector';
 
 /**
  * Starts every recorder and hands back one teardown for all of them.

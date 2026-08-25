@@ -1,6 +1,7 @@
-import { BrowserSpanEventType, defaultNowNano, type Attributes } from '@flareapp/core';
+import { BrowserSpanEventType, defaultNowNano } from '@flareapp/core';
 
-import { elementSelector, elementTestId, interactiveTarget } from './elementSelector';
+import { onDocumentEvent } from './documentEvent';
+import { elementAttributes, interactiveTarget } from './elementSelector';
 import type { BreadcrumbHost, BreadcrumbRecorder } from './types';
 
 export class ClickRecorder implements BreadcrumbRecorder {
@@ -11,9 +12,7 @@ export class ClickRecorder implements BreadcrumbRecorder {
     }
 
     install() {
-        // Capture phase, so we still see a click an app stops from bubbling.
-        document.addEventListener('click', this.onClick, true);
-        return () => document.removeEventListener('click', this.onClick, true);
+        return onDocumentEvent('click', this.onClick);
     }
 
     private onClick(event: Event) {
@@ -21,12 +20,6 @@ export class ClickRecorder implements BreadcrumbRecorder {
         if (!(target instanceof Element)) {
             return;
         }
-        const element = interactiveTarget(target);
-        const attributes: Attributes = { 'browser.element.selector': elementSelector(element) };
-        const testId = elementTestId(element);
-        if (testId) {
-            attributes['browser.element.test_id'] = testId;
-        }
-        this.host.record(this.type, attributes, defaultNowNano());
+        this.host.record(this.type, elementAttributes(interactiveTarget(target)), defaultNowNano());
     }
 }

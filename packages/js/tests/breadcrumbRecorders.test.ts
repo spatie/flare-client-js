@@ -4,7 +4,8 @@ import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ClickRecorder } from '../src/breadcrumbs/ClickRecorder';
-import { elementSelector, interactiveTarget } from '../src/breadcrumbs/elementSelector';
+import { onDocumentEvent } from '../src/breadcrumbs/documentEvent';
+import { elementAttributes, elementSelector, interactiveTarget } from '../src/breadcrumbs/elementSelector';
 import { FormChangeRecorder } from '../src/breadcrumbs/FormChangeRecorder';
 import { NavigationRecorder } from '../src/breadcrumbs/NavigationRecorder';
 import type { BreadcrumbHost } from '../src/breadcrumbs/types';
@@ -62,6 +63,41 @@ describe('elementSelector', () => {
         document.body.innerHTML = '<button></button>';
 
         expect(elementSelector(document.querySelector('button')!)).toBe('button');
+    });
+});
+
+describe('elementAttributes', () => {
+    it('carries the selector and the test id', () => {
+        document.body.innerHTML = '<button id="checkout" data-testid="checkout-button"></button>';
+
+        expect(elementAttributes(document.getElementById('checkout')!)).toEqual({
+            'browser.element.selector': 'button#checkout',
+            'browser.element.test_id': 'checkout-button',
+        });
+    });
+
+    it('leaves the test id out rather than sending an empty one', () => {
+        document.body.innerHTML = '<button id="checkout"></button>';
+
+        expect(elementAttributes(document.getElementById('checkout')!)).toEqual({
+            'browser.element.selector': 'button#checkout',
+        });
+    });
+});
+
+describe('onDocumentEvent', () => {
+    it('sees an event an app stops from bubbling, and stops on teardown', () => {
+        document.body.innerHTML = '<button id="b"></button>';
+        const button = document.getElementById('b')!;
+        button.addEventListener('click', (event) => event.stopPropagation());
+        const seen: string[] = [];
+
+        const stop = onDocumentEvent('click', () => seen.push('click'));
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        stop();
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(seen).toEqual(['click']);
     });
 });
 
