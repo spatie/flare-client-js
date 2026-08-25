@@ -4,11 +4,11 @@ import { DEFAULT_URL_DENYLIST } from '@flareapp/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ClickRecorder } from '../src/breadcrumbs/ClickRecorder';
-import { onDocumentEvent } from '../src/breadcrumbs/documentEvent';
-import { elementAttributes, elementSelector, interactiveTarget } from '../src/breadcrumbs/elementSelector';
 import { FormChangeRecorder } from '../src/breadcrumbs/FormChangeRecorder';
 import { NavigationRecorder } from '../src/breadcrumbs/NavigationRecorder';
 import type { BreadcrumbHost } from '../src/breadcrumbs/types';
+import { onDocumentEvent } from '../src/breadcrumbs/utils/documentEvent';
+import { elementAttributes, elementSelector, interactiveTarget } from '../src/breadcrumbs/utils/elementSelector';
 import { resetNavigation } from '../src/instrumentation/navigation';
 
 type Recorded = { type: string; attributes: Attributes };
