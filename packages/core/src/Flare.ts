@@ -40,6 +40,7 @@ export class Flare {
 
     private _config: Config = {
         key: null,
+        hasConsent: true,
         version: '',
         sourcemapVersionId: SOURCEMAP_VERSION,
         stage: '',
@@ -201,6 +202,22 @@ export class Flare {
         return this;
     }
 
+    /**
+     * Turn sending on or off for consent. Off blocks errors, logs, and traces, and drops telemetry
+     * captured earlier so a later grant cannot ship it. On re-grant, flushes anything still buffered.
+     */
+    setConsent(granted: boolean): this {
+        this._config.hasConsent = granted;
+        if (granted) {
+            this._logger.flush();
+            this._tracer.flush();
+        } else {
+            this._logger.clear();
+            this._tracer.clear();
+        }
+        return this;
+    }
+
     configure(config: Partial<Config>): this {
         const wasLogsEnabled = this._config.enableLogs;
         const wasTracingEnabled = this._config.enableTracing;
@@ -353,12 +370,23 @@ export class Flare {
         return this;
     }
 
+    /**
+     * True when a report must not be captured: consent withdrawn, or dropped by sampling. Consent is
+     * checked first, so a blocked report never runs the sampler or assembles a report (no cookie read).
+     */
+    private shouldSkipCapture(): boolean {
+        if (this._config.hasConsent === false) {
+            return true;
+        }
+        return this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate;
+    }
+
     report(error: Error, attributes: Attributes = {}): Promise<void> {
         return this.track(this.reportInternal(error, attributes));
     }
 
     private async reportInternal(error: Error, attributes: Attributes = {}): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+        if (this.shouldSkipCapture()) {
             return;
         }
 
@@ -390,7 +418,7 @@ export class Flare {
     }
 
     private async reportUnhandledRejectionInternal(message: string, attributes: Attributes = {}): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+        if (this.shouldSkipCapture()) {
             return;
         }
 
@@ -419,7 +447,7 @@ export class Flare {
         level?: MessageLevel,
         attributes: Attributes = {},
     ): Promise<void> {
-        if (this._config.sampleRate < 1 && Math.random() >= this._config.sampleRate) {
+        if (this.shouldSkipCapture()) {
             return;
         }
 
@@ -625,6 +653,9 @@ export class Flare {
     }
 
     async sendReport(report: Report): Promise<void> {
+        if (this._config.hasConsent === false) {
+            return;
+        }
         if (!assertKey(this._config.key, this._config.debug)) {
             return;
         }
