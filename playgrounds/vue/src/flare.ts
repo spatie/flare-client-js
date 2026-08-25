@@ -24,6 +24,7 @@ export const initFlare = (): void => {
         // override above only applies under e2e (VITE_FLARE_URL set).
         enableLogs: true,
         enableTracing: true,
+        enableBreadcrumbs: true,
         tracesSampleRate: 1,
         beforeEvaluate: (error) => {
             if (error.message === 'hook-drop-report') return null;
