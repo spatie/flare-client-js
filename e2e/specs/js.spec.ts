@@ -1,5 +1,14 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import {
+    eventsOf,
+    expectOrderedByTime,
+    ofType,
+    reportWith,
+    runRouteChangeScenario,
+    throwFrom,
+    throwWithoutReload,
+} from './breadcrumbShared';
 import { logScenariosFor, runLogScenario, waitForLogMessage } from './logShared';
 import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, urlOf, waitForSpan, waitForSpanType } from './otlp';
 import { runScenario, scenariosFor } from './shared';
@@ -294,5 +303,84 @@ test.describe('js logging', () => {
             return (globalThis as { __flare?: any }).__flare.flush();
         });
         expect(await fakeFlare.logs()).toHaveLength(1);
+    });
+
+    // Clicks and form changes are plain DOM listeners with nothing framework-specific in them, so they
+    // are covered once here rather than five times.
+    test.describe('breadcrumbs', () => {
+        test('a click is recorded by name, never by its text', async ({ page, fakeFlare }) => {
+            await throwFrom(page, testIds.brokenTrigger('sync-throw'));
+            const report = await reportWith(fakeFlare, 'browser_click');
+
+            const clicks = ofType(report, 'browser_click');
+            expect(clicks).toHaveLength(1);
+            expect(clicks[0].attributes['browser.element.selector']).toContain('button');
+            expect(clicks[0].attributes['browser.element.test_id']).toBe(testIds.brokenTrigger('sync-throw'));
+            expect(clicks[0].endTimeUnixNano).toBeNull();
+
+            // The label on that button must never reach the wire.
+            expect(JSON.stringify(clicks[0])).not.toContain('Throw');
+        });
+
+        test('a form change is recorded without the value the shopper typed', async ({ page, fakeFlare }) => {
+            await page.goto('/checkout');
+            await page.waitForLoadState('networkidle');
+
+            const email = page.locator('input[name="email"]');
+            await email.fill('someone.private@example.com');
+            await email.blur();
+
+            await throwWithoutReload(page, testIds.brokenTrigger('sync-throw'));
+            const report = await reportWith(fakeFlare, 'browser_input');
+
+            const changes = ofType(report, 'browser_input');
+            expect(changes.length).toBeGreaterThan(0);
+            expect(changes[0].attributes['browser.element.selector']).toContain('input');
+            expect(JSON.stringify(report.bodyJson)).not.toContain('someone.private@example.com');
+        });
+
+        test('a fetch is recorded with its method, url and status', async ({ page, fakeFlare }) => {
+            await page.goto('/');
+            await page.waitForLoadState('networkidle');
+
+            await throwWithoutReload(page, testIds.brokenTrigger('sync-throw'));
+            const report = await reportWith(fakeFlare, 'browser_fetch');
+
+            const fetches = ofType(report, 'browser_fetch');
+            expect(fetches.length).toBeGreaterThan(0);
+
+            // The catalog page loads products with a GET and prices the cart with a POST, so assert
+            // the shape rather than one method.
+            for (const request of fetches) {
+                expect(['GET', 'POST']).toContain(request.attributes['http.request.method']);
+                expect(request.attributes['http.response.status_code']).toBe(200);
+                expect(request.endTimeUnixNano).toBeNull();
+            }
+            expect(fetches.some((request) => String(request.attributes['url.full']).includes('/api/'))).toBe(true);
+        });
+
+        test('never records our own posts to the fake flare server', async ({ page, fakeFlare }) => {
+            await throwFrom(page, testIds.brokenTrigger('sync-throw'));
+            const report = await reportWith(fakeFlare, 'browser_click');
+
+            const requestUrls = [...ofType(report, 'browser_fetch'), ...ofType(report, 'browser_xhr')].map((event) =>
+                String(event.attributes['url.full']),
+            );
+            expect(requestUrls.filter((url) => url.includes('/v1/'))).toEqual([]);
+        });
+
+        test('glows and breadcrumbs arrive as one list in time order', async ({ page, fakeFlare }) => {
+            await throwFrom(page, testIds.brokenTrigger('glow-then-throw'));
+            const report = await reportWith(fakeFlare, 'browser_click');
+
+            const events = eventsOf(report);
+            expect(events.some((event) => event.type === 'php_glow')).toBe(true);
+            expect(events.some((event) => event.type === 'browser_click')).toBe(true);
+            expectOrderedByTime(events);
+        });
+
+        test('records a route change per framework', async ({ page, fakeFlare }) => {
+            await runRouteChangeScenario(page, fakeFlare);
+        });
     });
 });

@@ -26,6 +26,30 @@ describe('RendererFlare', () => {
         expect(String(parsed.message)).toContain('renderer boom');
     });
 
+    it('carries breadcrumbs over the bridge, because a renderer is a browser', async () => {
+        const forwarded: string[] = [];
+        (window as any).__flare = {
+            report: (s: string) => {
+                forwarded.push(s);
+                return Promise.resolve();
+            },
+        };
+        const flare = new RendererFlare();
+        flare.configure({ enableBreadcrumbs: true });
+        document.body.innerHTML = '<button id="buy" data-testid="buy-button"></button>';
+
+        document.getElementById('buy')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flare.report(new Error('renderer boom'));
+
+        const events = JSON.parse(forwarded[0]).events as Array<{ type: string; attributes: Record<string, unknown> }>;
+        const click = events.find((event) => event.type === 'browser_click');
+        expect(click?.attributes['browser.element.selector']).toBe('button#buy');
+        expect(click?.attributes['browser.element.test_id']).toBe('buy-button');
+
+        flare.configure({ enableBreadcrumbs: false });
+        document.body.innerHTML = '';
+    });
+
     it('serializes a report whose context contains a cycle (flatJsonStringify) without throwing', async () => {
         const forwarded: string[] = [];
         (window as any).__flare = {

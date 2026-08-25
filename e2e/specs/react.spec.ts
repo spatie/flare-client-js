@@ -1,5 +1,6 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
+import { runRouteChangeScenario } from './breadcrumbShared';
 import { assertComponentTree, componentSpanCount, waitForComponentSpan } from './componentShared';
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
@@ -147,4 +148,9 @@ test.describe('react logging', () => {
             await runLogScenario(page, fakeFlare, scenario);
         });
     }
+
+    // Each router drives the navigation seam its own way, so this one runs per framework.
+    test('records a route change', async ({ page, fakeFlare }) => {
+        await runRouteChangeScenario(page, fakeFlare);
+    });
 });

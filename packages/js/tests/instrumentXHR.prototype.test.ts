@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { instrumentXHR, unpatchXHR } from '../src/tracing/instrumentXHR';
-import { makeTracer } from './helpers';
+import { instrumentXHR, unpatchXHR } from '../src/instrumentation/requests';
+import { resetRequestBus } from '../src/instrumentation/requests';
+import { traceRequests } from '../src/tracing/requests';
+import { fixedUrls, makeTracer } from './helpers';
+
+const URLS = fixedUrls('https://app.example');
 
 describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
+    beforeEach(() => resetRequestBus());
     afterEach(() => unpatchXHR());
 
     it('patches open/send/setRequestHeader and restores them', () => {
@@ -12,7 +17,8 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         const nativeSend = proto.send;
         const { tracer } = makeTracer();
 
-        instrumentXHR(tracer);
+        traceRequests(tracer, URLS);
+        instrumentXHR();
         expect(proto.send).not.toBe(nativeSend);
         expect((proto.send as { __flare_original__?: unknown }).__flare_original__).toBe(nativeSend);
         expect((proto.open as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
@@ -26,15 +32,17 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         const proto = XMLHttpRequest.prototype as unknown as Record<string, unknown>;
         const { tracer } = makeTracer();
 
-        instrumentXHR(tracer);
+        traceRequests(tracer, URLS);
+        instrumentXHR();
         const firstSend = proto.send;
-        instrumentXHR(tracer);
+        instrumentXHR();
         expect(proto.send).toBe(firstSend);
     });
 
     it('open without send creates no span (reused instance stays inert until send)', () => {
         const { tracer, startSpan } = makeTracer();
-        instrumentXHR(tracer);
+        traceRequests(tracer, URLS);
+        instrumentXHR();
 
         const xhr = new XMLHttpRequest();
         xhr.open('GET', 'https://app.example/one');
@@ -47,7 +55,8 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         const proto = XMLHttpRequest.prototype as unknown as Record<string, { __flare_original__?: unknown }>;
         const { tracer, startSpan } = makeTracer();
 
-        instrumentXHR(tracer);
+        traceRequests(tracer, URLS);
+        instrumentXHR();
         const flareSend = proto.send;
 
         // A third party wraps `send` on top of Flare's wrapper, so unpatchXHR cannot restore it.
@@ -59,7 +68,7 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         unpatchXHR();
         expect(proto.send).toBe(thirdParty); // the leak is real
 
-        instrumentXHR(tracer); // re-enable must not permanently wedge `open`
+        instrumentXHR(); // re-enable must not permanently wedge `open`
 
         // (a) open is still Flare's wrapper -> tracing is not permanently dead.
         expect((proto.open as { __flare_original__?: unknown }).__flare_original__).toBeDefined();
@@ -81,7 +90,8 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
         const nativeSend = proto.send;
         const { tracer } = makeTracer();
 
-        instrumentXHR(tracer);
+        traceRequests(tracer, URLS);
+        instrumentXHR();
         expect(proto.send).not.toBe(nativeSend);
 
         // A polyfill or test harness swaps the constructor after we installed.
@@ -96,7 +106,7 @@ describe('instrumentXHR / unpatchXHR on XMLHttpRequest.prototype', () => {
             unpatchXHR();
             expect(proto.send).toBe(nativeSend);
 
-            instrumentXHR(tracer);
+            instrumentXHR();
             expect(
                 (ReplacementXHR.prototype.send as unknown as { __flare_original__?: unknown }).__flare_original__,
             ).toBeDefined();

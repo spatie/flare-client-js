@@ -1,7 +1,7 @@
 import type { Attributes, Config } from '@flareapp/core';
 import { urlAttributes } from '@flareapp/core';
 
-import { absoluteUrl } from '../../tracing/absoluteHref';
+import { absoluteUrl } from '../../tracing/utils';
 import { browserEntryPoint } from './collectBrowser';
 import request from './request';
 

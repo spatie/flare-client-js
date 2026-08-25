@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { safeAbsolute } from '../src/tracing/httpRequestSpan';
-import { mergeTraceparentHeader, shouldPropagate } from '../src/tracing/propagation';
+import { safeAbsolute } from '../src/tracing/requests';
+import { mergeTraceparentHeader, shouldPropagate } from '../src/tracing/requests';
 
 const ORIGIN = 'https://app.example';
 

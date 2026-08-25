@@ -110,8 +110,8 @@ it and injects the browser-specific seams. Paths below are relative to each pack
 - `browser/FetchFileReader.ts` — Fetches source files for snippets (http(s) only, HTTP 200 only, cached)
 - `browser/context/collectBrowser.ts` — Collects browser context (entry point, host, request, query, cookies)
 - `browser/context/request.ts`, `cookie.ts`, `requestData.ts` — Individual context collectors
-- `tracing/webVitals.ts` — Web Vitals collection and the `browser_page_vitals` span plan
-- `tracing/webvitals/` — verbatim vendored `web-vitals` fork, excluded from lint and format
+- `tracing/vitals/webVitals.ts` — Web Vitals collection and the `browser_page_vitals` span plan
+- `tracing/vitals/webvitals/` — verbatim vendored `web-vitals` fork, excluded from lint and format
 
 ## Tests
 

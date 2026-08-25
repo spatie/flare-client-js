@@ -4,5 +4,5 @@
     "env": {
         "browser": true
     },
-    "ignorePatterns": ["src/tracing/webvitals"]
+    "ignorePatterns": ["src/tracing/vitals/webvitals"]
 }

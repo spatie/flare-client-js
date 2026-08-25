@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FetchFileReader } from '../src/browser/FetchFileReader';
-import { isInternalRequest } from '../src/tracing/internalRequest';
+import { isInternalRequest } from '../src/tracing/requests';
 
 const originalFetch = global.fetch;
 

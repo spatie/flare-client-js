@@ -3,11 +3,12 @@ import type { OtelSpan } from '@flareapp/core';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
-import { stopBrowserTracing } from '../src/tracing/browserTracing';
-import { unpatchFetch } from '../src/tracing/instrumentFetch';
-import { unpatchXHR } from '../src/tracing/instrumentXHR';
+import { unpatchFetch } from '../src/instrumentation/requests';
+import { unpatchXHR } from '../src/instrumentation/requests';
+import { resetRequestPatches } from '../src/instrumentation/requests';
+import { stopBrowserTracing } from '../src/tracing/roots';
 import { BrowserSpanType } from '../src/tracing/spanTypes';
-import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/webVitals';
+import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/vitals';
 import { FakeApi } from './helpers';
 
 /** OTLP KeyValue array back to a plain lookup. */
@@ -51,6 +52,8 @@ describe('Flare browser tracing wiring', () => {
         stopBrowserTracing();
         unpatchFetch();
         unpatchXHR();
+        // Forcing the patches off here bypasses the subscription count, so put it back to zero.
+        resetRequestPatches();
         resetWebVitalsForTests();
     });
 

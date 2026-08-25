@@ -2,7 +2,6 @@ import { fill, unfill } from './fill';
 
 type Wrapped<F> = F & { __flare_original__?: F };
 
-/** One wrapper factory per patched method, each typed against that method alone. */
 export type MethodPatches<T> = { [K in keyof T]?: (original: NonNullable<T[K]>) => T[K] };
 
 export type Patcher<T extends object> = {
@@ -12,11 +11,8 @@ export type Patcher<T extends object> = {
 };
 
 /**
- * One `installed` flag for the whole patch set, not per method: XHR's `open` records what `send` reads,
- * so a third party wrapping one of them must never leave the set half patched.
- *
- * Target is passed per call, not captured, because callers look it up fresh (`globalThis.fetch` may not
- * exist yet under SSR).
+ * One `installed` flag for the whole set, not one per method: `open` remembers the URL that `send`
+ * reads, so a half patched set is broken.
  */
 export function createPatcher<T extends object>(): Patcher<T> {
     let installed = false;
@@ -27,12 +23,12 @@ export function createPatcher<T extends object>(): Patcher<T> {
             return installed;
         },
 
+        // The target comes in per call: `globalThis.fetch` may not exist yet under SSR.
         install(target: T, patches: MethodPatches<T>): void {
             if (installed) {
                 return;
             }
-            // Generic over one key at a time: that is what keeps each wrapper correlated with its
-            // own method instead of the union of all of them.
+            // Generic per key, so each wrapper stays typed against its own method.
             function applyOne<K extends keyof T>(name: K): void {
                 const wrap = patches[name];
                 if (wrap) {
@@ -46,11 +42,9 @@ export function createPatcher<T extends object>(): Patcher<T> {
             installed = true;
         },
 
-        /**
-         * All or nothing: if a third party wrapped ours, restore nothing and stay `installed`, so the next
-         * `install` is a no-op instead of adding a second layer. Our wrappers stay in place but idle, because
-         * they check `enableTracing` themselves.
-         */
+        // All or nothing: when another library wrapped our wrapper we cannot restore the original,
+        // so we put nothing back and keep `installed` true. That stops the next `install` from
+        // stacking a second wrapper; ours stays in place but idle.
         uninstall(target: T): void {
             if (!installed) {
                 return;

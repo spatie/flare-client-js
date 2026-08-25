@@ -19,5 +19,5 @@
         "newlinesBetween": true
     },
     "sortPackageJson": false,
-    "ignorePatterns": ["dist", "**/src/tracing/webvitals/**"]
+    "ignorePatterns": ["dist", "**/src/tracing/vitals/webvitals/**"]
 }

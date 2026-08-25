@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fill, unfill } from '../src/tracing/fill';
+import { fill, unfill } from '../src/tracing/utils';
 
 describe('fill', () => {
     it('wraps a function and exposes the original', () => {

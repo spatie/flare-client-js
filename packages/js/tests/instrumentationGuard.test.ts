@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { insulate, instrumentOnce, safeInvoke } from '../src/tracing/instrumentationGuard';
+import { insulate, instrumentOnce, safeInvoke } from '../src/tracing/utils';
 
 describe('insulate', () => {
     it('forwards args to the wrapped fn', () => {

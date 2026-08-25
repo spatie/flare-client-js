@@ -11,12 +11,12 @@ import {
     takeEarlyVitals,
     takeWebVitals,
     vitalAttributes,
-} from '../src/tracing/webVitals';
-import { onCLS } from '../src/tracing/webvitals/onCLS';
-import { onFCP } from '../src/tracing/webvitals/onFCP';
-import { onINP } from '../src/tracing/webvitals/onINP';
-import { onLCP } from '../src/tracing/webvitals/onLCP';
-import { onTTFB } from '../src/tracing/webvitals/onTTFB';
+} from '../src/tracing/vitals';
+import { onCLS } from '../src/tracing/vitals/webvitals/onCLS';
+import { onFCP } from '../src/tracing/vitals/webvitals/onFCP';
+import { onINP } from '../src/tracing/vitals/webvitals/onINP';
+import { onLCP } from '../src/tracing/vitals/webvitals/onLCP';
+import { onTTFB } from '../src/tracing/vitals/webvitals/onTTFB';
 
 describe('vendored web-vitals', () => {
     it('exposes the five metric entry points', () => {

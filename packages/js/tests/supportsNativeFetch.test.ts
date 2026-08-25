@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { isNativeFetch, supportsNativeFetch } from '../src/tracing/supportsNativeFetch';
+import { isNativeFetch, supportsNativeFetch } from '../src/tracing/requests';
 
 describe('isNativeFetch', () => {
     it('is true for a genuinely native builtin', () => {

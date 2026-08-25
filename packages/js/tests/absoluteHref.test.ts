@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { absoluteHref, absoluteUrl } from '../src/tracing/absoluteHref';
+import { absoluteHref, absoluteUrl } from '../src/tracing/utils';
 
 beforeEach(() => {
     window.history.replaceState({}, '', '/');

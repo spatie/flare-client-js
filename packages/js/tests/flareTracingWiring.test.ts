@@ -2,7 +2,8 @@ import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Flare } from '../src/browser';
-import { unpatchFetch } from '../src/tracing/instrumentFetch';
+import { unpatchFetch } from '../src/instrumentation/requests';
+import { resetRequestPatches } from '../src/instrumentation/requests';
 
 describe('js Flare tracing auto-wiring', () => {
     const g = globalThis as { fetch: typeof fetch };
@@ -10,6 +11,8 @@ describe('js Flare tracing auto-wiring', () => {
 
     afterEach(() => {
         unpatchFetch();
+        // Forcing the patch off here bypasses the subscription count, so put it back to zero.
+        resetRequestPatches();
         g.fetch = originalFetch;
     });
 

@@ -2,8 +2,8 @@
 import type { Config, Span, SpanOptions } from '@flareapp/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/browserTracing';
-import { activeComponentRoot, recordComponentSpan, reserveSpanId } from '../src/tracing/componentProfiler';
+import { startBrowserTracing, stopBrowserTracing, type BrowserTracingFlare } from '../src/tracing/roots';
+import { activeComponentRoot, recordComponentSpan, reserveSpanId } from '../src/tracing/roots';
 
 function rootSpan(over: Partial<Pick<Span, 'traceId' | 'spanId' | 'isRecording'>> = {}): Span {
     return {

@@ -1,4 +1,4 @@
-export type FetchInput = string | URL | Request;
+import type { FetchInput } from './types';
 
 /** Follows OTel/Sentry `tracePropagationTargets`: same-origin by default, `[]` disables all. */
 export function shouldPropagate(

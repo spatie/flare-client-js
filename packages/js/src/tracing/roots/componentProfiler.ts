@@ -2,8 +2,8 @@
 // reference to the tracer on this side, the same rule registerNavigationSource follows.
 import { defaultNowNano, spanId as makeSpanId, type Attributes } from '@flareapp/core';
 
+import { BrowserSpanType } from '../spanTypes';
 import { activeTracingFlare } from './browserTracing';
-import { BrowserSpanType } from './spanTypes';
 
 export type ComponentTraceContext = { traceId: string; parentSpanId: string };
 

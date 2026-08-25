@@ -18,3 +18,13 @@ export type BrowserSpanType = (typeof BrowserSpanType)[keyof typeof BrowserSpanT
 
 /** Any other value stays legal, so a host SDK can stamp its own without a core release. */
 export type SpanTypeName = BrowserSpanType | (string & {});
+
+// Span event types on an error report. Kept apart from `BrowserSpanType`: these are points in time,
+// not spans with a duration. That is also why a route change is not called `browser_navigation`.
+export const BrowserSpanEventType = {
+    Click: 'browser_click',
+    Input: 'browser_input',
+    RouteChange: 'browser_route_change',
+} as const;
+
+export type BrowserSpanEventType = (typeof BrowserSpanEventType)[keyof typeof BrowserSpanEventType];

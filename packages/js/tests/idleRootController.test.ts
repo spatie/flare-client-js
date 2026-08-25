@@ -1,7 +1,7 @@
 import type { Span } from '@flareapp/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { IdleRootController, type IdleRootDeps, type IdleTimeouts } from '../src/tracing/IdleRootController';
+import { IdleRootController, type IdleRootDeps, type IdleTimeouts } from '../src/tracing/roots';
 
 const TIMEOUTS: IdleTimeouts = { idleTimeout: 1000, finalTimeout: 30000, childSpanTimeout: 15000 };
 

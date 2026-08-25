@@ -1,9 +1,13 @@
 import type { Config, SpanOptions } from '@flareapp/core';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { HttpTracer } from '../src/tracing/httpRequestSpan';
-import { createXHROpen, createXHRSend, createXHRSetRequestHeader } from '../src/tracing/instrumentXHR';
+import { createXHROpen, createXHRSend, createXHRSetRequestHeader } from '../src/instrumentation/requests';
+import { resetRequestBus } from '../src/instrumentation/requests';
+import type { HttpTracer } from '../src/tracing/requests';
+import { traceRequests } from '../src/tracing/requests';
 import { fixedUrls, makeTracer } from './helpers';
+
+beforeEach(() => resetRequestBus());
 
 const ORIGIN = 'https://app.example';
 const URLS = fixedUrls(ORIGIN);
@@ -46,7 +50,7 @@ function fakeXHR(opts: { sendImpl?: () => void; headerThrows?: (name: string, va
     return { xhr, headers, setHeaderSpy };
 }
 
-/** Wire the three factories onto a fake XHR instance and return it ready to open/send. */
+/** Wire the three wrappers onto a fake XHR, with tracing subscribed behind them. */
 function instrument(
     tracer: HttpTracer,
     opts: { sendImpl?: () => void; headerThrows?: (name: string, value: string) => boolean } = {},
@@ -55,9 +59,10 @@ function instrument(
     const origOpen = f.xhr.open;
     const origSend = f.xhr.send;
     const origSet = f.xhr.setRequestHeader;
+    traceRequests(tracer, URLS);
     f.xhr.open = createXHROpen(origOpen as any) as any;
     f.xhr.setRequestHeader = createXHRSetRequestHeader(origSet as any) as any;
-    f.xhr.send = createXHRSend(tracer, origSend as any, URLS) as any;
+    f.xhr.send = createXHRSend(origSend as any) as any;
     return f;
 }
 

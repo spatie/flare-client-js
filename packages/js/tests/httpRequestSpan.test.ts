@@ -11,7 +11,7 @@ import {
     safeAbsolute,
     startHttpRequestSpan,
     traceparentFor,
-} from '../src/tracing/httpRequestSpan';
+} from '../src/tracing/requests';
 import { fakeRecordingSpan, fixedUrls } from './helpers';
 
 const ORIGIN = 'https://app.example';
