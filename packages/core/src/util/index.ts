@@ -11,6 +11,7 @@ export * from './now';
 export * from './redactUrl';
 export * from './rejection';
 export * from './safeClone';
+export * from './setDefined';
 export * from './statelessRegExp';
 export * from './toCustomContext';
 export * from './urlAttributes';

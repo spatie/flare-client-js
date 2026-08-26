@@ -37,6 +37,16 @@ describe('partitionAttributes', () => {
         expect(record).toEqual({ 'something.new': 1 });
     });
 
+    it('routes device and network keys to resource level', () => {
+        const { resource, record } = partitionAttributes({
+            'device.memory_gb': 8,
+            'network.effective_type': '4g',
+            'context.device': { Memory: '8 GB' },
+        });
+        expect(resource).toEqual({ 'device.memory_gb': 8, 'network.effective_type': '4g' });
+        expect(record).toEqual({ 'context.device': { Memory: '8 GB' } });
+    });
+
     it('keeps process.uptime record-level despite the process. prefix', () => {
         const { resource, record } = partitionAttributes({ 'process.pid': 1, 'process.uptime': 12.3 });
         expect(resource).toEqual({ 'process.pid': 1 });

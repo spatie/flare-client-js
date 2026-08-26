@@ -84,5 +84,10 @@ export type { TracerDeps, ActiveSpanHolder, SpanPhase, SpanLifecycleEvent, SpanL
 export { NullFileReader } from './stacktrace/NullFileReader';
 export type { FileReader } from './stacktrace/fileReader';
 
+export { NullDeviceInfoProvider } from './device/DeviceInfoProvider';
+export type { DeviceInfoProvider } from './device/DeviceInfoProvider';
+export { buildDeviceContextGroup, deviceInfoToAttributes } from './device/deviceInfoToAttributes';
+export type { DeviceInfo, EffectiveConnectionType } from './device/types';
+
 export { createStackTrace } from './stacktrace/createStackTrace';
 export { getCodeSnippet, readLinesFromFile } from './stacktrace/fileReader';
