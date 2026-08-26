@@ -23,6 +23,9 @@ export type User = {
 
 export type Config = {
     key: string | null;
+    /** When false, the SDK sends nothing: no errors, logs, or traces. Flip it with `setConsent()`.
+     *  Default true, so setups without a consent tool are unchanged. */
+    hasConsent: boolean;
     version: string;
     sourcemapVersionId: string;
     stage: string;

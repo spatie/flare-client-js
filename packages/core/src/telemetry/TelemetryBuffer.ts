@@ -85,6 +85,10 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
 
     add(record: TRecord): void {
         const config = this.deps.getConfig();
+        // Consent gate: never buffer without consent, so a later grant cannot ship data captured now.
+        if (config.hasConsent === false) {
+            return;
+        }
         const limits = this.policy.limits(config);
         const bytes = this.policy.estimateBytes(record);
         // A single record over the ceiling could never ship, and the trim loop could never get the buffer back
@@ -112,6 +116,13 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
             return;
         }
         if (this.entries.length === 0) {
+            return;
+        }
+
+        // Consent gate: safety net beside the key gate. `add()` already refuses to buffer without consent,
+        // so this only guards a records-in-flight edge; it never sends.
+        if (config.hasConsent === false) {
+            this.clearTimer();
             return;
         }
 

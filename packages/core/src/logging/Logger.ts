@@ -106,6 +106,9 @@ export class Logger {
     // its keys land directly on the record.
     private record(level: MessageLevel, message: string, context: Attributes, attributes: Attributes): void {
         const config = this.deps.getConfig();
+        if (config.hasConsent === false) {
+            return;
+        }
         if (!config.enableLogs) {
             return;
         }
