@@ -39,7 +39,7 @@ Recognised fields: `id` (→ `user.id`), `email` (→ `user.email`), `fullName` 
 
 ## Cookie consent and GDPR
 
-The client can run behind a consent tool. When consent is off, it sends nothing: no errors, no logs, no traces. Before consent, it does not even assemble a report, so it reads no cookies.
+The client can run behind a consent tool. When consent is off, it sends nothing. Before consent, it does not even assemble a report.
 
 The switch is one method:
 
@@ -63,6 +63,20 @@ window.addEventListener('CookiebotOnDecline', () => {
     flare.setConsent(false); // withdrawal: stop all sends, drop buffers
 });
 ```
+
+If you set the key at boot instead of waiting, start with consent off, then turn it on when the user accepts:
+
+```javascript
+import { flare } from '@flareapp/js';
+
+flare.configure({ hasConsent: false }); // start off, before anything can send
+flare.light('your-project-key');
+
+window.addEventListener('CookiebotOnAccept', () => flare.setConsent(true));
+window.addEventListener('CookiebotOnDecline', () => flare.setConsent(false));
+```
+
+Put `configure({ hasConsent: false })` first, right after the import, so the gate is off before an early uncaught error can assemble a report.
 
 Consent defaults to on, so setups without a consent tool are unchanged. `setConsent(false)` stops data leaving the browser. It does not remove the `fetch` and `XHR` patches that tracing and breadcrumbs install, because those only read in memory and never send on their own. To remove those too, call `flare.configure({ enableTracing: false, enableBreadcrumbs: false })`.
 
