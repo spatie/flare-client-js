@@ -1,23 +1,9 @@
-# CLAUDE.md — flare-client-js
-
-## Claude instructions
-
-- Do not tell me I am right all the time.
-- Be critical.
-- We're equals.
-- Try to be neutral and objective.
-- Do not use emojis.
-- Do not use -- when writing comments or explaining something.
-- For more information regarding:
-    - The research: take a look at .claude/docs/research
-    - Repo cleanup: take a look at .claude/docs/repo-cleanup
-    - Svelte packaging quirks (ESM extensions, version generation): take a look at .claude/docs/svelte-packaging
+# CLAUDE.md
 
 ## What is this?
 
 The official JavaScript/TypeScript client for [Flare](https://flareapp.io) error tracking by Spatie. Captures frontend
-errors, collects
-browser context (cookies, request data, query params), and reports them to the Flare backend. Includes framework
+errors, collects browser context (cookies, request data, query params), and reports them to the Flare backend. Includes framework
 integrations for React, Vue, and Svelte, and a Vite plugin for sourcemap uploads.
 
 ## Monorepo structure
@@ -79,13 +65,9 @@ npm run playgrounds:react-router # Boot the React Router v7 playground on http:/
 
 Two of these bite if you run them without knowing what they do:
 
-- `npm run format` runs `oxfmt .` over the whole repo, not your changes. Nobody has formatted this repo
-  wide in a long time, so it reindents files you never touched: all of `.github/workflows/ci.yml` from
-  two-space to four-space, plus old documents under `docs/superpowers/specs/`. Format your own work with
-  `npx oxfmt path/to/file`.
+- `npm run format` runs `oxfmt .` over the whole repo, not your changes.
 - `npm run test:e2e:engines` takes about twelve minutes, longer than a coding agent's shell allows for one
-  command. Run one engine at a time, roughly four minutes each: `E2E_ENGINES=chromium npx playwright test`,
-  then `firefox`, then `webkit`.
+  command. You can run individual engines: `E2E_ENGINES=chromium npx playwright test`.
 
 ## Key source files
 
@@ -135,32 +117,6 @@ Four parallel webshop apps under `playgrounds/{js,react,vue,svelte}/`, one per f
 spec (product grid, detail, cart, checkout, confirmation, broken page) so the Playwright suite can exercise the
 SDK uniformly across frameworks.
 
-- Shared data lives in `@flareapp/playgrounds-shared`: product list, error scenarios, test IDs, route paths,
-  Tailwind v4 `@theme` tokens. Every playground imports from this workspace.
-- The `/broken` route in each playground renders one button per scenario in `coverageFor('<framework>')`. Test IDs
-  follow `testIds.brokenTrigger(scenario.id)` so specs select by ID, not label.
-- Each playground reads `VITE_FLARE_URL` (and `VITE_FLARE_KEY`) at boot and overrides Flare's `ingestUrl`. In tests
-  this points at the fake-flare-server (see e2e section below).
-- For manual exploration, run a playground with `npm run playgrounds:<framework>` and visit `localhost:518X`. No
-  fake server needed; reports just fail to send.
-- Tailwind v4: each playground imports `@flareapp/playgrounds-shared/styles.css` once in its entry. The shared
-  stylesheet declares `@theme` tokens. Don't duplicate `tailwindcss` config.
-- Sourcemap upload: every playground runs the real bundler plugin on `build` — the five vite ones through
-  `flareSourcemapsForPlayground(mode)`, the Next.js one through `withFlareSourcemaps` in its
-  `next.config.mjs`. Uploading is opt-in, so `npm run build:playgrounds` never talks to flareapp.io. It
-  switches on when `VITE_FLARE_URL` / `NEXT_PUBLIC_FLARE_URL` is set (the endpoint is that URL's origin plus
-  `/api/sourcemaps`, so e2e lands on the fake server) or when `FLARE_UPLOAD_SOURCEMAPS=1` is exported, which
-  uploads to real Flare with the `.env` key. `vite dev` never uploads.
-- The vite-config helpers live in `playgrounds/shared/src/vite/` and are imported by RELATIVE path
-  (`../shared/src/vite`), not through the package name. Vite bundles relative imports into the config it
-  loads, while a bare specifier gets externalized and handed to node, which cannot resolve the extensionless
-  relative imports inside those TypeScript files.
-- Mock catalog API: `mockApi()` (same directory) serves `/api/products`, `/api/products/:id`,
-  `/api/recommendations`, `POST /api/cart/summary` and `POST /api/checkout` in `vite dev` and `vite preview`,
-  with staggered latency so a page load produces a real trace waterfall. SvelteKit gets the same handlers
-  through its own `+server.ts` routes, because Kit owns request handling there. Screenshot instructions live
-  in `playgrounds/SCREENSHOTS.md`.
-
 ## E2E suite
 
 Playwright config at `playwright.config.ts`, specs at `e2e/specs/*.spec.ts`. One project per framework, single
@@ -181,18 +137,6 @@ worker (the fake server has shared in-memory state), `webServer` boots each play
 Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --project=svelte`. One scenario:
 `npx playwright test -g "sync-throw"`.
 
-- Cross-engine: `npm run test:e2e:engines` runs every project on Chromium, Firefox and WebKit
-  (`E2E_ENGINES=chromium,firefox,webkit`). Chromium projects keep their bare names; the others take a
-  suffix, so `--project=svelte-webkit`. Takes about twelve minutes. The `pretest` hook installs the
-  Firefox and WebKit builds on first run.
-
-## Error reporting flow
-
-1. Error caught by global listeners (`catchWindowErrors`) or framework integration (React boundary / Vue handler)
-2. `Flare.report(error)` builds a Report: stack trace + browser context + glows (breadcrumbs)
-3. `beforeEvaluate` / `beforeSubmit` hooks can filter or modify the report
-4. `Api.report()` sends POST to Flare backend with API key in headers
-
 ## Code style
 
 - Formatting: oxfmt, config in `.oxfmtrc.json`
@@ -202,155 +146,7 @@ Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --pro
 - Comments explain WHY, not what. The code already says what it does.
 - Keep comments as short as possible. One or two lines is usually enough. If you need a paragraph, the code probably
   needs the work instead.
-- Write them in plain English, the way you would explain it to the developer sitting next to you. No academic or
+- Write comments in plain English, the way you would explain it to the developer sitting next to you. No academic or
   research-paper tone, no long build-ups, no restating the obvious.
 - When there is an opportunity to create a shared utility for the code or the tests, YOU MUST DO SO.
 - Code duplication must be kept at A MINIMUM and should only be done when it makes sense in the context of the feature.
-
-## Publishing
-
-Publishing runs on [`release-it`](https://github.com/release-it/release-it), installed once at the repo root as a
-devDependency and shared across workspaces. Per-package configuration lives in `packages/<pkg>/.release-it.json`
-and a `release` script in each `packages/<pkg>/package.json`.
-
-There are two paths:
-
-- **`scripts/release-all.mjs`, the normal one.** Releases the lockstep set (`js`, `react`, `vue`, `svelte`,
-  `webpack`, `vite`, `sveltekit`, `nextjs`, `inertia`) on one shared version, and can release the independently versioned
-  packages (`core`, `node`, `electron`, `react-native`, `react-native-sourcemaps`) in the same run. It drives
-  `release-it` per package, rewrites cross-package references, and publishes in dependency tiers.
-- **Per-package `release-it`.** `cd packages/<pkg> && npm run release`. Bumps and publishes that one package,
-  and rewrites nothing. Use it for the independently versioned packages only.
-
-## Commits and PRs
-
-- No co-authored by <model_name> in commit messages.
-- When creating PRs and PR descriptions, do not add Generated by Claude Code at the bottom.
-- Keep the commit descriptions short or omit them completely if the commit title contains enough info.
-- Keep commits small and contained
-
-### Release a single package
-
-For the independently versioned packages (`core`, `node`, `electron`, `react-native`,
-`react-native-sourcemaps`). Do not use this for a lockstep package: it does not rewrite cross-package
-references, so it ships a stale peer range.
-
-From the package directory you want to release:
-
-```bash
-cd packages/<pkg>            # core, node, electron, react-native, react-native-sourcemaps
-npm run release              # interactive: prompts for the next version
-```
-
-To pre-select a bump non-interactively:
-
-```bash
-npm run release -- patch     # or minor / major / 1.2.3
-npm run release -- --dry-run # preview without changing anything
-```
-
-`release-it` will, in order:
-
-1. Check the working tree is clean and the current branch is `main` (`requireBranch: "main"`,
-   `requireCleanWorkingDir: true`).
-2. Prompt for the next version (or accept the increment passed on the CLI).
-3. Bump `version` in that package's `package.json`.
-4. Run the `before:release` hook: `npm test --if-present`. Every package has a `test` script (`vitest run`),
-   so this runs that package's suite. The hook is never a no-op.
-5. Commit the version bump as `chore: release @flareapp/<pkg>@<version>`.
-6. Create an annotated tag `@flareapp/<pkg>@<version>`.
-7. Push the commit and tag to `origin`.
-8. Run `npm publish` from the package directory. The package's `prepublishOnly` script builds the package first
-   (`npm run build`).
-
-### Pre-flight before running `release-it`
-
-`release-it` only verifies a clean tree and the branch. It does not run type-checks, builds, or cross-package tests.
-Before running `npm run release`, do these from the repo root, in this order:
-
-```bash
-npm run build                # confirm tsdown builds clean
-npm run typescript           # type-check all packages
-npm run test                 # vitest across workspaces
-```
-
-`npm run typescript` needs a prior build because most packages resolve their siblings through
-built output, not source.
-
-If any of those fail, fix first; do not release.
-
-### Versioning rules
-
-- Two version tracks. The lockstep set (`js`, `react`, `vue`, `svelte`, `webpack`, `vite`, `sveltekit`,
-  `nextjs`, `inertia`) shares one version anchored on `@flareapp/js`. `core`, `node`, `electron`, `react-native` and
-  `react-native-sourcemaps` version independently.
-- Use semver: bug fix only -> `patch`, additive non-breaking -> `minor`, breaking change -> `major`.
-- **Cross-package references are rewritten automatically by `scripts/release-all.mjs`, not by hand.**
-  On every run it sets the `@flareapp/js` peer range of `@flareapp/react`, `@flareapp/vue`,
-  `@flareapp/svelte`, `@flareapp/sveltekit` and `@flareapp/inertia` to `^<lockstepVersion>`, plus `@flareapp/sveltekit` ->
-  `@flareapp/svelte` and `@flareapp/nextjs` -> `@flareapp/webpack`. See `LOCKSTEP_REFS` and
-  `updateCrossReferences` in that script; the edits are staged into the release commit. Every lockstep
-  package is always in the release set, so there is no "remember to raise the peer floor" step.
-  Publish order backs this up: `@flareapp/js` publishes a tier before the framework packages, and the
-  script waits for npm visibility between tiers.
-  This matters because the four framework packages runtime-import `@flareapp/js` internals. Publishing
-  one against an older `@flareapp/js` breaks its entry point at module init, not just the new feature.
-- **The per-package `release-it` flow rewrites nothing.** It only bumps that one package's own version.
-  Use it for the independently versioned packages (see below). Releasing a lockstep package with it
-  ships a stale peer range. Nothing enforces this, so it is on you.
-- The `sync-versions` skill audits the ranges against current versions if you want to check the state
-  outside a release.
-- Each `package.json` is the source of truth for its own version. The "Monorepo structure" table above
-  deliberately carries no version column, so there is nothing to update there after a release.
-
-### Authentication
-
-- Local-only flow. You must be logged in to npm (`npm whoami`) or have `NPM_TOKEN` exported.
-- Packages are scoped + public via `"publishConfig": { "access": "public" }` in each `package.json`.
-- If npm requires a 2FA OTP, `release-it` prompts for it interactively.
-
-### Out of scope
-
-- No CI/GitHub Actions publishing. GitHub releases are disabled (`github.release: false`).
-- No `CHANGELOG.md` generation, no conventional-commit-driven version inference. Versions are chosen
-  interactively at release time.
-
-### Independently versioned packages: `@flareapp/core` and `@flareapp/node`
-
-`@flareapp/core` and `@flareapp/node` version INDEPENDENTLY of the lockstep set
-(e.g. core at `2.2.0`, node at `0.1.0`), but `scripts/release-all.mjs` can
-release them in the same run. After the lockstep version prompt the script asks,
-per package, for a core and a node version, where you can:
-
-- enter an exact semver to (re)release it,
-- press `k` to keep the current version (first publish of an unreleased package),
-- press `s` to skip it (a plain lockstep release that leaves core/node alone).
-
-When core is part of the run it publishes FIRST (js and node hard-pin it), and the
-script rewrites the `@flareapp/core` pin in `packages/js/package.json` and
-`packages/node/package.json` to the EXACT core version it just released, staged
-into the release commit. No manual pin edit needed. If you skip core, the pins are
-left untouched and the pre-flight dependency check verifies the currently pinned
-core version is already on npm (`--skip-dep-check` bypasses it). Deps that are
-being published in the same run are excluded from that pre-check.
-
-Publishing waits for npm visibility between tiers: after a tier publishes, the
-script polls `npm view` (every `NPM_POLL_INTERVAL_MS`, default 30s, up to
-`NPM_POLL_TIMEOUT_MS`, default 10m, with a spinner) until each package resolves
-before releasing anything that depends on it. This absorbs registry propagation
-lag, so a downstream package never publishes against a core/svelte/webpack version
-the registry has not surfaced yet.
-
-You can still release either package on its own with the per-package `release-it`
-flow when you don't want a full run:
-
-```bash
-cd packages/core   # or packages/node
-npm run release
-```
-
-### Skill
-
-For an automated walkthrough of a single independently versioned package use the `release` skill:
-`/release <package> <version>` (e.g. `/release core 2.7.0`). It runs the pre-flight checks and invokes
-`release-it`. It refuses lockstep packages and sends you to `npm run release:all`.
