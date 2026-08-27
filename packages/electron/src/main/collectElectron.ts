@@ -1,7 +1,13 @@
-import os from 'node:os';
-
-import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
+import {
+    deviceInfoToAttributes,
+    type Attributes,
+    type Config,
+    type ContextCollector,
+    type EntryPointType,
+} from '@flareapp/core';
 import type { App } from 'electron';
+
+import { electronDeviceInfoProvider } from './deviceInfo';
 
 type AppLike = Pick<App, 'getName' | 'getVersion' | 'getLocale' | 'isReady'> & { isPackaged: boolean };
 
@@ -16,13 +22,11 @@ export function collectElectronAppAttributes(app: AppLike): Attributes {
         'service.name': app.getName(),
         'app.version': app.getVersion(),
         'app.packaged': app.isPackaged,
-        'process.runtime.name': 'electron',
-        'process.runtime.version': versions.electron ?? '',
         'process.versions.electron': versions.electron ?? '',
         'process.versions.chrome': versions.chrome ?? '',
         'process.versions.node': versions.node ?? process.version,
         'host.arch': process.arch,
-        'os.type': os.type(),
+        ...deviceInfoToAttributes(electronDeviceInfoProvider.collect()),
     };
 
     // getLocale() is only reliable after the 'ready' event. Omit it pre-ready rather than throw.

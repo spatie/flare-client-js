@@ -1,4 +1,4 @@
-import type { Attributes } from '@flareapp/core';
+import type { DeviceInfo } from '@flareapp/core';
 
 export type ExpoDeviceModule = {
     modelName?: string | null;
@@ -42,41 +42,51 @@ export function loadExpoModules(): ExpoModules {
     return mods;
 }
 
-/** Maps Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4) to a label. */
+/** Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4). */
 const DEVICE_TYPE_LABELS: Record<number, string> = { 1: 'phone', 2: 'tablet', 3: 'desktop', 4: 'tv' };
 
-/**
- * Turn the synchronous Expo constants into report attributes. Only present (non-null) fields are emitted.
- * Async Expo getters are not used, since the context collector is synchronous.
- */
-export function projectExpoContext(expo: ExpoModules): Attributes {
-    const attrs: Attributes = {};
+/** Normalise the synchronous Expo constants into `DeviceInfo`. Only present (non-null) fields are set. */
+export function expoToDeviceInfo(expo: ExpoModules): DeviceInfo {
+    const info: DeviceInfo = {};
+
     const device = expo.device;
     if (device) {
-        if (device.modelName != null) {
-            attrs['device.model.name'] = device.modelName;
-        }
+        const os: NonNullable<DeviceInfo['os']> = {};
         if (device.osName != null) {
-            attrs['os.name'] = device.osName;
+            os.name = device.osName;
         }
         if (device.osVersion != null) {
-            attrs['os.version'] = device.osVersion;
+            os.version = device.osVersion;
         }
-        if (device.deviceType != null) {
-            const label = DEVICE_TYPE_LABELS[device.deviceType];
-            if (label) {
-                attrs['device.type'] = label;
-            }
+        if (Object.keys(os).length > 0) {
+            info.os = os;
+        }
+
+        const target: NonNullable<DeviceInfo['device']> = {};
+        if (device.modelName != null) {
+            target.model = device.modelName;
+        }
+        if (device.deviceType != null && DEVICE_TYPE_LABELS[device.deviceType]) {
+            target.type = DEVICE_TYPE_LABELS[device.deviceType];
+        }
+        if (Object.keys(target).length > 0) {
+            info.device = target;
         }
     }
+
     const application = expo.application;
     if (application) {
+        const app: NonNullable<DeviceInfo['app']> = {};
         if (application.nativeApplicationVersion != null) {
-            attrs['app.version'] = application.nativeApplicationVersion;
+            app.version = application.nativeApplicationVersion;
         }
         if (application.applicationId != null) {
-            attrs['app.id'] = application.applicationId;
+            app.id = application.applicationId;
+        }
+        if (Object.keys(app).length > 0) {
+            info.app = app;
         }
     }
-    return attrs;
+
+    return info;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadExpoModules, projectExpoContext } from '../src/context/expo';
+import { expoToDeviceInfo, loadExpoModules } from '../src/context/expo';
 
 describe('expo loader', () => {
     it('loadExpoModules returns empty object when Expo packages are absent', () => {
@@ -8,34 +8,30 @@ describe('expo loader', () => {
         expect(loadExpoModules()).toEqual({});
     });
 
-    it('projectExpoContext maps sync device + application fields to OTel keys', () => {
-        const attrs = projectExpoContext({
+    it('expoToDeviceInfo maps sync device + application fields', () => {
+        const info = expoToDeviceInfo({
             device: { modelName: 'iPhone 15', osName: 'iOS', osVersion: '17.0', deviceType: 1 },
             application: { nativeApplicationVersion: '1.2.3', applicationId: 'io.flare.app' },
         });
-        expect(attrs['device.model.name']).toBe('iPhone 15');
-        expect(attrs['os.name']).toBe('iOS');
-        expect(attrs['os.version']).toBe('17.0');
-        expect(attrs['device.type']).toBe('phone');
-        expect(attrs['app.version']).toBe('1.2.3');
-        expect(attrs['app.id']).toBe('io.flare.app');
+        expect(info.os).toEqual({ name: 'iOS', version: '17.0' });
+        expect(info.device).toEqual({ model: 'iPhone 15', type: 'phone' });
+        expect(info.app).toEqual({ version: '1.2.3', id: 'io.flare.app' });
     });
 
-    it('projectExpoContext omits keys for missing/null fields', () => {
-        const attrs = projectExpoContext({ device: { modelName: null }, application: {} });
-        expect('device.model.name' in attrs).toBe(false);
-        expect('app.version' in attrs).toBe(false);
+    it('expoToDeviceInfo omits missing/null fields', () => {
+        const info = expoToDeviceInfo({ device: { modelName: null }, application: {} });
+        expect(info.device).toBeUndefined();
+        expect(info.os).toBeUndefined();
+        expect(info.app).toBeUndefined();
     });
 
-    it('projectExpoContext on empty modules returns empty attrs', () => {
-        expect(projectExpoContext({})).toEqual({});
+    it('expoToDeviceInfo on empty modules returns an empty object', () => {
+        expect(expoToDeviceInfo({})).toEqual({});
     });
 
-    it('projectExpoContext handles a partial module set (device only, no application)', () => {
-        const attrs = projectExpoContext({ device: { modelName: 'X', deviceType: 2 } });
-        expect(attrs['device.model.name']).toBe('X');
-        expect(attrs['device.type']).toBe('tablet');
-        expect('app.version' in attrs).toBe(false);
-        expect('app.id' in attrs).toBe(false);
+    it('expoToDeviceInfo handles a partial module set (device only, no application)', () => {
+        const info = expoToDeviceInfo({ device: { modelName: 'X', deviceType: 2 } });
+        expect(info.device).toEqual({ model: 'X', type: 'tablet' });
+        expect(info.app).toBeUndefined();
     });
 });

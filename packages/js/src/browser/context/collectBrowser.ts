@@ -1,7 +1,8 @@
 import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
-import { redactUrlQuery } from '@flareapp/core';
+import { deviceInfoToAttributes, redactUrlQuery } from '@flareapp/core';
 
 import cookie from './cookie';
+import { browserDeviceInfoProvider } from './deviceInfo';
 import request from './request';
 
 export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): Attributes {
@@ -31,6 +32,9 @@ export function browserEntryPoint(config: Readonly<Config>, urlOverride?: URL): 
 
 export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attributes => {
     const attrs: Attributes = { ...browserEntryPoint(config) };
+
+    // Guards its own globals; returns nothing under SSR.
+    Object.assign(attrs, deviceInfoToAttributes(browserDeviceInfoProvider.collect()));
 
     // No window (SSR/node): browserEntryPoint already returned the entry point type on its own.
     // request()/cookie() below touch window unguarded, so stop here.

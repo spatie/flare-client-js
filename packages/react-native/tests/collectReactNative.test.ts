@@ -72,10 +72,10 @@ describe('React Native ContextCollector', () => {
         const device = collect(config)['context.device'] as Record<string, unknown>;
         expect(device).toBeTruthy();
         expect(device.OS).toBe('ios 17.0');
-        expect(device.screen).toBe('390 × 844 @ 3x');
+        expect(device.Screen).toBe('390 × 844 @ 3x');
         // Bare RN has no Expo: these keys are absent from the group.
-        expect('model' in device).toBe(false);
-        expect('appVersion' in device).toBe(false);
+        expect('Model' in device).toBe(false);
+        expect('App version' in device).toBe(false);
     });
 
     it('falls back to the native Android model when Expo is absent', () => {
@@ -86,7 +86,7 @@ describe('React Native ContextCollector', () => {
         const attrs = collect(config);
         expect(attrs['device.model.name']).toBe('Google Pixel 7');
         const device = attrs['context.device'] as Record<string, unknown>;
-        expect(device.model).toBe('Google Pixel 7');
+        expect(device.Model).toBe('Google Pixel 7');
     });
 
     it('does not invent a model on bare iOS (RN core exposes none)', () => {
@@ -94,7 +94,7 @@ describe('React Native ContextCollector', () => {
         const collect = makeReactNativeContextCollector({});
         const attrs = collect(config);
         expect('device.model.name' in attrs).toBe(false);
-        expect('model' in (attrs['context.device'] as Record<string, unknown>)).toBe(false);
+        expect('Model' in (attrs['context.device'] as Record<string, unknown>)).toBe(false);
     });
 
     it('context.device includes Expo model + app fields when present', () => {
@@ -103,9 +103,9 @@ describe('React Native ContextCollector', () => {
             application: { nativeApplicationVersion: '3.1.0', applicationId: 'io.flare.smoke' },
         });
         const device = collect(config)['context.device'] as Record<string, unknown>;
-        expect(device.model).toBe('iPhone 15');
+        expect(device.Model).toBe('iPhone 15');
         expect(device.OS).toBe('iOS 17.4');
-        expect(device.appVersion).toBe('3.1.0');
-        expect(device.appId).toBe('io.flare.smoke');
+        expect(device['App version']).toBe('3.1.0');
+        expect(device['App ID']).toBe('io.flare.smoke');
     });
 });

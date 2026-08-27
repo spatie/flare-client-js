@@ -6,6 +6,7 @@ import { frozenClock } from '@flareapp/test-helpers';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { Flare } from '../src';
+import { browserDeviceInfoProvider } from '../src/browser/context/deviceInfo';
 import { FakeApi } from './helpers';
 
 const FIXTURE_PATH = resolve(__dirname, 'fixtures/golden-report.json');
@@ -21,6 +22,9 @@ beforeEach(() => {
     frozenClock();
 
     vi.stubGlobal('navigator', { userAgent: 'GoldenAgent/1.0' });
+    // Device info is environment-specific (screen, timezone), so keep it out of the machine-independent
+    // golden report. The provider is covered on its own in deviceInfo.test.ts.
+    vi.spyOn(browserDeviceInfoProvider, 'collect').mockReturnValue({});
     Object.defineProperty(window.document, 'referrer', {
         configurable: true,
         get: () => 'https://example.com/from',

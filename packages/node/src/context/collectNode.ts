@@ -1,9 +1,10 @@
 import type { Attributes, Config, ContextCollector, EntryPointType } from '@flareapp/core';
-import { redactUrlQuery, urlAttributes } from '@flareapp/core';
+import { deviceInfoToAttributes, redactUrlQuery, urlAttributes } from '@flareapp/core';
 
 import type { AsyncLocalStorageScopeProvider } from '../scope/AsyncLocalStorageScopeProvider';
 import type { ResolvedNodeOptions } from '../types';
 import { captureBody } from './body';
+import { nodeDeviceInfoProvider } from './deviceInfo';
 import { findHeader, projectHeaders } from './headers';
 import { collectProcessAttributes } from './process';
 
@@ -27,10 +28,11 @@ export function makeNodeContextCollector(
     >,
 ): ContextCollector {
     return (config: Readonly<Config>): Attributes => {
-        // Always-on baseline: web entry point + Node runtime info.
+        // Always-on baseline: web entry point + Node host/runtime/device info.
         const attrs: Attributes = {
             'flare.entry_point.type': 'web' satisfies EntryPointType,
             ...collectProcessAttributes(),
+            ...deviceInfoToAttributes(nodeDeviceInfoProvider.collect()),
         };
 
         const scope = provider.active();
