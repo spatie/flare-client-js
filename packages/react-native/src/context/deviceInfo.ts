@@ -3,7 +3,7 @@ import { Dimensions, Platform } from 'react-native';
 
 import { type ExpoModules, expoToDeviceInfo, loadExpoModules } from './expo';
 
-/** Expo constants (resolved once) override the per-call RN-core `Platform`/`Dimensions` values. */
+// Expo constants (resolved once) override the per-call RN-core `Platform`/`Dimensions` values.
 export class ReactNativeDeviceInfoProvider implements DeviceInfoProvider {
     private readonly expoInfo: DeviceInfo;
 
@@ -39,7 +39,7 @@ export class ReactNativeDeviceInfoProvider implements DeviceInfoProvider {
     }
 }
 
-/** Android device model from `Platform.constants`, maker-prefixed (e.g. `Google Pixel 7`). iOS core exposes none. */
+// Android device model from `Platform.constants`, maker-prefixed (e.g. `Google Pixel 7`). iOS core exposes none.
 function nativeModelName(): string | undefined {
     if (Platform.OS !== 'android') {
         return undefined;

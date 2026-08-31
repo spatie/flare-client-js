@@ -13,16 +13,12 @@ function getErrorUtils(): ErrorUtilsLike | undefined {
     return (globalThis as { ErrorUtils?: ErrorUtilsLike }).ErrorUtils;
 }
 
-/**
- * Wraps RN's `ErrorUtils` global handler: observe, do not swallow. The wrapper reports and then delegates
- * to the previous handler, so RN's own behaviour (red box in dev, crash in prod) is preserved.
- *
- * `onFatal` exists because a production fatal tears the app down while our report is still an async fetch
- * the OS kills, so a bare report rarely sends. With it, the previous handler is deferred until the
- * transport drains. Skipped in `__DEV__` so it does not fight the red box, and it only runs for the
- * first fatal, so a second one mid-flush hands straight over instead of starting a second shutdown.
- * Mirrors Sentry's RN SDK.
- */
+// Wraps RN's `ErrorUtils` handler: reports the error, then delegates to the previous handler so RN's own
+// behavior (red box in dev, crash in prod) still happens.
+//
+// `onFatal` delays the previous handler until the transport drains, since a production fatal otherwise
+// tears the app down before the async report can send. Skipped in dev (would fight the red box); only
+// runs once so a second fatal mid-flush hands over immediately. Mirrors Sentry's RN SDK.
 export function installGlobalErrorHandler(
     report: (error: Error, isFatal: boolean) => void,
     onFatal?: () => Promise<void>,
@@ -47,9 +43,8 @@ export function installGlobalErrorHandler(
             void onFatal()
                 .catch(() => {})
                 .then(() => {
-                    // `handlingFatal` stays set while handing over. In production `previous` tears the app
-                    // down so it is never cleared; where `previous` does return, a fatal raised during it
-                    // hands over right away instead of starting a second flush cycle.
+                    // `previous` usually tears the app down, so this flag is never cleared. If it does
+                    // return, a fatal raised during handoff hands over immediately instead of restarting.
                     try {
                         previous?.(error, isFatal);
                     } finally {
@@ -65,8 +60,8 @@ export function installGlobalErrorHandler(
     errorUtils.setGlobalHandler(handler);
 
     return () => {
-        // No ErrorUtils API clears a handler, so with no previous one restore a swallowing no-op. RN always
-        // installs a default handler, so `previous` is effectively never undefined.
+        // No API clears a handler, so fall back to a no-op if there's no previous one. RN always installs
+        // a default handler, so this is mostly theoretical.
         errorUtils.setGlobalHandler(previous ?? (() => {}));
     };
 }

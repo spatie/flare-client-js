@@ -8,20 +8,18 @@ import { installRejectionTracking } from './handlers/rejectionTracking';
 import type { RejectionDeps } from './handlers/rejectionTracking';
 import { ReactNativeFlushScheduler } from './ReactNativeFlushScheduler';
 
-// `process.env.FLARE_JS_CLIENT_VERSION` is inlined at build time by tsdown's `--env` define. Keep it a
-// PLAIN member access: a `typeof process` guard (like node's) would defeat the inline, since RN has no
-// runtime `process`. Do NOT add a local `declare const process`; it shadows the global and stops the
-// define from matching, so the version never inlines. Under vitest (real node) it reads '?', fine for tests.
+// tsdown inlines `process.env.FLARE_JS_CLIENT_VERSION` at build time via a plain member access. Don't
+// guard it with `typeof process` or declare a local `process` — either breaks the inline since RN has no
+// runtime `process`. Under vitest it just reads '?'.
 const RN_SDK_NAME = '@flareapp/react-native';
 const RN_SDK_VERSION: string = (process.env.FLARE_JS_CLIENT_VERSION as string | undefined) ?? '?';
 
-/** How long a fatal JS crash holds the app open to drain the transport before RN's default handler runs. */
+// How long a fatal JS crash holds the app open to drain the transport before RN's default handler runs.
 const FATAL_FLUSH_TIMEOUT_MS = 2000;
 
 /**
- * The RN `Flare` singleton, exposed as `flare` from the package root. Uses `NullFileReader` because there
- * are no runtime snippets on a device (sourcemaps are a Metro follow-up) and `GlobalScopeProvider` because
- * RN has a single app scope.
+ * The RN `Flare` singleton, exposed as `flare`. Uses `NullFileReader` (no runtime snippets on device) and
+ * `GlobalScopeProvider` (RN has a single app scope).
  */
 export class ReactNativeFlare extends CoreFlare {
     private readonly scheduler: ReactNativeFlushScheduler;
@@ -40,8 +38,7 @@ export class ReactNativeFlare extends CoreFlare {
         this.scheduler = scheduler;
         this.rejectionDeps = rejectionDeps;
         this.setSdkInfo({ name: RN_SDK_NAME, version: RN_SDK_VERSION });
-        // Tag the framework identity proactively so it holds even when no
-        // FlareErrorBoundary is mounted to tag it (see setFramework below).
+        // Tag framework identity now so it's set even without a mounted FlareErrorBoundary (see setFramework below).
         this.setFramework({ name: FrameworkName.ReactNative });
     }
 
@@ -62,8 +59,7 @@ export class ReactNativeFlare extends CoreFlare {
 
     /** For tests and manual teardown. Clears the install guard, so a later `light()` re-installs. */
     removeHandlers(): void {
-        // Each one is guarded on its own: a teardown that throws must not leave the rest attached, nor
-        // leave the install guard set, which would block a re-install.
+        // Guard each teardown separately: one throwing must not skip the rest or block a re-install.
         for (const uninstall of this.uninstallers) {
             try {
                 uninstall();
@@ -81,8 +77,7 @@ export class ReactNativeFlare extends CoreFlare {
         }
         this.installed = true;
         this.uninstallers.push(
-            // `reportSilently`, not `report`: it swallows its own transport rejection, so a reporting
-            // failure cannot raise a second error from inside the global handler.
+            // `reportSilently`, not `report`: swallows its own rejection so it can't raise a second error here.
             installGlobalErrorHandler(
                 (error, isFatal) => {
                     this.reportSilently(error, { 'error.fatal': isFatal });
