@@ -6,18 +6,12 @@ import { hasSpanType, parentOf, spansOf, stringAttr, type OtlpSpan } from './otl
 const isComponent = (span: OtlpSpan, name: string): boolean =>
     hasSpanType(span, 'browser_component') && stringAttr(span, 'flare.component.name') === name;
 
-/**
- * Every component span captured so far. A commit records the whole profiled subtree at once, but the
- * spans can still straddle two flush envelopes, so collect across all of them rather than one.
- */
+// Every component span captured so far. A commit's spans can straddle two flush envelopes, so collect across all of them.
 export const componentSpans = async (fakeFlare: FakeFlare): Promise<OtlpSpan[]> =>
     (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson)).filter((s) => hasSpanType(s, 'browser_component'));
 
-/**
- * How many spans a component recorded across the whole run so far. `find`/`some` elsewhere in this
- * file only prove a span exists; this is the one that can catch a duplicate, e.g. a record-once guard
- * regressing under React StrictMode's double-invoked mount effect.
- */
+// How many spans a component recorded across the run. Unlike the `find`/`some` checks elsewhere here,
+// this can catch a duplicate, e.g. a record-once guard regressing under React StrictMode.
 export const componentSpanCount = async (fakeFlare: FakeFlare, name: string): Promise<number> =>
     (await componentSpans(fakeFlare)).filter((s) => isComponent(s, name)).length;
 
@@ -31,11 +25,8 @@ export const waitForComponentSpan = async (fakeFlare: FakeFlare, name: string): 
     return span!;
 };
 
-/**
- * `outer` is the outermost profiled component, so it is the only one whose parent is the root.
- * `inner` hangs off `outer`, not off the root: `resolveComponentParent` prefers the nearest live
- * ancestor marker (componentProfiler.ts:36-44).
- */
+// `outer` is the outermost profiled component, so its parent is the root. `inner` hangs off `outer`,
+// not the root: `resolveComponentParent` prefers the nearest live ancestor marker (componentProfiler.ts:36-44).
 export const assertComponentTree = async (
     page: Page,
     fakeFlare: FakeFlare,

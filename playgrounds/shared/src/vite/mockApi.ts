@@ -65,12 +65,10 @@ const route = async (req: IncomingMessage, url: URL): Promise<Handled | null> =>
     return null;
 };
 
-/**
- * Serves the playground catalog API in `vite dev` and `vite preview`. The routes exist so a page load
- * produces a trace waterfall with real, differently sized request spans under it. The SvelteKit
- * playground reaches the same handlers through its own `+server.ts` routes instead, because Kit owns
- * request handling there.
- */
+// Serves the playground catalog API in `vite dev` and `vite preview`. The routes exist so a page load
+// produces a trace waterfall with real, differently sized request spans under it. The SvelteKit
+// playground reaches the same handlers through its own `+server.ts` routes instead, because Kit owns
+// request handling there.
 export function mockApi(): Plugin {
     const middleware = (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void): void => {
         if (!req.url?.startsWith('/api/')) {

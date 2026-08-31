@@ -1,11 +1,8 @@
 import { expect, test } from '../fixtures/fake-flare';
 import type { FakeFlareRecord } from '../fixtures/fake-flare';
 
-// This suite runs only against a PRODUCTION build of the React playground
-// (E2E_PROD=1, served via `vite preview`). A development React build emits full
-// error messages, so the minified-error decode path can only be exercised here,
-// where react-dom throws a genuine "Minified React error #NNN; visit
-// https://react.dev/errors/NNN ..." for an internal invariant.
+// Runs only against a PRODUCTION build (E2E_PROD=1, via `vite preview`). A dev build emits full
+// error messages, so the minified-error decode path can only be exercised here.
 
 type MinifiedErrorField = {
     number?: unknown;
@@ -33,15 +30,13 @@ test.describe('react playground (production build)', () => {
 
         const minifiedError = minifiedErrorOf(report);
 
-        // The error originated from production react-dom, not an injected message:
-        // a positive error number and the canonical react.dev errors URL.
+        // Proves the error came from production react-dom, not an injected message.
         expect(typeof minifiedError?.number).toBe('number');
         expect(minifiedError?.number as number).toBeGreaterThan(0);
         expect(String(minifiedError?.url)).toMatch(/react\.dev\/errors\/\d+/);
         expect(Array.isArray(minifiedError?.args)).toBe(true);
 
-        // The running React version travels inside the field so the backend can pick
-        // the matching error-code map.
+        // The React version travels in the field so the backend can pick the matching error-code map.
         expect(typeof minifiedError?.react_version).toBe('string');
         expect(String(minifiedError?.react_version).length).toBeGreaterThan(0);
     });

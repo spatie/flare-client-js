@@ -4,15 +4,12 @@ const SAMPLE_PIXELS = 3000;
 const CLUSTERS = 5;
 const KMEANS_PASSES = 12;
 
-/**
- * Groups a photograph's colours into its dominant swatches, using k-means with random restarts and
- * keeping the tightest result.
- *
- * Deliberately slow: it keeps restarting until the time budget is gone, far past the point where the
- * result stops improving. This is the playground's one component that is expensive enough to read as
- * a wide bar in a component trace. Budgeted on the clock rather than on a pass count, so the span is
- * the same length on a throttled CPU as on a fast one.
- */
+// Groups a photograph's colours into dominant swatches, using k-means with random restarts and
+// keeping the tightest result.
+//
+// Deliberately slow: it keeps restarting until the time budget runs out, well past the point where
+// the result stops improving. This is the playground's one component slow enough to show as a wide
+// bar in a trace. Budgeted on the clock, not a pass count, so it takes the same time on any CPU.
 export function extractPalette(seed: string, budgetMs = 1500): Swatch[] {
     const random = mulberry32(hashSeed(seed));
     const pixels = samplePixels(random);
@@ -35,7 +32,7 @@ export function extractPalette(seed: string, budgetMs = 1500): Swatch[] {
 type Rgb = [number, number, number];
 type Clustering = { centroids: Rgb[]; counts: number[]; inertia: number };
 
-/** Deterministic PRNG, so the same photograph always produces the same palette. */
+// Deterministic PRNG, so the same photograph always produces the same palette.
 function mulberry32(seed: number): () => number {
     let state = seed;
     return () => {
@@ -54,7 +51,7 @@ function hashSeed(text: string): number {
     return hash >>> 0;
 }
 
-/** Pixels drawn around three base hues, which is roughly how a photograph's colours sit. */
+// Pixels drawn around three base hues, which is roughly how a photograph's colours sit.
 function samplePixels(random: () => number): Rgb[] {
     const baseHues = [random() * 360, random() * 360, random() * 360];
     const pixels: Rgb[] = [];

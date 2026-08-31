@@ -21,7 +21,7 @@ export function ofType(record: FakeFlareRecord, type: string): Breadcrumb[] {
     return eventsOf(record).filter((event) => event.type === type);
 }
 
-/** Waits for a report that already carries the breadcrumb we care about. */
+// Waits for a report that already carries the breadcrumb we care about.
 export function reportWith(fakeFlare: FakeFlare, type: string): Promise<FakeFlareRecord> {
     return fakeFlare.waitForReport({
         predicate: (record) => ofType(record, type).length > 0,

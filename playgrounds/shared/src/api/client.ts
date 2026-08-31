@@ -15,10 +15,8 @@ const postJson = <T>(url: string, body: unknown): Promise<T> =>
         body: JSON.stringify(body),
     }).then((response) => readJson<T>(response));
 
-/**
- * The catalog calls every playground page makes. Keeping them here means one set of URLs shows up in
- * the trace waterfall no matter which framework produced it.
- */
+// The catalog calls every playground page makes. Keeping them here means one set of URLs shows up in
+// the trace waterfall no matter which framework produced it.
 export const shopApi = {
     products: (): Promise<ApiProduct[]> =>
         fetch('/api/products')

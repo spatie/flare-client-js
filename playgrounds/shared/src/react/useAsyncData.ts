@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 
-/**
- * Loads page data from the mock catalog API. Deliberately a plain effect rather than a router loader,
- * so both React playgrounds fire their requests the same way and the React Router e2e suite keeps its
- * loader / loader-less navigation cases intact.
- */
+// Loads page data from the mock catalog API. Deliberately a plain effect rather than a router loader,
+// so both React playgrounds fire their requests the same way and the React Router e2e suite keeps its
+// loader / loader-less navigation cases intact.
 export const useAsyncData = <T>(load: () => Promise<T>, key: string): T | null => {
     const [data, setData] = useState<T | null>(null);
 

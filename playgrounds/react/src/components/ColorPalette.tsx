@@ -2,11 +2,8 @@ import { extractPalette } from '@flareapp/playgrounds-shared';
 import { withFlareProfiler } from '@flareapp/react/profiler';
 import { useMemo } from 'react';
 
-/**
- * The dominant colours of a print, extracted on the main thread while the component renders. That
- * blocking work is the point: this is the playground's example of a component slow enough to stand
- * out in a component trace. See extractPalette for the time budget.
- */
+// Extracts the print's dominant colours on the main thread while rendering — deliberately slow, as
+// this playground's example of a component visible in a trace. See extractPalette for the time budget.
 export const ColorPalette = withFlareProfiler(
     ({ unsplashId }: { unsplashId: string }) => {
         // Keyed on the photograph, so only the mount pays for it. That is the render the profiler

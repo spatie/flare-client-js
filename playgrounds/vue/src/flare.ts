@@ -18,10 +18,8 @@ export const initFlare = (): void => {
     }
 
     flare.configure({
-        // Logging is always on in the playground so the log buttons exercise the
-        // SDK even without a fake server (manual runs POST to the default ingest
-        // and fail like the error reports do). The fake-server logsIngestUrl
-        // override above only applies under e2e (VITE_FLARE_URL set).
+        // Logging stays on in the playground so the log buttons exercise the SDK even
+        // without a fake server. The logsIngestUrl override above only applies under e2e.
         enableLogs: true,
         enableTracing: true,
         enableBreadcrumbs: true,

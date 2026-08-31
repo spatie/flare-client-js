@@ -1,9 +1,8 @@
 export type LogLevel = 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
 
 // Structurally identical to @flareapp/core's `AttributeValue`, redefined here so
-// `playgrounds/shared` stays dependency-free. Because it is structurally the same,
-// `Record<string, LogAttributeValue>` is assignable to the SDK's `Attributes`, so
-// these attributes pass straight to `flare.logger.*` under strict TypeScript.
+// `playgrounds/shared` stays dependency-free. Because the shapes match, `Record<string,
+// LogAttributeValue>` is assignable to the SDK's `Attributes` under strict TypeScript.
 export type LogAttributeValue =
     | string
     | number

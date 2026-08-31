@@ -92,8 +92,7 @@ test.describe('js playground', () => {
         const [version, traceId, spanId, flags] = traceparents[0].split('-');
         expect(version).toBe('00');
         expect(flags).toMatch(/^0[01]$/);
-        // Stronger than the fetch assertion above: the header must identify the span we actually opened,
-        // not just be well formed.
+        // Stronger than the fetch assertion above: the header must identify the span we opened, not just be well formed.
         expect(traceId).toBe(xhrSpan!.traceId);
         expect(spanId).toBe(xhrSpan!.spanId);
     });
@@ -102,8 +101,8 @@ test.describe('js playground', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        // Positive control first: with sampling on, a navigation produces a root. Without this the
-        // assertion below could pass because tracing never worked at all.
+        // Positive control first: prove a navigation produces a root with sampling on, so the
+        // negative check below can't pass just because tracing never worked.
         await page.getByTestId(testIds.cartCount).click(); // pushState to /cart
         await fakeFlare.waitForTrace({
             timeout: 9000,
@@ -111,13 +110,12 @@ test.describe('js playground', () => {
                 spansOf(r.bodyJson).some((s) => hasSpanType(s, 'browser_navigation') && urlOf(s).includes('/cart')),
         });
 
-        // Clears the positive control's own envelope, plus any keepalive flush still in flight from a
-        // prior test's open root (e.g. the XHR traceparent test leaves /broken open on teardown). Without
-        // this, a late-arriving envelope from either source could land before the negative check below.
+        // Clears the positive control's envelope plus any keepalive flush still in flight from a prior
+        // test's open root, so a late-arriving envelope can't land before the negative check below.
         await fakeFlare.reset();
 
-        // configure() merges into the existing config and clamps the rate; it does not restart tracing,
-        // so the patches and listeners stay installed and only the sampler decision changes.
+        // configure() merges and clamps the rate without restarting tracing, so patches and listeners
+        // stay installed and only the sampler decision changes.
         await page.evaluate(() => (globalThis as { __flare?: any }).__flare.configure({ tracesSampleRate: 0 }));
 
         await page.getByRole('link', { name: 'Broken' }).click();
@@ -140,27 +138,24 @@ test.describe('js playground', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        // Don't race the pageload root's idle window (idleTimeout counts from Flare init,
-        // and goto + networkidle can eat all of it on a slow CI load). Instead start a
-        // fresh browser_navigation root: the History pushState patch opens it synchronously
-        // on the nav click, so the only gap before the fetch is one click to the next,
-        // between two elements that are already rendered.
+        // Don't race the pageload root's idle window — goto + networkidle can eat all of it on a slow
+        // CI load. Start a fresh browser_navigation root instead: the pushState patch opens it
+        // synchronously on the nav click, leaving only one click's gap before the fetch.
         await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
-        // Match on the URL, not just the type: the products page loads its catalog over the mock API,
-        // so a bare browser_fetch match can land on one of those pageload requests instead.
+        // Match on the URL, not just the type: the products page loads its own catalog over the mock
+        // API, so a bare browser_fetch match could land on one of those requests instead.
         const fetchSpan = await waitForSpan(
             fakeFlare,
             (span) => hasSpanType(span, 'browser_fetch') && urlOf(span).includes('/broken'),
         );
-        // The key assertion: the fetch is not its own root, it nests under the active root.
-        // Root spans always serialize parentSpanId as null; a nested span carries the parent's spanId.
+        // The key assertion: the fetch nests under the active root rather than being its own root.
+        // Root spans serialize parentSpanId as null; a nested span carries the parent's spanId.
         expect(fetchSpan.parentSpanId).toBeTruthy();
 
-        // And the parent is specifically the browser_navigation root of the same trace. The
-        // root only ends after its idle window, so it arrives in a later envelope than the
-        // fetch span (which the playground flushes eagerly); wait for it separately.
+        // The parent must be the browser_navigation root of the same trace. It only ends after its
+        // idle window, so it arrives in a later envelope than the eagerly-flushed fetch span.
         const rootTrace = await fakeFlare.waitForTrace({
             timeout: 9000,
             predicate: (r) =>
@@ -177,7 +172,7 @@ test.describe('js playground', () => {
     test('emits a browser_navigation root on in-app navigation', async ({ page, fakeFlare }) => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
-        // Click a data-link nav anchor (triggers history.pushState).
+        // Triggers history.pushState.
         await page.getByTestId('cart-count').click();
 
         await waitForSpanType(fakeFlare, 'browser_navigation');
@@ -210,8 +205,8 @@ test.describe('js playground', () => {
     }) => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
-        // Same navigation-first pattern as the nesting spec: guarantee the fetch is a
-        // child (roots carry entry-point context, which would defeat the lean assertions).
+        // Same navigation-first pattern as the nesting spec: guarantees the fetch is a child, since
+        // roots carry entry-point context that would defeat the lean assertions below.
         await page.getByRole('link', { name: 'Broken' }).click();
         await page.getByTestId('trace-fetch').click();
 
@@ -226,9 +221,8 @@ test.describe('js playground', () => {
             expect(attributeKeys(fetchSpan).some((key) => key.includes(leaked))).toBe(false);
         }
 
-        // resource has host.name (sourced stably, present even though children are lean). Find the
-        // envelope that carried fetchSpan rather than re-waiting: waitForSpanType already confirmed
-        // it landed, so it is in fakeFlare's history by now.
+        // resource has host.name even though children are lean. Find the envelope that carried
+        // fetchSpan rather than re-waiting: it's already in fakeFlare's history.
         const trace = (await fakeFlare.traces()).find((t) =>
             spansOf(t.bodyJson).some((s) => s.spanId === fetchSpan.spanId),
         )!;
@@ -274,9 +268,8 @@ test.describe('js logging', () => {
     test('a log too big for the keepalive budget still ships when the tab is hidden', async ({ page, fakeFlare }) => {
         await fakeFlare.reset();
 
-        // Lower the keepalive budget and buffer a record larger than it, so the hide flush can
-        // pack nothing. Retaining it would strand the record behind a timer that an unloading
-        // page never gets to fire, so it goes out as a plain request instead.
+        // Buffer a record bigger than the keepalive budget, so the hide flush can pack nothing and
+        // must send it as a plain request instead of stranding it behind a timer.
         const oversized = 'e2e-over-budget-' + 'x'.repeat(5000);
 
         await page.goto('/broken');
@@ -305,8 +298,7 @@ test.describe('js logging', () => {
         expect(await fakeFlare.logs()).toHaveLength(1);
     });
 
-    // Clicks and form changes are plain DOM listeners with nothing framework-specific in them, so they
-    // are covered once here rather than five times.
+    // Plain DOM listeners with nothing framework-specific, so covered once here rather than five times.
     test.describe('breadcrumbs', () => {
         test('a click is recorded by name, never by its text', async ({ page, fakeFlare }) => {
             await throwFrom(page, testIds.brokenTrigger('sync-throw'));
@@ -349,8 +341,7 @@ test.describe('js logging', () => {
             const fetches = ofType(report, 'browser_fetch');
             expect(fetches.length).toBeGreaterThan(0);
 
-            // The catalog page loads products with a GET and prices the cart with a POST, so assert
-            // the shape rather than one method.
+            // The catalog loads with GET and the cart prices with POST, so assert the shape, not one method.
             for (const request of fetches) {
                 expect(['GET', 'POST']).toContain(request.attributes['http.request.method']);
                 expect(request.attributes['http.response.status_code']).toBe(200);

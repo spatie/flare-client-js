@@ -15,11 +15,8 @@ export type ProductDetail = {
 
 export type CartLineInput = { productId: string; quantity: number };
 
-/**
- * `price` is not optional on purpose. The catalog contract promises it on every line, and the mock
- * pricing service still drops it for one product. That gap is what the checkout error demonstrates:
- * the type says the field is always there, the runtime data disagrees.
- */
+// `price` is not optional on purpose. The catalog contract promises it on every line, but the mock
+// pricing service drops it for one product — the type/runtime gap is what the checkout error shows.
 export type CartSummaryLine = {
     productId: string;
     title: string;

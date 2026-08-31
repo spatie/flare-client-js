@@ -10,19 +10,16 @@ export const initFlare = (): void => {
             ingestUrl: url,
             logsIngestUrl: url.replace('/v1/errors', '/v1/logs'),
             tracesIngestUrl: url.replace('/v1/errors', '/v1/traces'),
-            // e2e-only timing: keep the pageload/navigation root active long enough for a
-            // prompt Playwright click to land and nest under it, then flush an ended root
-            // fast so arrival assertions don't need to wait out the (5s) production default.
+            // e2e-only timing: keeps the pageload root open long enough for a Playwright
+            // click to nest under it, then flushes fast so tests don't wait out the 5s default.
             idleTimeout: 2000,
             spanFlushIntervalMs: 500,
         });
     }
 
     flare.configure({
-        // Logging is always on in the playground so the log buttons exercise the
-        // SDK even without a fake server (manual runs POST to the default ingest
-        // and fail like the error reports do). The fake-server logsIngestUrl
-        // override above only applies under e2e (VITE_FLARE_URL set).
+        // Logging stays on in the playground so the log buttons exercise the SDK even
+        // without a fake server. The logsIngestUrl override above only applies under e2e.
         enableLogs: true,
         enableTracing: true,
         enableBreadcrumbs: true,

@@ -8,16 +8,12 @@ import type {
     ProductDetail,
 } from './types';
 
-/**
- * The product whose price the mock pricing service drops. Adding it to the cart and checking out is
- * what produces the showcase TypeError. See playgrounds/SCREENSHOTS.md.
- */
+// The product whose price the mock pricing service drops. Adding it to the cart and checking out is
+// what produces the showcase TypeError. See playgrounds/SCREENSHOTS.md.
 export const PRICING_GAP_PRODUCT_ID = '7';
 
-/**
- * Per-route latency. Deliberately uneven so a trace waterfall shows bars of different widths instead
- * of a stack of identical stubs.
- */
+// Per-route latency. Deliberately uneven so a trace waterfall shows bars of different widths instead
+// of a stack of identical stubs.
 export const apiDelaysMs = {
     products: 180,
     product: 120,
@@ -54,7 +50,7 @@ export const getProduct = (id: string): ProductDetail | null => {
     };
 };
 
-/** Three other prints, picked deterministically so screenshots stay reproducible. */
+// Three other prints, picked deterministically so screenshots stay reproducible.
 export const getRecommendations = (excludeId?: string): { products: ApiProduct[] } => ({
     products: products
         .filter((product) => product.id !== excludeId)

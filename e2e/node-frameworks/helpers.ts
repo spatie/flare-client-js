@@ -13,7 +13,7 @@ const fakeBaseUrl = (): string => {
     return url;
 };
 
-/** Clear all captured reports on the fake server. */
+// Clear all captured reports on the fake server.
 export const resetReports = async (): Promise<void> => {
     const res = await fetch(`${fakeBaseUrl()}/__inspect/reset`, { method: 'POST' });
     if (!res.ok) {
@@ -21,7 +21,7 @@ export const resetReports = async (): Promise<void> => {
     }
 };
 
-/** Poll the fake server until a recorded report matches `predicate`, or time out. */
+// Poll the fake server until a recorded report matches `predicate`, or time out.
 export const waitForReport = async (
     predicate: (record: FakeFlareRecord) => boolean,
     timeout = 5000,
@@ -45,7 +45,7 @@ export const waitForReport = async (
     throw new Error(`waitForReport timed out after ${timeout}ms (${lastCount} reports captured)`);
 };
 
-/** Bind an http.Server to an ephemeral port and return its base URL. */
+// Bind an http.Server to an ephemeral port and return its base URL.
 export const listen = (server: Server): Promise<string> =>
     new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -55,20 +55,13 @@ export const listen = (server: Server): Promise<string> =>
         });
     });
 
-/**
- * Close a server and wait for it to fully release its handle. Matches the
- * repo's existing pattern (`packages/node/tests/integration.test.ts`):
- * `await new Promise((r) => server.close(() => r()))`.
- */
+// Close a server and wait for its handle to release, matching `packages/node/tests/integration.test.ts`.
 export const close = (server: Server): Promise<void> =>
     new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
     });
 
-/**
- * Point the shared `flare` singleton at the fake server and disable process
- * handlers so a framework-caught error never exits the test process.
- */
+// Point the shared `flare` singleton at the fake server, and disable process handlers so a framework-caught error can't exit the test process.
 export const setupFlare = (): void => {
     flare.configure({ ingestUrl: `${fakeBaseUrl()}/v1/errors` });
     flare.configureNode({ uncaughtExceptionMode: 'off', unhandledRejectionMode: 'off' });
@@ -76,13 +69,13 @@ export const setupFlare = (): void => {
     flare.light('node-frameworks-test');
 };
 
-/** Helper to read an attribute off a captured report. */
+// Read an attribute off a captured report.
 export const attr = (record: FakeFlareRecord, key: string): unknown => {
     const body = record.bodyJson as { attributes?: Record<string, unknown> } | null;
     return body?.attributes?.[key];
 };
 
-/** Predicate: report message equals `msg`. */
+// Predicate: report message equals `msg`.
 export const hasMessage =
     (msg: string) =>
     (record: FakeFlareRecord): boolean => {

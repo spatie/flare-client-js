@@ -4,9 +4,9 @@
     let { data } = $props();
     let result = $state<string>('idle');
 
-    // fetch-ok and xhr-ok take their id and label from the shared list so this list and the SPA
-    // playgrounds' can't drift apart. They still hit /api/echo, not httpScenarioUrl: this playground
-    // has a real server and keeps its own URLs so the 404/500 scenarios below can drive status codes.
+    // fetch-ok and xhr-ok take their id and label from the shared list so this list can't drift
+    // from the SPA playgrounds'. They still hit /api/echo, not httpScenarioUrl: this playground has
+    // a real server and needs its own URLs so the 404/500 scenarios below can drive status codes.
     const fetchOk = sameOriginHttpScenarios.find((scenario) => scenario.id === 'fetch-ok')!;
     const xhrOk = sameOriginHttpScenarios.find((scenario) => scenario.id === 'xhr-ok')!;
 
