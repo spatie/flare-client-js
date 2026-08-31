@@ -20,8 +20,7 @@ import {
 } from './expoTransforms';
 import { addUploadBuildPhase } from './expoXcode';
 
-// Resolve real install locations (correct under monorepo hoisting). Called during prebuild, never at
-// import time.
+// Resolve real install locations (correct under monorepo hoisting). Called during prebuild, never at import time.
 function packageDir(): string {
     return dirname(require.resolve('@flareapp/react-native-sourcemaps/package.json'));
 }
@@ -48,8 +47,8 @@ async function writeFlareConfigFiles(projectRoot: string, props: FlarePluginProp
     await fs.writeFile(gitignorePath, ensureGitignored(gitignore), 'utf8');
 }
 
-// flare.json must exist whichever platform builds. EAS prebuilds one platform at a time, so register
-// the write for both; it is idempotent (overwrites identical content).
+// flare.json must exist whichever platform builds. EAS prebuilds one platform at a time, so register the
+// write for both; it's idempotent (overwrites identical content).
 const withFlareConfigFiles: ConfigPlugin<FlarePluginProps> = (config, props) => {
     for (const platform of ['ios', 'android'] as const) {
         config = withDangerousMod(config, [
@@ -110,7 +109,7 @@ const withFlareSourcemaps: ConfigPlugin<FlarePluginProps | undefined> = (config,
 };
 
 // createRunOncePlugin dedupes a transitively-doubled application. Read name/version from our own
-// package.json; never throw at import if it is somehow unresolvable.
+// package.json, and never throw at import if it's somehow unresolvable.
 const pkg = ((): { name: string; version: string } => {
     try {
         return require('@flareapp/react-native-sourcemaps/package.json') as { name: string; version: string };

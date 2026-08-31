@@ -13,10 +13,8 @@ export type UploadSourcemapsOptions = {
     apiKey: string;
     /** Path to the composed `.map` file to upload. */
     sourcemap: string;
-    /**
-     * The `relative_filename` the backend matches against runtime stack frames.
-     * Defaults to the map's basename minus `.map` (e.g. `index.android.bundle`).
-     */
+    /** The `relative_filename` the backend matches against runtime stack frames. Defaults to the map's
+     *  basename minus `.map` (e.g. `index.android.bundle`). */
     bundleFilename?: string;
     /** Explicit version; otherwise resolved from env/package.json. */
     version?: string;

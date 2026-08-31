@@ -1,19 +1,18 @@
 export type FailureBannerInfo = {
     reason: string;
-    // Resolved values, interpolated into the recovery command the banner prints. Anything unset shows a
-    // labelled placeholder instead.
+    // Resolved values, interpolated into the recovery command the banner prints. Anything unset shows a labelled placeholder instead.
     sourcemap?: string;
     bundleFilename?: string;
     version?: string;
     apiKey?: string;
-    /** Only included in the recovery command when set, i.e. a custom endpoint. */
+    // Only included in the recovery command when set, i.e. a custom endpoint.
     apiEndpoint?: string;
 };
 
 const BORDER = '='.repeat(60);
 
-/** CI commonly archives build logs. A long key keeps a head/tail hint so it stays recognisable; a short
- *  one is masked completely. Never returns the key in full. */
+// CI commonly archives build logs. A long key keeps a head/tail hint so it stays recognizable; a short one
+// is masked completely. Never returns the key in full.
 export function maskApiKey(apiKey: string): string {
     if (apiKey.length <= 12) {
         return '*'.repeat(apiKey.length);
@@ -21,7 +20,7 @@ export function maskApiKey(apiKey: string): string {
     return `${apiKey.slice(0, 4)}${'*'.repeat(8)}${apiKey.slice(-4)}`;
 }
 
-/** Deliberately large: a one-line "failed to upload" is too easy to miss in a native build log. */
+// Deliberately large: a one-line "failed to upload" is too easy to miss in a native build log.
 export function formatFailureBanner(info: FailureBannerInfo): string {
     const sourcemap = info.sourcemap ?? '<path-to-map>';
     const bundleFilename = info.bundleFilename ?? '<bundle-filename>';
