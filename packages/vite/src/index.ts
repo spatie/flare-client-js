@@ -103,8 +103,8 @@ export default function flareSourcemaps({
                 const sourcemapPath = resolve(outputDir, fileName);
 
                 try {
-                    // SSR runtime frames are file:// paths, not web URLs, so the base prefix is
-                    // meaningless. Use the bundle-relative path for backend suffix-matching.
+                    // SSR runtime frames are file:// paths, not web URLs, so the base prefix is meaningless.
+                    // Use the bundle-relative path for backend suffix-matching.
                     const originalFile = isSsrBuild ? sourceFileName : `${resolvedBase}${sourceFileName}`;
 
                     sourcemaps.push({
