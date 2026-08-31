@@ -427,9 +427,8 @@ describe('flareReactErrorHandler', () => {
 
         test('resolves the instance once at creation, not per call', () => {
             const injected = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
-            // Probe resolution directly. A setFramework-based probe is masked by the per-instance
-            // WeakSet in tagReactFramework (same instance dedupes to one call either way), so it
-            // would pass even with the per-call bug.
+            // Probe resolution directly: a setFramework-based probe would pass even with a per-call
+            // bug, since tagReactFramework's per-instance WeakSet dedupes either way.
             const resolveSpy = vi.spyOn(resolveModule, 'resolveFlare');
             const handler = flareReactErrorHandler({ flare: injected });
             handler(new Error('a'), {});

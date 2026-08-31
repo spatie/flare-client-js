@@ -1,6 +1,5 @@
-// Electron-safe entry: no @flareapp/js root import. The navigation-source seam comes from
-// @flareapp/js/browser (side-effect-free). No runtime dependency on react-router either: the router
-// is consumed structurally (see ./vendor/reactRouterTypes).
+// Electron-safe entry: no @flareapp/js root import; the navigation-source seam is side-effect-free.
+// No runtime dependency on react-router either — the router is consumed structurally (see ./vendor/reactRouterTypes).
 import {
     insulate,
     instrumentOnce,
@@ -47,11 +46,9 @@ export function routeNameFromMatches(matches: ReactRouterMatchLike[] | undefined
 }
 
 /**
- * Trace a React Router v7 data router (createBrowserRouter / createHashRouter / createMemoryRouter):
- * name the browser_pageload root from the initial route, and open a parameterized, held
- * browser_navigation root per route change, named once the router settles. Returns a cleanup that
- * unsubscribes and unregisters. Safe to call before or after tracing is enabled; no-ops when off.
- * Calling it twice on the same router replaces the first instrumentation.
+ * Traces a React Router v7 data router: names the `browser_pageload` root from the initial route, then
+ * opens a held, parameterized `browser_navigation` root per route change once it settles. Safe to call
+ * before/after tracing is enabled, and to call twice (replaces the prior instrumentation).
  */
 export function traceReactRouter(router: ReactRouterLike): () => void {
     if (typeof router?.subscribe !== 'function') {
@@ -69,9 +66,8 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
         return routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
     }
 
-    // `createHref` is what puts the router's `basename` back on, and what turns a hash router's
-    // location into the `#`-prefixed URL the address bar actually shows. `location.pathname` has
-    // both stripped.
+    // `createHref` restores the router's `basename` and turns a hash router's location into the
+    // `#`-prefixed URL the address bar shows; `location.pathname` has both stripped.
     function hrefOf(loc: ReactRouterLocationLike): string | undefined {
         return resolveHref(() => router.createHref?.(loc), keyOf(loc));
     }
@@ -84,10 +80,9 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
     let inFlight = false;
     let lastLocationKey = keyOf(router.state.location);
 
-    // RR populates state.matches at router creation, before initialization completes, so the pageload
-    // can be named now rather than waiting on a subscribe fire. `sawInitialSettle` separately gates when
-    // changes start counting as navigations: RR never dispatches one before initialization and always
-    // notifies on completion, so the first `initialized` fire is the settle, never a navigation.
+    // RR populates state.matches at router creation, before init completes, so the pageload can be named
+    // now. `sawInitialSettle` then gates when changes start counting as navigations: RR always notifies
+    // on init completion, so the first `initialized` fire is the settle, never a navigation.
     try {
         if (router.state.matches.length > 0) {
             nav.setActiveRouteName(routeNameFor(router.state));
@@ -100,9 +95,8 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
     function onState(state: ReactRouterStateLike): void {
         // Until RR reports `initialized`, every fire belongs to the pageload root; open no navigation root.
         if (!sawInitialSettle) {
-            // Tracked on every fire, not only the ones that produce a name. A pre-init fire that lands
-            // unmatched would otherwise leave the key on the url the page started at, and the first idle
-            // fire afterwards would read as a location change and open a root for the same page.
+            // Tracked on every fire, not just ones that produce a name — otherwise an unmatched pre-init
+            // fire leaves the key on the starting url, and the next idle fire reads as a spurious change.
             lastLocationKey = keyOf(state.location);
             if (state.matches.length > 0) {
                 nav.setActiveRouteName(routeNameFor(state));
@@ -132,10 +126,9 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
             return;
         }
 
-        // A loader-less navigation never publishes a loading state (RR's handleLoaders returns early when
-        // nothing shouldLoad), so location and matches commit in one idle fire with no state transition to
-        // see. The changed location is the only signal. No hold: the normal idle lifecycle still catches
-        // fetches fired from effects.
+        // A loader-less navigation never publishes a loading state, so location and matches commit in one
+        // idle fire — the changed location is the only signal. No hold needed: normal idle handling still
+        // catches fetches fired from effects.
         if (!inFlight && navState === 'idle') {
             const locationKey = keyOf(state.location);
             if (locationKey !== lastLocationKey) {

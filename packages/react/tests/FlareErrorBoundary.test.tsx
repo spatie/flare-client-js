@@ -522,9 +522,8 @@ describe('FlareErrorBoundary', () => {
     });
 
     test('resolves the flare prop ONCE at construction; a later prop change is ignored', () => {
-        // Documents the resolve-once contract: the instance is resolved at construction and cached
-        // for the boundary's lifetime, so swapping the `flare` prop on a mounted boundary has no
-        // effect. (`flare` is meant to be a stable singleton, not a per-render value.)
+        // Resolve-once contract: the instance is fixed at construction, so swapping the `flare` prop
+        // on a mounted boundary has no effect. `flare` is meant to be a stable singleton.
         const first = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
         const second = { reportSilently: vi.fn(), setFramework: vi.fn(), setSdkInfo: vi.fn() } as any;
         testError = new Error('boom');
@@ -582,9 +581,8 @@ describe('FlareErrorBoundary', () => {
             expect((attributes['context.custom'] as any).react).not.toHaveProperty('minifiedError');
         });
 
-        // The unstrippability property: a hook that returns a brand-new context object (a normal way
-        // to scrub a component stack) must NOT be able to drop the internal decode field, because it
-        // is parsed from the original error at report time, not carried inside the context.
+        // A hook returning a brand-new context object (normal way to scrub a component stack) must not
+        // be able to drop the internal decode field — it's parsed from the error, not carried in context.
         test('still emits the field when beforeSubmit returns a fresh context literal that omits it', () => {
             testError = new Error(
                 'Minified React error #418; visit https://react.dev/errors/418?args[]=Foo for the full message',

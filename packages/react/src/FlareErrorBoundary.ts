@@ -34,9 +34,8 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
     constructor(props: FlareErrorBoundaryProps) {
         super(props);
-        // Resolve once at construction, not per error; throws if no instance and no registered
-        // default. Cached per boundary instance for its lifetime: changing the `flare` prop on a
-        // mounted boundary has no effect. `flare` is expected to be a stable singleton.
+        // Resolved once at construction (throws if no instance/default is registered) and cached for the
+        // boundary's lifetime — changing the `flare` prop later on a mounted boundary has no effect.
         this.flare = resolveFlare(props.flare);
         tagReactFramework(this.flare);
     }
@@ -66,9 +65,8 @@ export class FlareErrorBoundary extends Component<FlareErrorBoundaryProps, Flare
 
         this.setState({ componentStack: finalContext.react.componentStack });
 
-        // Parse the minified error after beforeSubmit: it is an internal protocol field the backend
-        // needs, so a hook must not be able to change it. reportSilently swallows the rejection, so a
-        // transport failure cannot bubble into a second render error.
+        // Parsed after beforeSubmit so a hook can't alter this internal protocol field. reportSilently
+        // swallows the rejection so a transport failure can't trigger a second render error.
         this.flare.reportSilently(error, contextToAttributes(finalContext, parseMinifiedReactError(error)));
 
         this.props.afterSubmit?.({

@@ -1,12 +1,9 @@
 import { CHROMIUM_STACK_REGEX, FIREFOX_SAFARI_STACK_REGEX, REACT_LEGACY_STACK_REGEX } from './constants';
 import { ComponentStackFrame } from './types';
 
-/**
- * Parse React's newline-separated `errorInfo.componentStack` into structured frames so the Flare UI
- * can render file/line links. The line format is browser-native in React 19 (Chromium / Firefox /
- * Safari shapes) and React-synthetic in 16-18 (`in X (at File:line)`). Unrecognised lines fall back
- * to component-name-only rather than being dropped.
- */
+// Parses React's newline-separated `errorInfo.componentStack` into structured frames for file/line
+// links. React 19 uses browser-native stack formats; 16-18 uses its own synthetic format. Unrecognized
+// lines fall back to component-name-only instead of being dropped.
 export function parseComponentStack(stack: string): ComponentStackFrame[] {
     return stack
         .split(/\s*\n\s*/g)
@@ -34,9 +31,8 @@ export function parseComponentStack(stack: string): ComponentStackFrame[] {
                 };
             }
 
-            // React 16/17/18 synthetic format: `in ComponentName (at App.jsx:10)`, column optional,
-            // source optional. These lines start with `in ` and contain `(at `, so neither the
-            // Chromium (`at ...`) nor the Firefox/Safari (`...@...`) branch above matches them.
+            // React 16/17/18 synthetic format: `in ComponentName (at App.jsx:10)`, column/source optional.
+            // Distinct enough (`in ` + `(at `) that neither branch above matches it.
             const reactLegacyMatch = line.match(REACT_LEGACY_STACK_REGEX);
 
             if (reactLegacyMatch) {

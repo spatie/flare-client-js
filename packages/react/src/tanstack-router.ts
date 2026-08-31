@@ -1,6 +1,5 @@
-// Electron-safe entry: no @flareapp/js root import. The navigation-source seam
-// comes from @flareapp/js/browser (side-effect-free). No runtime dependency on
-// @tanstack/react-router either: the router is consumed structurally (see ./vendor).
+// Electron-safe entry: no @flareapp/js root import; the navigation-source seam is side-effect-free.
+// No runtime dependency on @tanstack/react-router either — the router is consumed structurally (see ./vendor).
 import {
     insulate,
     instrumentOnce,
@@ -13,19 +12,14 @@ import {
 
 import type { TanStackLocationLike, TanStackNavEventLike, TanStackRouterLike } from './vendor/tanstackRouterTypes';
 
-/**
- * How long a held navigation root waits for `onResolved` before settling itself. Exported so the suite
- * drives it instead of hardcoding the number; not part of the supported surface.
- */
+// How long a held navigation root waits for `onResolved` before settling itself. Exported so the suite
+// drives it instead of hardcoding the number; not part of the supported surface.
 export const STALE_NAVIGATION_TIMEOUT_MS = 5_000;
 
 /**
- * Trace a TanStack Router instance: name the `browser_pageload` root from the
- * initial route and open a parameterized `browser_navigation` root per route
- * change. Returns a cleanup that unsubscribes and unregisters. Safe to call
- * before or after tracing is enabled; no-ops when tracing is off. Calling it
- * twice on the same router replaces the first instrumentation rather than
- * stacking a second set of subscriptions.
+ * Traces a TanStack Router instance: names the `browser_pageload` root from the initial route, then
+ * opens a parameterized `browser_navigation` root per route change. Safe to call before/after tracing
+ * is enabled, and to call twice (replaces the prior instrumentation instead of stacking subscriptions).
  */
 export function traceTanStackRouter(router: TanStackRouterLike): () => void {
     if (typeof router?.subscribe !== 'function') {
@@ -39,9 +33,8 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
 
-    // `publicHref` is the one that matches the address bar: a `basepath` is applied as a rewrite, so
-    // an app served from `/app/` has it stripped from `href` but kept on `publicHref`. Falling back
-    // to `href` costs the basepath, which is what we reported before, so it never makes things worse.
+    // `publicHref` matches the address bar; `basepath` is a rewrite, so it's stripped from `href` but
+    // kept on `publicHref`. Falling back to `href` just costs the basepath, same as before this existed.
     function hrefOf(loc: TanStackLocationLike): string | undefined {
         return resolveHref(() => loc.publicHref ?? loc.href, loc.pathname);
     }
@@ -70,9 +63,8 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
         // never break the host on wiring
     }
 
-    // onBeforeLoad comes from router-core, but onResolved is emitted only from React's Transitioner
-    // layout effect. A RouterProvider unmounted mid-navigation therefore never releases the hold, so
-    // recover on a timer rather than letting the root sit suppressed until the 30s finalTimeout.
+    // onResolved fires only from React's Transitioner layout effect, so an unmounted-mid-navigation
+    // RouterProvider never releases the hold. Recover on a timer instead of waiting for the 30s finalTimeout.
     let inFlight = false;
     let destination: TanStackLocationLike | null = null;
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,9 +83,8 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
         nav.settleNavigation(routeNameFor(location));
     }
 
-    // Every subscription is tracked as it registers: subscribe() itself can throw (a hostile or
-    // misbehaving router), and instrumentOnce then unwinds the one that already succeeded, plus this
-    // timer, instead of leaking them.
+    // Tracked as each subscription registers: subscribe() can throw (a hostile router), and
+    // instrumentOnce then unwinds whatever already succeeded, plus this timer, instead of leaking them.
     track(clearStaleTimer);
 
     track(
@@ -114,9 +105,8 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
                 }
                 if (!inFlight) {
                     inFlight = true;
-                    // Held: the route's components mount after onResolved, and a cached or code-split route
-                    // can produce no child span at all, so the idle window would close the root at its own
-                    // start and drop every one of those spans.
+                    // Held: components mount after onResolved, and a cached or code-split route can
+                    // produce no child span at all — an idle window would close the root immediately and drop those spans.
                     nav.startNavigation({ path: event.toLocation.pathname, hold: true });
                 }
                 destination = event.toLocation;

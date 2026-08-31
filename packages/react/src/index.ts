@@ -3,9 +3,8 @@ import { flare } from '@flareapp/js';
 import { registerReactSdkIdentity } from './identify';
 import { registerDefaultFlare } from './resolveFlare';
 
-// Web entry side effects: the js-root singleton is both the default Flare for no-prop usage and the
-// identity target. Importing @flareapp/js here also runs the root's own side effects (window.flare +
-// global catch), which is correct for the web.
+// Web entry: the js-root singleton is both the default Flare (no-prop usage) and the identity target.
+// Importing @flareapp/js here also triggers its own side effects (window.flare + global catch).
 registerDefaultFlare(() => flare);
 registerReactSdkIdentity(flare);
 
