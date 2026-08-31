@@ -21,12 +21,12 @@ beforeEach(() => {
     fake.reset();
 });
 
-/** The mixin, built for one allowlist. Pass it to `mount`'s `global.mixins`. */
+// The mixin, built for one allowlist. Pass it to `mount`'s `global.mixins`.
 function profiler(option: ProfileComponentsOption) {
     return createComponentProfilerMixin(createComponentMatcher(option));
 }
 
-/** Mount `component` with the profiler mixin installed for `option`. */
+// Mount `component` with the profiler mixin installed for `option`.
 function mountProfiled(component: Component, option: ProfileComponentsOption) {
     return mount(component, { global: { mixins: [profiler(option)] } });
 }
@@ -115,9 +115,9 @@ describe('nesting', () => {
     });
 
     it('encloses a synchronous descendant in time, not only by parent id', () => {
-        // The other tests here pin the tree by parent id. This one pins the half that makes the
-        // waterfall render as a tree: beforeMount top-down puts the ancestor's start first, mounted
-        // bottom-up puts its end last.
+        // Other tests here pin the tree by parent id. This one pins the half that makes the waterfall
+        // render as a tree: beforeMount top-down puts the ancestor's start first, mounted bottom-up
+        // puts its end last.
         fake.advanceClock();
 
         mountProfiled(Layout, ['Layout', 'Gallery']);
@@ -128,9 +128,9 @@ describe('nesting', () => {
         expect(layout.endTimeUnixNano).toBeGreaterThan(gallery.endTimeUnixNano);
     });
 
-    // A component with an async setup() is not part of its ancestor's mounted contract, so the ancestor
-    // records first and the child's span starts after the parent's ended. This is the exact inverse of
-    // the sync-tree assertion above, and it is the reason that one says "synchronous".
+    // An async setup() child isn't part of its ancestor's mounted contract, so the ancestor records
+    // first and the child's span starts after the parent's ended — the inverse of the sync-tree
+    // assertion above, which is why that one says "synchronous".
     it('records an async setup() child after its ancestor has already ended', async () => {
         fake.advanceClock();
 

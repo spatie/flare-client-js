@@ -20,8 +20,8 @@ type PendingSpan = { name: string; spanId: string; startNano: number; parent: Co
 type ProfileState = { marker: ComponentTraceContext; pending: PendingSpan | null };
 type ProfiledInstance = ComponentInternalInstance & { [PROFILE]?: ProfileState };
 
-/** Only matched components store a marker, so unmatched ones, and functional components, which get
- *  no lifecycle hooks at all, need no code of their own. */
+// Only matched components store a marker. Unmatched and functional components (no lifecycle
+// hooks at all) need no code of their own.
 function nearestMarker(instance: ComponentInternalInstance): ComponentTraceContext | null {
     for (let node = instance.parent; node; node = node.parent) {
         const state = (node as ProfiledInstance)[PROFILE];
@@ -32,14 +32,13 @@ function nearestMarker(instance: ComponentInternalInstance): ComponentTraceConte
     return null;
 }
 
-/**
- * Record one `browser_component` span per matched component mount. `beforeMount` reserves the span id
- * and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted` bottom-up,
- * so a parent's span encloses its SYNCHRONOUS descendants in time. Async components and anything under
- * `<Suspense>` are outside that contract: their span can start after the parent's ended, or be dropped
- * entirely when the root closed in the meantime. Nesting by parent id holds while the trace is the
- * same; a trace change re-homes a descendant to the live root instead of its dead-trace ancestor.
- */
+// Records one `browser_component` span per matched component mount. `beforeMount` reserves the span
+// id and captures the start; `mounted` records it. Vue runs `beforeMount` top-down and `mounted`
+// bottom-up, so a parent's span encloses its synchronous descendants in time.
+//
+// Async components and anything under `<Suspense>` break that contract: their span can start after
+// the parent's ended, or get dropped if the root closed first. Nesting by parent id only holds while
+// the trace stays the same; a trace change re-homes a descendant to the live root instead.
 export function createComponentProfilerMixin(matches: (name: string) => boolean): ComponentOptions {
     return {
         beforeMount(this: ComponentPublicInstance) {

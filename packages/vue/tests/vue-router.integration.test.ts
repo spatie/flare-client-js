@@ -41,9 +41,9 @@ beforeEach(() => {
     nav.unregister.mockClear();
 });
 
-// Every RouteName carries the destination url so the root's url.full follows a redirect to its
-// final target instead of keeping the URL the navigation opened with. These routers have no base
-// path, so the url is just origin + path. The two suites below cover the routers that do.
+// RouteName carries the destination url, so url.full follows a redirect to its final target instead
+// of the URL the nav opened with. These routers have no base path, so url = origin + path. The two
+// suites below cover the routers that do.
 const u = (path: string): string => `${window.location.origin}${path}`;
 
 describe('traceVueRouter against a real vue-router', () => {
@@ -160,8 +160,8 @@ describe('traceVueRouter against a real vue-router', () => {
         await router.push('/cart');
         nav.startNavigation.mockClear();
         // force: true re-runs guards for the same location, so beforeEach DOES fire with
-        // to.fullPath === from.fullPath — the same-location skip must suppress it (distinct from the
-        // plain-duplicate case above, which never reaches beforeEach at all).
+        // to.fullPath === from.fullPath. The same-location skip must suppress it — unlike the
+        // plain-duplicate case above, which never reaches beforeEach at all.
         await router.push({ path: '/cart', force: true });
         expect(nav.startNavigation).not.toHaveBeenCalled();
     });
@@ -208,9 +208,9 @@ describe('traceVueRouter against a real vue-router', () => {
     });
 });
 
-// vue-router reports `fullPath` with the app's base path and `#` prefix taken off, so building the
-// url as origin + fullPath gives an address the server does not have. The url must match the
-// address bar, because it is what a user pastes into a browser to reach the page the span reports.
+// vue-router reports `fullPath` with the base path and `#` prefix stripped, so origin + fullPath
+// gives an address the server doesn't have. The url must match the address bar — what a user
+// pastes in to reach the page the span reports.
 describe('traceVueRouter url.full follows the router history', () => {
     it('keeps the base path an app is served from', async () => {
         window.history.replaceState({}, '', '/app/');
@@ -255,9 +255,9 @@ describe('traceVueRouter url.full follows the router history', () => {
         });
     });
 
-    // The pageload root opens with no url of its own, so url.full starts out as the live
+    // The pageload root opens with no url of its own, so url.full starts as the live
     // window.location.href, which is already correct. Naming it must not replace that with a
-    // reconstruction that has the base path missing.
+    // reconstruction that's missing the base path.
     it('does not damage the pageload root of a base-path app', async () => {
         window.history.replaceState({}, '', '/app/product/p01');
         const router = createRouter({

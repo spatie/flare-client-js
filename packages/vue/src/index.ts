@@ -2,9 +2,9 @@ import { flare } from '@flareapp/js';
 
 import { registerDefaultFlare } from './resolveFlare';
 
-// Web entry: the js-root singleton is the default Flare for no-prop/no-option usage. Importing
-// @flareapp/js here also runs the root's own side effects (window.flare + global catch), correct for
-// the web. Identity is set at install/setup time (needs app.version), not here.
+// Web entry: the js-root singleton is the default Flare when no flare prop/option is passed.
+// Importing @flareapp/js here also triggers its side effects (window.flare + global catch).
+// Identity is set at install/setup time instead, since that needs app.version.
 registerDefaultFlare(() => flare);
 
 export { FlareErrorBoundary } from './FlareErrorBoundary';

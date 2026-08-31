@@ -2,9 +2,9 @@ import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { createApp, h } from 'vue';
 
-// This file registers no resolveFlare default (it never imports the web entry). Vitest isolates the
-// module registry per file, so resolveFlare's defaultProvider stays null, which is what lets the
-// "throws without an instance" assertions hold.
+// This file never imports the web entry, so it registers no resolveFlare default. Vitest isolates
+// the module registry per file, so defaultProvider stays null, letting the "throws without an
+// instance" assertions hold.
 
 describe('@flareapp/vue/inject entry', () => {
     beforeEach(() => {
@@ -45,10 +45,10 @@ describe('@flareapp/vue/inject entry', () => {
         const { flareVue } = await import('../src/inject');
         const app = createApp({ render: () => null });
 
-        // Call the plugin function directly (not via app.use) to verify our installedApps ordering
-        // in isolation. This doesn't reflect the public `app.use` path: Vue adds the plugin to its
-        // own installed-set before invoking install, so a failed `app.use(flareVue)` can't be
-        // retried on the same app regardless of our ordering. First call has no instance -> throws.
+        // Calls the plugin directly (not via app.use) to test installedApps ordering in isolation —
+        // not the public app.use path, since Vue marks its plugin installed before calling install,
+        // so a failed app.use(flareVue) can't be retried regardless of our ordering. First call has
+        // no instance, so it throws.
         expect(() => (flareVue as any)(app, undefined)).toThrow(/No Flare instance available/);
 
         // Retry with a valid instance must install: the failed attempt must not have added the app

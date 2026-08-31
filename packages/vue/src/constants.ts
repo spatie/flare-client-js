@@ -4,7 +4,7 @@ import type { ErrorOrigin } from './types';
 
 declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
 
-/** Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version). */
+// Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version).
 export const PACKAGE_VERSION =
     typeof process !== 'undefined' && typeof process.env?.PACKAGE_VERSION !== 'undefined'
         ? process.env.PACKAGE_VERSION

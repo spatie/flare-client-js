@@ -62,8 +62,8 @@ beforeEach(() => {
     registerNavigationSource.mockClear();
 });
 
-// Every RouteName now carries the destination url so the root's url.full follows a redirect hop to
-// its final target instead of keeping the URL the navigation opened with. Same-origin SPA: origin + fullPath.
+// RouteName carries the destination url, so url.full follows a redirect to its final target instead
+// of the URL the navigation opened with. Same-origin SPA: origin + fullPath.
 const u = (path: string): string => `${window.location.origin}${path}`;
 
 describe('traceVueRouter edge cases', () => {

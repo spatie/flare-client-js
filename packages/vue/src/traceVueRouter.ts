@@ -12,8 +12,8 @@ import type { NavigationFailureLike, VueRouteLocationLike, VueRouterLike } from 
 
 const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED: a newer nav superseded this one
 
-/** Internal, wired through `flareVue({ router })`. Opens a held navigation root per route change,
- *  settled when the navigation confirms. */
+// Internal, wired through `flareVue({ router })`. Opens a held navigation root per route change,
+// settled when the navigation confirms.
 export function traceVueRouter(router: unknown): () => void {
     if (!isVueRouter(router)) {
         return () => {};
@@ -22,7 +22,7 @@ export function traceVueRouter(router: unknown): () => void {
     return instrumentOnce(router, (track) => install(router, track));
 }
 
-/** Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional. */
+// Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional.
 function isVueRouter(router: unknown): router is VueRouterLike {
     if (typeof router !== 'object' || router === null) {
         return false;
@@ -37,18 +37,16 @@ function isVueRouter(router: unknown): router is VueRouterLike {
 
 function install(router: VueRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
-    // Tracked first so it unwinds last: releasing the hold has to happen once no guard can open a
-    // new root. Everything after it is tracked as it registers, so a throw from the next registration
-    // tears down the ones already attached instead of leaking them.
+    // Tracked first so it unwinds last — releasing the hold must happen once no guard can open a new
+    // root. Later registrations track as they happen, so a throw tears down what's already attached.
     track(() => nav.unregister());
 
     function routeNameFor(loc: VueRouteLocationLike): RouteName {
         return routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
     }
 
-    // `resolve` is what puts the app's base path or `#` prefix back on: `fullPath` has them
-    // stripped, so an app served from `/app/` would report `/product/p01` for the real
-    // `/app/product/p01`.
+    // `resolve` restores the app's base path or `#` prefix, which `fullPath` strips. Without it, an
+    // app served from `/app/` would report `/product/p01` instead of the real `/app/product/p01`.
     function hrefOf(loc: VueRouteLocationLike): string | undefined {
         const path = loc.fullPath ?? loc.path;
         if (!path) {
@@ -86,10 +84,9 @@ function install(router: VueRouterLike, track: TrackTeardown): void {
                     return;
                 }
 
-                // Only a `force: true` re-navigation reaches beforeEach with to.fullPath === from.fullPath: a
-                // plain duplicate nav is stopped before the guards run and shows up only as an afterEach
-                // failure (type 16, dropped by the !inFlight guard there). Skip it so a same-URL refresh opens
-                // no navigation root.
+                // Only a `force: true` re-navigation reaches beforeEach with to.fullPath === from.fullPath. A
+                // plain duplicate nav is stopped earlier and shows up only as an afterEach failure (type 16,
+                // dropped by the !inFlight guard there). Skip it so a same-URL refresh opens no navigation root.
                 if (to.fullPath && from?.fullPath && to.fullPath === from.fullPath) {
                     return;
                 }
@@ -124,10 +121,10 @@ function install(router: VueRouterLike, track: TrackTeardown): void {
                     return;
                 }
 
-                // A redirect never reaches afterEach (vue-router starts a new navigation instead), so a failure
-                // here is the end of the road. `cancelled` (a newer nav replaced this one) keeps the held root
-                // for that newer nav's afterEach; `aborted` / `duplicated` / unknown release it to the current
-                // location, so a blocked navigation can't leave a root held open until the finalTimeout backstop.
+                // A redirect never reaches afterEach (vue-router starts a new navigation instead), so a
+                // failure here is final. `cancelled` (a newer nav replaced this one) keeps the held root for
+                // that nav's afterEach; other failures release it, so a blocked nav doesn't stay held until
+                // the finalTimeout backstop.
                 if (failure.type === NAVIGATION_CANCELLED) {
                     return;
                 }

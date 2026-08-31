@@ -7,10 +7,8 @@ import {
     MAX_PROP_STRING_LENGTH,
 } from './constants';
 
-/**
- * JSON-safe, redacted, size-bounded copy of a Vue component's props for the report payload. Delegates
- * to core safeClone (display mode) so the cycle / BigInt / throwing-getter safety is shared with core.
- */
+// JSON-safe, redacted, size-bounded copy of a Vue component's props for the report payload. Delegates
+// to core safeClone (display mode) so the cycle / BigInt / throwing-getter safety is shared with core.
 export function serializeProps(
     value: Record<string, unknown>,
     maxDepth: number,
