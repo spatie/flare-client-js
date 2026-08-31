@@ -1,6 +1,6 @@
 import type { Attributes } from '@flareapp/core';
 
-/** Case-insensitive. An array value collapses to its first element; callers here want a single value. */
+// Case-insensitive. An array value collapses to its first element; callers here want a single value.
 export function findHeader(
     headers: Record<string, string | string[] | undefined> | undefined,
     name: string,
@@ -21,11 +21,11 @@ export function findHeader(
     return undefined;
 }
 
-/** The `^` and `$` matter: without them, `cookie` would also match a header like `X-Some-Cookie-Hint`. */
+// The `^` and `$` matter: without them, `cookie` would also match a header like `X-Some-Cookie-Hint`.
 export const DEFAULT_HEADER_DENYLIST =
     /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-csrf-token|x-xsrf-token|x-auth-token|forwarded|x-forwarded-(?:for|user))$/i;
 
-/** `g`/`y` are stripped from a custom pattern: those carry lastIndex, which makes `.test()` stateful. */
+// `g`/`y` are stripped from a custom pattern: those carry lastIndex, which makes `.test()` stateful.
 export function resolveHeaderDenylist(custom?: RegExp, replaceDefault = false): RegExp {
     if (!custom) {
         return DEFAULT_HEADER_DENYLIST;
@@ -36,12 +36,8 @@ export function resolveHeaderDenylist(custom?: RegExp, replaceDefault = false): 
     return new RegExp(`(?:${DEFAULT_HEADER_DENYLIST.source})|(?:${custom.source})`, 'i');
 }
 
-/**
- * Turns headers into `http.request.header.<name>` attributes. The two lists differ on purpose: an
- * allowlist drops a header entirely, for apps that may only send named headers, while the denylist
- * keeps the name and replaces the value, so you can still see the header was there. `undefined` is
- * how `node:http` says "not sent", so those are dropped.
- */
+// Turns headers into `http.request.header.<name>` attributes. An allowlist drops a header entirely, while
+// a denylist keeps the name but redacts the value. `undefined` means "not sent" in node:http, so skipped.
 export function projectHeaders(
     headers: Record<string, string | string[] | undefined> | undefined,
     options: { headerDenylist: RegExp; headerAllowlist: RegExp | null },
