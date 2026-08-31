@@ -11,7 +11,7 @@ import { BrowserSpanType } from '../src/tracing/spanTypes';
 import { resetWebVitalsForTests, startWebVitals } from '../src/tracing/vitals';
 import { FakeApi } from './helpers';
 
-/** OTLP KeyValue array back to a plain lookup. */
+// OTLP KeyValue array back to a plain lookup.
 function attrs(span: OtelSpan): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const kv of span.attributes) {
@@ -24,10 +24,8 @@ function flushed(api: FakeApi): OtelSpan[] {
     return api.traceEnvelopes.flatMap((e) => e.resourceSpans[0].scopeSpans[0].spans);
 }
 
-/** Real vitals never fire under jsdom. Wires fake subscribers the same way browserTracing.test.ts does,
- *  after clearing the latch that configure() already set with the real observers, then reports one LCP
- *  value so buildVitalsSpan has something to build from. LCP specifically: it is never taken by the
- *  pageload root's early stamp, so it is guaranteed to still be there for the late span. */
+// Real vitals never fire under jsdom, so this wires fake subscribers, like browserTracing.test.ts does.
+// Reports one LCP value: the pageload root's early stamp never takes LCP, so it stays for the late span.
 function recordLcp(value: number): void {
     resetWebVitalsForTests();
     let reportLcp: ((metric: { value: number }) => void) | undefined;
@@ -62,7 +60,7 @@ describe('Flare browser tracing wiring', () => {
         expect(flare.tracer.getActiveSpan()).toBeUndefined();
 
         flare.configure({ enableTracing: true });
-        expect(flare.tracer.getActiveSpan()).toBeDefined(); // pageload root is the active root
+        expect(flare.tracer.getActiveSpan()).toBeDefined();
 
         flare.configure({ enableTracing: false });
         expect(flare.tracer.getActiveSpan()).toBeUndefined();
@@ -75,7 +73,7 @@ describe('Flare browser tracing wiring', () => {
 
         window.dispatchEvent(new Event('pagehide'));
 
-        expect(flare.tracer.getActiveSpan()).toBeUndefined(); // root ended, not left open on unload
+        expect(flare.tracer.getActiveSpan()).toBeUndefined();
     });
 
     it('an unsampled pageload emits no vitals spans on page hide', () => {
@@ -84,10 +82,8 @@ describe('Flare browser tracing wiring', () => {
         flare.configure({
             key: 'test-key',
             enableTracing: true,
-            // Root not sampled, everything else sampled. Inheriting the root's decision drops the
-            // vitals; re-rolling the sampler (the bug this guards against) would ship them instead.
-            // tracesSampleRate: 0 cannot make this distinction: at rate 0 both the correct mechanism and
-            // the regression agree, so neither is left recording either way.
+            // Root unsampled, everything else sampled. Inheriting the root's decision drops the vitals; the bug
+            // this guards against re-rolls the sampler and ships them anyway. tracesSampleRate: 0 cannot test this.
             tracesSampler: (ctx) => ctx.spanType !== BrowserSpanType.Pageload,
         });
         recordLcp(2140);

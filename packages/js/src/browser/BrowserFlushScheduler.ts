@@ -5,9 +5,8 @@ export class BrowserFlushScheduler implements FlushScheduler {
         if (typeof document === 'undefined' || !document) {
             return;
         }
-        // Both events, because neither is reliable alone: iOS Safari can fire pagehide with no preceding
-        // visibilitychange, and a plain tab switch fires visibilitychange with no pagehide. Flushing an
-        // already-drained buffer is a no-op, so the overlap costs nothing.
+        // Both events, since neither fires alone: iOS Safari can skip visibilitychange before pagehide,
+        // and a tab switch skips pagehide. Flushing twice is safe because a drained buffer is a no-op.
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
                 flush({ keepalive: true });

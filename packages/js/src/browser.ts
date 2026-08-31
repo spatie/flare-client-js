@@ -29,13 +29,12 @@ export class Flare extends CoreFlare {
     ) {
         super(api, contextCollector, fileReader, scopeProvider, new BrowserFlushScheduler());
         this.setSdkInfo({ name: '@flareapp/js', version: CLIENT_VERSION });
-        // Claim 'js' as the framework so a vanilla browser app is never framework-less on the wire.
-        // Framework packages overwrite this: they import this root (constructing the singleton, which
-        // runs this line) before tagging their own name, so the more specific value always wins.
+        // Claim 'js' as the default framework so a vanilla app is never framework-less on the wire.
+        // Framework packages overwrite this on import, since they tag their own name after this runs.
         this.setFramework({ name: FrameworkName.Js });
     }
 
-    /** Held so a later disable can give the mutation slot back. */
+    // Held so a later disable can give the mutation slot back.
     private removeTracingSubscription: (() => void) | null = null;
     private stopBreadcrumbs: (() => void) | null = null;
 

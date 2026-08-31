@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
-/**
- * `new Flare()` from @flareapp/js produces browser-wired behavior: sdk name '@flareapp/js',
- * entry_point.type 'web', and a non-empty entry_point.value from window.location.href.
- */
+// `new Flare()` from @flareapp/js produces browser-wired behavior: sdk name '@flareapp/js',
+// entry_point.type 'web', and a non-empty entry_point.value from window.location.href.
 import { NullFileReader } from '@flareapp/core';
 import { describe, expect, it } from 'vitest';
 
@@ -32,8 +30,8 @@ describe('Flare class from @flareapp/js', () => {
     });
 
     it('a framework package tagging later wins over the js default', async () => {
-        // The import graph guarantees this order: @flareapp/react and @flareapp/vue import the js
-        // root (constructing the singleton, which tags 'js') before they tag their own framework.
+        // Import order guarantees this: @flareapp/react and @flareapp/vue import the js root first
+        // (which tags 'js'), then tag their own framework.
         const api = new FakeApi();
         const flare = new Flare(api, undefined, new NullFileReader());
         flare.setFramework({ name: 'vue', version: '3.5.0' });

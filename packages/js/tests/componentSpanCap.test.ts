@@ -10,7 +10,7 @@ function spansOf(api: FakeApi) {
     return api.traceEnvelopes.flatMap((e) => e.resourceSpans[0].scopeSpans[0].spans);
 }
 
-/** Mounts a nested tree the way a framework does: reserve top-down, record bottom-up. */
+// Mounts a nested tree the way a framework does: reserve top-down, record bottom-up.
 function mountTree(depth: number) {
     const root = activeComponentRoot()!;
     const reserved: Array<{ name: string; spanId: string; parent: { traceId: string; parentSpanId: string } }> = [];

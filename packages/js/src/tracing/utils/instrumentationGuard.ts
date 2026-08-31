@@ -1,5 +1,5 @@
-// A throw from our tracing must never reach the host app, so every instrumentation callback goes
-// through one of these.
+// A throw from tracing code must never reach the host app. Every instrumentation callback goes
+// through one of the functions below.
 
 /** For a callback the host invokes: a router guard, a store subscriber, ... */
 export function insulate<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
@@ -16,9 +16,7 @@ export function insulate<A extends unknown[]>(fn: (...a: A) => void): (...a: A) 
 export function safeInvoke(fn: (() => void) | null | undefined): void {
     try {
         fn?.();
-    } catch {
-        // ignore
-    }
+    } catch {}
 }
 
 const instrumented = new WeakMap<object, () => void>();
@@ -27,16 +25,16 @@ const instrumented = new WeakMap<object, () => void>();
 export type TrackTeardown = (teardown: (() => void) | null | undefined) => void;
 
 /**
- * Instrument `target` at most once at a time, tearing down any prior instrumentation of the same object
- * first. Vite HMR re-runs boot code against a router that survives the reload, so without this every
- * cycle appends another listener set that is never removed. Keyed on the object, so a genuinely new
+ * Instruments `target` at most once at a time, tearing down any prior instrumentation of the same
+ * object first. Vite HMR re-runs boot code against a router that survives the reload, so without this
+ * every cycle would add another listener set that is never removed. Keyed on the object, so a new
  * router is unaffected.
  *
- * `install` hands each teardown to `track` as it produces it. A router's own `subscribe` / `on` / guard
- * registration can throw, and `install` runs during the host's bootstrap, so a throw part-way through
- * unwinds what already succeeded (newest first) and stops here rather than reaching the host.
+ * `install` hands each teardown to `track` as it produces it. A router's `subscribe`/`on`/guard call
+ * can throw during the host's bootstrap, so a throw part-way through unwinds what already succeeded
+ * (newest first) instead of reaching the host.
  *
- * @returns the cleanup, or a no-op when the install failed and already unwound itself.
+ * @returns The cleanup function, or a no-op if install failed and already unwound itself.
  */
 export function instrumentOnce<T extends object>(target: T, install: (track: TrackTeardown) => void): () => void {
     instrumented.get(target)?.();

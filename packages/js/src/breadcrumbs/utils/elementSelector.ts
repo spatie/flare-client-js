@@ -3,7 +3,6 @@ import type { Attributes } from '@flareapp/core';
 const INTERACTIVE_HTML_ELEMENTS = 'button, a, input, select, textarea, label, [role], [tabindex], [onclick]';
 const MAX_ANCESTOR_DEPTH = 5;
 
-// Run up the parentElements of a clicked element until we hit an interactive element (button, a, input, select, ...)
 export function interactiveTarget(target: Element): Element {
     let element: Element | null = target;
     for (let depth = 0; element && depth < MAX_ANCESTOR_DEPTH; depth++) {
@@ -15,8 +14,7 @@ export function interactiveTarget(target: Element): Element {
     return target;
 }
 
-// Format the name of the element with a css selector
-// a button with an id becomes: button#my-button
+// CSS selector for the element, for example button#my-button.
 export function elementSelector(element: Element): string {
     let selector = element.tagName.toLowerCase();
     if (element.id) {

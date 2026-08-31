@@ -16,8 +16,8 @@ describe('absoluteHref', () => {
         expect(absoluteHref('/app/product/p01')).toBe(`${window.location.origin}/app/product/p01`);
     });
 
-    // The href a hash-history router hands us has no leading slash, so it only resolves correctly
-    // against the current page. Building it as origin + href would give a URL with no path at all.
+    // A hash-history href has no leading slash, so it only resolves correctly against the current
+    // page. origin + href alone would give a URL with no path.
     it('resolves a hash-history href against the current page', () => {
         window.history.replaceState({}, '', '/index.html');
         expect(absoluteHref('#/product/p01')).toBe(`${window.location.origin}/index.html#/product/p01`);
@@ -31,8 +31,8 @@ describe('absoluteHref', () => {
         expect(absoluteHref('/product/p01?tab=specs')).toBe(`${window.location.origin}/product/p01?tab=specs`);
     });
 
-    // Callers use undefined to mean "leave the url attribute alone", so a bad href must not become
-    // a url that is merely wrong.
+    // Callers use undefined to mean "leave the url attribute alone". A bad href must become
+    // undefined, not a wrong url.
     it('returns undefined rather than a wrong url', () => {
         expect(absoluteHref('http://[')).toBeUndefined();
         expect(absoluteHref(undefined)).toBeUndefined();

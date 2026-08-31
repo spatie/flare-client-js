@@ -1,6 +1,6 @@
 import type { FetchInput } from './types';
 
-/** Follows OTel/Sentry `tracePropagationTargets`: same-origin by default, `[]` disables all. */
+// Follows OTel/Sentry `tracePropagationTargets`: same-origin by default, `[]` disables all.
 export function shouldPropagate(
     url: string,
     absoluteUrl: URL | null,
@@ -16,8 +16,8 @@ export function shouldPropagate(
     return absoluteUrl !== null && absoluteUrl.origin === currentOrigin;
 }
 
-/** Null on a throwing or malformed entry: the caller then passes the source through untouched, so a
- *  bad merge never breaks the host request. */
+// Null on a throwing or malformed entry. The caller then passes the source through untouched, so a
+// bad merge never breaks the host request.
 function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
     try {
         const pairs: [string, string][] = [];
@@ -37,7 +37,7 @@ function headerPairsFrom(source: Iterable<unknown>): [string, string][] | null {
     }
 }
 
-/** Fetch accepts any iterable of string pairs as HeadersInit (Map, URLSearchParams, cross-realm Headers). */
+// Fetch accepts any iterable of string pairs as HeadersInit (Map, URLSearchParams, cross-realm Headers).
 function isIterable(value: unknown): value is Iterable<unknown> {
     return (
         value !== null &&
@@ -48,12 +48,9 @@ function isIterable(value: unknown): value is Iterable<unknown> {
 
 type RequestInitWithDuplex = RequestInit & { duplex?: 'half' };
 
-/**
- * A new `RequestInit` carrying `traceparent`, without mutating the caller's `Request` or `init`.
- * Caller-wins: a `traceparent` the caller already set is left alone, matching XHR's
- * `hasAppTraceparent` skip. Returning an init rather than a rebuilt `Request` keeps the caller's
- * single-shot body intact.
- */
+// Builds a new `RequestInit` carrying `traceparent`, without mutating the caller's `Request` or
+// `init`. Caller-wins: an existing `traceparent` is left alone, matching XHR's `hasAppTraceparent`
+// skip. Returning an init instead of a rebuilt `Request` keeps the caller's single-shot body intact.
 export function mergeTraceparentHeader(
     input: FetchInput,
     init: RequestInit | undefined,
@@ -62,9 +59,9 @@ export function mergeTraceparentHeader(
     const source: HeadersInit | undefined =
         init?.headers ?? (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
 
-    // Caller-wins is decided inside each branch, alongside injection, so a source is walked at most
-    // once. A separate detect-then-inject pass would walk a pair iterable twice, and the first walk
-    // exhausts a one-shot iterator, dropping every caller header on the second.
+    // Decide caller-wins inside each branch, alongside injection, so a source is walked only once.
+    // A separate detect-then-inject pass would walk a one-shot iterator twice, losing every caller
+    // header on the second pass.
     let headers: HeadersInit;
     if (source instanceof Headers) {
         if (source.has('traceparent')) {
@@ -78,8 +75,8 @@ export function mergeTraceparentHeader(
         }
         headers = [...source, ['traceparent', traceparent]];
     } else if (isIterable(source)) {
-        // Those have no enumerable own props, so the record branch below would see an empty object and
-        // drop every caller header.
+        // A pair iterable has no enumerable own props, so the record branch below would see an empty
+        // object and drop every caller header.
         const pairs = headerPairsFrom(source);
         if (pairs === null) {
             headers = source; // throwing/malformed -> passthrough (inject nothing)
@@ -97,17 +94,17 @@ export function mergeTraceparentHeader(
         headers = { traceparent };
     }
 
-    // Descriptors, not a spread: a spread copies only enumerable properties, and SvelteKit marks the
-    // init it hands a `load` function with a hidden `__sveltekit_fetch__` flag. Drop that and Kit's
-    // dev-mode wrapper tells the developer to use the `fetch` they were already using.
+    // Use descriptors, not a spread: a spread only copies enumerable properties. SvelteKit marks the
+    // init it passes to `load` with a hidden `__sveltekit_fetch__` flag; losing it makes Kit's
+    // dev-mode wrapper warn to use the `fetch` that was already used.
     const result: RequestInitWithDuplex = { headers };
     if (init) {
         const descriptors = Object.getOwnPropertyDescriptors(init);
         delete descriptors.headers; // the merged headers above win
         Object.defineProperties(result, descriptors);
     }
-    // A Request with a ReadableStream body needs `duplex` when re-issued with an init, or fetch throws
-    // and breaks a host request that worked before tracing.
+    // A Request with a ReadableStream body needs `duplex` when reissued with an init, or fetch throws
+    // and breaks a request that worked fine before tracing.
     if (
         result.duplex === undefined &&
         typeof Request !== 'undefined' &&

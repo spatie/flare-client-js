@@ -2,7 +2,7 @@ import type { DeviceInfo, DeviceInfoProvider } from '@flareapp/core';
 
 import { readNetwork, readScreen, readTimezone, type NavigatorWithExtras } from './deviceReaders';
 
-/** Reads what the User-Agent lacks: hardware, screen, network. Static reads cached; screen and network per call. */
+// Reads what the User-Agent lacks: hardware, screen, network. Static reads cached; screen and network per call.
 export class BrowserDeviceInfoProvider implements DeviceInfoProvider {
     private staticInfo: Pick<DeviceInfo, 'device' | 'locale'> | null = null;
 
@@ -63,5 +63,5 @@ export class BrowserDeviceInfoProvider implements DeviceInfoProvider {
     }
 }
 
-/** Shared singleton so the static read is cached across reports. */
+// Shared singleton so the static read is cached across reports.
 export const browserDeviceInfoProvider = new BrowserDeviceInfoProvider();

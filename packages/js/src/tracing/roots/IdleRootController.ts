@@ -6,7 +6,7 @@ export type IdleTimeouts = {
     childSpanTimeout: number;
 };
 
-/** Browser defaults for the three idle-root timeouts, in ms. Overridable per Config. */
+// Browser defaults for the three idle-root timeouts, in ms. Overridable per Config.
 export const DEFAULT_IDLE_TIMEOUTS: IdleTimeouts = {
     idleTimeout: 1000,
     finalTimeout: 30000,
@@ -22,25 +22,22 @@ export type IdleRootDeps = {
     clearTimeout: (handle: ReturnType<typeof setTimeout>) => void;
     rootStartTime: number; // unix nanos, base for finalTimeout
     // Where a childless close lands, instead of `now()`. A navigation passes its own start, so an
-    // instant nav trims to ~0; a pageload passes the Navigation Timing load-event end, so it reports its
-    // real load duration rather than the whole idleTimeout window.
+    // instant nav trims to ~0. A pageload passes the Navigation Timing load-event end, so it reports
+    // its real load duration instead of the whole idleTimeout window.
     endFloor: () => number;
-    // Suppresses idle-close until releaseHold(), for framework navigation roots that cannot be named
-    // until the router settles, past the idle window. The finalTimeout/childSpanTimeout backstops still
-    // apply.
+    // Suppresses idle-close until releaseHold(), for navigation roots that cannot be named until
+    // the router settles, past the idle window. The finalTimeout/childSpanTimeout backstops still apply.
     held?: boolean;
-    // Last call before the root's attributes are frozen: the tracer snapshots them inside `end()`, so a
-    // pageload stamps the vitals that are already final from here. Must not throw; see the call site.
+    // Last call before the root's attributes are frozen, since the tracer snapshots them inside
+    // `end()`. A pageload stamps its already-final vitals from here. Must not throw; see the call site.
     beforeEnd?: () => void;
 };
 
 type Timer = ReturnType<typeof setTimeout> | null;
 
-/**
- * Owns one root span's idle lifecycle: open while child spans in its trace are active, closing after
- * `idleTimeout` with no open children, or on the `finalTimeout` / `childSpanTimeout` backstops. Deps are
- * injected so this is testable without real timers or a real tracer.
- */
+// Owns one root span's idle lifecycle: open while child spans in its trace are active, closing after
+// `idleTimeout` with no open children, or on the `finalTimeout` / `childSpanTimeout` backstops. Deps are
+// injected so this is testable without real timers or a real tracer.
 export class IdleRootController {
     private openChildren = 0;
     private lastChildEndTime: number | null = null;
@@ -71,21 +68,18 @@ export class IdleRootController {
         return this.ended;
     }
 
-    /** For a route change or pagehide. */
+    // For a route change or pagehide.
     endNow(): void {
-        // With no child in flight, trim to the floor rather than padding out to the force-end moment. An
-        // open child, or a hold (which means mid-loader-window), closes at now() instead, so the trace
-        // records the work that ran rather than a ~0 trim back to the start floor.
+        // With no child in flight, trim to the floor instead of padding to the force-end moment. An
+        // open child, or a hold (mid loader window), closes at now() instead, so the trace records
+        // the work that actually ran.
         this.finish(this.openChildren > 0 || this.held ? this.deps.now() : this.trimmedEnd());
     }
 
-    /**
-     * Records the settle moment as a close floor and hands the root back to the normal idle lifecycle. It
-     * deliberately does not close here: a router settles before the framework mounts the new route
-     * component (vue-router runs `afterEach` in the route-update tick, Vue mounts on the next flush), so
-     * closing at settle cleared the active root ahead of every post-navigation mount: every component span
-     * read a null root, and a trailing fetch opened a root of its own.
-     */
+    // Records the settle moment as a close floor and hands the root back to the normal idle
+    // lifecycle. Deliberately does not close here: a router settles before the framework mounts the
+    // new route component, so closing at settle would clear the active root before every
+    // post-navigation mount, leaving component spans and trailing fetches with no root to attach to.
     releaseHold(): void {
         if (this.ended || !this.held) {
             return;
@@ -150,8 +144,8 @@ export class IdleRootController {
         }, this.timeouts.idleTimeout);
     }
 
-    /** The latest of the floor, a released hold's settle moment, and the last child's end, so a root
-     *  covers its children without ever padding out to `now()`. */
+    // The latest of the floor, a released hold's settle moment, and the last child's end, so a
+    // root covers its children without padding out to `now()`.
     private trimmedEnd(): number {
         return Math.max(this.deps.endFloor(), this.settleTime ?? 0, this.lastChildEndTime ?? 0);
     }

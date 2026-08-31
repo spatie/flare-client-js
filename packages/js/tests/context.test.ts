@@ -119,9 +119,8 @@ test('preserves = characters inside non-denylisted cookie values (e.g. base64)',
 });
 
 test('stores a cookie literally named __proto__ instead of dropping it', () => {
-    // Feed a raw cookie string directly: jsdom's cookie jar would otherwise reject/normalize the name.
-    // The accessor is defined on Document.prototype, so an own-property override on the instance
-    // shadows it; deleting that override restores the original getter.
+    // Feeds a raw cookie string, since jsdom's cookie jar would reject or normalize this name. The
+    // accessor lives on Document.prototype; an own-property override here shadows it until deleted.
     Object.defineProperty(window.document, 'cookie', {
         configurable: true,
         get: () => '__proto__=danger; theme=dark',

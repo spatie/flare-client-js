@@ -42,9 +42,8 @@ export const collectBrowser: ContextCollector = (config: Readonly<Config>): Attr
         return attrs;
     }
 
-    // host.name is resource-level (see partition.ts RESOURCE_PREFIXES) so it lands in
-    // the Flare Logs "Hostname" column. The PHP SDK uses the machine hostname; the
-    // browser equivalent is the page's hostname.
+    // host.name is resource-level (see partition.ts RESOURCE_PREFIXES), so it lands in the Flare Logs
+    // "Hostname" column. The PHP SDK uses the machine hostname; here it is the page hostname.
     if (window?.location?.hostname) {
         attrs['host.name'] = window.location.hostname;
     }

@@ -10,10 +10,8 @@ export type Patcher<T extends object> = {
     uninstall(target: T): void;
 };
 
-/**
- * One `installed` flag for the whole set, not one per method: `open` remembers the URL that `send`
- * reads, so a half patched set is broken.
- */
+// One `installed` flag for the whole set, not one per method: `open` remembers the URL that `send`
+// reads, so a half patched set is broken.
 export function createPatcher<T extends object>(): Patcher<T> {
     let installed = false;
     let names: (keyof T)[] = [];
@@ -42,8 +40,8 @@ export function createPatcher<T extends object>(): Patcher<T> {
             installed = true;
         },
 
-        // All or nothing: when another library wrapped our wrapper we cannot restore the original,
-        // so we put nothing back and keep `installed` true. That stops the next `install` from
+        // All or nothing: if another library wrapped our wrapper, the original cannot be restored, so
+        // nothing is put back and `installed` stays true. This stops the next `install` call from
         // stacking a second wrapper; ours stays in place but idle.
         uninstall(target: T): void {
             if (!installed) {

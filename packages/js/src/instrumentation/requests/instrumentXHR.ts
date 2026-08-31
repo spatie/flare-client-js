@@ -14,7 +14,7 @@ type Watched = { settle(result: RequestSettle): void; headers: Record<string, st
 type XhrState = {
     method: string;
     url: string;
-    /** Header names the app set, in lower case. We never replace a header the app set. */
+    // Header names the app set, in lower case. We never replace a header the app set.
     appHeaders: Set<string>;
     watched?: Watched;
     onDone?: () => void;

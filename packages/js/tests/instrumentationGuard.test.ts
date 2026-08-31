@@ -65,8 +65,8 @@ describe('instrumentOnce', () => {
         expect(firstTeardown).toHaveBeenCalledOnce();
     });
 
-    // install() runs during the host's bootstrap, so a router whose subscribe/on/guard registration
-    // throws must not reach it, and the listeners that already registered must not be left attached.
+    // install() runs during the host's bootstrap. A throw from router subscribe/on/guard registration
+    // must not reach it, and any already-registered listeners must not stay attached.
     it('unwinds a failed install newest first and swallows the throw', () => {
         const order: string[] = [];
         let cleanup: (() => void) | undefined;

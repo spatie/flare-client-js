@@ -2,10 +2,8 @@ import type { Flare } from './browser';
 
 declare const process: { env: Record<string, string | undefined> };
 
-/**
- * `process.env.NODE_ENV` is replaced inline by bundlers. The try/catch keeps a process-less
- * environment safe: treat "undetermined" as production (warn, never crash).
- */
+// process.env.NODE_ENV is replaced inline by bundlers. The try/catch keeps a process-less
+// environment safe: treat "undetermined" as production, so it warns instead of crashing.
 function isDevMode(): boolean {
     try {
         return process.env.NODE_ENV !== 'production';
@@ -15,11 +13,10 @@ function isDevMode(): boolean {
 }
 
 /**
- * Builds a per-package Flare resolver: `registerDefaultFlare` (wired once by the web entry) and
- * `resolveFlare` (called at wiring time). Each call holds its own default-provider state. The check
- * that warns about the Electron `__flare` bridge uses `packageName` in its message;
- * `injectInstruction` replaces the closing hint for packages whose advice differs (for example
- * svelte, which points at the preprocessor's importSource).
+ * Builds a per-package Flare resolver: `registerDefaultFlare` (set once by the web entry) and
+ * `resolveFlare` (called at wiring time). Each call keeps its own default-provider state.
+ * `packageName` names the package in the Electron-bridge warning; `injectInstruction` overrides the
+ * closing hint for packages with different advice (for example Svelte's preprocessor importSource).
  */
 export function createFlareResolver(config: { packageName: string; injectInstruction?: string }): {
     registerDefaultFlare(provider: () => Flare): void;

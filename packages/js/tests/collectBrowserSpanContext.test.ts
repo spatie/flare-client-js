@@ -12,7 +12,6 @@ describe('collectBrowserSpanContext', () => {
 
         const attrs = collectBrowserSpanContext(config);
 
-        // included
         expect(attrs['flare.entry_point.type']).toBe('web');
         expect(attrs['flare.entry_point.handler.identifier']).toBe('/products');
         expect(attrs['http.route']).toBe('/products');
@@ -26,7 +25,6 @@ describe('collectBrowserSpanContext', () => {
         expect('http.request.referrer' in attrs).toBe(true);
         expect('document.ready_state' in attrs).toBe(true);
 
-        // excluded
         expect('http.request.cookies' in attrs).toBe(false);
         expect('host.name' in attrs).toBe(false);
     });
@@ -47,9 +45,8 @@ describe('collectBrowserSpanContext', () => {
     });
 
     it('redacts denylisted query values on the override path (url.full and entry_point.value)', () => {
-        // The override URL must run through redactUrlQuery just like the live-location path, or a
-        // framework navigation root would leak denylisted query values. The default test config's
-        // denylist matches nothing, so use one that matches the token param here.
+        // The override URL must go through redactUrlQuery like the live-location path, or a
+        // framework navigation root would leak denylisted query values. Uses a denylist matching token.
         const denylistConfig = { urlDenylist: /token/i } as unknown as Parameters<typeof collectBrowserSpanContext>[0];
         const attrs = collectBrowserSpanContext(denylistConfig, 'https://app.test/checkout?token=secret&x=1');
         expect(attrs['url.full']).toBe('https://app.test/checkout?token=[redacted]&x=1');
@@ -79,8 +76,8 @@ describe('browserSpanUrlAttributes', () => {
     });
 
     it('emits an empty url.query for a destination without one', () => {
-        // You can overwrite a span attribute but not remove it. So a redirect away from a URL with a
-        // query has to blank it out.
+        // You can overwrite a span attribute but not remove it, so a redirect off a URL with a query
+        // must blank it out.
         const attrs = browserSpanUrlAttributes(config, 'https://app.test/thanks');
 
         expect(attrs['url.query']).toBe('');

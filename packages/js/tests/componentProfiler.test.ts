@@ -97,10 +97,9 @@ describe('component-profiler seam', () => {
             }),
         );
 
-        // Asserted on the key list, not just deep equality: an attribute present with an undefined
-        // value still costs a wire slot, and toEqual treats it as absent. No framework attribute
-        // here, because the recording framework is already on the envelope resource as
-        // flare.framework.name.
+        // Checked by key list, not deep equality: an undefined attribute still costs a wire slot,
+        // but toEqual treats it as absent. No framework attribute here, since the framework name
+        // already lives on the envelope resource.
         expect(Object.keys(startSpan.mock.calls[0]![1]!.attributes!)).toEqual(['flare.component.name']);
     });
 

@@ -22,8 +22,8 @@ beforeEach(() => {
     frozenClock();
 
     vi.stubGlobal('navigator', { userAgent: 'GoldenAgent/1.0' });
-    // Device info is environment-specific (screen, timezone), so keep it out of the machine-independent
-    // golden report. The provider is covered on its own in deviceInfo.test.ts.
+    // Device info is environment-specific (screen, timezone), so keep it out of the golden report.
+    // It has its own coverage in deviceInfo.test.ts.
     vi.spyOn(browserDeviceInfoProvider, 'collect').mockReturnValue({});
     Object.defineProperty(window.document, 'referrer', {
         configurable: true,
@@ -71,8 +71,8 @@ test('emits the canonical golden report shape', async () => {
 
     const actual = fakeApi.lastReport!;
 
-    // codeSnippet depends on whether the test environment can fetch the source file; strip it
-    // before snapshotting to keep the fixture machine-independent.
+    // codeSnippet depends on whether the test environment can fetch the source file. Strip it here
+    // to keep the fixture machine-independent.
     for (const frame of actual.stacktrace) {
         delete frame.codeSnippet;
     }

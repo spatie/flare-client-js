@@ -12,8 +12,7 @@ export {
     resolveDenylist,
 } from '@flareapp/core';
 
-// Re-export the original internal helpers that the rest of @flareapp/js relies on.
-// Internal callers continue to `import { ... } from '../util'` unchanged.
+// Re-exported so internal code can keep importing these from '../util' unchanged.
 
-/** @deprecated use redactUrlQuery instead: same behavior, clearer name */
+// @deprecated use redactUrlQuery instead: same behavior, clearer name
 export { redactUrlQuery as redactFullPath } from '@flareapp/core';
