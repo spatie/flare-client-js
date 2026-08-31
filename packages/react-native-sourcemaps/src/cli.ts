@@ -17,7 +17,7 @@ export type ParsedArgs = {
     flags: Record<string, string>;
 };
 
-/** Minimal `--flag value` / `--flag` parser. No external dependency. */
+// Minimal `--flag value` / `--flag` parser. No external dependency.
 export function parseArgs(argv: string[]): ParsedArgs {
     const [command, ...rest] = argv;
     const flags: Record<string, string> = {};
@@ -35,8 +35,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
         }
         const key = body;
         const next = rest[i + 1];
-        // A following `--` token is the next flag, not this flag's value (so a valueless `--flag`
-        // becomes boolean `'true'`). Values that start with `--` must use the `--flag=value` form.
+        // A following `--` token is the next flag, not this flag's value, so a valueless `--flag` becomes
+        // boolean `'true'`. Values that start with `--` must use the `--flag=value` form.
         if (next !== undefined && !next.startsWith('--')) {
             flags[key] = next;
             i++;
@@ -64,17 +64,16 @@ export async function runCli(argv: string[]): Promise<void> {
         return;
     }
 
-    // Auto mode is the native build-hook path, whose process often lacks FLARE_* in its env (.env
-    // files are a JS-runtime concern, IDE builds don't inherit your shell, a reused Gradle daemon can
-    // serve a stale env). Load .env.local / .env from the project root (the flare.json directory)
-    // before resolving the key; existing values are never overwritten, so an explicit export wins.
-    // The manual path is left untouched: there the caller is explicit.
+    // Auto mode is the native build-hook path, whose process often lacks FLARE_* in its env (IDE builds
+    // don't inherit your shell, a reused Gradle daemon can serve a stale env). Load .env.local / .env from
+    // the flare.json directory first; an explicit export still wins since existing values aren't overwritten.
+    // The manual path is left untouched — there the caller is explicit.
     if (flags.auto === 'true') {
         loadEnvFiles(flags.config ? dirname(flags.config) : process.cwd());
     }
 
     // Precedence per field: explicit flag > env > flare.json > default. relative_filename has no
-    // flare.json/env override in v1; `--bundle-filename` or the map-basename default cover it.
+    // flare.json/env override in v1 — `--bundle-filename` or the map-basename default cover it.
     const config = readFlareConfig(flags.config);
     const apiKey = flags['api-key'] ?? process.env.FLARE_API_KEY ?? config.apiKey ?? '';
     const apiEndpoint = flags['api-endpoint'] ?? process.env.FLARE_API_ENDPOINT ?? config.apiEndpoint;
@@ -96,12 +95,10 @@ type AutoUploadOptions = {
     version: string | undefined;
 };
 
-/**
- * Build-hook upload path. Never throws and never sets a non-zero exit code (a Gradle doLast / Xcode
- * run-script phase aborts the build on a non-zero child). Every failure (no key, unresolved version,
- * upload error) prints the banner and returns, leaving the build green. Only arg misuse (handled in
- * runCli before here) exits non-zero.
- */
+// Build-hook upload path. Never throws and never sets a non-zero exit code (a Gradle doLast / Xcode
+// run-script phase aborts the build on a non-zero child). Every failure (no key, unresolved version,
+// upload error) prints the banner and returns, leaving the build green. Only arg misuse, handled in
+// runCli before this runs, exits non-zero.
 async function runAutoUpload(options: AutoUploadOptions): Promise<void> {
     const { apiKey, sourcemap, bundleFilename, apiEndpoint } = options;
 

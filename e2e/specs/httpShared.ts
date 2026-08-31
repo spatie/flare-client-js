@@ -6,11 +6,8 @@ import { attr, hasSpanType, parentOf, spansOf, urlOf, type OtlpSpan } from './ot
 
 export type BrowserHttpSpanType = 'browser_fetch' | 'browser_xhr';
 
-/**
- * Land on /http through an in-app link, never through `goto`. `goto` plus `networkidle` can burn the
- * whole idleTimeout (2000ms) on a slow machine, leaving no live root for the request to nest under;
- * a link click opens a fresh navigation root and the only gap left is one click to the next.
- */
+// Land on /http through an in-app link, never `goto`. On a slow machine `goto` plus `networkidle`
+// can burn the whole idleTimeout, leaving no live root for the request to nest under.
 export const openHttpPage = async (page: Page): Promise<void> => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -18,7 +15,7 @@ export const openHttpPage = async (page: Page): Promise<void> => {
     await expect(page).toHaveURL(/\/http$/);
 };
 
-/** Find the span for one scenario across every envelope captured so far. */
+// Find the span for one scenario across every envelope captured so far.
 const findSpan = async (
     fakeFlare: FakeFlare,
     spanType: BrowserHttpSpanType,
@@ -32,7 +29,7 @@ const findSpan = async (
     return spansOf(trace.bodyJson).find(matches);
 };
 
-/** Click one /http trigger and assert its span nests under the live root rather than opening a trace. */
+// Click one /http trigger and assert its span nests under the live root rather than opening a trace.
 export const assertNestedHttpSpan = async (
     page: Page,
     fakeFlare: FakeFlare,
@@ -53,11 +50,8 @@ export const assertNestedHttpSpan = async (
     expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
 };
 
-/**
- * The case no spec outside svelte.spec.ts covers: a request fired while the navigation root is still
- * held (a loader in react-router, a route guard in Vue) must nest under that navigation root, not
- * under the pageload root and not on its own.
- */
+// Covers the case only svelte.spec.ts otherwise hits: a request fired while the navigation root is
+// still held (a loader in react-router, a route guard in Vue) must nest under that root.
 export const assertNavigationRequestNests = async (page: Page, fakeFlare: FakeFlare): Promise<void> => {
     const span = await findSpan(fakeFlare, 'browser_fetch', 'loader-fetch');
     expect(span).toBeTruthy();

@@ -11,11 +11,9 @@ function navSpies(): FakeNavigationSource {
     };
 }
 
-/**
- * Spread the REAL barrel (for createFlareResolver, called at resolveFlare.ts module load), override
- * registerNavigationSource with a spy, and shim insulate/safeInvoke so this file passes even against a
- * dist built before those existed.
- */
+// Spreads the real barrel (for createFlareResolver, called at resolveFlare.ts module load),
+// overrides registerNavigationSource with a spy, and shims insulate/safeInvoke so this file
+// passes even against a dist built before those existed.
 function mockBrowserSeam(registerNavigationSource: ReturnType<typeof vi.fn>): void {
     vi.doMock('@flareapp/js/browser', async () => {
         const actual = await vi.importActual<Record<string, unknown>>('@flareapp/js/browser');
@@ -87,10 +85,9 @@ describe('@flareapp/vue vue-router tracing entry', () => {
         expect(router.afterEach).toHaveBeenCalledTimes(1);
     });
 
-    // Flipped deliberately. This used to assert the opposite, back when flareVue gated router tracing
-    // on enableTracing at install time. `flare.configure({ enableTracing: true })` can arrive after
-    // app.use(flareVue), and the seam no-ops until it does, so wiring is now unconditional and the
-    // plugin is order independent like the other four integrations.
+    // Flipped deliberately — this asserted the opposite before router tracing stopped gating on
+    // enableTracing at install. `flare.configure({ enableTracing: true })` can now come after
+    // app.use(flareVue), so wiring is unconditional and plugin order doesn't matter, like the rest.
     test('installing flareVue with a router wires tracing even while tracing is off', async () => {
         const nav = navSpies();
         const registerNavigationSource = vi.fn(() => nav);

@@ -31,8 +31,7 @@ describe('@flareapp/svelte/inject reports through an injected RendererFlare', ()
         expect(parsed.attributes['telemetry.sdk.name']).toBe('@flareapp/electron');
         expect(parsed.attributes['flare.framework.name']).toBe('svelte');
         expect(parsed.attributes['context.custom'].svelte).toBeDefined();
-        // Do not assert window.flare/globalThis.flare is undefined: importing
-        // @flareapp/electron/renderer legitimately sets window.flare (renderer.ts side effect).
-        // No-root is covered by Task 9 (dist-grep) and Task 7 (runtime mock-factory check).
+        // Don't assert window.flare/globalThis.flare is undefined — importing @flareapp/electron/renderer
+        // sets it as a side effect. No-root is covered by Task 9 (dist-grep) and Task 7 (mock-factory check).
     });
 });

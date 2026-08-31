@@ -12,7 +12,7 @@ beforeEach(() => resetRequestBus());
 const ORIGIN = 'https://app.example';
 const URLS = fixedUrls(ORIGIN);
 
-/** A minimal XMLHttpRequest stand-in that records header/listener calls and can fire readystatechange. */
+// A minimal XMLHttpRequest stand-in that records header/listener calls and can fire readystatechange.
 function fakeXHR(opts: { sendImpl?: () => void; headerThrows?: (name: string, value: string) => boolean } = {}) {
     const headers: Record<string, string> = {};
     const listeners: Record<string, Array<() => void>> = {};
@@ -50,7 +50,7 @@ function fakeXHR(opts: { sendImpl?: () => void; headerThrows?: (name: string, va
     return { xhr, headers, setHeaderSpy };
 }
 
-/** Wire the three wrappers onto a fake XHR, with tracing subscribed behind them. */
+// Wires the three wrappers onto a fake XHR, with tracing subscribed behind them.
 function instrument(
     tracer: HttpTracer,
     opts: { sendImpl?: () => void; headerThrows?: (name: string, value: string) => boolean } = {},
@@ -149,8 +149,8 @@ describe('createXHR* wrappers', () => {
 
     it("still injects Flare's traceparent when the apps own setRequestHeader throws", () => {
         const { tracer } = makeTracer();
-        // Native setRequestHeader throws for a forbidden value (e.g. a stray newline); the app's
-        // header never lands. Flare's own tp value is well-formed, so it must not trip the throw.
+        // A forbidden header value throws natively, so the app's header never lands here. Flare's
+        // own value is well-formed and must not trigger that throw.
         const { xhr, headers } = instrument(tracer, {
             headerThrows: (name, value) => name.toLowerCase() === 'traceparent' && value === 'bad\nvalue',
         });
@@ -261,8 +261,8 @@ describe('createXHR* wrappers', () => {
         const { tracer, startSpan } = makeTracer();
         const { xhr } = instrument(tracer);
 
-        // An empty string resolves against the document base URL, same as fetch(''); it is a
-        // performable request and must not be treated as missing.
+        // An empty string resolves against the document base URL, same as fetch(''). It is a real
+        // request, not a missing one.
         xhr.open('GET', '');
         xhr.send();
 
@@ -372,8 +372,8 @@ describe('createXHR* wrappers', () => {
     });
 });
 
-// The host's request must survive our tracing throwing, same as the fetch wrapper. Both seams below run
-// before the native send(), and both read user config, so neither can be assumed infallible.
+// The host's request must survive our tracing code throwing, same as the fetch wrapper. Both seams
+// run before the native send() and read user config, so neither can be assumed safe.
 describe('createXHRSend never breaks the host request', () => {
     it('still sends when starting the span throws', () => {
         const { tracer } = makeTracer();
@@ -425,15 +425,15 @@ describe('createXHRSend never breaks the host request', () => {
         xhr.send();
         xhr.fireDone(200);
 
-        // Losing the header costs backend correlation; the request itself still settles, so the span
-        // has a real status to report and must not be dropped or left open.
+        // Losing the header costs backend correlation, but the request still settles. The span must
+        // still get a real status and must not be dropped or left open.
         expect(calls.attrs['http.response.status_code']).toBe(200);
         expect(calls.ended).toBe(true);
     });
 });
 
-// open() captures method and URL before handing off to the native call, so a throw in that
-// bookkeeping would stop the host's request from ever being opened.
+// open() captures method and URL before calling the native open. A throw here must not stop the
+// host's request from being opened.
 describe('createXHROpen never breaks the host open', () => {
     const hostile = (label: string) => ({
         toString() {

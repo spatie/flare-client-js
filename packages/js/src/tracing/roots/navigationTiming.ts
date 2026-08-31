@@ -1,15 +1,13 @@
 import { defaultNowNano } from '@flareapp/core';
 
-/** Split out so the timestamp maths is testable without a Navigation Timing entry. */
+// Split out so the timestamp maths is testable without a Navigation Timing entry.
 export function computePageloadStartNano(timeOriginMs: number, startTimeMs: number | undefined): number {
     return Math.round((timeOriginMs + (startTimeMs ?? 0)) * 1e6);
 }
 
-/**
- * Choose the pageload root's start time: navigation start while that window is still open,
- * otherwise `now`. Starting at `now` (when tracing began after the final cap, or the pageload was
- * already traced) avoids a backdated root reporting a bogus multi-second duration.
- */
+// Choose the pageload root's start time: navigation start while that window is still open,
+// otherwise `now`. Starting at `now` (when tracing began after the final cap, or the pageload was
+// already traced) avoids a backdated root reporting a bogus multi-second duration.
 export function resolvePageloadStartNano(
     backdatedNano: number,
     nowNano: number,
@@ -25,7 +23,7 @@ export function resolvePageloadStartNano(
     return backdatedNano;
 }
 
-/** The Navigation Timing API, or null where it is missing or only partly implemented. */
+// The Navigation Timing API, or null where it is missing or only partly implemented.
 function navigationTiming(): Performance | null {
     const perf = (globalThis as { performance?: Performance }).performance;
     if (!perf || typeof perf.getEntriesByType !== 'function' || typeof perf.timeOrigin !== 'number') {
@@ -38,10 +36,8 @@ function navigationEntry(perf: Performance): PerformanceNavigationTiming | undef
     return perf.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
 }
 
-/**
- * The pageload root's start time in unix nanoseconds, backdated to navigation start via the
- * Navigation Timing entry. Falls back to the tracer's clock when the API is unavailable.
- */
+// The pageload root's start time, backdated to navigation start via the Navigation Timing entry.
+// Falls back to the tracer's clock when the API is unavailable.
 export function pageloadStartNano(): number {
     const perf = navigationTiming();
     if (!perf) {
@@ -63,13 +59,10 @@ export function computePageloadEndNano(
     return Math.round((timeOriginMs + endMs) * 1e6);
 }
 
-/**
- * The pageload root's end time in unix nanoseconds, taken from the Navigation
- * Timing `loadEventEnd` (the browser's own "page finished loading" mark), falling
- * back to `domContentLoadedEventEnd`, then the tracer's clock when neither has
- * fired yet or the API is unavailable. Used as the pageload root's close floor so a
- * childless pageload reports its real load duration rather than idle-timeout padding.
- */
+// The pageload root's end time, taken from Navigation Timing's `loadEventEnd` (the browser's
+// "page finished loading" mark), falling back to `domContentLoadedEventEnd`, then the tracer's
+// clock. Used as the pageload root's close floor, so a childless pageload reports its real load
+// duration instead of idle-timeout padding.
 export function pageloadEndNano(): number {
     const perf = navigationTiming();
     if (!perf) {

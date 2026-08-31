@@ -72,7 +72,7 @@ describe('mergeTraceparentHeader', () => {
         const original = new Headers({ a: '1' });
         const init = mergeTraceparentHeader('https://app.example/x', { headers: original }, TP);
         expect((init!.headers as Headers).get('traceparent')).toBe(TP);
-        expect(original.get('traceparent')).toBeNull(); // not mutated
+        expect(original.get('traceparent')).toBeNull();
     });
 
     it('reads headers from a Request input without mutating it', () => {
@@ -80,15 +80,15 @@ describe('mergeTraceparentHeader', () => {
         const init = mergeTraceparentHeader(req, undefined, TP);
         expect((init!.headers as Headers).get('traceparent')).toBe(TP);
         expect((init!.headers as Headers).get('a')).toBe('1');
-        expect(req.headers.get('traceparent')).toBeNull(); // caller's Request untouched
+        expect(req.headers.get('traceparent')).toBeNull();
     });
 
     it('returns undefined when a Request already carries its own traceparent and no init is given (caller wins)', () => {
         const req = new Request('https://app.example/x', { headers: { traceparent: 'old' } });
         expect(mergeTraceparentHeader(req, undefined, TP)).toBeUndefined();
 
-        // A stream-bodied variant must short-circuit on caller-wins before the duplex handling
-        // runs, so duplex is left exactly as the caller set it.
+        // A stream-bodied variant must short-circuit here too, before duplex handling runs, so
+        // duplex stays exactly as the caller set it.
         const streamReq = new Request('https://app.example/x', {
             method: 'POST',
             headers: { traceparent: 'old' },
@@ -101,14 +101,14 @@ describe('mergeTraceparentHeader', () => {
     it('keeps a caller-supplied traceparent in an array init unchanged (caller wins)', () => {
         const original: RequestInit = { headers: [['traceparent', 'old']] };
         const init = mergeTraceparentHeader('https://app.example/x', original, TP);
-        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init).toBe(original);
         expect(init!.headers).toEqual([['traceparent', 'old']]);
     });
 
     it('keeps a CASE-VARIANT caller-supplied traceparent in an array init unchanged (caller wins)', () => {
         const original: RequestInit = { headers: [['TraceParent', 'old']] };
         const init = mergeTraceparentHeader('https://app.example/x', original, TP);
-        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init).toBe(original);
         expect(init!.headers).toEqual([['TraceParent', 'old']]);
     });
 
@@ -142,11 +142,11 @@ describe('mergeTraceparentHeader', () => {
         ]);
         const original: RequestInit = { headers: headers as unknown as HeadersInit };
         const init = mergeTraceparentHeader('https://app.example/x', original, TP);
-        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init).toBe(original);
         expect([...headers]).toEqual([
             ['TraceParent', 'old'],
             ['a', '1'],
-        ]); // the Map itself is not converted or mutated
+        ]);
     });
 
     it('merges into a URLSearchParams-shaped iterable init', () => {
@@ -163,9 +163,8 @@ describe('mergeTraceparentHeader', () => {
     });
 
     it('does not drop caller headers from a ONE-SHOT iterable HeadersInit (regression)', () => {
-        // A generator's [Symbol.iterator]() returns itself, so iterating twice yields the full
-        // sequence once and nothing the second time. Any path that walks the source more than once
-        // (e.g. a caller-wins pre-pass plus a separate injection pass) drops these headers.
+        // A generator's iterator returns itself, so iterating it twice yields the values once, then
+        // nothing. A caller-wins pass plus a separate injection pass would drop these headers.
         const headers: Iterable<unknown> = (function* () {
             yield ['authorization', 'Bearer token'];
         })();
@@ -202,14 +201,14 @@ describe('mergeTraceparentHeader', () => {
     it('keeps a case-variant caller-supplied traceparent in an object init unchanged (caller wins)', () => {
         const original: RequestInit = { headers: { TraceParent: 'old', a: '1' } };
         const init = mergeTraceparentHeader('https://app.example/x', original, TP);
-        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init).toBe(original);
         expect(init!.headers).toEqual({ TraceParent: 'old', a: '1' });
     });
 
     it('keeps a caller-supplied traceparent on a Headers instance unchanged (caller wins)', () => {
         const original: RequestInit = { headers: new Headers({ traceparent: 'old', a: '1' }) };
         const init = mergeTraceparentHeader('https://app.example/x', original, TP);
-        expect(init).toBe(original); // returned unchanged, not a clone
+        expect(init).toBe(original);
         expect((init!.headers as Headers).get('traceparent')).toBe('old');
     });
 
@@ -230,10 +229,9 @@ describe('mergeTraceparentHeader', () => {
         expect((init as RequestInit & { duplex?: string })!.duplex).toBeUndefined();
     });
 
-    // A spread only copies enumerable properties. SvelteKit's `dev_fetch` marks the init it gives a
-    // `load` function with a hidden `__sveltekit_fetch__` flag, and its dev-mode fetch wrapper warns
-    // the developer to use the `fetch` from their load function when the flag is missing. Rebuilding
-    // the init to add `traceparent` must keep the flag, or we warn people about code that is fine.
+    // A spread only copies enumerable properties. SvelteKit's `dev_fetch` marks the init it gives to
+    // `load` with a hidden `__sveltekit_fetch__` flag, and warns if that flag is missing. Adding
+    // `traceparent` must not drop the flag, or SvelteKit would wrongly warn on working code.
     it('keeps a hidden property the caller put on the init (regression)', () => {
         const callerInit: RequestInit = { method: 'GET' };
         Object.defineProperty(callerInit, '__sveltekit_fetch__', {
@@ -270,6 +268,6 @@ describe('mergeTraceparentHeader', () => {
         const init = mergeTraceparentHeader('https://app.example/x', callerInit, TP);
 
         expect(init).not.toBe(callerInit);
-        expect(callerInit.headers).toEqual({ a: '1' }); // no traceparent leaked back
+        expect(callerInit.headers).toEqual({ a: '1' });
     });
 });

@@ -1,6 +1,5 @@
-// The REAL published inject entry (built dist). Importing it must not pull the js root.
-// Runs in electron's default `node` test environment — the inject path needs no DOM
-// (RendererFlare forwards via globalThis[FLARE_BRIDGE_KEY], not window).
+// The REAL published inject entry (built dist). Importing it must not pull the js root. Runs in
+// electron's default `node` environment — no DOM needed (RendererFlare forwards via globalThis, not window).
 import { flareReactErrorHandler } from '@flareapp/react/inject';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 

@@ -17,12 +17,9 @@ function convertToError(error: unknown): Error {
     return new Error(String(error));
 }
 
-/**
- * The `@flareapp/js` surface every SvelteKit test stubs. `report` and `reportSilently` route to the
- * caller's spy; the rest mirrors the real exports so the module under test can import them.
- *
- * @param report the spy each test asserts on.
- */
+// The `@flareapp/js` surface every SvelteKit test stubs. `report` and `reportSilently` route to the
+// caller's spy; the rest mirrors the real exports so the module under test can import them.
+// `report` is the spy each test asserts on.
 export function flareJsMock(report: (...args: unknown[]) => unknown) {
     return {
         convertToError,

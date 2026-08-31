@@ -12,9 +12,8 @@ import { router } from './router';
 initFlare();
 traceTanStackRouter(router);
 
-// Track the router pathname via router.subscribe so the boundary can read it
-// without being mounted inside RouterProvider. The boundary needs to wrap
-// RouterProvider, so we can't use useRouterState here.
+// Tracks the pathname via router.subscribe instead of useRouterState, since the boundary
+// wraps RouterProvider rather than mounting inside it.
 const subscribePathname = (listener: () => void): (() => void) => router.subscribe('onResolved', listener);
 
 const getPathname = (): string => router.state.location.pathname;

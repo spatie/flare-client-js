@@ -1,7 +1,7 @@
 import type { FlushFn, FlushScheduler } from '@flareapp/core';
 import type { App } from 'electron';
 
-/** Flushes pending logs/reports when the Electron app is quitting. App is injectable for tests. */
+// Flushes pending logs/reports when the Electron app is quitting. App is injectable for tests.
 export class ElectronFlushScheduler implements FlushScheduler {
     private listener: (() => void) | null = null;
 
@@ -17,7 +17,7 @@ export class ElectronFlushScheduler implements FlushScheduler {
         this.app.on('before-quit', this.listener);
     }
 
-    /** Detach the before-quit listener so a disposed ElectronFlare leaves no flush handler on the shared app. */
+    // Detach the before-quit listener so a disposed ElectronFlare leaves no flush handler on the shared app.
     dispose(): void {
         if (this.listener) {
             this.app.off('before-quit', this.listener);

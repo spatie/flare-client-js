@@ -1,6 +1,5 @@
-// The REAL published inject entry (built dist). Importing it must not pull the js root.
-// Runs in electron's default `node` env — the vue error path needs no DOM (RendererFlare
-// forwards via globalThis[FLARE_BRIDGE_KEY], not window).
+// The REAL published inject entry (built dist). Importing it must not pull the js root. Runs in
+// electron's default `node` env — no DOM needed (RendererFlare forwards via globalThis, not window).
 import { flareVue } from '@flareapp/vue/inject';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createApp } from 'vue';

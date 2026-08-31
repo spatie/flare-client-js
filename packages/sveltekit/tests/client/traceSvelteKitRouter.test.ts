@@ -34,8 +34,8 @@ vi.mock('@flareapp/js', () => ({
 const HERE = new URL(location.origin + '/');
 
 // The module holds state (tracing/inFlight/lastKey), so every test needs a fresh copy. `$app/state`
-// has to be seeded again after resetModules: the reset gives the module under test a brand-new mock
-// instance, so anything written to the old one is quietly thrown away.
+// must be reseeded after resetModules — the reset gives the module under test a brand-new mock
+// instance, so anything written to the old one is thrown away.
 async function load() {
     vi.resetModules();
     const { page, navigating } = await import('$app/state');
@@ -43,9 +43,9 @@ async function load() {
     page.route = { id: '/' };
     navigating.to = null;
     navigating.willUnload = false;
-    // `flushSync` has to come from the svelte instance created after the reset. resetModules gives
-    // the module under test its own svelte runtime with its own effect queue, and a copy imported at
-    // the top of this file would flush the old queue, which does nothing at all.
+    // `flushSync` must come from the svelte instance created after the reset — resetModules gives
+    // the module under test its own runtime with its own effect queue. A copy imported at the top
+    // of this file would flush the old queue, doing nothing.
     const { flushSync } = await import('svelte');
     return { ...(await import('../../src/client/traceSvelteKitRouter.svelte')), page, navigating, flushSync };
 }
@@ -62,8 +62,8 @@ test('registers a navigation source even when tracing is off at call time', asyn
     const stop = traceSvelteKitRouter();
 
     // The whole point of having no call-time gate: registration happens regardless, so a later
-    // flare.configure({ enableTracing: true }) still produces named roots. That tracing-flips-on-later
-    // behaviour needs a naming snapshot, which the pageload tests below cover instead.
+    // flare.configure({ enableTracing: true }) still produces named roots. The pageload tests below
+    // cover that behavior with a naming snapshot.
     expect(registerNavigationSource).toHaveBeenCalledTimes(1);
     stop();
 });
@@ -96,9 +96,9 @@ test('cleanup disposes the effect and unregisters', async () => {
     expect(nav.unregister).toHaveBeenCalledTimes(1);
 });
 
-// hooks.client.ts never calls the returned cleanup, so a half-done install has to undo itself. Left
-// alone it keeps a navigation source registered that observes nothing, which suppresses the built-in
-// History detection for the whole page: no navigation roots at all.
+// hooks.client.ts never calls the returned cleanup, so a half-done install must undo itself. Left
+// alone it keeps a dead navigation source registered, suppressing the built-in History detection
+// for the whole page.
 test('an install that fails after registering unregisters itself', async () => {
     const { traceSvelteKitRouter } = await load();
     insulate.mockImplementationOnce(() => {
@@ -139,23 +139,19 @@ async function started() {
     const stop = mod.traceSvelteKitRouter();
     // The mount effect's first run (pageload naming off the seeded `$app/state`) is scheduled on a
     // microtask, not run synchronously by `$effect.root`. Without this tick it fires later, after
-    // `vi.clearAllMocks()`, and leaks a `setActiveRouteName` call into whichever test happens to await
-    // this helper. Let it settle before clearing so every test starts from a clean mock history.
+    // `vi.clearAllMocks()`, leaking a `setActiveRouteName` call into whichever test awaits this helper.
     await Promise.resolve();
     vi.clearAllMocks();
     return { ...mod, stop };
 }
 
-// About `url` in these snapshots: `started()` takes the starting key from jsdom's location, which is
-// `/`. A snapshot with any other url looks like the page moved, and then it opens a root instead of
-// naming one. So a test about naming the pageload has to pass `url: HERE`. The name comes from
-// `routeId`; the url only decides whether we read it as a move. Get this wrong and a naming test
-// quietly asserts the behaviour of the fallback instead.
+// `started()` takes the starting key from jsdom's location ('/'). A snapshot with any other url
+// looks like the page moved and opens a root instead of naming one — a pageload-naming test must
+// pass `url: HERE`. The name comes from `routeId`; the url only decides move vs. name.
 
-// Every other case below calls `syncNavigation` directly, so none of them touch the effect body.
-// That body is the fragile half: it must read `navigating.to` (not `.from`), `page.route.id` and
-// `page.url`, and it must re-run when any of them change. Swap a field for the wrong one and every
-// other unit test here still passes. So drive one full navigation through the reactive state.
+// Every other case below calls `syncNavigation` directly, skipping the effect body — the fragile
+// half, which must read `navigating.to` (not `.from`), `page.route.id`, and `page.url`, and re-run
+// on any change. The test below drives one full navigation through the reactive state to cover it.
 test('the effect reads $app/state and re-runs, feeding the state machine', async () => {
     const { traceSvelteKitRouter, page, navigating, flushSync } = await load();
     const stop = traceSvelteKitRouter();
@@ -214,9 +210,9 @@ test('falls back to the pathname when there is no route id', async () => {
 test('a late-resolving route id renames the pageload root and opens no nav root', async () => {
     const { syncNavigation, stop } = await started();
 
-    // Kit's `page.route.id` is null until hydration resolves it, so the first snapshot can only
-    // name from the url. Neither snapshot moves the page, so neither may open a navigation root.
-    // The second one changes `source`, not the name, and that is what this asserts.
+    // Kit's `page.route.id` is null until hydration resolves it, so the first snapshot can only name
+    // from the url. Neither snapshot moves the page, so neither opens a nav root — the second only
+    // changes `source`, which is what this asserts.
     syncNavigation(snap({ routeId: null }));
     expect(nav.setActiveRouteName).toHaveBeenLastCalledWith({ name: '/', source: 'url', url: HERE.href });
 
@@ -328,8 +324,8 @@ test('a snapshot seen while tracing is off is not treated as a navigation', asyn
 });
 
 // While tracing is off we still have to follow the current page, not just drop the snapshot.
-// Without that the key goes stale during every navigation made while tracing was off, and the first
-// snapshot after it comes back on reads as a move and opens a root for a page that never moved.
+// Otherwise the key goes stale during off-tracing navigations, and the first snapshot after tracing
+// returns reads as a move and opens a root for a page that never moved.
 test('a navigation made while tracing was off does not open a root when it comes back on', async () => {
     const { syncNavigation, stop } = await started();
     flareConfig.enableTracing = false;

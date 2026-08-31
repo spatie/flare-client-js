@@ -18,9 +18,8 @@ const read = (): CartLine[] => {
     }
 };
 
-// Cache snapshots so useSyncExternalStore receives a stable reference between
-// notifications. Reading on every getSnapshot would return a fresh array each
-// time and trigger React's infinite loop guard.
+// Cached so useSyncExternalStore gets a stable reference between notifications. Reading fresh
+// on every getSnapshot would return a new array each time and trip React's infinite loop guard.
 let linesSnapshot: CartLine[] = read();
 let countSnapshot: number = linesSnapshot.reduce((sum, line) => sum + line.quantity, 0);
 

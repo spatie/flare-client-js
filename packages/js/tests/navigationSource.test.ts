@@ -109,9 +109,8 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
-    // `startNavigation` sets url.full from the first destination, but a redirect, or a newer
-    // navigation replacing this one, renames the same held root. Without updating the url too, the
-    // root shows the name of the page it landed on next to the url of the one it never reached.
+    // A redirect or a newer navigation can rename the same held root after startNavigation set
+    // its url. The url must update too, or the root shows the landed-on page next to the old url.
     it('setActiveRouteName updates url.full and entry_point.value when a name carries a url', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/');
@@ -144,7 +143,7 @@ describe('registerNavigationSource', () => {
         const src = registerNavigationSource();
 
         src.startNavigation({ path: '/old', url: 'https://app.example/old', hold: true });
-        src.settleNavigation({ name: '/old', source: 'route' }); // no url
+        src.settleNavigation({ name: '/old', source: 'route' });
 
         expect(spans[1].attrs['url.full']).toBeUndefined(); // no re-stamp
         expect(startSpan.mock.calls[1]![1]!.attributes?.['url.full']).toBe('https://app.example/old');
@@ -193,9 +192,8 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
-    // An app that installs its router integration before calling configure({ enableTracing: true })
-    // names the initial route while there is no root yet. Dropping that name leaves the pageload root
-    // url-named for the life of the page, because nothing ever names it a second time.
+    // An app that wires its router before configure({ enableTracing: true }) names the initial route
+    // while no root exists yet. Dropping that name would leave the pageload root url-named for good.
     it('names the pageload root from a route handed over before tracing started', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');
@@ -228,9 +226,8 @@ describe('registerNavigationSource', () => {
         src.unregister();
     });
 
-    // The source unmounted (e.g. app.unmount()) before tracing ever started. Applying its name to a
-    // later pageload root would put an authoritative 'route' label, and a possibly stale url.full, on
-    // a page the dead source never saw.
+    // The source unmounted before tracing started. Applying its name to a later pageload root would
+    // put a 'route' label, and maybe a stale url, on a page the dead source never saw.
     it('drops a held name once its source unregisters, before any root ever picked it up', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');
@@ -261,9 +258,8 @@ describe('registerNavigationSource', () => {
         expect(spans[0].attrs['flare.route.source']).not.toBe('route');
     });
 
-    // What makes the clear in stopBrowserTracing safe: a source that outlives a tracing-off/on toggle
-    // hands its name over again, and that one is held and applied. Re-enabling opens a second pageload
-    // root (not backdated, but a real root), so without this it would stay url-named for good.
+    // A source that outlives a tracing-off/on toggle hands its name over again, and re-enabling
+    // applies it to the new pageload root. Otherwise that root would stay url-named for good.
     it('names the pageload root of a re-enabled session from a name handed over while tracing was off', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');
@@ -338,9 +334,8 @@ describe('registerNavigationSource', () => {
         startBrowserTracing(flare);
         const src = registerNavigationSource();
 
-        // Toggle tracing off then on: stopBrowserTracing deliberately does not
-        // clear navSource, only activeFlare/currentRoot. A brand new Flare session
-        // (fresh startSpan mock) takes over as the active flare.
+        // stopBrowserTracing clears activeFlare/currentRoot but not navSource, so a new
+        // Flare session (fresh startSpan mock) takes over as the active flare.
         stopBrowserTracing();
         const { flare: flare2, startSpan: startSpan2, spans: spans2 } = fakeFlare();
         startBrowserTracing(flare2);
@@ -409,9 +404,8 @@ describe('registerNavigationSource', () => {
         expect(spans[1].attrs['flare.entry_point.handler.identifier']).toBe('/product/:id');
         expect(spans[1].attrs['flare.route.source']).toBe('route');
 
-        // Settling hands the root back to the idle lifecycle rather than closing it: a framework
-        // mounts its route component after the router settles, and that mount must still find a
-        // live root to attach to.
+        // Settling hands the root back to the idle lifecycle instead of closing it, so a route
+        // component mounted after the router settles still finds a live root to attach to.
         expect(navRoot.end).not.toHaveBeenCalled();
 
         vi.advanceTimersByTime(1000); // idleTimeout with nothing attached

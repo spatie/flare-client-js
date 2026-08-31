@@ -5,23 +5,16 @@ type Callbacks = {
     onRejection: (reason: unknown) => void;
 };
 
-/**
- * Owns the `uncaughtException` and `unhandledRejection` listeners that feed fatal failures to Flare.
- * Separate from `NodeFlare` because it is pure `process`-event plumbing with no Flare semantics, which
- * keeps it trivially testable.
- *
- * Deliberately kept separate from electron's ProcessHandlerManager, not a shared module. @flareapp/electron
- * does not depend on @flareapp/node, and the only package both import is @flareapp/core, which ships in
- * every browser bundle and touches `process` only behind a typeof guard. A shared manager belongs in a new
- * package, not in core, and one method does not pay for one.
- */
+// Owns the `uncaughtException`/`unhandledRejection` listeners that feed fatal errors to Flare. Kept
+// separate from `NodeFlare` for testability, and separate from electron's ProcessHandlerManager since
+// neither package depends on the other and core (shared by both) must stay browser-safe.
 export class ProcessHandlerManager {
     private uncaughtHandler: ((err: unknown, origin: string) => void) | null = null;
     private rejectionHandler: ((reason: unknown) => void) | null = null;
 
     constructor(private cbs: Callbacks) {}
 
-    /** Idempotent: a no-op when the attached listeners already match the supplied modes. */
+    // Idempotent: a no-op when the attached listeners already match the supplied modes.
     reconcile(opts: { uncaughtExceptionMode: FatalMode; unhandledRejectionMode: FatalMode }): void {
         this.reconcileOne(
             'uncaughtException',
@@ -43,7 +36,7 @@ export class ProcessHandlerManager {
         );
     }
 
-    /** Remove both listeners regardless of intent. Safe when nothing is attached. */
+    // Remove both listeners regardless of intent. Safe when nothing is attached.
     detach(): void {
         if (this.uncaughtHandler) {
             process.off('uncaughtException', this.uncaughtHandler as any);
@@ -55,11 +48,8 @@ export class ProcessHandlerManager {
         }
     }
 
-    /**
-     * Generic attach/detach for one event. The `get`/`set` closures share this body across both events
-     * while mutating distinct fields (`uncaughtHandler` vs `rejectionHandler`). Attaches when wanted and
-     * absent, detaches when unwanted and present, else no-op.
-     */
+    // Shared attach/detach logic for one event; `get`/`set` closures let both events share this body while
+    // mutating their own field. Attaches if wanted and missing, detaches if unwanted and present, else no-op.
     private reconcileOne(
         event: 'uncaughtException' | 'unhandledRejection',
         mode: FatalMode,

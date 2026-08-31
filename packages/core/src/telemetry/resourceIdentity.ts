@@ -1,10 +1,8 @@
 import type { Attributes, Config, Framework, SdkInfo } from '../types';
 
-/**
- * Builds the attributes that go on every logs or traces envelope: the caller's own attributes in `base`, with
- * our SDK, service and framework identity on top. Our keys win, so a user value cannot overwrite something
- * like `telemetry.sdk.name`.
- */
+// Builds the attributes that go on every logs or traces envelope: the caller's own attributes in `base`, with
+// our SDK, service and framework identity on top. Our keys win, so a user value cannot overwrite something
+// like `telemetry.sdk.name`.
 export function buildResourceIdentity(
     base: Attributes,
     config: Config,

@@ -1,14 +1,11 @@
-/** True if `fn` is the browser's native fetch (not a polyfill/wrapper). */
+// True if `fn` is the browser's native fetch (not a polyfill/wrapper).
 export function isNativeFetch(fn: unknown): boolean {
     return typeof fn === 'function' && /native code/.test(Function.prototype.toString.call(fn));
 }
 
-/**
- * Whether the current global `fetch` is native. A polyfilled fetch (e.g. whatwg-fetch) is
- * XHR-backed; skip instrumenting it so the XHR patch is the single source for those requests.
- * Ported from Sentry, including the hidden-iframe fallback used when another library has already
- * wrapped `fetch` and the direct toString check is unreliable.
- */
+// Whether the global `fetch` is native. A polyfilled fetch (for example whatwg-fetch) is XHR-backed,
+// so skip instrumenting it and let the XHR patch be the single source for those requests. Ported from
+// Sentry, including the hidden-iframe fallback for when another library already wrapped `fetch`.
 export function supportsNativeFetch(): boolean {
     const globals = globalThis as { fetch?: unknown; document?: Document };
     if (typeof globals.fetch !== 'function') {
@@ -35,8 +32,8 @@ export function supportsNativeFetch(): boolean {
             result = false;
         } finally {
             try {
-                // Own catch: appendChild is inside the try above, so the probe may never have been
-                // attached, and removal must not throw out of here into the host app.
+                // Separate catch: appendChild is inside the try above, so the probe may never be
+                // attached. Removal must not throw out into the host app.
                 sandbox?.remove();
             } catch {
                 // already detached

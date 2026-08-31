@@ -15,11 +15,9 @@ beforeEach(() => {
     fake.reset();
 });
 
-/**
- * preprocessor.test.ts checks what we emit, profileComponent.test.ts calls the function directly.
- * Neither notices if the emitted call stops working, so that gap gets its own test. The fixtures hold
- * no profiling code; vitest.config.mts injects it.
- */
+// preprocessor.test.ts checks what we emit; profileComponent.test.ts calls the function directly.
+// Neither notices if the emitted call breaks, so this test fills that gap. The fixtures hold no
+// profiling code themselves — vitest.config.mts injects it.
 describe('preprocessor output at runtime', () => {
     it('records the documented pageload tree for components carrying no profiling code', async () => {
         render(Harness);

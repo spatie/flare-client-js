@@ -44,12 +44,10 @@ export function resetRequestBus(): void {
     mutator = null;
 }
 
-/**
- * Tells every subscriber a request is about to go out. Returns the (possibly mutated) `init` and
- * `headers` plus one `settle` callback that fans the result out to every subscriber. Returns null
- * when nothing acted on the request; the wrapper must then call the real fetch or send untouched.
- * A subscriber that throws is skipped, so instrumentation never breaks the app's request.
- */
+// Tells every subscriber a request is about to go out. Returns the (possibly mutated) `init` and
+// `headers` plus one `settle` callback that fans the result out to every subscriber. Returns null
+// when nothing acted on the request; the wrapper must then call the real fetch or send untouched.
+// A subscriber that throws is skipped, so instrumentation never breaks the app's request.
 export function publishRequestStart(start: RequestStart): {
     settle(result: RequestSettle): void;
     init: RequestInit | undefined;

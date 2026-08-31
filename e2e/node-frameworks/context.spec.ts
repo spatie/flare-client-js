@@ -31,14 +31,14 @@ test('hono: async route error report carries request context', async () => {
         throw new Error('boom');
     });
     app.onError((err, c) => {
-        // flare.report() returns a Promise, but Hono's onError cannot await it.
-        // waitForReport() below polls until the fire-and-forget report arrives.
+        // Hono's onError can't await report()'s promise, so it's fire-and-forget;
+        // waitForReport() below polls until it arrives.
         flare.report(err);
         return c.text('Internal Server Error', 500);
     });
 
-    // serve(..., callback) resolves the bound port from the `listening` event —
-    // no `address()` race (address() is null until listening fires).
+    // Get the port from the callback's `listening` event, not address() — address() is
+    // null until listening fires.
     let honoServer!: ServerType;
     const base = await new Promise<string>((resolve) => {
         honoServer = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' }, (info) => {
@@ -93,8 +93,7 @@ test('fastify: async route error report carries request context', async () => {
         throw new Error('boom');
     });
     app.setErrorHandler((err, _req, reply) => {
-        // Fastify types the error handler's `err` as `unknown` (setErrorHandler<TError = unknown>),
-        // so narrow to Error for report(). Not a wiring change vs the README.
+        // Fastify types `err` as unknown here, so narrow it to Error for report().
         flare.report(err as Error);
         reply.status(500).send({ error: 'Internal Server Error' });
     });

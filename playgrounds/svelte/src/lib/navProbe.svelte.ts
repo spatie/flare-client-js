@@ -6,12 +6,9 @@ declare global {
     }
 }
 
-/**
- * Record every `navigating` transition an effect root created at client-init actually observes.
- * Playground-only: it exists so the e2e suite can prove the non-null state is not batched away,
- * which is the one assumption traceSvelteKitRouter rests on. Mirrors the SDK's effect shape (an
- * `$effect.root` from a `.svelte.ts` module invoked by hooks.client.ts) as closely as possible.
- */
+// Records every `navigating` transition an effect root observes at client-init. Playground-only:
+// proves the non-null state isn't batched away, the one assumption traceSvelteKitRouter relies on.
+// Mirrors the SDK's effect shape (`$effect.root` in a `.svelte.ts` module from hooks.client.ts).
 export function startNavProbe(): void {
     window.__navStates = [];
     $effect.root(() => {

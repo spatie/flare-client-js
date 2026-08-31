@@ -1,5 +1,5 @@
-// Side-effect-free seam shared by @flareapp/react/profiler and the @flareapp/vue mixin. Keeps every
-// reference to the tracer on this side, the same rule registerNavigationSource follows.
+// Side-effect-free seam shared by @flareapp/react/profiler and the @flareapp/vue mixin. Keeps all
+// tracer references on this side, same as registerNavigationSource.
 import { defaultNowNano, spanId as makeSpanId, type Attributes } from '@flareapp/core';
 
 import { BrowserSpanType } from '../spanTypes';
@@ -11,8 +11,8 @@ export type ComponentTraceContext = { traceId: string; parentSpanId: string };
 export const nowNano = defaultNowNano;
 
 /**
- * Reserved up front so descendants can point at a span before it is recorded. Null when the trace is at
- * its span cap: descendants record before this span does, so an id the cap will refuse orphans them.
+ * Reserved up front so descendants can point at a span before it is recorded. Null when the trace
+ * is at its span cap, since descendants record before this span does and would be orphaned.
  */
 export function reserveSpanId(traceId?: string): string | null {
     if (traceId !== undefined && !activeTracingFlare()?.tracer.claimSpanSlot(traceId)) {
@@ -35,9 +35,9 @@ export function activeComponentRoot(): ComponentTraceContext | null {
 }
 
 /**
- * An ancestor's context is only usable while it still belongs to the live trace. A profiled component
- * that survives a navigation (a layout around a swapped page body) froze its context under the pageload
- * trace, and `recordComponentSpan` would drop anything pointing at that closed root.
+ * An ancestor's context is only usable while it still belongs to the live trace. A component that
+ * survives a navigation (a layout around a swapped page body) froze its context under the old
+ * pageload trace, and `recordComponentSpan` would drop anything pointing at that closed root.
  */
 export function resolveComponentParent(
     inherited: ComponentTraceContext | null | undefined,
@@ -60,9 +60,9 @@ export type ComponentSpanRecord = {
 };
 
 /**
- * Records only while the reserved root is still the live recording root, and drops the span otherwise.
- * Dropping avoids starting a fresh TraceState for a dead trace, which would re-run the sampler, and
- * avoids adding a child to a root that already shipped.
+ * Records only while the reserved root is still the live recording root, and drops the span
+ * otherwise. Dropping avoids re-running the sampler for a dead trace and avoids adding a child to
+ * a root that already shipped.
  */
 export function recordComponentSpan(record: ComponentSpanRecord): void {
     try {

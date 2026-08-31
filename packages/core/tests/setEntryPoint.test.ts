@@ -15,8 +15,7 @@ function browserCollector(_config: Readonly<Config>): Attributes {
     const attrs: Attributes = { 'flare.entry_point.type': 'web' };
     if (typeof window !== 'undefined' && window?.location?.pathname) {
         attrs['flare.entry_point.handler.identifier'] = window.location.pathname;
-        // The real browser collector also sets http.route. Copy that here so the tests below can
-        // check both keys move together.
+        // Mirrors the real browser collector, which also sets http.route, so tests can check both keys move together.
         attrs['http.route'] = window.location.pathname;
         attrs['flare.entry_point.handler.type'] = 'browser';
     }

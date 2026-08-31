@@ -66,9 +66,8 @@ export function FlareProfiler({ name, children }: FlareProfilerProps): ReactNode
             parent && ownRef.current ? { traceId: parent.traceId, parentSpanId: ownRef.current.spanId } : null;
     }
 
-    // Record exactly once per committed fiber. Under StrictMode React replays the
-    // effect (setup -> cleanup -> setup) on the same fiber, and the refs above persist,
-    // so an unguarded effect would buffer the same reserved spanId twice.
+    // Record exactly once per fiber. StrictMode replays the effect (setup -> cleanup -> setup) on the
+    // same fiber, and these refs persist, so an unguarded effect would double-buffer the same spanId.
     const hasRecorded = useRef(false);
     useMountEffect(() => {
         const own = ownRef.current;

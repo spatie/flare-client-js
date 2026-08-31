@@ -2,14 +2,11 @@ import { vi } from 'vitest';
 
 type Listener = (...args: unknown[]) => void;
 
-/** An `ipcMain.handle` handler. Unlike `Listener` it returns: the receiver's promise is awaited in tests. */
+// An `ipcMain.handle` handler. Unlike `Listener` it returns: the receiver's promise is awaited in tests.
 type IpcHandler = (...args: unknown[]) => unknown;
 
-/**
- * Fake Electron `App`. `on`/`off` default to a working push/filter event emitter (the resulting
- * `handlers` map is exposed for scheduler-style assertions); app-metadata methods default to
- * ready/non-packaged values and can be overridden per call site.
- */
+// Fake Electron `App`: `on`/`off` are a working push/filter emitter (its `handlers` map is exposed for
+// assertions); metadata methods default to ready/non-packaged and can be overridden per call site.
 export function fakeApp(
     overrides: {
         getName?: () => string;
@@ -36,7 +33,7 @@ export function fakeApp(
     };
 }
 
-/** Fake Electron `IpcMain`. Throws on a double `handle()` for the same channel without an intervening `removeHandler()`. */
+// Fake Electron `IpcMain`. Throws on a double `handle()` for the same channel without an intervening `removeHandler()`.
 export function fakeIpcMain() {
     const handlers: Record<string, IpcHandler> = {};
     return {

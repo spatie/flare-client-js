@@ -198,8 +198,8 @@ describe('Flare URL scrubbing', () => {
         window.history.replaceState({}, '', '/page?secretKey=xyz&q=visible');
         flare.configure({ urlDenylist: /^secretKey$/ });
 
-        // A later configure() that omits denylist config must NOT revert the custom denylist to the default,
-        // which would silently stop redacting values the user asked to hide.
+        // A later configure() without denylist config must not revert to the default denylist.
+        // That would silently stop redacting values the user asked to hide.
         flare.configure({ sampleRate: 1 });
 
         await flare.report(new Error('boom'));

@@ -17,8 +17,8 @@ const NODE_SDK_VERSION =
         ? process.env.FLARE_JS_CLIENT_VERSION
         : '?';
 
-/** `g`/`y` make `.test()` keep `lastIndex` state, so reusing the regex across keys skips every other
- *  match. All other flags are preserved. */
+// `g`/`y` make `.test()` keep `lastIndex` state, so reusing the regex across keys skips every other
+// match. All other flags are preserved.
 function sanitizeRegex(re: RegExp): RegExp {
     const safeFlags = re.flags.replace(/[gy]/g, '');
     return new RegExp(re.source, safeFlags);
@@ -38,18 +38,12 @@ const DEFAULT_NODE_OPTIONS: ResolvedNodeOptions = {
 };
 
 /**
- * Node.js-specific `Flare` singleton, exposed from `@flareapp/node` as `flare`.
+ * Node.js `Flare` singleton, exported from `@flareapp/node` as `flare`.
  *
- * Subclasses core's `Flare` and wires the Node-only seams in its constructor:
- * - `AsyncLocalStorageScopeProvider` so each `runWithContext(...)` callback gets its own `NodeScope`,
- *   isolated from concurrent requests.
- * - `makeNodeContextCollector(...)` turns the current `NodeScope` + process info into report attributes.
- * - `DiskFileReader` reads source for stack-trace snippets via `node:fs/promises`, not `fetch`.
- * - `ProcessHandlerManager` attaches/detaches the fatal process listeners per `NodeOptions`.
- *
- * Adds Node-only API on top of core: `configureNode`, `runWithContext`, `mergeContext`, `getContext`,
- * `removeProcessListeners`. Inherited core methods return `this`, so chaining keeps the `NodeFlare`
- * type and `configureNode(...)` stays callable mid-chain.
+ * Subclasses core's `Flare` and wires the Node-only seams: per-request scope via
+ * `AsyncLocalStorageScopeProvider`, a Node context collector, `DiskFileReader` for stack snippets,
+ * and `ProcessHandlerManager` for the fatal listeners. Adds `configureNode`, `runWithContext`,
+ * `mergeContext`, `getContext`, and `removeProcessListeners` on top of the core API.
  */
 export class NodeFlare extends CoreFlare {
     private nodeOptions: ResolvedNodeOptions = { ...DEFAULT_NODE_OPTIONS };

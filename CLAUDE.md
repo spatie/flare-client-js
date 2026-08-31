@@ -46,6 +46,27 @@ package, and a Playwright-based e2e suite:
 - **Git hooks:** Husky + lint-staged (pre-commit runs oxlint --fix + oxfmt)
 - **Package manager:** npm workspaces
 
+## Code style
+
+### Code comments
+
+- Code comments should be avoided at all cost, unless they genuinely add something useful that the code is not already explaining
+- Code comments explain WHY, not what. The code already says what it does
+- Code comments should be as short as possible. If you need a paragraph, the code probably needs the work instead
+
+### Code formatting
+
+- Formatting: oxfmt, config in `.oxfmtrc.json`
+- Linting: oxlint, root config in `.oxlintrc.json`, per-package configs in `packages/<pkg>/.oxlintrc.json`
+- If statements should always use brackets
+
+### Code reusability
+
+- Functions should be small and reusable
+- If something has been duplicated more than 3 times, extract it into a utility function
+- Code duplication must be kept at A MINIMUM and should only be done when it makes sense in the context of the feature.
+- When there is an opportunity to create a shared utility for the code or the tests, YOU MUST DO SO.
+
 ## Commands (run from repo root)
 
 ```bash
@@ -136,17 +157,3 @@ worker (the fake server has shared in-memory state), `webServer` boots each play
 
 Run the whole thing: `npm run test:e2e`. One project: `npx playwright test --project=svelte`. One scenario:
 `npx playwright test -g "sync-throw"`.
-
-## Code style
-
-- Formatting: oxfmt, config in `.oxfmtrc.json`
-- Linting: oxlint, root config in `.oxlintrc.json`, per-package configs in `packages/<pkg>/.oxlintrc.json`
-- Doc comments on functions must be terse and follow JSDoc (`/** ... */` with `@param` / `@returns` where they add
-  information). Write them only when they clarify non-obvious behavior; do not restate the signature.
-- Comments explain WHY, not what. The code already says what it does.
-- Keep comments as short as possible. One or two lines is usually enough. If you need a paragraph, the code probably
-  needs the work instead.
-- Write comments in plain English, the way you would explain it to the developer sitting next to you. No academic or
-  research-paper tone, no long build-ups, no restating the obvious.
-- When there is an opportunity to create a shared utility for the code or the tests, YOU MUST DO SO.
-- Code duplication must be kept at A MINIMUM and should only be done when it makes sense in the context of the feature.

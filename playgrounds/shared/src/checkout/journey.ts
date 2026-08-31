@@ -3,10 +3,8 @@ export type JourneyGlow = {
     data: Record<string, unknown>;
 };
 
-/**
- * The breadcrumb trail the showcase error arrives with. Defined once so every playground reports the
- * same journey, and typed structurally so this package does not need to depend on the SDK.
- */
+// The breadcrumb trail the showcase error arrives with. Defined once so every playground reports the
+// same journey, and typed structurally so this package does not need to depend on the SDK.
 export type GlowTarget = {
     glow(name: string, level?: 'info', data?: Record<string, unknown>): unknown;
 };
@@ -30,7 +28,7 @@ export const journeyGlows = {
     }),
 };
 
-/** The signed-in shopper every playground reports as, so the error carries a user. */
+// The signed-in shopper every playground reports as, so the error carries a user.
 export const showcaseUser = {
     id: 'usr_8123',
     email: 'iris.dewitte@example.com',

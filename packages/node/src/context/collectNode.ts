@@ -8,13 +8,8 @@ import { nodeDeviceInfoProvider } from './deviceInfo';
 import { findHeader, projectHeaders } from './headers';
 import { collectProcessAttributes } from './process';
 
-/**
- * Turns process info (always) and the active request scope (only inside `runWithContext`) into
- * OTel-style attributes. User identity is not handled here: `Flare.setUser` writes straight to
- * `pendingAttributes`.
- *
- * `getOptions` is a getter so `configureNode(...)` shows up on later reports without rebuilding this.
- */
+// Turns process info and the active request scope into OTel-style attributes (user identity goes through
+// `Flare.setUser` instead). `getOptions` is a getter so `configureNode(...)` affects future reports.
 export function makeNodeContextCollector(
     provider: AsyncLocalStorageScopeProvider,
     getOptions: () => Pick<
@@ -42,9 +37,8 @@ export function makeNodeContextCollector(
             attrs['http.request.method'] = request.method;
         }
 
-        // `request.path` has the shape of `req.url` from `node:http`: server-relative, optional query.
-        // Redacting the whole path and slicing the prefix back off reuses core's `redactUrlQuery` rather
-        // than reimplementing query redaction here.
+        // `request.path` matches node:http's `req.url` shape (server-relative, optional query). Redacting
+        // the whole path and re-slicing reuses core's `redactUrlQuery` instead of reimplementing it here.
         if (request.path) {
             const queryStart = request.path.indexOf('?');
             if (queryStart === -1) {
@@ -57,9 +51,8 @@ export function makeNodeContextCollector(
             }
         }
 
-        // The absolute URL when the caller has it, post proxy/host resolution. Independent of
-        // `request.path`: either, both or neither may be set. We only take url.full and url.scheme
-        // from it. url.path and url.query come from `request.path`, which is what the server routed on.
+        // Absolute URL once resolved (e.g. behind a proxy), independent of `request.path` — either, both,
+        // or neither may be set. Only url.full/url.scheme come from here; path/query still come from `request.path`.
         if (request.url) {
             const fromUrl = urlAttributes(request.url, config.urlDenylist);
             attrs['url.full'] = fromUrl['url.full'];

@@ -17,13 +17,9 @@ export type ExpoModules = {
     application?: ExpoApplicationModule;
 };
 
-/**
- * Lazy, synchronous Expo load. The `require(...)` calls MUST be direct string literals: Metro statically
- * collects only literal `require('pkg')` calls, treating those inside a try/catch as optional deps
- * (`allowOptionalDependencies` is on by default), so a missing package degrades to a caught throw not a
- * build error. Do NOT alias `require` to a local; that defeats the static collection and the module never
- * resolves even when installed. The `typeof require` guard keeps non-Metro/ESM envs (some test runners) safe.
- */
+// Lazy, synchronous Expo load. Keep `require('pkg')` calls as direct string literals: Metro only
+// statically collects those, so a missing package degrades to a caught throw instead of a build error.
+// Do not alias `require` to a local, or Metro won't resolve the module even when it's installed.
 export function loadExpoModules(): ExpoModules {
     const mods: ExpoModules = {};
     if (typeof require === 'undefined') {
@@ -42,10 +38,10 @@ export function loadExpoModules(): ExpoModules {
     return mods;
 }
 
-/** Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4). */
+// Expo's `DeviceType` enum (UNKNOWN=0, PHONE=1, TABLET=2, DESKTOP=3, TV=4).
 const DEVICE_TYPE_LABELS: Record<number, string> = { 1: 'phone', 2: 'tablet', 3: 'desktop', 4: 'tv' };
 
-/** Normalise the synchronous Expo constants into `DeviceInfo`. Only present (non-null) fields are set. */
+// Normalise the synchronous Expo constants into `DeviceInfo`. Only present (non-null) fields are set.
 export function expoToDeviceInfo(expo: ExpoModules): DeviceInfo {
     const info: DeviceInfo = {};
 

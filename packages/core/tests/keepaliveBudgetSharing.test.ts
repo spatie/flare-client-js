@@ -9,8 +9,8 @@ type ParsedEnvelope = {
     resourceSpans?: Array<{ scopeSpans: Array<{ spans: unknown[] }> }>;
 };
 
-/** Records what each POST was actually sent with, and holds every request open so the Api's in-flight
- *  keepalive budget stays occupied across both flushes, the way a real page hide does. */
+// Records what each POST was sent with, and holds every request open so the Api's in-flight keepalive
+// budget stays occupied across both flushes, the way a real page hide does.
 class RecordingApi extends Api {
     sent: Array<{ url: string; keepalive: boolean; bytes: number; records: number }> = [];
 
@@ -32,7 +32,7 @@ class RecordingApi extends Api {
     }
 }
 
-/** Fires every registered buffer the way BrowserFlushScheduler does on page hide, in registration order. */
+// Fires every registered buffer the way BrowserFlushScheduler does on page hide, in registration order.
 class ManualScheduler implements FlushScheduler {
     private flushes: FlushFn[] = [];
     register(flush: FlushFn): void {
@@ -78,14 +78,12 @@ describe('logs and traces share one keepalive budget', () => {
         expect(api.sent).toHaveLength(2);
         const [logsSent, spansSent] = api.sent;
 
-        // Logger is constructed before Tracer, so logs flush first and pack what fits of the full 60,000-byte
-        // budget, retaining the rest for a later flush.
+        // Logger is constructed before Tracer, so logs flush first and pack what fits of the 60,000-byte budget.
         expect(logsSent.keepalive).toBe(true);
         expect(logsSent.bytes).toBeLessThanOrEqual(60_000);
         expect(flare.logger.bufferLength()).toBeGreaterThan(0);
 
-        // Spans find nothing left of the shared budget. Before the fix this was total silence:
-        // packForKeepalive selected nothing, flush() returned early, and the whole span buffer was retained
+        // Spans find nothing left of the shared budget. Before the fix that meant total silence: the buffer sat
         // behind a timer that never fires on an unloading page. Now it ships anyway, just without keepalive.
         expect(spansSent.keepalive).toBe(false);
         expect(spansSent.records).toBe(40);
@@ -97,9 +95,8 @@ describe('logs and traces share one keepalive budget', () => {
 
     it('ships the whole buffer without keepalive when the shared budget has nothing left', () => {
         const api = new RecordingApi();
-        // Saturate the shared per-page in-flight request cap directly, independent of byte size: 15 granted
-        // keepalive sends that never resolve hold pendingKeepaliveRequests at the cap, so
-        // keepaliveBudgetRemaining() reports 0 for every flush after this.
+        // Saturate the shared per-page in-flight request cap directly: 15 granted keepalive sends that never
+        // resolve hold pendingKeepaliveRequests at the cap, so keepaliveBudgetRemaining() reports 0 after this.
         for (let i = 0; i < 15; i++) {
             api.logs({ resourceLogs: [] }, 'https://ingress.flareapp.io/v1/logs', 'k', false, true);
         }

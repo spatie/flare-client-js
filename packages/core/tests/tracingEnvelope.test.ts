@@ -64,9 +64,8 @@ describe('buildTracesEnvelope', () => {
         expect('message' in env.resourceSpans[0].scopeSpans[0].spans[0].status).toBe(false);
     });
 
-    // SpanBuffer.estimateBytes and Api.traces dropped safeClone on the strength of this: a BufferedSpan has been
-    // through attributesToOpenTelemetry, so cloning it cannot change a single byte. If a future field breaks that,
-    // the measured size and the shipped body silently stop agreeing, so pin it.
+    // SpanBuffer.estimateBytes and Api.traces skip safeClone because attributesToOpenTelemetry already makes
+    // cloning a no-op. This test pins that, so a future field that breaks it does not silently desync size from body.
     it('stringifies byte-identically with and without safeClone', () => {
         const cyclic: Record<string, unknown> = { a: 1 };
         cyclic.self = cyclic;

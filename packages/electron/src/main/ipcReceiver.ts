@@ -6,14 +6,14 @@ import type { ResolvedElectronOptions, SenderFrame } from '../types';
 
 type ReceiverDeps = {
     getOptions: () => ResolvedElectronOptions;
-    /** Called with a validated, parsed report. ElectronFlare wires this to its send pipeline. */
+    // Called with a validated, parsed report. ElectronFlare wires this to its send pipeline.
     onReport: (report: Report) => Promise<void>;
 };
 
-/** Module-level ownership token for the single flare:report channel. */
+// Module-level ownership token for the single flare:report channel.
 let currentOwner: object | null = null;
 
-/** Default sender-trust check: accept file: and localhost/127.0.0.1 only, plus configured custom protocols. */
+// Default sender-trust check: accept file: and localhost/127.0.0.1 only, plus configured custom protocols.
 export function defaultTrustPolicy(frame: SenderFrame, opts: ResolvedElectronOptions): boolean {
     let parsed: URL;
     try {
@@ -47,11 +47,8 @@ function isTrusted(frame: SenderFrame | undefined, opts: ResolvedElectronOptions
     return defaultTrustPolicy(frame, opts);
 }
 
-/**
- * Minimal top-level structural guard for a parsed report, not an exhaustive StackFrame/SpanEvent
- * validator: a compromised renderer could forge any valid-looking shape anyway. The security boundary
- * is the sender-trust check plus the byte-size cap; this only rejects obviously-wrong payloads.
- */
+// A minimal structural guard, not an exhaustive validator — a compromised renderer could forge any
+// shape anyway. The real security boundary is the sender-trust check plus the byte-size cap.
 function isReportShape(value: unknown): value is Report {
     if (typeof value !== 'object' || value === null) {
         return false;

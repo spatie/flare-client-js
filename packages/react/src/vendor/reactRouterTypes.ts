@@ -1,8 +1,6 @@
-// Structural subset of the React Router v7 DataRouter (createBrowserRouter / createHashRouter /
-// createMemoryRouter) that the tracing integration reads. Vendored (not imported) so this entry
-// needs no runtime react-router dependency and non-RR consumers of @flareapp/react type-check
-// cleanly. Read from react-router 7.x (installed 7.18.1, peer floor >=7.0.0 <8); verify against
-// that floor if these shapes drift.
+// Structural subset of React Router v7's DataRouter that the tracing integration reads. Vendored, not
+// imported, so this entry needs no runtime dependency and non-RR consumers still type-check cleanly.
+// Read from react-router 7.x (installed 7.18.1, peer floor >=7.0.0 <8); verify against that floor if these shapes drift.
 
 export type ReactRouterLocationLike = { pathname: string; search?: string; hash?: string; state?: unknown };
 export type ReactRouterRouteLike = { path?: string; index?: boolean; id?: string };
@@ -26,9 +24,7 @@ export type ReactRouterStateLike = {
 export type ReactRouterLike = {
     subscribe(cb: (state: ReactRouterStateLike) => void): () => void;
     state: ReactRouterStateLike;
-    /**
-     * Applies the router's `basename` (and, for a hash router, the `#` prefix) to a location.
-     * `state.location.pathname` has both stripped. Optional so a hand-built router still types.
-     */
+    // Applies the router's `basename` (and, for a hash router, the `#` prefix) to a location.
+    // `state.location.pathname` has both stripped. Optional so a hand-built router still types.
     createHref?(location: ReactRouterLocationLike): string;
 };

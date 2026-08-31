@@ -140,7 +140,7 @@ export function registerNavigationSource(): NavigationSource {
     };
 }
 
-/** A name from an earlier call is only valid while that source is still registered. */
+// A name from an earlier call is only valid while that source is still registered.
 export function isActiveNavigationSource(token: object | null): boolean {
     return token !== null && source === token;
 }

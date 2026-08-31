@@ -20,10 +20,8 @@ type XcodeInternal = {
     ) => { buildPhase: ShellScriptPhase };
 };
 
-/**
- * Appended rather than positioned, so it runs after the JS bundle phase whatever that phase is named and
- * wherever it sits across Expo SDKs. Mutates `project` in place, per the `xcode` lib's contract.
- */
+// Appended rather than positioned, so it runs after the JS bundle phase whatever that phase is named and
+// wherever it sits across Expo SDKs. Mutates `project` in place, per the `xcode` lib's contract.
 export function addUploadBuildPhase(project: XcodeProject, shellScript: string): XcodeProject {
     const internal = project as unknown as XcodeInternal;
     const phases = internal.hash.project.objects.PBXShellScriptBuildPhase ?? {};
@@ -42,9 +40,9 @@ export function addUploadBuildPhase(project: XcodeProject, shellScript: string):
         shellPath: '/bin/sh',
         shellScript,
     });
-    // Uncheck "Based on dependency analysis": the phase has no input/output files, so without this
-    // Xcode warns ("ambiguous dependencies ... runs on every build"). We want it to run every release
-    // build; it self-skips when there is no map, key, or version.
+    // Uncheck "Based on dependency analysis": the phase has no input/output files, so without this Xcode
+    // warns about ambiguous dependencies. We want it to run every release build; it self-skips when
+    // there's no map, key, or version.
     buildPhase.alwaysOutOfDate = ALWAYS_OUT_OF_DATE;
     return project;
 }

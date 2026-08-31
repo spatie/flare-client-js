@@ -2,9 +2,8 @@ import type ErrorStackParser from 'error-stack-parser';
 
 import type { SvelteErrorOrigin } from './types.js';
 
-// Origins are indistinguishable at the boundary catch site; the stack trace is the only signal.
-// Checked in priority order event > effect > render > unknown, so an event handler inside a
-// component wins over the .svelte filename check.
+// The boundary catch site can't tell origins apart, so the stack trace is the only signal.
+// Checked in order event > effect > render > unknown: an event handler wins over a .svelte match.
 
 // Inline event handlers and DOM event API calls. Svelte compiles `onclick={handler}` to
 // `.onclick = ...` or `addEventListener(...)`, so these match compiled output and manual DOM calls.
@@ -35,10 +34,8 @@ const EVENT_PATTERNS = [
 // microtasks, promise continuations, MutationObserver callbacks. Not render-phase code.
 const EFFECT_PATTERNS = [/queueMicrotask/, /Promise\.then/, /Promise\.catch/, /MutationObserver/];
 
-/**
- * Classify a parsed stack trace's error origin: 'event' (DOM handler), 'effect' (async side-effect),
- * 'render' (component render phase), or 'unknown' (no frames or no recognizable pattern).
- */
+// Classify a parsed stack trace's error origin: 'event' (DOM handler), 'effect' (async side-effect),
+// 'render' (component render phase), or 'unknown' (no frames or no recognizable pattern).
 export function getErrorOrigin(frames: ErrorStackParser.StackFrame[]): SvelteErrorOrigin {
     if (frames.length === 0) {
         return 'unknown';

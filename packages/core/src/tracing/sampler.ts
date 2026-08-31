@@ -17,8 +17,8 @@ export function resolveSampling(
         try {
             result = config.tracesSampler(samplingContext);
         } catch (error) {
-            // A throwing customer sampler must never propagate out of startSpan (it would break instrumented host calls
-            // like fetch). Fail closed.
+            // A throwing customer sampler must not escape startSpan; it would break instrumented calls like fetch.
+            // Fail closed.
             if (config.debug) {
                 console.error('Flare: tracesSampler threw, treating span as not sampled', error);
             }

@@ -15,23 +15,19 @@ export type FakeComponentSeam = {
     reserveSpanId: ReturnType<typeof vi.fn>;
     recordComponentSpan: ReturnType<typeof vi.fn>;
     nowNano: ReturnType<typeof vi.fn>;
-    /** Swap what the live root is, including to null for "tracing off or no root open". */
+    // Swaps what the live root is, including to null for "tracing off or no root open".
     setRoot(root: FakeComponentRoot): void;
-    /**
-     * Make `nowNano` climb on every call, so a test can tell a span's start and end apart. Off by
-     * default, since a frozen clock keeps timestamp assertions readable as literals.
-     */
+    // Makes `nowNano` climb on every call, so a test can tell a span's start and end apart. Off by
+    // default, since a frozen clock keeps timestamp assertions readable as literals.
     advanceClock(stepNano?: number): void;
-    /** The spans the seam was asked to record, in order. */
+    // The spans the seam was asked to record, in order.
     spans(): RecordedComponentSpan[];
     reset(): void;
 };
 
-/**
- * The component-profiler seam fake shared by the React and Vue profiler suites. Reserved span ids are
- * counter-backed (`s1`, `s2`, ...) so a test can assert a child's parent id by name instead of
- * threading the real random id through the assertion.
- */
+// The component-profiler seam fake shared by the React and Vue profiler suites. Reserved span ids are
+// counter-backed (`s1`, `s2`, ...) so a test can assert a child's parent id by name instead of
+// threading the real random id through the assertion.
 export function createComponentSeam(): FakeComponentSeam {
     let counter = 0;
     let root: FakeComponentRoot = { traceId: 'T', parentSpanId: 'root' };
@@ -66,8 +62,8 @@ export function createComponentSeam(): FakeComponentSeam {
             step = 0;
             recorded.length = 0;
             root = { traceId: 'T', parentSpanId: 'root' };
-            // mockReset, not mockClear: mockClear leaves a test's implementation in place, so a seam made to
-            // throw keeps throwing for the rest of the file. Re-installed explicitly, not the reset default.
+            // mockReset, not mockClear: mockClear leaves a test's implementation in place, so a seam
+            // made to throw keeps throwing for the rest of the file.
             seam.activeComponentRoot.mockReset().mockImplementation(() => root);
             seam.reserveSpanId.mockReset().mockImplementation(() => `s${++counter}`);
             seam.recordComponentSpan.mockReset().mockImplementation(record);
@@ -78,15 +74,13 @@ export function createComponentSeam(): FakeComponentSeam {
     return seam;
 }
 
-/**
- * The `@flareapp/js/browser` mock for a profiler suite. Only the four seam functions are faked; pass
- * the real module as `original` and everything else stays real, so a suite cannot pass against a
- * hand-written stand-in that has drifted from the code it stands in for. Same approach as
- * `browserSeamMock`.
- *
- *     vi.mock('@flareapp/js/browser', async (importOriginal) =>
- *         (await import('@flareapp/test-helpers')).componentProfilerMock(seam, await importOriginal()));
- */
+// The `@flareapp/js/browser` mock for a profiler suite. Only the four seam functions are faked; pass
+// the real module as `original` and everything else stays real, so a suite cannot pass against a
+// hand-written stand-in that has drifted from the code it stands in for. Same approach as
+// `browserSeamMock`.
+//
+//     vi.mock('@flareapp/js/browser', async (importOriginal) =>
+//         (await import('@flareapp/test-helpers')).componentProfilerMock(seam, await importOriginal()));
 export function componentProfilerMock(
     seam: FakeComponentSeam,
     original: Record<string, unknown>,

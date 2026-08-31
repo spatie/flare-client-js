@@ -26,7 +26,7 @@ function fakeSpan(id: string, traceId: string, endTime = 0): Span {
     } as unknown as Span;
 }
 
-// Controllable harness: manual timers keyed by id (deadline in nanos), manual clock, manual listener.
+// Manual timers keyed by id (deadline in nanos), manual clock, manual listener.
 function harness(root: Span, endFloor: () => number = () => 0) {
     let listener: ((e: { phase: 'start' | 'end'; span: Span }) => void) | null = null;
     let clock = 0;
@@ -93,8 +93,8 @@ describe('IdleRootController', () => {
     });
 
     it('a childless root ends at the end floor, not padded to now() (the idle-padding bug)', () => {
-        // A pageload whose window had no fetch/xhr children must close at its real
-        // load-event floor (here 700ms), NOT at start + idleTimeout (1000ms).
+        // A pageload with no fetch/xhr children must close at its load-event floor (700ms),
+        // not at start + idleTimeout (1000ms).
         const root = fakeSpan('root', 'T');
         const h = harness(root, () => 700 * 1e6);
         const controller = new IdleRootController(h.deps, TIMEOUTS);
@@ -158,8 +158,8 @@ describe('IdleRootController', () => {
         h.emit('start', c1);
         h.emit('end', c1); // clears the first child timer, arms idle
 
-        // Second batch starts before idle fires; a stuck child should force-end at
-        // childSpanTimeout measured from this batch, proving a fresh timer was armed.
+        // Second batch starts before idle fires. A stuck child force-ends at childSpanTimeout
+        // measured from this batch, proving a fresh timer was armed.
         h.advance(500); // < idleTimeout, so root still open
         h.emit('start', fakeSpan('c2', 'T')); // stays open, re-arms child timeout
         h.advance(15000);
@@ -179,7 +179,7 @@ describe('IdleRootController', () => {
     });
 
     it('endNow with no open children ends at the floor (not now()) and is idempotent', () => {
-        // Force-ended (route change / pagehide) while idle: trim to the floor, don't
+        // Force-ended (route change / pagehide) while idle: trim to the floor, do not
         // pad to the moment of the force-end.
         const root = fakeSpan('root', 'T');
         const h = harness(root, () => 300 * 1e6);
@@ -218,8 +218,8 @@ describe('IdleRootController', () => {
         h.setClock(5000 * 1e6); // 5s of loader time elapsed
         controller.releaseHold();
 
-        // Still open: a router settles BEFORE the framework mounts the new route component, so
-        // closing here would leave nothing for that mount (or a trailing fetch) to attach to.
+        // Still open: a router settles before the framework mounts the new route component,
+        // so closing here would leave nothing for that mount to attach to.
         expect(root.end).not.toHaveBeenCalled();
         expect(controller.isEnded).toBe(false);
 
@@ -235,8 +235,8 @@ describe('IdleRootController', () => {
         h.setClock(5000 * 1e6);
         controller.releaseHold();
 
-        // The regression this guards: settling used to clear the active root, so the component
-        // profiler read null at every post-navigation mount and dropped every span.
+        // Regression guard: settling used to clear the active root, so the component profiler
+        // read null at every post-navigation mount and dropped every span.
         expect(h.setActiveRoot).toHaveBeenCalledTimes(1);
         expect(h.setActiveRoot).toHaveBeenCalledWith(root);
     });
@@ -258,9 +258,8 @@ describe('IdleRootController', () => {
     });
 
     it('held root survives idleTimeout after a child starts and ends during the hold', () => {
-        // The loader-navigation flow: the loader's fetch child opens and closes while the root is
-        // held. The child-end path re-arms idle, but the hold must keep suppressing it so the root
-        // stays open until the router settles and releaseHold() closes it at settle time.
+        // Loader-navigation flow: the loader's fetch child opens and closes while the root is held.
+        // The hold must keep suppressing idle so the root stays open until releaseHold() settles it.
         const root = fakeSpan('root', 'T');
         const h = harness(root, () => 0);
         const controller = new IdleRootController({ ...h.deps, held: true }, TIMEOUTS);

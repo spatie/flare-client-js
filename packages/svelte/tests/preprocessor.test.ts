@@ -16,7 +16,7 @@ function runMarkup(pp: ReturnType<typeof flarePreprocessor>, content = SCRIPTLES
     return (pp as any).markup({ content, filename });
 }
 
-/** The group withFlareConfig installs, which it always puts first. */
+// The group withFlareConfig installs, which it always puts first.
 function flareGroupOf(cfg: ReturnType<typeof withFlareConfig>): ReturnType<typeof flarePreprocessor> {
     const preprocessors = Array.isArray(cfg.preprocess) ? cfg.preprocess : [cfg.preprocess!];
 
@@ -33,7 +33,7 @@ function mapOf(processed: Processed): PreprocessedMap {
 // Svelte's AST carries these at runtime; its estree `Program` type does not declare them.
 type ScriptBody = { start: number; end: number };
 
-/** Asserts the registration was injected exactly once, into the component's own instance script. */
+// Asserts the registration was injected exactly once, into the component's own instance script.
 function expectSingleInstanceInjection(code: string, filename = FAKE_FILE): void {
     const hits = [...code.matchAll(/__flareRegisterComponent/g)];
     expect(hits).toHaveLength(1);
@@ -46,11 +46,9 @@ function expectSingleInstanceInjection(code: string, filename = FAKE_FILE): void
     expect(hits[0]!.index).toBeLessThan(body.end);
 }
 
-/**
- * Same check without parsing, for sources `parse` itself rejects (a scss block, say). Also pins the
- * top-level `<script` count against the input: a prepended fresh script block still lands inside the
- * offset bounds above, so only this count catches that regression.
- */
+// Same check without parsing, for sources `parse` itself rejects (a scss block, say). Also pins the
+// top-level `<script` count against the input, since a prepended fresh script still lands inside the
+// offset bounds above — only this count catches that regression.
 function expectInjectionInsideFirstScript(input: string, output: string): void {
     const hits = [...output.matchAll(/__flareRegisterComponent/g)];
     expect(hits).toHaveLength(1);
@@ -200,7 +198,7 @@ describe('flarePreprocessor — sourcemap (B-svelte-3)', () => {
     const MARKUP_THEN_SCRIPT = ['<p>one</p>', '<p>two</p>', '<script>', 'let marker = 1;', '</script>'].join('\n');
     const MARKUP_ONLY = ['<p>one</p>', '<p>two</p>', '<p>marker</p>'].join('\n');
 
-    /** Which original line the preprocessed output claims `needle` came from. */
+    // Which original line the preprocessed output claims `needle` came from.
     function originalLineOf(processed: Processed, needle: string): number | null {
         const lines = processed.code.split('\n');
         const line = lines.findIndex((text) => text.includes(needle)) + 1;
@@ -628,9 +626,8 @@ describe('flarePreprocessor — byte order mark', () => {
         expect(() => compile(out.code, { filename: file })).not.toThrow();
     });
 
-    // With no instance script, the prepend path used to insert the fresh <script> ahead of the
-    // BOM instead of after it, so compile()'s BOM stripping never fired and the BOM leaked into
-    // the template as a rendered character.
+    // With no instance script, the prepend path used to insert the fresh <script> ahead of the BOM
+    // instead of after it, so compile()'s BOM stripping never fired and it leaked into the template.
     test('a scriptless component keeps the BOM at byte 0, registers, and compiles', async () => {
         const file = '/app/src/BomScriptless.svelte';
         const source = `﻿<p>hello</p>`;
@@ -673,9 +670,8 @@ describe('flarePreprocessor — byte order mark', () => {
 
         expect(out.code.charCodeAt(0)).toBe(0xfeff);
         expect(out.code.charCodeAt(1)).toBe(0xfeff);
-        // An offset that is one short lands inside the opening `<script>` tag itself, which
-        // expectSingleInstanceInjection catches: parsing that corrupted output either throws or
-        // finds the injection outside the real instance script body's bounds.
+        // An offset that's one short lands inside the opening `<script>` tag itself, which
+        // expectSingleInstanceInjection catches — either a parse throw or injection outside the body's bounds.
         expectSingleInstanceInjection(out.code.slice(2), file);
         expect(() => compile(out.code, { filename: file })).not.toThrow();
     });
@@ -693,10 +689,9 @@ describe('flarePreprocessor — byte order mark', () => {
 
         const compiled = compile(out.code, { filename: file });
 
-        // compiler/index.js's remove_bom strips exactly one leading BOM, never more, so a second
-        // one is never ours to remove either: it survives into the template the same way it would
-        // for this same source with no preprocessor involved at all. What we must not do is add a
-        // SECOND leak on top of that pre-existing one.
+        // compiler/index.js's remove_bom strips exactly one leading BOM, so a second one is never ours
+        // to remove either — it survives the same way it would with no preprocessor at all. We must not
+        // add a SECOND leak on top of that pre-existing one.
         const bomsInTemplate = (compiled.js.code.match(/﻿/g) || []).length;
         expect(bomsInTemplate).toBe(1);
     });

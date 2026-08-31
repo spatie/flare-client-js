@@ -11,9 +11,8 @@ type Frame = {
     codeSnippet: Record<string, string>;
 };
 
-// The fixture resets per test, so the first report is almost certainly ours. Match on the message
-// anyway, the way every other spec here does: an unrelated error during hydration would otherwise send
-// this looking at the wrong frames.
+// Match on the message rather than just taking the first report, so an unrelated hydration
+// error doesn't send this looking at the wrong frames.
 const isSyncThrow = (record: FakeFlareRecord): boolean =>
     (record.bodyJson as { message?: string }).message === 'sync-throw';
 
@@ -31,16 +30,11 @@ test.describe('stack frames', () => {
         expect(top.file).toContain('/src/pages/broken.ts');
         expect(top.isApplicationFrame).toBe(true);
 
-        // Asserting against the snippet rather than a hardcoded line number: the line moves whenever
-        // broken.ts is edited, but "the frame points at the throwing line" is the property that matters
-        // and it is what sourcemap resolution depends on.
-        //
-        // Match the whole throw, not the bare scenario id. The line directly above is the object key
-        // `'sync-throw': () => {`, so a frame one line too high would satisfy a substring check on
-        // `sync-throw` and this test would wave through exactly the defect it exists to catch.
-        //
-        // Quote-agnostic on purpose. The source is single-quoted but this snippet is what the browser
-        // fetched, which is Vite's transformed output, and that is double-quoted today.
+        // Assert against the snippet, not a hardcoded line number, since the line moves whenever
+        // broken.ts is edited. Match the whole throw, not the bare scenario id: the line above is
+        // the object key `'sync-throw': () => {`, so a frame one line too high would still pass a
+        // substring check on just `sync-throw`. Quotes are agnostic on purpose: the source is
+        // single-quoted, but Vite's transformed output the browser fetches is double-quoted.
         expect(top.codeSnippet[String(top.lineNumber)]).toMatch(/throw new Error\(['"]sync-throw['"]\)/);
     });
 });

@@ -11,12 +11,11 @@ vi.mock('@flareapp/js/browser', async (importOriginal) =>
     (await import('@flareapp/test-helpers')).browserSeamMock(nav, await importOriginal()),
 );
 
-// The real router only treats a response as an Inertia page when it carries the x-inertia header, so the
-// stub has to speak that protocol, not just resolve. It also has to honor the AbortSignal the router passes
-// on an interrupted visit: real axios rejects instead of resolving once aborted, and Response.process()
-// (packages/@inertiajs/core src/response.ts) does not itself check the visit's cancelled/interrupted flag,
-// so a stub that resolves anyway would fire a stray success/navigate for a request the router already gave
-// up on. Resolution is deferred a microtask so a synchronous second visit() gets to call abort() first.
+// The real router only treats a response as an Inertia page when it carries the x-inertia header, so
+// the stub speaks that protocol instead of just resolving. It also honors the AbortSignal on an
+// interrupted visit — real axios rejects on abort, and Response.process() (@inertiajs/core
+// src/response.ts) doesn't check cancelled/interrupted itself — and defers resolution a microtask so a
+// synchronous second visit() can call abort() first.
 type StubPage = { url: string; component: string; props?: Record<string, unknown> };
 
 const axiosMock = vi.hoisted(() => {
@@ -56,8 +55,8 @@ import { traceInertiaRouter } from '../src/traceInertiaRouter';
 
 const u = (path: string): string => `${window.location.origin}${path}`;
 
-/** Registers what the stub axios answers for a request to `requestPath`, mimicking a Laravel controller.
- *  Pass `landOn` when the response's own `url` should differ from the request, i.e. a redirect. */
+// Registers what the stub axios answers for a request to `requestPath`, mimicking a Laravel controller.
+// Pass `landOn` when the response's own `url` should differ from the request, i.e. a redirect.
 function respondAt(
     requestPath: string,
     component: string,

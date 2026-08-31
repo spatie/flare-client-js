@@ -52,11 +52,11 @@ describe('Tracer.startSpan', () => {
     it('re-seeds a pruned trace from its closed record, not by making the child a new local root', () => {
         const tracer = makeTracer(config({ tracesSampleRate: 0 }));
         const root = tracer.startSpan('root'); // sampled out
-        root.end(); // prunes the trace state (rootEnded + openSpanCount 0); remembered in closedTraces
+        root.end(); // prunes the trace state, remembered in closedTraces
         const child = tracer.startSpan('child', { parent: root });
         expect(child.isRecording).toBe(false); // closed.recording carried over, not re-sampled
-        // Pins the closed-record path: a fallbackRecording()-only reseed would have made `child` itself the new
-        // local root. The closed record keeps the original root's id instead.
+        // Guards the closed-record path: without it, `child` would wrongly become the new
+        // local root instead of keeping the original root's id.
         expect(localRootSpanId(tracer, root.traceId)).toBe(root.spanId);
     });
 
@@ -159,8 +159,8 @@ describe('Tracer.startSpan', () => {
     });
 
     it('runs the sampler for a plain parent with unknown recording state (no default-to-recording)', () => {
-        // A manually stitched {traceId, spanId} parent carries no recording decision, so at tracesSampleRate 0 the
-        // child must be sampled out, not assumed recording.
+        // A manually stitched {traceId, spanId} parent carries no recording decision.
+        // At tracesSampleRate 0, the child must be sampled out, not assumed recording.
         const tracer = makeTracer(config({ tracesSampleRate: 0 }));
         const child = tracer.startSpan('child', {
             parent: { traceId: 'f'.repeat(32), spanId: 'e'.repeat(16) },
@@ -310,8 +310,8 @@ describe('defaultNowNano', () => {
     });
 
     it('falls back to Date.now() when performance.timeOrigin is missing (no NaN)', () => {
-        // Some environments (older Safari, some Hermes builds) expose performance.now without timeOrigin; timeOrigin +
-        // now() would be NaN there.
+        // Some environments (older Safari, some Hermes builds) expose performance.now without timeOrigin.
+        // timeOrigin + now() would be NaN there.
         vi.stubGlobal('performance', { now: () => 5 });
         const before = Date.now() * 1e6;
         const value = defaultNowNano();

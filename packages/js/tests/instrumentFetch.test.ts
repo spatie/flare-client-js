@@ -139,8 +139,7 @@ describe('traced fetch', () => {
         const original = okFetch();
         const wrapped = tracedFetch(tracer, original, URLS);
 
-        // A snippet fetch targets the app's own asset, so it is same-origin and would otherwise be
-        // both traced and given a traceparent.
+        // This asset URL is same-origin, so it would otherwise be traced and given a traceparent.
         await wrapped('https://app.example/assets/index.js', internalRequestInit());
 
         expect(startSpan).not.toHaveBeenCalled();
@@ -255,7 +254,7 @@ describe('traced fetch', () => {
     it('injects traceparent for a relative same-origin URL when tracePropagationTargets is set', async () => {
         const { tracer } = makeTracer({ tracePropagationTargets: ['app.example'] });
         const original = okFetch();
-        const wrapped = tracedFetch(tracer, original, URLS); // ORIGIN = 'https://app.example'
+        const wrapped = tracedFetch(tracer, original, URLS);
 
         await wrapped('/api/products'); // relative → absolutizes to https://app.example/api/products
 
@@ -266,8 +265,7 @@ describe('traced fetch', () => {
     });
 });
 
-// The host's fetch must survive our tracing throwing. Every seam below is reachable from user input or
-// user config, so none of them can be assumed infallible.
+// The host's fetch must survive our tracing throwing. Every seam here can fail from user input or config.
 describe('traced fetch never breaks the host fetch', () => {
     it('still performs the request when starting the span throws', async () => {
         const { tracer } = makeTracer();
@@ -350,14 +348,14 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
             const { tracer, startSpan } = makeTracer();
             traceRequests(tracer, URLS);
             instrumentFetch();
-            expect(g.fetch).not.toBe(native); // wrapped
+            expect(g.fetch).not.toBe(native);
             expect((g.fetch as { __flare_original__?: unknown }).__flare_original__).toBe(native);
 
             await g.fetch('https://app.example/api/x');
             expect(startSpan).toHaveBeenCalledOnce();
 
             unpatchFetch();
-            expect(g.fetch).toBe(native); // restored
+            expect(g.fetch).toBe(native);
         } finally {
             g.fetch = before;
         }
@@ -375,8 +373,7 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
             instrumentFetch();
             const flareWrapped = g.fetch;
 
-            // A third party wraps on top of Flare's wrapper, so unpatchFetch cannot
-            // restore (the current fetch is not Flare's tagged wrapper).
+            // A third party wrapped over Flare's wrapper, so unpatchFetch cannot restore it.
             const thirdParty = function (this: unknown, ...args: Parameters<typeof fetch>) {
                 return flareWrapped.apply(this, args);
             } as typeof fetch;
@@ -405,7 +402,8 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
 
     it('does not patch a non-native (polyfilled) fetch', () => {
         const g = globalThis as { fetch: typeof fetch };
-        const polyfill = vi.fn(async () => new Response()) as unknown as typeof fetch; // toString has no [native code]
+        // toString has no [native code], so instrumentFetch treats this as polyfilled, not native.
+        const polyfill = vi.fn(async () => new Response()) as unknown as typeof fetch;
         const before = g.fetch;
         g.fetch = polyfill;
 
@@ -413,7 +411,7 @@ describe('instrumentFetch / unpatchFetch on globalThis', () => {
             const { tracer } = makeTracer();
             traceRequests(tracer, URLS);
             instrumentFetch();
-            expect(g.fetch).toBe(polyfill); // untouched
+            expect(g.fetch).toBe(polyfill);
         } finally {
             unpatchFetch();
             g.fetch = before;

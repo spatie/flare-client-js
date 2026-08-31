@@ -21,8 +21,7 @@ import { createFakeInertiaRouter } from './helpers';
 const u = (path: string): string => `${window.location.origin}${path}`;
 
 // mockReset, not mockClear: mockClear leaves a test's implementation in place, so a seam made to throw
-// keeps throwing for the rest of the file. Reset also drops queued mockImplementationOnce values and
-// restores the implementation vi.fn(impl) was created with, so registerNavigationSource keeps returning nav.
+// keeps throwing for the rest of the file. Reset also restores registerNavigationSource's original impl.
 beforeEach(() => {
     nav.startNavigation.mockReset();
     nav.setActiveRouteName.mockReset();
@@ -73,10 +72,9 @@ describe('traceInertiaRouter listener lifecycle', () => {
         expect(() => traceInertiaRouter({} as never)()).not.toThrow();
         expect(() => traceInertiaRouter(null as never)()).not.toThrow();
 
-        // Registering is not a free act: it takes navigation-root detection away from the built-in
-        // History listener for the whole page. A value we cannot drive must not reach it, or an app
-        // that passes the wrong thing loses navigation tracing entirely instead of keeping the
-        // generic kind.
+        // Registering isn't free: it takes navigation-root detection away from the built-in History
+        // listener for the whole page. A value we can't drive must not reach it, or an app that passes
+        // the wrong thing loses navigation tracing entirely instead of keeping the generic kind.
         expect(registerNavigationSource).not.toHaveBeenCalled();
         expect(nav.unregister).not.toHaveBeenCalled();
     });
@@ -158,9 +156,8 @@ describe('successful visits', () => {
         });
     });
 
-    // Regression pin, green today. `navigate` must NOT compare the page url against inFlightPath the
-    // way `success` and `finish` do: this visit's page is not the page it asked for, and `navigate` is
-    // the only event that carries the component name for it.
+    // Regression pin, green today. `navigate` must NOT compare the page url against inFlightPath like
+    // `success`/`finish` do — it's the only event carrying the component name for a redirected visit.
     it('settles a redirected visit under the page that actually arrived', () => {
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
@@ -291,9 +288,9 @@ describe('initial page load and history navigation', () => {
     });
 
     it('still names the pageload root when a deferred-props reload fires start first', () => {
-        // On a page using Inertia::defer(), page.set() kicks off the deferred reload from inside its
-        // own promise chain, so that visit's `start` lands before InitialVisit fires `navigate`. The
-        // background filter is what keeps it from claiming to be the initial navigation.
+        // On a page using Inertia::defer(), page.set() kicks off the deferred reload inside its own
+        // promise chain, so its `start` lands before InitialVisit's `navigate` — the background filter
+        // keeps it from claiming to be the initial navigation.
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
 
@@ -370,9 +367,9 @@ describe('visits that fire no navigate', () => {
     });
 
     it('names a failed visit after the page the browser is on', () => {
-        // A validation error fires `error` and never `success`, so the backstop is the only settle.
-        // Inertia has already swapped the page in by then, so the browser is on a real page with a
-        // component name; reporting the raw url would give /products/42/comments.
+        // A validation error fires `error`, never `success`, so the backstop is the only settle.
+        // Inertia has already swapped in the real page, so reporting its component name beats a raw
+        // url like /products/42/comments.
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
 
@@ -389,9 +386,8 @@ describe('visits that fire no navigate', () => {
 
     it('does not apply a stale lastComponent recorded for a different path', () => {
         // jsdom's location never moves, so here() stays at '/' for the whole suite. Recording
-        // lastComponent for a visit to a different path ('/products/42') is therefore the only way to
-        // make its recorded path diverge from here(), which is the mismatch branch lastComponent
-        // exists for in the first place.
+        // lastComponent for a different path ('/products/42') is the only way to make it diverge
+        // from here() — the mismatch branch lastComponent exists for.
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
 
@@ -435,11 +431,10 @@ describe('background traffic during a navigation', () => {
     });
 
     it('ignores a background visit whose path matches the in-flight navigation on finish', () => {
-        // Real, synchronous navigation whose target happens to be the path jsdom reports as current
-        // (jsdom's location never moves over the course of a test, so this is the only way to make a
-        // background visit's path collide with inFlightPath rather than with here()). Driven through
-        // emit directly, and finish alone: router.backgroundVisit() also fires success, which would
-        // settle first through its own path-comparison guard and hide what finish does on its own.
+        // A synchronous navigation whose target matches jsdom's fixed current path — the only way to
+        // make a background visit's path collide with inFlightPath instead of here(). Driven via emit
+        // and finish alone: router.backgroundVisit() also fires success, which would settle first and
+        // hide what finish does on its own.
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
 
@@ -468,13 +463,11 @@ describe('background traffic during a navigation', () => {
     });
 
     it('settles a redirect-back through the finish backstop, since success cannot tell it apart from a background poll', () => {
-        // Posting to /checkout and the server does redirect()->back(): the page lands back on the url
-        // the user already had, which forces replace and never fires navigate. success carries no
-        // visit, only page, so this looks identical to a background poll of that same page and the
-        // guard skips it. finish compares the stable visit.url instead, so the root still settles
-        // there, using whatever the fallback naming resolves to. The fake router's visit()/replaceVisit()
-        // drivers cannot express this: both derive page url and visit url from one FakeVisit, so this
-        // uses emit directly.
+        // Posting to /checkout with redirect()->back() lands on the url the user already had, forcing
+        // replace with no navigate. `success` carries no visit, only page, so it looks like a background
+        // poll of that page and the guard skips it. `finish` compares the stable visit.url instead, so
+        // the root settles there. The fake router's visit()/replaceVisit() drivers can't express this
+        // (both derive page and visit url from one FakeVisit), hence emit directly.
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
 
@@ -563,9 +556,8 @@ describe('re-instrumentation and isolation', () => {
         const router = createFakeInertiaRouter();
         traceInertiaRouter(router);
 
-        // No cleanup here on purpose. Undoing it at the end of the body would be skipped the moment
-        // this expectation failed, and every later test would then run against a throwing seam. The
-        // mockReset in beforeEach handles it whether this passes or not.
+        // No cleanup here on purpose: undoing it at the end would be skipped if this expectation failed,
+        // leaving later tests against a throwing seam. The mockReset in beforeEach handles it either way.
         expect(() => router.visit({ url: '/products/42', component: 'Products/Show' })).not.toThrow();
     });
 });

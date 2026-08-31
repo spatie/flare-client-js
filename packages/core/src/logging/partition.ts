@@ -1,7 +1,7 @@
 import type { Attributes } from '../types';
 
-// Allowlist of resource-level key prefixes. Every other key is record-level. Mis-placing a static key on a record
-// costs a little duplication; mis-placing a request-varying key on the shared resource corrupts batched envelopes, so
+// Resource-level key prefixes. Every other key is record-level. A static key placed at record-level just
+// duplicates data; a request-varying key placed at resource-level corrupts batched envelopes, so
 // record-level is the safe default.
 const RESOURCE_PREFIXES = [
     'service.',
@@ -15,8 +15,8 @@ const RESOURCE_PREFIXES = [
     'flare.language.',
 ];
 
-// Keys matching a resource prefix but not instance-static, so they stay record-level. process.uptime changes every
-// read; promoting it to the shared resource would tag batched records with the flush-time value.
+// Keys that match a resource prefix but are not instance-static, so they stay record-level. process.uptime
+// changes every read; promoting it would tag batched records with the flush-time value.
 const RECORD_LEVEL_EXCEPTIONS = new Set(['process.uptime']);
 
 export function partitionAttributes(attributes: Attributes): {

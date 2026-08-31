@@ -10,7 +10,7 @@ type GetRouteContextOptions = {
 
 const ROUTE_PARAMS_DEPTH = 2;
 
-/** vue-router allows a symbol route name; neither shape survives JSON, so convert both to a string. */
+// vue-router allows a symbol route name; neither shape survives JSON, so convert both to a string.
 function routeNameOf(value: unknown): string | null {
     if (typeof value === 'string') {
         return value;
@@ -40,12 +40,9 @@ function recordOrEmpty(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
-/**
- * `router` is typed `unknown` because vue-router is an optional peer (importing it would force every
- * consumer to install it, and the runtime shape may differ across v4.x patches). The chained
- * type-guards read defensively so a missing or shimmed router yields `null` rather than throwing
- * inside an error handler.
- */
+// `router` is `unknown` because vue-router is an optional peer — importing it would force every
+// consumer to install it, and its runtime shape can differ across v4.x patches. The guards read
+// defensively, so a missing or shimmed router returns `null` instead of throwing.
 export function getRouteContext(router: unknown, options: GetRouteContextOptions = {}): RouteContext | null {
     if (!router || typeof router !== 'object' || !('currentRoute' in router)) {
         return null;

@@ -5,7 +5,7 @@ import { ReactNativeFlare } from '../src/Flare';
 import { FakeApi } from './helpers/FakeApi';
 import { stubErrorUtils } from './helpers/stubErrorUtils';
 
-/** Swap core's Api for a FakeApi so reports are captured, not sent. */
+// Swap core's Api for a FakeApi so reports are captured, not sent.
 function withFakeApi(flare: ReactNativeFlare): FakeApi {
     const fake = new FakeApi();
     (flare as unknown as { api: FakeApi }).api = fake;

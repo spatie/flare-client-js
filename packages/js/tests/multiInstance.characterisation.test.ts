@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// CHARACTERISATION, NOT DESIRED BEHAVIOUR. These tests pin what two Flare instances (or two bundled
-// copies of @flareapp/js) do today. Multi-instance patch ownership is deliberately unplanned; see
-// docs/superpowers/plans/2026-07-30-pr80-review-index.md. When ownership is fixed, these assertions
-// are expected to flip, and flipping them is the point.
+// CHARACTERISATION, NOT DESIRED BEHAVIOUR. Pins what two Flare instances (or two bundled copies of
+// @flareapp/js) do today. Multi-instance patch ownership is deliberately unplanned; see
+// docs/superpowers/plans/2026-07-30-pr80-review-index.md. These assertions are meant to flip once
+// ownership is fixed.
 
 import { nativeFetchStub } from '@flareapp/test-helpers';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,8 +20,8 @@ describe('multi-instance tracing (characterisation)', () => {
         const originalFetch = g.fetch;
 
         afterEach(() => {
-            // instrumentFetch/browserTracing/instrumentXHR are module-level singletons: every test in
-            // this process shares them, so a leftover install here would leak into unrelated files.
+            // instrumentFetch/browserTracing/instrumentXHR are module-level singletons shared by
+            // every test in this process, so a leftover install here would leak into other files.
             stopBrowserTracing();
             unpatchFetch();
             unpatchXHR();
@@ -49,9 +49,9 @@ describe('multi-instance tracing (characterisation)', () => {
             expect(g.fetch).toBe(patched);
             expect(a.config.enableTracing).toBe(true);
 
-            // STILL BROKEN, in a new way: one mutation slot exists, B claimed it second, and B
-            // empties it on the way out. A then sends no traceparent, but still believes it traces.
-            // Slot ownership across instances is out of scope. See
+            // STILL BROKEN, differently: one mutation slot exists, B claimed it second, and empties
+            // it on the way out. A then sends no traceparent but still believes it traces. Slot
+            // ownership across instances is out of scope; see
             // docs/superpowers/plans/2026-07-30-pr80-review-index.md.
         });
     });

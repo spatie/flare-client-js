@@ -1,3 +1,3 @@
-// RN uses core's identity model: `Flare.setUser` (inherited) maps known fields onto the backend-read
-// `user.*` keys (id, email, full_name, client address) and bundles extras into `user.attributes`.
+// RN reuses core's identity model: `Flare.setUser` maps known fields to `user.*` keys and bundles the
+// rest into `user.attributes`.
 export type { User } from '@flareapp/core';

@@ -1,9 +1,7 @@
 import type { Attributes } from '@flareapp/core';
 
-/**
- * Parses `document.cookie` into `http.request.cookies`, redacting the value of any cookie whose name
- * matches `denylist`. Null-prototype accumulator so a cookie named `__proto__` is stored, not dropped.
- */
+// Parses `document.cookie` into `http.request.cookies`, redacting the value of any cookie whose name
+// matches `denylist`. Null-prototype accumulator so a cookie named `__proto__` is stored, not dropped.
 export default function cookie(denylist: RegExp): Attributes {
     if (!window.document.cookie) {
         return {};

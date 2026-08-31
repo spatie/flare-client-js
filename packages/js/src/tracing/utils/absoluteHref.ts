@@ -1,8 +1,9 @@
 /**
- * Resolve a router-reported href against the page we are on. Returns the `URL`, so a caller that
- * wants the pathname as well as the href does not parse it a second time.
+ * Resolves a router-reported href against the current page. Returns the `URL`, so a caller that also
+ * wants the pathname does not have to parse it again.
  *
- * Undefined outside a browser or for an unparseable href, so the caller can leave its attribute alone.
+ * Returns undefined outside a browser or for an unparseable href, so the caller can leave its
+ * attribute alone.
  */
 export function absoluteUrl(href: string | null | undefined): URL | undefined {
     if (href == null || typeof window === 'undefined') {
@@ -16,9 +17,9 @@ export function absoluteUrl(href: string | null | undefined): URL | undefined {
 }
 
 /**
- * The href form of `absoluteUrl`. Pass one built by the router's own `createHref`/`resolve` (see
- * `resolveHref`), not a bare path: routers strip the app's base path, so `origin + path` yields an
- * address the server does not have.
+ * The href form of `absoluteUrl`. Pass a value built by the router's own `createHref`/`resolve`, not
+ * a bare path — routers strip the app's base path, so `origin + path` gives an address the server
+ * does not have.
  */
 export function absoluteHref(href: string | null | undefined): string | undefined {
     return absoluteUrl(href)?.href;

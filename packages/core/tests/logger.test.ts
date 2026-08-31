@@ -63,8 +63,7 @@ describe('Logger record/buffer', () => {
     });
 
     it('drops a single record larger than logFlushMaxBytes at capture', () => {
-        // Cap sits above a minimal record (~140B) but below the 500-char record (~640B), so only the big one is
-        // dropped at capture.
+        // Cap sits above a minimal record (~140B) but below the 500-char one (~640B), so only the big record drops.
         const logger = makeLogger(makeConfig({ logFlushMaxBytes: 300, maxLogBufferSize: 100 }));
         logger.info('x'.repeat(500));
         expect(logger.bufferLength()).toBe(0);
@@ -73,8 +72,8 @@ describe('Logger record/buffer', () => {
     });
 
     it('trims oldest records past maxLogBufferSize (keyless, so the count-cap flush no-ops)', () => {
-        // With a key, hitting the count cap would flush-and-clear so the buffer never reaches the cap. key: null makes
-        // flush a no-op, so the hard trim is what bounds the buffer, which is what we assert.
+        // With a key, hitting the count cap would flush-and-clear, so the buffer never fills. key: null makes
+        // flush a no-op, so only the hard trim bounds the buffer here.
         const logger = makeLogger(makeConfig({ key: null, maxLogBufferSize: 3, logFlushIntervalMs: 999_999 }));
         for (let i = 0; i < 10; i++) {
             logger.info(`m${i}`);
@@ -182,9 +181,8 @@ describe('Logger triggers', () => {
         );
         logger.info('x'.repeat(5000)); // > keepaliveMaxBytes, < logFlushMaxBytes
 
-        // visibilitychange:hidden, possibly on a tab that is unloading. Nothing fits the keepalive budget, so
-        // packForKeepalive selects nothing; a cancellable normal fetch beats retaining the record behind a
-        // timer that may never fire again.
+        // This mirrors visibilitychange:hidden on an unloading tab. Nothing fits the keepalive budget, so
+        // packForKeepalive ships everything on a normal fetch instead of waiting on a timer that may never fire.
         logger.flush({ keepalive: true });
         expect(api.logEnvelopes).toHaveLength(1);
         expect(api.lastLogKeepalive).toBe(false);
@@ -213,8 +211,8 @@ describe('Logger triggers', () => {
 
     it('weight cap flushes-and-clears with a key (ships, does not trim away)', () => {
         const api = new FakeApi();
-        // logFlushMaxBytes chosen so a single record stays under it (no oversized drop), but two cross it, so the 2nd
-        // push fires the weight trigger. Each ~250-char message serializes to ~380B incl. envelope keys.
+        // logFlushMaxBytes is set so one record stays under it, but two cross it, so the 2nd push fires the
+        // weight trigger. Each ~250-char message serializes to about 380B with envelope keys.
         const logger = makeLogger(
             makeConfig({ logFlushMaxBytes: 700, maxLogBufferSize: 100, logFlushIntervalMs: 999_999 }),
             api,
@@ -238,9 +236,9 @@ describe('Logger triggers', () => {
     });
 
     it('re-arms the flush timer after a flush that no-ops on a disabled signal', () => {
-        // The disabled early return skips clearTimer() on purpose (the buffer survives a temporary disable), so the
-        // timer callback has to reset its own state first. Before it did, a no-op timer flush left timerActive true
-        // with a spent handle and armTimer refused to arm again for the rest of the Logger's life.
+        // The disabled early return skips clearTimer() on purpose, so the buffer survives a temporary disable.
+        // The timer callback must reset its own state, or a no-op flush leaves timerActive stuck and the timer
+        // can never re-arm.
         vi.useFakeTimers();
         const api = new FakeApi();
         const config = makeConfig({ logFlushIntervalMs: 5000 });
@@ -261,9 +259,9 @@ describe('Logger triggers', () => {
     });
 
     it('sizes the keepalive envelope without rebuilding it per candidate', () => {
-        // The old packer built and serialized a whole trial envelope per candidate, so envelope construction grew
-        // with buffer depth. Sizing from parts builds it a fixed three times per flush, whatever the depth:
-        // once for the resource identity, once for the empty envelope, once for the batch that ships.
+        // The old packer serialized a full trial envelope per candidate, so cost grew with buffer depth.
+        // Sizing from parts builds it a fixed three times per flush: once for resource identity, once for
+        // the empty envelope, once for the batch that ships.
         const sdkReadsForKeepaliveFlush = (recordCount: number): number => {
             const getSdkInfo = vi.fn((): SdkInfo => ({ name: '@flareapp/core', version: '0.0.0' }));
             const api = new FakeApi();

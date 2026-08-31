@@ -114,7 +114,7 @@ describe('browserTracing', () => {
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/a');
         const { flare, startSpan } = fakeFlare();
-        startBrowserTracing(flare); // pageload root ok
+        startBrowserTracing(flare);
         startSpan.mockImplementationOnce(() => {
             throw new Error('tracer boom'); // navigation root creation throws
         });
@@ -201,7 +201,7 @@ describe('browserTracing', () => {
 
         window.dispatchEvent(new Event('pagehide'));
 
-        expect(root.end).toHaveBeenCalledTimes(1); // not ended twice
+        expect(root.end).toHaveBeenCalledTimes(1);
         expect(flush).toHaveBeenCalledWith({ keepalive: true });
     });
 
@@ -237,14 +237,14 @@ describe('browserTracing', () => {
         };
 
         stopBrowserTracing();
-        expect(window.history.pushState).not.toBe(originalPushState); // the leak is real
+        expect(window.history.pushState).not.toBe(originalPushState);
 
         try {
             setActiveRoot.mockClear();
             const before = startSpan.mock.calls.length;
             window.history.pushState({}, '', '/leaked');
 
-            expect(startSpan.mock.calls.length).toBe(before); // no root started
+            expect(startSpan.mock.calls.length).toBe(before);
             expect(setActiveRoot).not.toHaveBeenCalled(); // no controller constructed
         } finally {
             window.history.pushState = originalPushState;
@@ -355,8 +355,8 @@ describe('browserTracing', () => {
         expect(pageloadContextForTests()).toEqual({});
     });
 
-    /** Returns the fake callbacks so a test can drive further values later, e.g. to simulate a
-     *  surviving upstream observer reporting again after a disable/re-enable (Finding 4). */
+    // Returns the fake vitals callbacks so a test can trigger them again later, e.g. to simulate a
+    // surviving observer reporting again after a disable/re-enable.
     function recordVitals() {
         const cbs: Record<string, (m: { value: number }) => void> = {};
         const keep = (key: string) => (cb: (m: { value: number }) => void) => {
@@ -448,9 +448,8 @@ describe('browserTracing', () => {
     });
 
     it('pins a late route rename to the vitals container after the pageload root idle window has closed', () => {
-        // Finding 5: the pin used to sit inside withLiveController alongside the root rename, so once
-        // the controller closed (idle timeout, no children) a later rename never reached the container,
-        // which then shipped the raw pathname instead of the template.
+        // Finding 5: the pin used to live inside withLiveController with the root rename, so once the
+        // controller closed (idle timeout) a later rename never reached the container and shipped the raw path.
         vi.useFakeTimers();
         window.history.replaceState({}, '', '/product/p01');
         const { flare, startSpan } = fakeFlare();
@@ -543,9 +542,8 @@ describe('browserTracing', () => {
         const pageloadRootSpan = startSpan.mock.results[0].value;
         recordVitals();
 
-        // Under idleTimeout (1000ms), so the controller is still live and endNow() runs here rather
-        // than the idle timer having already closed the root. Advancing past it would make this
-        // assertion pass for the wrong reason.
+        // Under idleTimeout (1000ms), so the controller is still live and endNow() runs here, not the idle
+        // timer. Advancing past it would make this assertion pass for the wrong reason.
         vi.advanceTimersByTime(200);
         window.dispatchEvent(new Event('pagehide'));
 
@@ -572,10 +570,8 @@ describe('browserTracing', () => {
     });
 
     it('does not ship a second container after a disable/re-enable, even if a surviving observer reports again', () => {
-        // This is the scenario Finding 4 actually describes: unlike the test above, an emit already
-        // succeeded once (a real container shipped) before the disable, so `taken` must stay sticky
-        // across stopBrowserTracing()/startBrowserTracing() rather than resetting and letting a still-alive
-        // upstream observer refill `collected` for a second report.
+        // Finding 4: unlike the test above, a container already shipped once before the disable. `taken`
+        // must stay sticky across stop/start, so a still-alive observer cannot refill `collected` and re-emit.
         vi.useFakeTimers();
         const { flare, startSpan } = fakeFlare();
         startBrowserTracing(flare);
@@ -631,9 +627,8 @@ describe('browserTracing', () => {
 
         window.dispatchEvent(new Event('pagehide'));
 
-        // A failed emit must not permanently discard the page's vitals: the next hide has to see them
-        // again rather than a latched empty take. mockClear() first so the failed call above (still
-        // recorded as a call even though its implementation threw) does not muddy this count.
+        // A failed emit must not permanently discard the vitals: the next hide must see them again. mockClear()
+        // removes the failed call above (it still counted, even though its implementation threw).
         startSpan.mockClear();
         window.dispatchEvent(new Event('pagehide'));
 
@@ -653,9 +648,8 @@ describe('browserTracing', () => {
 
         window.dispatchEvent(new Event('pagehide'));
 
-        // ttfb and fcp are final the moment they fire, so they ride the root itself. lcp and cls keep
-        // changing until the page goes away, so stamping them here would leave the root and the late
-        // span disagreeing about the same vital.
+        // ttfb and fcp are final the moment they fire, so they ride the root itself. lcp and cls keep changing
+        // until the page goes away, so stamping them here would make the root and the late span disagree.
         expect(pageloadRootSpan.setAttribute).toHaveBeenCalledWith('browser.web_vital.ttfb', 210);
         expect(pageloadRootSpan.setAttribute).toHaveBeenCalledWith('browser.web_vital.fcp', 890);
 

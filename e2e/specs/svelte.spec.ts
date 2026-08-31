@@ -83,8 +83,8 @@ test.describe('svelte tracing', () => {
             stringValue: '/product/[id]',
         });
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
-        // The nav root's url.full has to be where the navigation went, even though Kit tells us
-        // before the URL changes. This is what proves the url override is wired up.
+        // Proves the url override is wired up: url.full must be where the navigation went, even
+        // though Kit tells us before the URL changes.
         expect(nav && stringAttr(nav, 'url.full')).toContain('/product/1');
 
         // registerNavigationSource suppresses the History-based root, so one click => one root.
@@ -94,13 +94,11 @@ test.describe('svelte tracing', () => {
         expect(navSpans).toHaveLength(1);
     });
 
-    // The span assertions above cannot tell a correctly held root apart from the fallback that runs
-    // when no navigation was seen: with no load function on any playground route both are near-zero
-    // and named the same, and `hold` never reaches the wire. So assert on what the effect actually
-    // saw instead. A missing 'to:' entry means Svelte ran the two updates together.
+    // Span timing can't tell a correctly held root apart from the no-navigation fallback: with no load
+    // function on any playground route, both look near-identical. So assert on what the effect
+    // actually saw instead. A missing 'to:' entry means Svelte ran the two updates together.
     test('an effect created at client init observes the non-null navigating state', async ({ page }) => {
-        // `window.__navStates` is declared by the playground, not by the e2e tsconfig, so read it
-        // through a cast rather than adding a global declaration to the suite.
+        // `window.__navStates` is declared by the playground, not the e2e tsconfig, hence the cast.
         const readStates = () =>
             page.evaluate(() => (window as unknown as { __navStates?: string[] }).__navStates ?? []);
 
@@ -126,17 +124,14 @@ test.describe('svelte tracing', () => {
         await page.evaluate(() => {
             window.location.hash = 'section-2';
         });
-        // Worst case is idleTimeout (2000) + flush timer (500) = 2500ms before the root even POSTs;
-        // add 500ms margin for that POST to reach the fake server.
+        // Worst case: idleTimeout (2000) + flush timer (500) before the root POSTs, plus margin.
         await page.waitForTimeout(3000);
 
         const all = (await fakeFlare.traces()).flatMap((record) => spansOf(record.bodyJson));
         const pageload = all.find((span) => hasSpanType(span, 'browser_pageload'));
-        // Positive control: browser_pageload roots are opened by the framework-agnostic browser
-        // tracer regardless of traceSvelteKitRouter, so merely finding one proves nothing. Its
-        // route.source only flips from the default 'url' to 'route' once traceSvelteKitRouter's
-        // effect names it, so this is what actually proves the SvelteKit integration is wired and
-        // the zero-navigation assertion below is meaningful rather than vacuous.
+        // Positive control: a pageload root alone proves nothing, since the framework-agnostic tracer
+        // opens one regardless of traceSvelteKitRouter. route.source flipping to 'route' is what
+        // proves the SvelteKit integration is wired, making the zero-navigation check below meaningful.
         expect(pageload && attr(pageload, 'flare.route.source')).toEqual({ stringValue: 'route' });
         expect(all.filter((span) => hasSpanType(span, 'browser_navigation'))).toHaveLength(0);
     });
@@ -187,10 +182,8 @@ test.describe('svelte http tracing', () => {
             (candidate) => hasSpanType(candidate, 'browser_fetch') && urlOf(candidate).includes('fetch-404'),
         );
         expect(span).toBeTruthy();
-        // httpRequestSpan.ts's endHttpRequestSpan records the response status on every completion
-        // via http.response.status_code, and only calls setStatus (span error, OTel code 2) for
-        // status >= 500. A 404 is a completed request, so the status attribute must be 404 and the
-        // span's own OTel status must stay Unset (0), not Error.
+        // endHttpRequestSpan (httpRequestSpan.ts) records the status on every completion but only
+        // marks a span error for status >= 500, so a 404 keeps OTel status Unset (0), not Error.
         expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 404 });
         expect(span!.status?.code ?? 0).toBe(0);
     });
@@ -213,8 +206,7 @@ test.describe('svelte http tracing', () => {
             (candidate) => hasSpanType(candidate, 'browser_fetch') && urlOf(candidate).includes('fetch-500'),
         );
         expect(span).toBeTruthy();
-        // The 404 test above covers the non-error side. This covers the other half: a status of 500
-        // or more records the status and also marks the span an OTel error (code 2).
+        // Other half of the 404 test above: status >= 500 records the status and marks a span error (code 2).
         expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 500 });
         expect(span!.status?.code ?? 0).toBe(2);
     });
@@ -241,9 +233,8 @@ test.describe('svelte http tracing', () => {
         expect(hasSpanType(root!, 'browser_pageload') || hasSpanType(root!, 'browser_navigation')).toBe(true);
     });
 
-    // The fetch 404/500 pair above pins both sides of endHttpRequestSpan's status branch. XHR runs
-    // through the same span helper but a different patch, so pin that its 404 is recorded rather
-    // than assumed to behave like fetch's.
+    // The fetch 404/500 pair above pins endHttpRequestSpan's status branch. XHR runs through the same
+    // helper but a different patch, so pin its 404 too rather than assume it behaves like fetch's.
     test('a failing XHR records its status without marking the span an error', async ({ page, fakeFlare }) => {
         await page.goto('/http');
         await page.waitForLoadState('networkidle');
@@ -266,12 +257,10 @@ test.describe('svelte http tracing', () => {
         expect(span!.status?.code ?? 0).toBe(0);
     });
 
-    // Kit marks the init it gives a load fetch with a hidden `__sveltekit_fetch__` flag, and its
-    // dev-mode wrapper warns when the flag is missing. We patch window.fetch after Kit does, so
-    // rebuilding the init to add traceparent used to drop the flag and warn the developer about
-    // using window.fetch in a load function while they were already using the right one. The unit
-    // tests cover mergeTraceparentHeader on its own; only this one catches the warning as reported.
-    // Kit only wraps fetch in dev mode, which is what the e2e webServer runs.
+    // Kit flags the init it gives a load fetch with a hidden `__sveltekit_fetch__`, and its dev-mode
+    // wrapper warns when the flag is missing. Rebuilding that init to add traceparent used to drop the
+    // flag, falsely warning the developer about using window.fetch. The unit tests cover
+    // mergeTraceparentHeader alone; only this test catches the warning as actually reported.
     test('Kit does not warn about window.fetch for a traced load fetch', async ({ page }) => {
         const warnings: string[] = [];
         page.on('console', (msg) => {
@@ -289,21 +278,18 @@ test.describe('svelte http tracing', () => {
         expect(warnings.filter((w) => /using `window.fetch`/.test(w))).toEqual([]);
     });
 
-    // Kit grabs a reference to window.fetch when its module loads, which looks like it would pin the
-    // unpatched original. It does not: that reference is only used inside Kit's own wrapper, and the
-    // fetch it hands a load function reads window.fetch when it is called, so our patch sees it. If
-    // this test fails, that is no longer true and the JSDoc needs to say so. Deep-linking would run
-    // the load on the server, where there is no patch and no span, so this has to be a client
-    // navigation.
+    // Kit grabs window.fetch when its module loads, which looks like it would pin the unpatched
+    // original — it does not, since the fetch it hands a load function reads window.fetch lazily
+    // when called, so our patch sees it. If this test fails that's no longer true. Must be a client
+    // navigation: deep-linking runs the load on the server, where there is no patch and no span.
     test("SvelteKit's load-provided fetch produces a browser_fetch span", async ({ page, fakeFlare }) => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        // dispatchEvent, not click(). Playwright's click moves the pointer first, and app.html sets
-        // data-sveltekit-preload-data="hover", so a real click preloads /http's load (and its fetch)
-        // BEFORE the navigation starts, which correctly attributes that fetch to the page being left.
-        // Measured on WebKit: click() put the fetch under the pageload root in 7 of 8 runs, dispatchEvent
-        // in 0 of 8. This test is about the load fetch during a navigation, so it must not hover.
+        // dispatchEvent, not click(): click() moves the pointer first, and app.html's
+        // data-sveltekit-preload-data="hover" preloads /http's load fetch before the navigation
+        // starts, wrongly attributing it to the page being left. Measured on WebKit: click() put the
+        // fetch under the pageload root in 7 of 8 runs, dispatchEvent in 0 of 8.
         await page.getByRole('link', { name: 'HTTP' }).dispatchEvent('click');
         await expect(page).toHaveURL(/\/http$/);
 
@@ -343,8 +329,7 @@ test.describe('svelte http tracing', () => {
             (s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-abort'),
         );
         expect(span).toBeTruthy();
-        // The playground is served over http://, and status 0 on an http(s) URL means "no HTTP response",
-        // so the span is an OTel error (instrumentXHR.ts:163).
+        // Status 0 on an http(s) URL means "no HTTP response", so the span is an OTel error (instrumentXHR.ts:163).
         expect(attr(span!, 'http.response.status_code')).toEqual({ intValue: 0 });
         expect(span!.status?.code ?? 0).toBe(2);
 
@@ -352,8 +337,8 @@ test.describe('svelte http tracing', () => {
         const all = (await fakeFlare.traces()).flatMap((t) => spansOf(t.bodyJson));
         expect(all.filter((s) => hasSpanType(s, 'browser_xhr') && urlOf(s).includes('xhr-abort'))).toHaveLength(1);
 
-        // The root arriving inside the 9s wait is the observable proof that the open-child count went
-        // back to zero: a leaked child would hold it to the 15s childSpanTimeout instead.
+        // The root arriving inside the 9s wait proves the open-child count went back to zero;
+        // a leaked child would hold it to the 15s childSpanTimeout instead.
         const root = await parentOf(fakeFlare, span!);
         expect(root).toBeTruthy();
     });

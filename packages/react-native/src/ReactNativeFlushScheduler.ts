@@ -1,10 +1,7 @@
 import type { FlushFn, FlushScheduler } from '@flareapp/core';
 
-/**
- * Passive: the AppState -> background trigger is wired separately in `Flare.install()`, to stay symmetric
- * with handler teardown. Flushes without `{ keepalive: true }` because RN's fetch runs over XMLHttpRequest
- * and does not reliably honour it, so a backgrounding flush is best-effort.
- */
+// Passive: the AppState -> background trigger lives in `Flare.install()`, to stay symmetric with handler
+// teardown. No `{ keepalive: true }` — RN's fetch (XMLHttpRequest-based) doesn't honor it reliably.
 export class ReactNativeFlushScheduler implements FlushScheduler {
     private flushFn: FlushFn | null = null;
 

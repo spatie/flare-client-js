@@ -16,7 +16,6 @@ beforeEach(() => {
 });
 
 test('Flare error capture survives later reassignment of window.onerror', async () => {
-    // User-land code reassigns window.onerror after Flare initialised; should not detach Flare.
     window.onerror = null;
 
     window.dispatchEvent(new ErrorEvent('error', { error: new Error('boom') }));

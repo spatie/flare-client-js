@@ -72,11 +72,9 @@ test.describe('react playground', () => {
         expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({ stringValue: '/product/$id' });
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
 
-        // The no-double-roots invariant: History detection must stay suppressed while the
-        // integration is registered, so this one click produced exactly ONE browser_navigation
-        // root across ALL captured traces. (If suppression broke, the History patch's duplicate
-        // URL-named root opens and ends BEFORE the integration's parameterized one, so by the
-        // time waitForTrace matched above, the duplicate would already have arrived.)
+        // History detection must stay suppressed while the integration is registered, so this
+        // click produced exactly one browser_navigation root across all captured traces. If
+        // suppression broke, the History patch's duplicate root would arrive before this one.
         const navSpans = (await fakeFlare.traces())
             .flatMap((record) => spansOf(record.bodyJson))
             .filter((span) => hasSpanType(span, 'browser_navigation'));
@@ -89,16 +87,15 @@ test.describe('react component profiling', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        // Layout is profiled at the router root, so ProductsPage nests under Layout and only
-        // Layout points at the pageload root.
+        // Layout is profiled at the router root, so ProductsPage nests under it and only Layout
+        // points at the pageload root.
         await assertComponentTree(page, fakeFlare, {
             outer: 'Layout',
             inner: 'ProductsPage',
             rootType: 'browser_pageload',
         });
 
-        // StrictMode double-invokes the mount effect in dev; the record-once guard must still turn
-        // that into one span, not two.
+        // StrictMode double-invokes the mount effect in dev; the record-once guard must still emit one span.
         expect(await componentSpanCount(fakeFlare, 'Layout')).toBe(1);
     });
 
@@ -111,14 +108,13 @@ test.describe('react component profiling', () => {
 
         await page.locator('a[href="/product/1"]').first().click();
 
-        // The component that mounts on navigation is ProductPage, and its parent is the navigation
-        // root itself.
+        // ProductPage mounts on navigation, with the navigation root itself as its parent.
         const productPage = await waitForComponentSpan(fakeFlare, 'ProductPage');
         const root = await parentOf(fakeFlare, productPage);
         expect(root && hasSpanType(root, 'browser_navigation')).toBe(true);
 
-        // Layout survives the navigation rather than unmounting and remounting, so its span count
-        // stays at one from the pageload; a re-mount bug would show up as a second Layout span.
+        // Layout survives the navigation instead of remounting, so its span count stays at one;
+        // a re-mount bug would show up as a second Layout span.
         expect(await componentSpanCount(fakeFlare, 'Layout')).toBe(1);
     });
 });

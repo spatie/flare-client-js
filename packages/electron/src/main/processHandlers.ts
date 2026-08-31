@@ -8,11 +8,8 @@ type FatalOptions = {
     shutdownTimeoutMs: number;
 };
 
-/**
- * Fatal callbacks for Electron main. Mirrors @flareapp/node's buildFatalCallbacks but exits via the
- * injected `exit` (app.exit at the call site), which is immediate and skips before-quit/will-quit,
- * correct after an uncaught exception.
- */
+// Fatal callbacks for Electron main. Mirrors @flareapp/node's buildFatalCallbacks, but exits via the
+// injected `exit` (app.exit), which is immediate and skips before-quit/will-quit — safe post-crash.
 export function buildFatalCallbacks(flare: Flare, getOpts: () => FatalOptions, exit: (code: number) => void) {
     return {
         async onUncaught(err: unknown, origin: string): Promise<void> {
@@ -57,15 +54,9 @@ type Callbacks = {
     onRejection: (reason: unknown) => void;
 };
 
-/**
- * Owns the lifecycle of the two process-level error listeners for the Electron main process,
- * reconciling attach/detach against the desired modes. Mirrors node's ProcessHandlerManager.
- *
- * Deliberately a copy, not a shared module. @flareapp/electron does not depend on @flareapp/node, and
- * the only package both import is @flareapp/core, which ships in every browser bundle and touches
- * `process` only behind a typeof guard. A shared manager belongs in a new package, not in core, and
- * one method does not pay for one.
- */
+// Owns the process-level error listeners for Electron main, reconciling attach/detach against the
+// desired modes (mirrors node's ProcessHandlerManager). Kept as a copy rather than shared: electron
+// doesn't depend on node, and core (the one thing both import) must stay browser-safe.
 export class ProcessHandlerManager {
     private uncaughtHandler: ((err: unknown, origin: string) => void) | null = null;
     private rejectionHandler: ((reason: unknown) => void) | null = null;

@@ -3,11 +3,9 @@ import { useState } from 'react';
 
 import { rootRoute } from './__root';
 
-// Triggers a genuine React hooks-order invariant during render. In a production
-// react-dom build this surfaces as "Minified React error #310; visit
-// https://react.dev/errors/310 ..." rather than the dev-mode full message, which
-// is exactly what the prod-build e2e spec needs to exercise the decode path.
-// The error bubbles to the outer FlareErrorBoundary (see main.tsx).
+// Triggers a genuine React hooks-order invariant during render. Production react-dom minifies
+// this to "Minified React error #310; visit https://react.dev/errors/310 ...", which is what the
+// prod-build e2e spec needs to exercise the decode path. Bubbles to FlareErrorBoundary (see main.tsx).
 const HookOrderBomb = ({ armed }: { armed: boolean }) => {
     useState(0);
 

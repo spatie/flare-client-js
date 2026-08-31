@@ -7,11 +7,8 @@ type StubbedErrorUtils = {
     current: () => Handler | undefined;
 };
 
-/**
- * Stub RN's `ErrorUtils` global, optionally seeded with an initial handler. Returns `emit` (fire the
- * currently-registered handler) and `current` (read it). Uses `vi.stubGlobal`, so a suite-level
- * `vi.unstubAllGlobals()` puts it back; the stub does not outlive its test.
- */
+// Stubs RN's `ErrorUtils` global, optionally seeded with an initial handler. Uses `vi.stubGlobal`, so
+// `vi.unstubAllGlobals()` in an afterEach cleans it up.
 export function stubErrorUtils(initial?: Handler): StubbedErrorUtils {
     let current: Handler | undefined = initial;
     vi.stubGlobal('ErrorUtils', {

@@ -58,9 +58,9 @@ export type FlareVueOptions = {
     /** A vue-router Router instance. When set, enables navigation/pageload performance tracing. */
     router?: unknown;
     /**
-     * Record a span per component mount. An array matches component names exactly (string) or by
-     * `test()` (RegExp). `true` profiles every named component, which is a debugging aid: a real page
-     * will hit `maxSpansPerTrace` and bury the useful spans. Requires `enableTracing`.
+     * Records a span per component mount. An array matches component names exactly (string) or by
+     * `test()` (RegExp). `true` profiles every named component — useful for debugging, but a real
+     * page will hit `maxSpansPerTrace` and bury the useful spans. Requires `enableTracing`.
      */
     profileComponents?: ProfileComponentsOption;
     captureWarnings?: boolean;

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { FileReader } from '@flareapp/core';
 
-/** Reads source snippets for main-process stack frames from disk. Mirrors @flareapp/node's DiskFileReader. */
+// Reads source snippets for main-process stack frames from disk. Mirrors @flareapp/node's DiskFileReader.
 export class ElectronDiskFileReader implements FileReader {
     async read(url: string): Promise<string | null> {
         if (!isLocalFileUrl(url)) {

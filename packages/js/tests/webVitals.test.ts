@@ -26,12 +26,10 @@ describe('vendored web-vitals', () => {
     });
 });
 
-// Regression guard for Finding 1: upstream's bindReporter only invokes our callback on a forced
-// report unless `reportAllChanges` is set (webvitals/lib/bindReporter.ts). LCP, CLS and INP only
-// force-report from a bfcache restore or a soft-navigation entry, neither of which this SDK uses, so
-// without `reportAllChanges: true` a mid-page value (the only kind an SPA navigation trigger ever sees)
-// never reaches `takeWebVitals()`. This drives the REAL vendored `onLCP`, not a fake subscriber, so it
-// is the one test in this file that would actually catch that regression.
+// Regression guard: upstream's bindReporter only fires on a forced report unless reportAllChanges is
+// set. LCP/CLS/INP force-report only on a bfcache restore or soft navigation, which this SDK never
+// triggers, so a mid-page value would never reach takeWebVitals() without reportAllChanges: true. This
+// test drives the real vendored onLCP, not a fake subscriber, so it is the one test that would catch it.
 describe('drives a real upstream observer (Finding 1 regression guard)', () => {
     type ObserverList = { getEntries: () => unknown[] };
     type ObserverCallback = (list: ObserverList) => void;
@@ -58,9 +56,8 @@ describe('drives a real upstream observer (Finding 1 regression guard)', () => {
         }
 
         vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
-        // jsdom's Performance object has no getEntriesByType at all. The vendored code calls it
-        // unconditionally while resolving activationStart and the navigation entry, so it must return
-        // something rather than throw the moment onLCP() runs.
+        // jsdom's Performance has no getEntriesByType. The vendored code calls it unconditionally, so
+        // it must return something instead of throwing when onLCP() runs.
         (performance as unknown as { getEntriesByType: () => unknown[] }).getEntriesByType = () => [];
 
         startWebVitals(); // wires the REAL vendored on* functions, not a fake VitalSubscribers
@@ -68,8 +65,8 @@ describe('drives a real upstream observer (Finding 1 regression guard)', () => {
         const lcpObserver = observers.find((o) => o.type === 'largest-contentful-paint');
         expect(lcpObserver).toBeDefined();
 
-        // A plain entry, not a click/keydown/visibilitychange: this is the per-entry path
-        // (onLCP.ts's handleEntries -> bare `report()`), not the finalize path that already forces.
+        // A plain entry, not a click/keydown/visibilitychange, takes the per-entry path in
+        // onLCP.ts's handleEntries, not the finalize path that already forces.
         lcpObserver!.callback({
             getEntries: () => [{ entryType: 'largest-contentful-paint', startTime: 2140 }],
         });
@@ -129,8 +126,8 @@ describe('buildVitalsSpan', () => {
     });
 
     it('has zero duration, both marks at the pageload root start', () => {
-        // spans_2 buckets on start_time_unix_nano: stamping the report moment would file a page left
-        // open for forty minutes into a minute forty minutes after it actually loaded.
+        // spans_2 buckets on start_time_unix_nano. Stamping the report moment would file a page left
+        // open for forty minutes into the wrong minute.
         const result = plan({ lcp: 2140 });
 
         expect(result!.startTimeUnixNano).toBe(ORIGIN_NANO);
@@ -229,8 +226,8 @@ function fakeSubscribers() {
 
 describe('web vitals collection', () => {
     beforeEach(() => {
-        // Clears the subscribe latch too. stopWebVitals() alone would leave it set and every test
-        // after the first would get an empty `cbs`.
+        // Clears the subscribe latch too. stopWebVitals() alone would leave it set, starving later
+        // tests of cbs.
         resetWebVitalsForTests();
     });
 
@@ -293,17 +290,16 @@ describe('web vitals collection', () => {
         cbs.ttfb({ value: 210 });
 
         stopWebVitals();
-        // Back to recording without clearing the latch, so `collected` being empty is the only
-        // reason a take can fail here.
+        // Restarts recording without clearing the latch, so an empty `collected` is the only
+        // reason take can fail here.
         startWebVitals(subscribers);
 
         expect(takeWebVitals()).toBeNull();
     });
 
     it('keeps the taken latch sticky across a stop, so a re-enable cannot ship a second report', () => {
-        // The upstream observers cannot be detached, so a disable/re-enable cycle leaves the original
-        // callback closure alive and free to fire again. Reusing it here (rather than wiring a fresh
-        // one) is what simulates that: one document must still get exactly one report.
+        // Upstream observers cannot be detached, so a disable/re-enable cycle leaves the original
+        // callback alive and able to fire again. Reusing it here simulates that: one document, one report.
         const first = fakeSubscribers();
         startWebVitals(first.subscribers);
         first.cbs.ttfb({ value: 210 });

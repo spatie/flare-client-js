@@ -21,11 +21,9 @@ const routeTree = rootRoute.addChildren([
     reactInvariantRoute,
 ]);
 
-// Disable TanStack Router's default per-route error component so render errors
-// bubble up to the outer FlareErrorBoundary. disableGlobalCatchBoundary turns
-// off the outer router-level catch; defaultErrorComponent re-throws inside the
-// per-route catch so React error boundary semantics carry the error up to
-// FlareErrorBoundary mounted outside RouterProvider.
+// Disables TanStack Router's per-route error component so render errors bubble up to the
+// outer FlareErrorBoundary instead: disableGlobalCatchBoundary turns off the router-level
+// catch, and re-throwing in defaultErrorComponent lets React's own boundary carry it up.
 export const router = createRouter({
     routeTree,
     disableGlobalCatchBoundary: true,

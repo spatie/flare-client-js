@@ -8,6 +8,6 @@ export type BreadcrumbHost = {
 
 export type BreadcrumbRecorder = {
     readonly type: string;
-    /** @returns the teardown for this recorder */
+    // Returns the teardown for this recorder.
     install(): () => void;
 };

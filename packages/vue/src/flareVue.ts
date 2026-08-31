@@ -48,8 +48,8 @@ export function vueWarningContextToAttributes(context: FlareVueWarningContext): 
     return toCustomContext('vue', vue);
 }
 
-// Tracks installed apps so app.use(flareVue) twice on the same app is a no-op. WeakSet so we don't
-// keep disposed apps alive (matters for SSR harnesses that spin up an app per request).
+// Tracks installed apps so app.use(flareVue) twice is a no-op. WeakSet avoids keeping disposed
+// apps alive, which matters for SSR where each request creates a new app.
 const installedApps = new WeakSet<App>();
 
 export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVueOptions): void => {
@@ -57,15 +57,15 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         return;
     }
 
-    // Resolve before marking the app installed, so a throw does not leave a half-installed app in
-    // installedApps. Only reachable through a direct flareVue(app, opts) call: app.use blocks the retry
-    // itself, since Vue adds the plugin to its own installed set before calling install.
+    // Resolve before marking installed, so a throw doesn't leave a half-installed app in installedApps.
+    // Only matters for a direct flareVue(app, opts) call; app.use() already blocks retries via Vue's
+    // own installed-plugin set.
     const flare = resolveFlare(options?.flare);
 
     installedApps.add(app);
 
-    // Web default (no injected instance): set SDK identity on the singleton. Injected instance: tag
-    // framework only, never setSdkInfo (would clobber @flareapp/electron).
+    // Web default (no injected instance): set SDK identity on the singleton. Injected instance: only
+    // tag the framework, never setSdkInfo — that would clobber @flareapp/electron.
     if (!options?.flare) {
         registerVueSdkInfo(flare);
     }
@@ -121,9 +121,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
             return;
         }
 
-        // No prior handler: log so the error is visible in development without re-throwing.
-        // Re-throwing would trigger window.onerror and produce a duplicate report (one with Vue
-        // context from here, one without from the global catchWindowErrors listener).
+        // No prior handler: log instead of re-throwing, so the error stays visible without
+        // triggering window.onerror and creating a duplicate report.
         console.error(error);
     };
 
@@ -154,14 +153,14 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         };
     }
 
-    // Wired unconditionally. `flare.configure({ enableTracing: true })` may come after app.use(flareVue),
-    // and browser.ts starts tracing from that call, so there is nothing to gate on here. Gating made the
-    // plugin order dependent while the other four integrations are not.
+    // Wired unconditionally: `flare.configure({ enableTracing: true })` can be called after
+    // app.use(flareVue), and browser.ts starts tracing from that call. Gating here would make
+    // plugin order matter, unlike the other integrations.
     if (options?.router) {
         try {
             const stopRouterTracing = traceVueRouter(options.router);
-            // Vue 3.5 and up; the declared peer floor is ^3.0.0. Without this an SSR harness making one
-            // app per request leaves every previous router's guards attached with no way to remove them.
+            // app.onUnmount exists from Vue 3.5 on; the declared peer floor is ^3.0.0. Without it, an
+            // SSR app-per-request setup leaves old router guards attached with no way to remove them.
             if (typeof app.onUnmount === 'function') {
                 app.onUnmount(stopRouterTracing);
             }
@@ -170,9 +169,8 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
         }
     }
 
-    // Register the mixin whenever an allowlist asked for it. An empty allowlist is the same as off,
-    // rather than "an array was passed". Tracing being off is not gated here: configure() can turn it
-    // on later, and the hook does nothing past its first call while there is no root to record under.
+    // An empty allowlist counts as off, not just "an array was passed". Not gated on tracing being
+    // on: configure() can enable it later, and the hook is a no-op with no root to record under.
     const profile = options?.profileComponents;
     const wantsProfiling = profile === true || (Array.isArray(profile) && profile.length > 0);
 

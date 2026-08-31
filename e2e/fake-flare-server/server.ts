@@ -3,9 +3,8 @@ import type { AddressInfo } from 'node:net';
 
 import type { FakeFlareEndpoint, FakeFlareRecord, FakeFlareServer, WaitForOptions } from './types';
 
-// Ingress paths mirror the real Flare ingress (routes/ingress.php): errors, traces, and logs are
-// served under /v1. Sourcemap upload keeps the real /api/sourcemaps endpoint. The internal endpoint
-// buckets (reports/logs/traces) are unchanged.
+// Mirrors the real Flare ingress (routes/ingress.php): errors, traces, and logs under /v1,
+// sourcemaps at /api/sourcemaps.
 const REPORTS_PATH = '/v1/errors';
 const SOURCEMAPS_PATH = '/api/sourcemaps';
 const LOGS_PATH = '/v1/logs';

@@ -73,8 +73,8 @@ test.describe('vue-router tracing', () => {
         expect(nav && attr(nav, 'flare.entry_point.handler.identifier')).toEqual({ stringValue: '/product/:id' });
         expect(nav && attr(nav, 'flare.route.source')).toEqual({ stringValue: 'route' });
 
-        // No-double-roots invariant: registerNavigationSource suppresses the History-based root, so this
-        // one click produces exactly ONE browser_navigation root across all traces.
+        // registerNavigationSource suppresses the History-based root, so this click produces
+        // exactly one browser_navigation root across all traces.
         const navSpans = (await fakeFlare.traces())
             .flatMap((record) => spansOf(record.bodyJson))
             .filter((span) => hasSpanType(span, 'browser_navigation'));

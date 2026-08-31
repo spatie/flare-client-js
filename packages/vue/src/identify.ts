@@ -9,12 +9,12 @@ const tagger = createIdentityTagger({
     frameworkName: FrameworkName.Vue,
 });
 
-/** Web path: SDK identity only; the framework version (app.version) is only known at install time. */
+// Web path: SDK identity only; the framework version (app.version) is only known at install time.
 export function registerVueSdkInfo(flare: Flare): void {
     tagger.registerSdkIdentity(flare);
 }
 
-/** Both paths tag the framework; never touches sdkInfo (would clobber an injected SDK name). */
+// Both paths tag the framework; never touches sdkInfo (would clobber an injected SDK name).
 export function tagVueFramework(flare: Flare, appVersion: string | undefined): void {
     tagger.tagFramework(flare, appVersion);
 }

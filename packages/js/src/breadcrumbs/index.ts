@@ -8,7 +8,7 @@ export type { BreadcrumbHost, BreadcrumbRecorder };
 export { ClickRecorder, FormChangeRecorder, NavigationRecorder, RequestRecorder };
 export { elementAttributes, elementSelector, elementTestId, interactiveTarget } from './utils/elementSelector';
 
-/** Starts every recorder, returns one teardown. A recorder that fails to install is skipped. */
+// Starts every recorder, returns one teardown. A recorder that fails to install is skipped.
 export function startBreadcrumbs(host: BreadcrumbHost): () => void {
     if (typeof document === 'undefined') {
         return () => {};
