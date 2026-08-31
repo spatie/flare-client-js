@@ -1,6 +1,6 @@
 import type { Attributes, AttributeValue, EntryPointHandler, Glow, SpanEvent } from './types';
 
-/** `USER_IDENTITY_KEYS` derives from this, so adding a field here can never leave the clear pass stale. */
+// `USER_IDENTITY_KEYS` derives from this, so adding a field here can never leave the clear pass stale.
 export const USER_FIELD_KEYS = {
     id: 'user.id',
     email: 'user.email',

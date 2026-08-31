@@ -1,5 +1,5 @@
 /**
- * Span types the Flare backend recognises. Wire format, so the values never change: they ship as the
+ * Span types the Flare backend recognizes. Wire format, so the values never change: they ship as the
  * `flare.span_type` attribute and the backend groups performance data by them.
  *
  * These are the browser client's set. They live in core because core's `SpanOptions.spanType` needs
@@ -19,8 +19,10 @@ export type BrowserSpanType = (typeof BrowserSpanType)[keyof typeof BrowserSpanT
 /** Any other value stays legal, so a host SDK can stamp its own without a core release. */
 export type SpanTypeName = BrowserSpanType | (string & {});
 
-// Span event types on an error report. Kept apart from `BrowserSpanType`: these are points in time,
-// not spans with a duration. That is also why a route change is not called `browser_navigation`.
+/**
+ * Span event types on an error report. Kept apart from `BrowserSpanType`: these are points in time,
+ * not spans with a duration. That is also why a route change is not called `browser_navigation`.
+ */
 export const BrowserSpanEventType = {
     Click: 'browser_click',
     Input: 'browser_input',

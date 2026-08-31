@@ -9,60 +9,46 @@ export type TelemetryBufferDeps = {
     scheduler: FlushScheduler;
 };
 
-/**
- * Everything TelemetryBuffer cannot know on its own: which config limits apply, how big a record is, how to
- * build and send the envelope, and what to log when something gets dropped. Logger and SpanBuffer each build
- * a TelemetryBuffer and hand it one of these.
- *
- * It exists so the batching itself lives in one place: when to flush, what to drop, how to size the envelope.
- * The send is not shared, Logger posts to /v1/logs and SpanBuffer to /v1/traces, but everything around it is,
- * without the buffer ever branching on whether it holds logs or spans.
- */
+// The parts a TelemetryBuffer cannot know by itself: config limits, record size, how to build and send the
+// envelope, and what to log on a drop. Logger and SpanBuffer each pass one. Keeps the batching in one place;
+// only the send differs (logs vs traces).
 export type TelemetryBufferPolicy<TRecord, TEnvelope> = {
-    /**
-     * Read live on every call, never snapshotted. `Flare.configure` replaces `_config` wholesale and both
-     * buffers are wired with `getConfig: () => this._config`, so a construction-time value bag would freeze
-     * the first config forever.
-     */
+    // Read live on every call, never snapshotted. `Flare.configure` replaces `_config` wholesale, so a
+    // value captured at construction would freeze the first config forever.
     limits: (config: Config) => BufferLimits;
-    /** The per-signal enable gate: `enableTracing` for spans, `enableLogs` for logs. */
+    // The per-signal enable gate: `enableTracing` for spans, `enableLogs` for logs.
     enabled: (config: Config) => boolean;
-    /** Soft size of one record, for the weight trigger, the oversized drop and the trim loop. */
+    // Soft size of one record, for the weight trigger, the oversized drop and the trim loop.
     estimateBytes: (record: TRecord) => number;
-    /** UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any records are added. */
+    // UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any records are added.
     emptyEnvelopeBytes: (resource: Attributes) => number;
-    /** Exact UTF-8 bytes one record adds to an envelope. Feeds the hard keepalive budget, so no estimating. */
+    // Exact UTF-8 bytes one record adds to an envelope. Feeds the hard keepalive budget, so no estimating.
     recordBytes: (record: TRecord) => number;
-    /** Debug message when one record is over `maxBytes` at capture. */
+    // Debug message when one record is over `maxBytes` at capture.
     oversizedMessage: string;
-    /** Debug message when records do not fit the keepalive envelope, summarised per flush. */
+    // Debug message when records do not fit the keepalive envelope, summarized per flush.
     keepaliveDropMessage: (count: number) => string;
-    /** Debug message when building or handing off the envelope throws. */
+    // Debug message when building or handing off the envelope throws.
     sendFailureMessage: string;
-    /** The resource map for this flush. Computed once per flush and threaded into every envelope build. */
+    // The resource map for this flush. Computed once per flush and threaded into every envelope build.
     resourceForFlush: () => Attributes;
     buildEnvelope: (records: TRecord[], resource: Attributes) => TEnvelope;
     send: (envelope: TEnvelope, config: Config, keepalive: boolean) => void;
-    /** Runs once a record has been accepted into the buffer, before the flush triggers see it. */
+    // Runs once a record has been accepted into the buffer, before the flush triggers see it.
     onRecordBuffered?: (record: TRecord) => void;
-    /**
-     * Hard ceiling for one keepalive envelope. Defaults to `config.keepaliveMaxBytes`; a signal that shares
-     * the browser's keepalive allowance with another passes what is actually left instead.
-     */
+    // Hard ceiling for one keepalive envelope. Defaults to `config.keepaliveMaxBytes`; a signal that shares
+    // the browser's keepalive allowance with another passes what is actually left instead.
     keepaliveBudget?: (config: Config) => number;
 };
 
-// `bytes` is measured once at add() and can go stale when a record holds a value by reference that the host
-// mutates afterwards. Harmless: it only feeds bufferedBytes, which drives the soft weight and trim heuristics,
-// where a few drifted bytes cannot corrupt anything. The one hard limit, keepaliveMaxBytes, deliberately
-// measures fresh through policy.recordBytes and never reads this cache.
+// `bytes` is measured once at add() and can go stale if a record holds a value by reference the host
+// mutates later. Harmless: it only drives the soft weight/trim heuristics, never the hard keepaliveMaxBytes
+// limit, which always remeasures fresh through policy.recordBytes.
 type BufferEntry<TRecord> = { record: TRecord; bytes: number };
 
-/**
- * The batching machine behind both telemetry signals: hold records, ship them when a size, weight or time
- * trigger fires, and shed the oldest when nothing can drain. One instance owns one signal; what that signal
- * is comes entirely from the policy.
- */
+// The batching machine behind both telemetry signals: hold records, ship them when a size, weight or time
+// trigger fires, and shed the oldest when nothing can drain. One instance owns one signal; what that signal
+// is comes entirely from the policy.
 export class TelemetryBuffer<TRecord, TEnvelope> {
     private entries: BufferEntry<TRecord>[] = [];
     // Running total of every entry's `bytes`. Kept in step at each mutation site: the push in add(), the drain
@@ -126,9 +112,8 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
             return;
         }
 
-        // Key gate: never send unauthenticated. assertKey (not bare truthiness) so debug mode logs the same
-        // missing-key diagnostic reports get. Reset the timer but keep the buffer so records survive until a key
-        // is set.
+        // Key gate: never send unauthenticated. assertKey (not bare truthiness) logs the same missing-key
+        // diagnostic as reports in debug mode. Resets the timer but keeps the buffer until a key is set.
         if (!assertKey(config.key, config.debug)) {
             this.clearTimer();
             return;
@@ -143,9 +128,8 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
             selected = this.packForKeepalive(config, resource);
             if (selected.length === 0) {
                 // Nothing fits what is left of the shared budget. Sending the whole buffer without keepalive
-                // beats silent retention on a page that is unloading, and (this buffer has no notion of
-                // traceId) it keeps a trace whole instead of packForKeepalive dropping a fat root while
-                // shipping its leaner children.
+                // beats losing it silently on an unloading page, and keeps a trace whole instead of dropping
+                // a fat root while shipping its leaner children (this buffer does not track traceId).
                 selected = this.entries;
                 this.entries = [];
                 this.bufferedBytes = 0;
@@ -169,15 +153,8 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
             return;
         }
 
-        // resourceForFlush() above runs before the drain and outside this try, on both paths, so a throwing
-        // resource-attribute getter there escapes uncaught (window.onerror for a timer-driven flush, the
-        // visibilitychange handler for a keepalive one). The keepalive path adds its own pre-drain exposure on
-        // top: packForKeepalive calls policy.emptyEnvelopeBytes, and per candidate policy.recordBytes, also
-        // before the entries are drained.
-        //
-        // Widening this try to also cover those calls is the wrong fix: the buffer would still be undrained
-        // when it throws, so a poison-pill attribute retries forever instead of throwing once. Closing this
-        // needs a drain-then-guard redesign, deliberately out of scope here.
+        // A throwing resource getter escapes this try on purpose. Widening the try would leave the buffer
+        // undrained and retry a poison record forever. A proper fix needs a drain-then-guard redesign.
         try {
             this.policy.send(
                 this.policy.buildEnvelope(
@@ -247,11 +224,7 @@ export class TelemetryBuffer<TRecord, TEnvelope> {
         }
     }
 
-    /**
-     * Newest-wins. An over-budget record is skipped, not a stop signal, so a smaller older record behind a fat
-     * one still ships. Runs on visibilitychange:hidden, which fires on plain backgrounding too, so the tail this
-     * leaves behind is retained and re-armed rather than dropped (see flush).
-     */
+    // Newest first. Skip an over-budget record instead of stopping, so a smaller older record still ships.
     private packForKeepalive(config: Config, resource: Attributes): BufferEntry<TRecord>[] {
         // Sized from parts instead of rebuilding the envelope per candidate: fixed overhead once, each record's
         // own UTF-8 length, plus one byte per record after the first for the JSON array comma.

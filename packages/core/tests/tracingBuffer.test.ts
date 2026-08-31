@@ -47,8 +47,7 @@ const assertBytesInStep = (buffer: SpanBuffer): void => {
     }
 };
 
-// Re-checks the running total after every public call, so a mutation site that forgets to update it fails
-// whatever test touches it, not only the tests written with drift in mind.
+// Re-checks the running total after every call, so any mutation that forgets to update it fails immediately.
 const guardBytes = (buffer: SpanBuffer): SpanBuffer =>
     new Proxy(buffer, {
         get(target, prop) {
@@ -166,8 +165,7 @@ describe('SpanBuffer', () => {
     it('keepalive over budget retains the tail and re-arms the timer', () => {
         vi.useFakeTimers();
         const api = new FakeApi();
-        // Sized to fit exactly the newest of two spans (packing is newest-wins), so this exercises a genuine
-        // partial pack rather than the nothing-fits case (see the fallback tests below for that one).
+        // keepaliveMaxBytes fits exactly the newest span, so this is a real partial pack, not the nothing-fits case below.
         const buffer = makeBuffer(baseConfig({ keepaliveMaxBytes: 900, spanFlushIntervalMs: 5000 }), api);
         buffer.add(span('1'));
         buffer.add(span('2'));
@@ -185,8 +183,7 @@ describe('SpanBuffer', () => {
         buffer.add(span('1'));
         buffer.add(span('2'));
         buffer.flush({ keepalive: true });
-        // Nothing fits a 1-byte budget. A cancellable normal fetch beats silent retention on a page that is
-        // unloading, so the whole buffer ships anyway, just without keepalive.
+        // Nothing fits a 1-byte budget, but shipping via a normal fetch beats silently holding it on an unloading page.
         expect(api.traceEnvelopes).toHaveLength(1);
         expect(api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans).toHaveLength(2);
         expect(api.lastTraceKeepalive).toBe(false);
@@ -201,8 +198,7 @@ describe('SpanBuffer', () => {
     });
 
     it('serializes a constant number of times per add(), whatever the buffer depth', () => {
-        // key null so flush() no-ops and the buffer keeps growing; the caps are set high enough that
-        // neither trigger nor trim fires, isolating the per-add serialization count.
+        // key null keeps flush() a no-op, and the caps are high enough that nothing else triggers, isolating the per-add serialization count.
         const buffer = makeBuffer(baseConfig({ key: null, maxSpanBufferSize: 500 }));
         const countOneAdd = (id: string): number => {
             const spy = vi.spyOn(JSON, 'stringify');
@@ -284,10 +280,10 @@ describe('SpanBuffer', () => {
 
         buffer.flush({ keepalive: true });
 
-        // packForKeepalive still logs the rejection once, for all 100 candidates...
+        // packForKeepalive still logs the rejection once, for all 100 candidates.
         expect(err).toHaveBeenCalledTimes(1);
         expect(err).toHaveBeenCalledWith(expect.stringContaining('100'));
-        // ...but the whole buffer ships anyway through the no-room-left fallback, just without keepalive.
+        // The whole buffer still ships, through the no-room-left fallback, just without keepalive.
         expect(api.traceEnvelopes).toHaveLength(1);
         expect(api.traceEnvelopes[0].resourceSpans[0].scopeSpans[0].spans).toHaveLength(100);
         expect(api.lastTraceKeepalive).toBe(false);
@@ -311,16 +307,13 @@ describe('SpanBuffer', () => {
         expect(shipped).not.toContain(fatName);
         expect(shipped).toHaveLength(3); // the three older spans still fit and still ship
 
-        // The whole point of packing incrementally: the envelope that actually ships must respect the budget,
-        // not just contain the right span names.
+        // The point: the envelope that ships must fit the budget, not just contain the right span names.
         const bytes = new TextEncoder().encode(JSON.stringify(api.traceEnvelopes[0])).length;
         expect(bytes).toBeLessThanOrEqual(3000);
     });
 
-    // Api.traces handles its own serialization failures, but buildEnvelope runs before it and encodes the
-    // resource block, where a nested throwing getter still blows up. flush() is called from timers, so it must
-    // swallow that rather than let it reach window.onerror. Non-keepalive only: the keepalive path sizes the
-    // resource block before this try opens (see the comment above flush()'s try), so it is not covered here.
+    // buildEnvelope encodes the resource block before Api.traces runs, so a throwing getter there must not escape
+    // flush()'s timer-driven call and reach window.onerror. Keepalive sizes that block earlier, so it is not covered here.
     it('does not throw out of a non-keepalive flush() when encoding the resource block fails', () => {
         const err = vi.spyOn(console, 'error').mockImplementation(() => {});
         const api = new FakeApi();
@@ -329,8 +322,7 @@ describe('SpanBuffer', () => {
                 throw new Error('getter exploded');
             },
         };
-        // Nested, not top level: resourceForFlush spreads the bag, so a top-level getter would throw before flush
-        // even reaches the envelope build.
+        // Nested, not top-level: resourceForFlush spreads the bag, so a top-level getter would throw earlier, before flush reaches the envelope build.
         const buffer = makeBuffer(baseConfig({ debug: true }), api, {
             getResourceAttributes: () => ({ nested: hostile }),
         });

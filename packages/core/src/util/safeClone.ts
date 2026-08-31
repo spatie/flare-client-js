@@ -112,10 +112,8 @@ function truncate(value: string, max: number): string {
     return `${value.slice(0, max)}…[truncated ${value.length - max} chars]`;
 }
 
-/**
- * Literal object / null prototypes only. Class instances may have side-effecting getters or
- * non-enumerable internals we should not traverse, so they are left to the caller's mode policy.
- */
+// Only literal-object / null prototypes count as plain. Class instances may have side-effecting
+// getters or non-enumerable internals, so leave them to the caller's mode policy.
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     if (value === null || typeof value !== 'object') {
         return false;

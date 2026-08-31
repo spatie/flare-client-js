@@ -40,8 +40,8 @@ describe('createComponentMatcher', () => {
         expect(createComponentMatcher([])('ProductPage')).toBe(false);
     });
 
-    // A `g` or `y` regex carries lastIndex between calls, so reusing the caller's object would make
-    // every other test() miss. This is the whole reason the function copies the pattern.
+    // A `g` or `y` regex carries lastIndex between calls, so reusing the caller's object would
+    // make every other test() miss. This is why the function copies the pattern first.
     it('does not let a sticky or global regex miss on alternate calls', () => {
         const matches = createComponentMatcher([/Page/g]);
 

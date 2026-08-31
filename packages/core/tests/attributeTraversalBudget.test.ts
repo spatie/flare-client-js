@@ -4,7 +4,7 @@ import { attributesToOpenTelemetry } from '../src/logging/otel';
 import { flatJsonStringify, safeClone } from '../src/util';
 import { MAX_TRAVERSAL_DEPTH, MAX_TRAVERSAL_NODES, TRUNCATED } from '../src/util/traversalBudget';
 
-/** Shares one child under two keys per level. Not a cycle, so ancestor-path detection never fires. */
+// Shares one child under two keys per level. Not a cycle, so ancestor-path detection never fires.
 function sharedGraph(depth: number): unknown {
     let node: unknown = { leaf: 1 };
     for (let i = 0; i < depth; i++) {
@@ -13,10 +13,8 @@ function sharedGraph(depth: number): unknown {
     return node;
 }
 
-/**
- * The same shape over a wide primitive leaf. Every one of the 2^depth paths re-walks all `width`
- * strings, so this only stays bounded if primitives are charged against the budget.
- */
+// The same shape over a wide primitive leaf. Every 2^depth path re-walks all `width` strings, so this
+// stays bounded only if primitives are charged against the budget.
 function sharedGraphOverWideLeaf(depth: number, width: number): unknown {
     const leaf = Array.from({ length: width }, (_, i) => `v${i}`);
     let node: unknown = leaf;
@@ -26,7 +24,7 @@ function sharedGraphOverWideLeaf(depth: number, width: number): unknown {
     return node;
 }
 
-/** Counts output nodes, giving up early so a runaway result is not fully materialised into a count. */
+// Counts output nodes, giving up early so a runaway result is not fully materialized into a count.
 function countNodes(value: unknown, limit: number): number {
     let count = 0;
     const stack: unknown[] = [value];
@@ -60,8 +58,7 @@ function hasTruncation(value: unknown): boolean {
 
 describe('attribute traversal is bounded', () => {
     it('truncates a shared graph whose primitive leaves blow past the budget', () => {
-        // 2^6 arrays x 1000 strings = 64k leaf visits. Under the old budget these were free, so 127
-        // container visits was the whole charge and nothing truncated.
+        // 2^6 arrays x 1000 strings = 64k leaf visits. Under the old budget these were free, so nothing truncated.
         const converted = attributesToOpenTelemetry({ payload: sharedGraphOverWideLeaf(6, 1000) as never });
 
         expect(hasTruncation(converted)).toBe(true);

@@ -24,8 +24,8 @@ import {
 } from './types';
 import { DEFAULT_URL_DENYLIST, assert, assertKey, extractCode, now, resolveDenylist, timelineEvents } from './util';
 
-/** Scope attributes a span never inherits. Derived from `USER_IDENTITY_KEYS` so a future user field is
- *  excluded automatically, without anyone needing to remember to list it here. See `getScopeAttributes`. */
+// Scope attributes a span never inherits. Derived from `USER_IDENTITY_KEYS` so a future user field is
+// excluded automatically, without anyone needing to list it here. See `getScopeAttributes`.
 const SPAN_SCOPE_EXCLUDED_KEYS: readonly string[] = USER_IDENTITY_KEYS.filter((key) => key !== USER_FIELD_KEYS.id);
 
 export type ContextCollector = (config: Readonly<Config>) => Attributes;
@@ -120,14 +120,8 @@ export class Flare {
         });
     }
 
-    /**
-     * Register an in-flight report so `flush()` can wait for it. Every entry point wraps its whole async
-     * pipeline, from beforeEvaluate through api.report, so flush() waits on all of it.
-     *
-     * What goes in the Set is a shadow promise that mirrors `p`'s timing but cannot reject, so a failed
-     * report never surfaces as an unhandled rejection warning. `p` itself is returned untouched, so the
-     * caller still observes real success or failure.
-     */
+    // Tracks an in-flight report so flush() can wait for it. The tracked copy never rejects, so a failed
+    // report does not trigger an unhandled-rejection warning. The original promise `p` is returned as-is.
     private track<T>(p: Promise<T>): Promise<T> {
         const tracked = p.then(
             () => undefined,
@@ -139,12 +133,11 @@ export class Flare {
     }
 
     /**
-     * Wait until every in-flight report settles or `timeoutMs` elapses. Always resolves, never rejects.
-     * Written for `@flareapp/node`'s fatal handler, which awaits the fatal report itself then flushes to
-     * drain any other concurrent reports before `process.exit`.
+     * Waits until every in-flight report settles, or `timeoutMs` elapses. Always resolves, never rejects.
+     * Used by `@flareapp/node`'s fatal handler to drain other reports before `process.exit`.
      *
-     * Snapshotting the Set bounds the wait: reports started after this line are not awaited, so a handler
-     * that keeps emitting during shutdown cannot block the process forever. Call flush again for those.
+     * Only reports already in flight are awaited, so a handler still emitting during shutdown cannot block
+     * forever. Call flush again to catch those.
      */
     flush(timeoutMs = 2000): Promise<void> {
         this._logger.flush();
@@ -370,10 +363,8 @@ export class Flare {
         return this;
     }
 
-    /**
-     * True when a report must not be captured: consent withdrawn, or dropped by sampling. Consent is
-     * checked first, so a blocked report never runs the sampler or assembles a report (no cookie read).
-     */
+    // True when a report must not be captured: consent withdrawn, or dropped by sampling. Consent is
+    // checked first, so a blocked report skips the sampler and never assembles a report.
     private shouldSkipCapture(): boolean {
         if (this._config.hasConsent === false) {
             return true;
@@ -570,7 +561,7 @@ export class Flare {
             };
         }
 
-        // Inject framework name into context.custom so it is emitted even in a fresh request scope with no other custom context.
+        // Ensures the framework name lands in context.custom even in a fresh scope with no other custom context.
         if (this.framework?.name) {
             const existing = (attributes['context.custom'] as Record<string, AttributeValue> | undefined) ?? {};
             attributes['context.custom'] = { ...existing, framework: this.framework.name.toLowerCase() };
@@ -587,15 +578,13 @@ export class Flare {
         };
     }
 
-    /**
-     * Local roots only, snapshotted by the Tracer at span START so a long-lived root does not drift into
-     * the next page's scope. Children get none, and no span ever runs the DOM collector.
-     *
-     * Everything assembled is inherited except user identity (excluding the opaque `user.id`): a root span
-     * goes out for every page view, so email, full name, IP and `user.attributes` would turn normal
-     * browsing into PII traffic. The rest — `context.custom`, `addContextGroup` bags — stays in, because
-     * the trace viewer renders any span attribute whose key does not start with `flare.`.
-     */
+    // Local roots only, snapshotted at span START so a long-lived root does not drift into the next page's
+    // scope. Children get none, and no span runs the DOM collector.
+    //
+    // Everything else is inherited except user identity (excluding the opaque `user.id`): a root span fires
+    // per page view, so email, full name, IP, and `user.attributes` would turn normal browsing into PII
+    // traffic. `context.custom` and `addContextGroup` bags stay in, since the trace viewer renders any span
+    // attribute whose key does not start with `flare.`.
     private getScopeAttributes(): Attributes {
         const all = this.assembleAttributes({}, {}, false);
         const scoped: Attributes = { ...all };

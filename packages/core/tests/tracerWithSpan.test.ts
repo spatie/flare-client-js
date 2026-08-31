@@ -6,9 +6,8 @@ import type { SdkInfo, Span } from '../src/types';
 import { FakeApi } from './helpers/FakeApi';
 import { config } from './helpers/makeTracer';
 
-// Parameterized by `api` (not `cfg`/`rng`) so span-flush assertions can read a real FakeApi's
-// traceEnvelopes; the shared `makeTracer` in ./helpers/makeTracer always wires `api: {} as never`,
-// so it can't serve this file's needs and this local variant stays.
+// Takes a real `api` so span-flush assertions can read FakeApi's traceEnvelopes.
+// The shared `makeTracer` helper always wires `api: {} as never`, so it can't be reused here.
 const makeTracer = (api: FakeApi = new FakeApi()) =>
     new Tracer({
         api,
@@ -111,8 +110,8 @@ describe('Tracer.withSpan', () => {
     it('detects a thenable (not just instanceof Promise) and sets Error on rejection', async () => {
         const tracer = makeTracer();
         let captured: Span | undefined;
-        // A thenable that is not a Promise instance; instanceof Promise would miss it, take the sync path, and leave
-        // status Unset (code 0). This test catches that.
+        // A thenable, not a Promise instance. instanceof Promise would miss it, take the sync
+        // path, and leave status Unset (code 0) — this test catches that.
         const rejecting = Promise.reject(new Error('thenable-boom'));
         // eslint-disable-next-line unicorn/no-thenable
         const thenable = { then: (res: unknown, rej: unknown) => rejecting.then(res as never, rej as never) }; // oxlint-disable-line unicorn/no-thenable

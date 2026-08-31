@@ -3,14 +3,13 @@ import type { Span } from '../types';
 export interface ActiveSpanHolder {
     getActive(): Span | undefined;
     /**
-     * Run `fn` with `span` active, restoring the prior active span afterward. A callback (not a bare setter) so a Node
-     * holder can back it with AsyncLocalStorage.run(...) to preserve async-scoped context.
+     * Runs `fn` with `span` active, then restores the previous active span. Takes a callback, not a
+     * setter, so a Node holder can implement it with `AsyncLocalStorage.run(...)`.
      */
     withActive<T>(span: Span, fn: () => T): T;
     /**
-     * Persistent "active root" that getActive() falls back to when no withActive scope is on the stack. Used by
-     * long-lived pageload/navigation roots so child spans (e.g. fetches) auto-parent to them. Optional; a holder that
-     * omits it simply has no active-root support.
+     * Fallback span that getActive() returns when no withActive scope is active. Long-lived
+     * pageload/navigation roots use it so child spans auto-parent to them. Optional.
      */
     setActiveRoot?(span: Span | undefined): void;
 }

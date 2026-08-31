@@ -40,9 +40,9 @@ export function createStackTrace(error: Error, debug: boolean, fileReader: FileR
     });
 }
 
-// Hermes (RN's default engine) emits frames like `onPress@address at index.android.bundle:1:1234`. error-stack-parser
-// keeps the `address at ` literal in the fileName, breaking sourcemap matching and source display. Strip it so `file`
-// is the real bundle path. No real path begins with `address at `, so this is a no-op on other engines.
+// Hermes (RN's default engine) emits frames like `onPress@address at index.android.bundle:1:1234`, and
+// error-stack-parser keeps the `address at ` literal in the fileName. Strip it so `file` is the real
+// bundle path. No real path starts with `address at `, so this is a no-op on other engines.
 const HERMES_ADDRESS_PREFIX = 'address at ';
 
 function normalizeFileName(fileName: string | undefined): string | undefined {
@@ -63,9 +63,9 @@ function fallbackFrame(reason: string): StackFrame {
     };
 }
 
-// Some engines populate `err.stack` with just `"<Name>: <message>"` (no frames) when an Error is
-// constructed but never thrown. Treat that as "no stack" so we fall back instead of parsing garbage.
-// Also accepts the legacy `stacktrace` and Opera `opera#sourceloc` properties.
+// Some engines set `err.stack` to just `"<Name>: <message>"` (no frames) for an Error that was
+// constructed but never thrown. Treat that as "no stack" instead of parsing garbage. Also accepts the
+// legacy `stacktrace` and Opera `opera#sourceloc` properties.
 function hasStack(err: unknown): boolean {
     if (!err || typeof err !== 'object') {
         return false;

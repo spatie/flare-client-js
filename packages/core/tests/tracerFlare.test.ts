@@ -71,9 +71,8 @@ describe('Flare tracing wiring', () => {
         expect(api.traceEnvelopes).toHaveLength(0);
     });
 
-    // estimateBytes sizes a snapshot but status.message is held by reference, so the host can still turn a
-    // buffered span unserializable after add(). Api.traces catches that specific failure and falls back to
-    // flatJsonStringify, so the span still ships instead of tripping flush()'s own catch.
+    // status.message is held by reference, so the host can still mutate a buffered span unserializable
+    // after add(). Api.traces catches that and falls back to flatJsonStringify, so it still ships.
     it('still ships a buffered span that was mutated unserializable after add()', async () => {
         const fetchMock = stubFetch();
         const flare = new Flare(new Api());

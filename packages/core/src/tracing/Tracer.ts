@@ -29,12 +29,12 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
 
 type SpanParent = NonNullable<SpanOptions['parent']>;
 
-/** `SpanOptions.parent` is a structurally overlapping union; `isRecording` is what tells a real Span apart. */
+// SpanOptions.parent is a structurally overlapping union; isRecording is what tells a real Span apart.
 function isSpan(parent: SpanParent): parent is Span {
     return 'isRecording' in parent;
 }
 
-/** A SpanImpl carries the epoch it was created under; a hand-stitched `{traceId, spanId}` parent does not. */
+// A SpanImpl carries the epoch it was created under; a hand-stitched {traceId, spanId} parent does not.
 function hasEpoch(parent: SpanParent): parent is SpanParent & { epoch: number } {
     return 'epoch' in parent && typeof (parent as { epoch?: unknown }).epoch === 'number';
 }
@@ -54,7 +54,7 @@ export type SpanPhase = 'start' | 'end';
 export type SpanLifecycleEvent = { phase: SpanPhase; span: Span };
 export type SpanLifecycleListener = (event: SpanLifecycleEvent) => void;
 
-/** A trace picked up from an inbound `traceparent`, pending its next root span. */
+// A trace picked up from an inbound `traceparent`, pending its next root span.
 export type TraceContinuation = { traceId: string; parentSpanId: string; sampled: boolean };
 
 type TraceState = {
@@ -68,14 +68,12 @@ type TraceState = {
     loggedCap: boolean;
 };
 
-/** What survives a pruned trace: three primitives, no span reference, so an ended root is not held alive. */
+// What survives a pruned trace: three primitives, no span reference, so an ended root is not held alive.
 type ClosedTrace = { localRootSpanId: string; recording: boolean; startedSpanCount: number };
 
-/**
- * Both trace maps cap their size the same way: insertion order is LRU, so the first key is the one to drop.
- * Only evicts when `key` is not already in the map. A set() that overwrites an existing key does not grow the
- * map, so it must not evict an unrelated entry to make room for it.
- */
+// Insertion order is LRU, so the first key is the one to drop.
+// Only evicts when key is new. A set() that overwrites an existing key must not evict something else to
+// make room for it.
 function evictLruIfNew<V>(map: Map<string, V>, key: string, cap: number): void {
     if (map.has(key) || map.size < cap) {
         return;
@@ -144,10 +142,9 @@ export class Tracer {
     }
 
     /**
-     * Take one span against `traceId`'s cap up front, for a caller that publishes a span id before the
-     * span exists (the component profilers do; their descendants record first). False means the trace is
-     * full and the caller should stay transparent instead of handing out an id the cap will refuse.
-     * Consumed by the matching `startSpan({ claimed: true })`.
+     * Claims a span slot before the span exists, for a caller that publishes a span id early (the
+     * component profilers do; their descendants record first). Returns false when the trace is full.
+     * Paired with `startSpan({ claimed: true })`.
      */
     claimSpanSlot(traceId: string): boolean {
         const config = this.deps.getConfig();
@@ -199,7 +196,7 @@ export class Tracer {
     }
 
     /**
-     * Runs `fn` with the span active, so spans started inside auto-parent to it, then ends it.
+     * Runs `fn` with the span active, so spans started inside it auto-parent to it, then ends the span.
      * Records an error status first if `fn` throws or its returned promise rejects.
      */
     withSpan<T>(name: string, fn: (span: Span) => T, opts: SpanOptions = {}): T {
@@ -237,8 +234,10 @@ export class Tracer {
         });
     }
 
-    /** Starts a span the caller must end. Unlike `withSpan`, it does not become the active span,
-     *  so spans started after it do not auto-parent to it. */
+    /**
+     * Starts a span the caller must end. Unlike `withSpan`, it does not become the active span, so spans
+     * started after it do not auto-parent to it.
+     */
     startSpan(name: string, opts: SpanOptions = {}): Span {
         const config = this.deps.getConfig();
         const spanId = opts.spanId ?? makeSpanId();
@@ -286,7 +285,7 @@ export class Tracer {
         return span;
     }
 
-    /** A real Span handle that records nothing, so callers never have to branch on whether tracing is on. */
+    // A real Span handle that records nothing, so callers never have to branch on whether tracing is on.
     private startInertSpan(name: string, spanId: string, opts: SpanOptions, config: Config): Span {
         const span = this.makeSpan(
             {
@@ -316,20 +315,18 @@ export class Tracer {
         // become a mid-trace child.
         let parent = opts.forceRoot ? opts.parent : (opts.parent ?? this.holder.getActive());
 
-        // A Span created before a clear() is stale: must not parent or re-seed live state. Plain {traceId, spanId}
-        // objects have no epoch and are never stale.
-        //
-        // hasEpoch must stay a genuine refinement: epoch is on neither SpanParent member. A shared discriminator
-        // like 'traceId' in parent would narrow the untouched branch to never and break every later read of parent.
+        // A span from before a clear() is stale and must not parent or re-seed live state. Plain
+        // {traceId, spanId} parents have no epoch, so they are never stale. hasEpoch must stay a real type
+        // refinement, or a shared discriminator like 'traceId' would break the narrowing here.
         if (parent && hasEpoch(parent) && parent.epoch !== this.epoch) {
             parent = undefined;
         }
 
         if (parent && 'spanId' in parent && 'traceId' in parent) {
             const traceId = parent.traceId;
-            // A real Span carries its trace's recording decision; a manually stitched {traceId, spanId} parent does
-            // not. Run the sampler instead of assuming recording, so tracesSampleRate 0 does not still buffer and ship.
-            // Lazy so the sampler (side effects, rng consumption) only runs when new state is actually seeded.
+            // A real Span carries its trace's recording decision; a hand-stitched {traceId, spanId} parent
+            // does not, so run the sampler instead of assuming recording. Lazy, so the sampler's side
+            // effects (rng use) only run when new state is actually seeded.
             const fallbackRecording = (): boolean =>
                 isSpan(parent)
                     ? parent.isRecording
@@ -441,7 +438,7 @@ export class Tracer {
         return span;
     }
 
-    /** Bounded, LRU by insertion order, like traceStates. Holds primitives only, never a span. */
+    // Bounded, LRU by insertion order, like traceStates. Holds primitives only, never a span.
     private rememberClosed(state: TraceState): void {
         evictLruIfNew(this.closedTraces, state.traceId, MAX_CLOSED_TRACES);
         this.closedTraces.set(state.traceId, {

@@ -14,7 +14,7 @@ export type SpanBufferDeps = {
     scheduler: FlushScheduler;
 };
 
-/** The span half of the shared telemetry buffer: names the config keys, the envelope and the ingest call. */
+// The span half of the shared telemetry buffer: names the config keys, the envelope and the ingest call.
 export class SpanBuffer {
     private inner: TelemetryBuffer<BufferedSpan, TracesEnvelope>;
 
@@ -22,9 +22,9 @@ export class SpanBuffer {
         this.inner = new TelemetryBuffer<BufferedSpan, TracesEnvelope>(
             { getConfig: deps.getConfig, scheduler: deps.scheduler },
             {
-                // spanFlushMaxBytes is a request-size ceiling, not a batching trigger: 800_000 = 100 x 8000 bounds
-                // one POST for the outlier case of a customer putting large payloads in span attributes. Realistic
-                // spans measure ~727 B, so the count trigger fires first in every normal case.
+                // spanFlushMaxBytes bounds one POST's size, not a batching trigger: 800_000 = 100 x 8000 covers a
+                // customer putting large payloads in span attributes. Real spans are ~727 B, so the count trigger
+                // fires first in the normal case.
                 limits: (config) => ({
                     maxSize: config.maxSpanBufferSize,
                     maxBytes: config.spanFlushMaxBytes,
@@ -80,9 +80,8 @@ export class SpanBuffer {
     }
 
     private estimateBytes(span: BufferedSpan): number {
-        // onSpanEnd already reduced every attribute to an OTLP primitive, so safeClone cannot change a byte here.
-        // .length is UTF-16 code units, not UTF-8 bytes, same soft-cap caveat as Logger.estimateBytes: exact for
-        // ASCII, but a CJK-heavy attribute value stretches the real UTF-8 ceiling to roughly 3x.
+        // onSpanEnd already reduced every attribute to an OTLP primitive, so safeClone changes nothing here.
+        // .length is UTF-16 units, not UTF-8 bytes: exact for ASCII, but CJK-heavy values run ~3x over.
         return JSON.stringify(span).length;
     }
 }

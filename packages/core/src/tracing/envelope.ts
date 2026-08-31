@@ -55,22 +55,15 @@ export function buildTracesEnvelope(
     };
 }
 
-/**
- * How many UTF-8 bytes one span adds to an envelope. We measure the real toOtelSpan output instead of reusing
- * the cached BufferedSpan estimate, because keepaliveMaxBytes is a hard browser limit and an estimate is not
- * good enough.
- *
- * We use flatJsonStringify instead of JSON.stringify because a span keeps values the caller still owns, like
- * status.message, and those can turn unserializable after the span ended. This runs from a visibilitychange
- * listener with no try/catch around it, so a throw here loses the flush. flatJsonStringify handles the usual
- * suspects (circular references, BigInt, a getter that throws on a plain object) but is not bulletproof: a
- * class instance with a throwing getter goes through untouched and can still throw.
- */
+// Bytes one span adds to an envelope. Measures the real toOtelSpan output, not the cached estimate,
+// because keepaliveMaxBytes is a hard browser limit. Uses flatJsonStringify, not JSON.stringify, since
+// a span can hold values that turn unserializable after it ends, and this runs uncaught from a
+// visibilitychange listener. Not bulletproof: a class instance with a throwing getter can still throw.
 export function otelSpanBytes(span: BufferedSpan): number {
     return utf8Bytes(flatJsonStringify(toOtelSpan(span)));
 }
 
-/** UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any spans are added. */
+// UTF-8 bytes of an empty envelope: the fixed overhead every batch has, before any spans are added.
 export function emptyTracesEnvelopeBytes(
     resourceAttributes: Attributes,
     scopeName: string,

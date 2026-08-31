@@ -1,5 +1,7 @@
-// Matched against query-string keys, cookie names, and (in framework SDKs) prop/route-param keys. Values for
-// matching keys are replaced with [redacted] before sending so credentials/PII don't leak in error reports.
+/**
+ * Matched against query-string keys, cookie names, and (in framework SDKs) prop/route-param keys. Values for
+ * matching keys are replaced with [redacted] before sending so credentials/PII don't leak in error reports.
+ */
 export const DEFAULT_URL_DENYLIST =
     /password|passwd|pwd|token|secret|authorization|\bauth\b|bearer|oauth|credentials?|cookie|api[-_]?key|private[-_]?key|session|csrf|xsrf|\bpin\b|\bssn\b|card[-_]?number|\bcvv\b/i;
 
@@ -93,10 +95,8 @@ export function redactObjectValues(
     return result;
 }
 
-/**
- * Removes userinfo (`user:pass@`) from an absolute URL's authority only. A path or query can legally
- * contain `@`, so only the authority (after `scheme://`, up to the first `/`, `?`, `#`) is inspected.
- */
+// Removes userinfo (`user:pass@`) from an absolute URL's authority only. A path or query can legally
+// contain `@`, so only the authority (after `scheme://`, up to the first `/`, `?`, `#`) is inspected.
 function stripUserinfo(url: string): string {
     const schemeMatch = /^[a-z][a-z0-9+.-]*:\/\//i.exec(url);
 

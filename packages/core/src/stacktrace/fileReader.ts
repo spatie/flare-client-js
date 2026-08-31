@@ -47,8 +47,7 @@ function readFile(fileReader: FileReader, url: string): Promise<string | null> {
         return cached;
     }
 
-    // We store the promise instead of the file contents, so all the frames pointing at the same file share one
-    // request, instead of duplicating the file requests per frame.
+    // Cache the promise, not the text, so frames pointing at the same file share one request.
     const pending = fileReader.read(url).then((text) => {
         // A failed read stays out of the cache, so a later report can try the file again.
         if (text === null) {
@@ -100,7 +99,6 @@ export function readLinesFromFile(
     return { codeSnippet, trimmedColumnNumber };
 }
 
-// Clearing the cache is useful in tests.
 export function __clearFileReaderCacheForTests(): void {
     for (const key of Object.keys(cachedFiles)) {
         delete cachedFiles[key];
