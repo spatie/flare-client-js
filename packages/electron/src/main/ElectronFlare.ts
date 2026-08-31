@@ -29,7 +29,7 @@ export type ElectronFlareDeps = {
 
 const SDK_NAME = '@flareapp/electron';
 
-/** Write `value` under `key` when non-empty, otherwise remove any renderer-supplied value. */
+// Write `value` under `key` when non-empty, otherwise remove any renderer-supplied value.
 function overlayOrDelete(attributes: Record<string, unknown>, key: string, value: string): void {
     if (value) {
         attributes[key] = value;
@@ -68,9 +68,8 @@ export class ElectronFlare extends CoreFlare {
         this.ipcMain = deps.ipcMain;
         this.flushScheduler = flushScheduler;
         this.setSdkInfo({ name: SDK_NAME, version: CLIENT_VERSION });
-        // Main-process identity. Renderer reports carry their own framework (js from BrowserFlare, or
-        // react/vue/svelte once an /inject entry tags it) and are forwarded already built, so this
-        // claim only ever labels reports that originate in main.
+        // Main-process identity only. Renderer reports carry their own framework (js, or react/vue/svelte
+        // via an /inject entry) and arrive already built, so this never overwrites theirs.
         this.setFramework({ name: FrameworkName.NodeElectron });
 
         const cbs = buildFatalCallbacks(
@@ -86,9 +85,8 @@ export class ElectronFlare extends CoreFlare {
             onReport: (report) => this.receiveRendererReport(report),
         });
 
-        // Crash observers attach immediately (like the IPC receiver): they only observe, and any
-        // report drops harmlessly until light() sets a key. Fatal process handlers gate on light()
-        // instead, since they alter the process's crash behavior.
+        // Crash observers attach immediately, like the IPC receiver: they only observe, and reports drop
+        // harmlessly until light() sets a key. Fatal handlers gate on light() since they change crash behavior.
         this.reconcileCrashListeners();
     }
 
@@ -148,7 +146,7 @@ export class ElectronFlare extends CoreFlare {
         this.flushScheduler.dispose();
     }
 
-    /** Attach/detach the process-gone listeners to match options.captureRenderProcessGone. Idempotent. */
+    // Attach/detach the process-gone listeners to match options.captureRenderProcessGone. Idempotent.
     private reconcileCrashListeners(): void {
         const want = Boolean(this.options.captureRenderProcessGone);
         const attached = this.renderGoneHandler !== null;
@@ -220,9 +218,8 @@ export class ElectronFlare extends CoreFlare {
     }
 
     /**
-     * Wait for both core's tracked reports AND forwarded renderer reports (which bypass core's
-     * private track()), bounded by timeoutMs. The timeout is cleared when all reports settle
-     * first, so the event loop is not kept alive unnecessarily.
+     * Waits for core's tracked reports and forwarded renderer reports (which bypass track()), bounded by
+     * timeoutMs. Clears the timer once everything settles, so the event loop isn't held open needlessly.
      */
     flush(timeoutMs = 2000): Promise<void> {
         const settled = Promise.allSettled([super.flush(timeoutMs), ...this.forwardedInFlight]);
@@ -235,11 +232,10 @@ export class ElectronFlare extends CoreFlare {
         });
     }
 
-    /** Overlay main-authoritative config + Electron metadata + user identity (from the main scope) onto a forwarded report, then send. */
+    // Overlays main's config, Electron metadata, and user identity onto a forwarded report, then sends it.
     private receiveRendererReport(report: Report): Promise<void> {
-        // User identity is main-authoritative (like the config fields below): a renderer must never
-        // set identity main did not, and partial main identity must not mix with leftover renderer
-        // keys. Clear every identity key first, then stamp main's.
+        // User identity is main-authoritative, like the config fields below. Clear every identity key
+        // first so a renderer can't set identity main didn't, or leave stale keys mixed with main's.
         for (const key of USER_IDENTITY_KEYS) {
             delete report.attributes[key];
         }
@@ -249,9 +245,8 @@ export class ElectronFlare extends CoreFlare {
             userIdentityAttributes(this.mainScope.active()),
         );
 
-        // Config-derived fields are main-authoritative: always overlay (main's value when set,
-        // else delete the renderer-supplied key) so "configure once, in main" holds even when main
-        // left a field unset. The renderer's value is never trusted here.
+        // Config-derived fields are main-authoritative: overlay main's value, or delete the key if main
+        // left it unset. Keeps "configure once, in main" true; the renderer's value is never trusted.
         overlayOrDelete(report.attributes, 'service.stage', this.mainStage);
         overlayOrDelete(report.attributes, 'service.version', this.mainVersion);
         if (this.mainSourcemapVersionId) {

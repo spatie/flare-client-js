@@ -11,11 +11,8 @@ import { electronDeviceInfoProvider } from './deviceInfo';
 
 type AppLike = Pick<App, 'getName' | 'getVersion' | 'getLocale' | 'isReady'> & { isPackaged: boolean };
 
-/**
- * App + runtime attributes safe to overlay onto any report regardless of origin. Reused by both
- * the collector (main errors) and the IPC receiver (forwarded renderer reports). Excludes per-process
- * fields like `flare.entry_point.type` / `process.type` so forwarded renderer reports keep their own.
- */
+// App + runtime attributes safe to overlay on any report. Shared by the main collector and the IPC
+// receiver, but excludes per-process fields so forwarded renderer reports keep their own.
 export function collectElectronAppAttributes(app: AppLike): Attributes {
     const versions = process.versions as Record<string, string | undefined>;
     const attrs: Attributes = {
@@ -41,11 +38,11 @@ export function collectElectronAppAttributes(app: AppLike): Attributes {
     return attrs;
 }
 
-/** Build the ContextCollector core calls on every main-process report. */
+// Build the ContextCollector core calls on every main-process report.
 export function makeElectronContextCollector(app: AppLike): ContextCollector {
     return (_config: Readonly<Config>): Attributes => ({
-        // Per-process fields reflect the main process; applied only to main-origin reports, not
-        // forwarded renderer reports (which carry their own entry_point.type).
+        // Per-process fields for the main process only. Forwarded renderer reports carry their own
+        // `entry_point.type`, so this doesn't overwrite it.
         'flare.entry_point.type': 'web' satisfies EntryPointType,
         'process.type': (process as { type?: string }).type ?? 'browser',
         ...collectElectronAppAttributes(app),
