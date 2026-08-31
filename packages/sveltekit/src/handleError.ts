@@ -29,8 +29,8 @@ function isClientError(status: unknown): boolean {
     return status >= 400 && status < 500;
 }
 
-/** A 4xx is Kit answering the request (not found, unauthorized), not the app failing. Kit reports the
- *  status on the input, and on the error itself for one thrown by `error()`. */
+// A 4xx is Kit answering the request (not found, unauthorized), not the app failing. Kit reports
+// the status on the input, and on the error itself for one thrown by `error()`.
 function shouldSkip(input: HandleErrorInput): boolean {
     if (isClientError(input.status)) {
         return true;

@@ -9,7 +9,7 @@ import {
     type RouteName,
 } from '@flareapp/js/browser';
 
-/** One observation of Kit's router state. Plain data: no runes, no `$app/state` coupling. */
+// One observation of Kit's router state. Plain data: no runes, no `$app/state` coupling.
 export type NavSnapshot = {
     to: { url: URL; route?: { id: string | null } } | null;
     willUnload: boolean;
@@ -32,7 +32,7 @@ function routeNameFor(routeId: string | null | undefined, url: URL): RouteName {
     return routeName(() => routeId ?? undefined, url.pathname, url.href);
 }
 
-/** Advance the state machine for one observed snapshot. Exported for unit tests; not public API. */
+// Advance the state machine for one observed snapshot. Exported for unit tests; not public API.
 export function syncNavigation(snapshot: NavSnapshot): void {
     if (!nav) {
         return;
@@ -127,9 +127,9 @@ export function traceSvelteKitRouter(): () => void {
         tracing = false;
     }
 
-    // hooks.client.ts never calls the cleanup, so a half-done install has to undo itself. Left alone it
-    // keeps a source registered that observes nothing, which suppresses the built-in History detection
-    // for the whole page, and leaves `tracing` latched so nothing can install again.
+    // hooks.client.ts never calls the cleanup, so a half-done install must undo itself. Left alone it
+    // keeps a dead source registered (suppressing the built-in History detection for the whole page)
+    // and leaves `tracing` latched so nothing can install again.
     if (!installed) {
         stop();
         return () => {};
@@ -138,7 +138,7 @@ export function traceSvelteKitRouter(): () => void {
     return stop;
 }
 
-/** The reactive half: one `$effect.root` feeding what it sees to the state machine above. */
+// The reactive half: one `$effect.root` feeding what it sees to the state machine above.
 function startEffect(): () => void {
     return $effect.root(() => {
         $effect(

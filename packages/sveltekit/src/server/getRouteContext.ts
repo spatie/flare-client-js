@@ -18,7 +18,7 @@ function isRequestEvent(value: unknown): value is RequestEvent {
     );
 }
 
-/** Extracts route context from SvelteKit's server-side RequestEvent via duck typing. */
+// Extracts route context from SvelteKit's server-side RequestEvent via duck typing.
 export function getRouteContext(event?: unknown): SvelteKitRouteContext {
     if (!isRequestEvent(event)) {
         return { routeId: null, url: '', params: {}, query: {} };

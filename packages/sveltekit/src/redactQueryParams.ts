@@ -10,7 +10,7 @@ export function redactQueryParams(searchParams: URLSearchParams): Record<string,
     return result;
 }
 
-/** Redacts route-param values whose key matches the denylist, mirroring `redactQueryParams`. */
+// Redacts route-param values whose key matches the denylist, mirroring `redactQueryParams`.
 export function redactParams(params: Record<string, string>): Record<string, string> {
     const result: Record<string, string> = {};
 
