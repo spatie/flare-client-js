@@ -1,6 +1,5 @@
-// Electron-safe entry. No @flareapp/js root import, no default registration, no import-time
-// identity. The caller must pass `flare` (handler option / boundary prop); resolveFlare throws
-// at wiring time if absent.
+// Electron-safe entry: no @flareapp/js root import, no default registration, no import-time identity.
+// The caller must pass `flare` (handler option or boundary prop); resolveFlare throws at wiring time if absent.
 export { default as FlareErrorBoundary } from './FlareErrorBoundary.svelte';
 
 export { createFlareErrorHandler, type FlareErrorHandlerOptions } from './createFlareErrorHandler.js';

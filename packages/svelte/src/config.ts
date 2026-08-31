@@ -10,7 +10,7 @@ interface SvelteConfig {
 }
 
 interface FlarePreprocessorGroupWithId extends PreprocessorGroup {
-    /** Prevents double-injection when withFlareConfig wraps a config that already has the preprocessor. */
+    // Prevents double-injection when withFlareConfig wraps a config that already has the preprocessor.
     __flareId?: boolean;
 }
 

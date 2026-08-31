@@ -89,15 +89,13 @@ export function flarePreprocessor(options?: FlarePreprocessorOptions): Preproces
     };
 }
 
-/** Keeps the merged sourcemap's `sources` from carrying an absolute build-machine path. */
+// Keeps the merged sourcemap's `sources` from carrying an absolute build-machine path.
 function basename(filename: string): string {
     return filename.split(/[/\\]/).pop() ?? filename;
 }
 
-/**
- * The name error reports use. Stays a bare basename rather than reusing `resolveProfileName`, because
- * changing it would change component hierarchies people already have.
- */
+// The name error reports use. Stays a bare basename instead of `resolveProfileName`, because changing
+// it would change component hierarchies people already have.
 function extractComponentName(filename: string): string {
     return basename(filename).replace(/\.svelte$/, '');
 }
@@ -106,23 +104,20 @@ function escapeString(str: string): string {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
-/** Svelte's AST carries this at runtime; its estree `Program` type does not declare it. */
+// Svelte's AST carries this at runtime; its estree `Program` type does not declare it.
 type ScriptBody = { start: number };
 
-/** Copied from Svelte's own preprocessor, so we agree with it on what counts as a style tag. */
+// Copied from Svelte's own preprocessor, so we agree with it on what counts as a style tag.
 const REGEX_STYLE_TAGS =
     /<!--[^]*?-->|<style((?:\s+[^=>'"/\s]+=(?:"[^"]*"|'[^']*'|[^>\s]+)|\s+[^=>'"/\s]+)*\s*)(?:\/>|>([\S\s]*?)<\/style>)/g;
 
 const CLOSING_STYLE_TAG = '</style>';
 
-/** One warning per file per process. A dev server runs this hook again on every save. */
+// One warning per file per process. A dev server runs this hook again on every save.
 const warnedFiles = new Set<string>();
 
-/**
- * Blanks out every `<style>` body, keeping the exact character count so offsets into the original
- * still line up. Svelte parses style bodies as CSS, so `lang="scss"` and friends throw and would
- * otherwise cost the file its registration.
- */
+// Blanks out every `<style>` body, keeping the character count so offsets into the original still
+// line up. Svelte parses style bodies as CSS, so `lang="scss"` and similar would throw otherwise.
 function blankStyleBodies(content: string): string {
     return content.replace(REGEX_STYLE_TAGS, (match: string, _attributes: string, body?: string) => {
         // The first branch of the regex matches comments, which have no body to blank.
@@ -147,7 +142,7 @@ function warnOnce(filename: string, reason: string): void {
     console.warn(`[flare] Skipped component tracking for ${filename}: ${reason}`);
 }
 
-/** How many BOM characters sit at the very start of the source, back to back. */
+// How many BOM characters sit at the very start of the source, back to back.
 function countLeadingBoms(content: string): number {
     let count = 0;
 
@@ -158,19 +153,14 @@ function countLeadingBoms(content: string): number {
     return count;
 }
 
-/**
- * Where the instance script's body begins, `null` when the component has none, `undefined` when the
- * source cannot be parsed. Svelte hands a script hook every `<script>` in the file, nested ones
- * included, so only the parser can say which one belongs to the component. `bomCount` rides along
- * because the null case still needs to know how many bytes of BOM it must insert after.
- */
+// Where the instance script body begins (null = none, undefined = unparseable). Only the parser can
+// tell which `<script>` belongs to the component; `bomCount` tags along for the null case's BOM insert.
 async function instanceScriptStart(
     content: string,
     filename: string,
 ): Promise<{ start: number | null; bomCount: number } | undefined> {
-    // parse() strips exactly one leading BOM itself and reports offsets against the stripped source.
-    // Stripping every leading BOM here (not just one) before parsing means none are left for parse()'s
-    // own stripping to act on, so the count we add back is exact no matter how many there were.
+    // parse() strips one leading BOM and reports offsets against the stripped source. Stripping all
+    // of them here first means the count we add back is exact, no matter how many BOMs there were.
     const bomCount = countLeadingBoms(content);
     const source = content.slice(bomCount);
 
@@ -194,7 +184,7 @@ async function instanceScriptStart(
     }
 }
 
-/** The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints. */
+// The map matters: inserting lines shifts everything below, throwing off stack frames and breakpoints.
 function injectWithMap(
     content: string,
     injection: string,
@@ -207,9 +197,8 @@ function injectWithMap(
     if (start === null) {
         const scriptBlock = `<script>\n${injection}</script>\n`;
 
-        // prepend() inserts at offset 0, which would land ahead of the BOM(s) and move them into the
-        // template. appendRight(bomCount, ...) inserts right after all of them instead, keeping every
-        // BOM at the front so compile()'s own BOM stripping still fires.
+        // prepend() inserts at offset 0, ahead of any BOM, and would move it into the template.
+        // appendRight(bomCount, ...) inserts after the BOM(s) instead, so compile()'s own stripping still fires.
         if (bomCount > 0) {
             magicSource.appendRight(bomCount, scriptBlock);
         } else {

@@ -1,12 +1,9 @@
-/**
- * The name a profiled component reports, and what `profileComponents` matches against.
- *
- * Separate from `extractComponentName`, which feeds error reports and has to keep its bare basenames.
- * Profiling needs the route path too, otherwise every route in a SvelteKit app is just `+page`.
- *
- * @param filename Absolute path as a Svelte preprocessor receives it.
- * @param routesDir Project-relative routes directory, from `kit.files.routes`.
- */
+// The name a profiled component reports, and what `profileComponents` matches against.
+// Separate from `extractComponentName`, which feeds error reports and needs bare basenames.
+// Profiling needs the route path too, or every SvelteKit route is just `+page`.
+//
+// `filename` is the absolute path as a Svelte preprocessor receives it; `routesDir` is the
+// project-relative routes directory, from `kit.files.routes`.
 export function resolveProfileName(filename: string, routesDir = 'src/routes'): string {
     const normalized = filename.replace(/\\/g, '/');
     const base = normalized.split('/').pop() ?? normalized;
@@ -32,10 +29,8 @@ export function resolveProfileName(filename: string, routesDir = 'src/routes'): 
     return relativeDir ? `${relativeDir}/${name}` : name;
 }
 
-/**
- * Index just past the routes directory, or -1 when the path isn't in there. Anchors on the last
- * occurrence, so a project checked out under something like /home/src/routes/ still works.
- */
+// Index just past the routes directory, or -1 when the path isn't there. Anchors on the last
+// occurrence, so a project checked out under something like /home/src/routes/ still works.
 function routeDirStart(normalized: string, normalizedRoutesDir: string): number {
     const nested = normalized.lastIndexOf(`/${normalizedRoutesDir}/`);
     if (nested !== -1) {

@@ -12,12 +12,9 @@ import { getContext, onMount, setContext } from 'svelte';
 // profiled ones.
 const PROFILE_KEY = '__flare_component_profile';
 
-/**
- * Records one `browser_component` span for this component's mount. The preprocessor injects the call,
- * don't write it by hand.
- *
- * Init runs top-down, so a child can point at a span id its parent reserved but hasn't recorded yet.
- */
+// Records one `browser_component` span for this component's mount. The preprocessor injects this call;
+// don't write it by hand. Init runs top-down, so a child may point at a span id its parent reserved
+// but hasn't recorded yet.
 export function __flareProfileComponent(name: string): void {
     try {
         const inherited = getContext<ComponentTraceContext>(PROFILE_KEY) ?? null;
