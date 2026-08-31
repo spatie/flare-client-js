@@ -10,9 +10,9 @@ type WebpackConfig = { plugins: unknown[]; devtool?: string | false } & Record<s
 type WebpackContext = { isServer: boolean; dev?: boolean } & Record<string, unknown>;
 
 export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjsPluginOptions): NextConfig {
-    // On by default because this wrapper force-enables productionBrowserSourceMaps below, so the client
-    // .map files would otherwise sit in the served output for anyone to download. Client pass only:
-    // server maps are never served to a browser, and deleting them costs local stack debugging.
+    // On by default because this wrapper force-enables productionBrowserSourceMaps below, so client .map
+    // files would otherwise sit in the served output for anyone to download. Client pass only — server
+    // maps are never served to a browser, and deleting them costs local stack debugging.
     const removeSourcemaps = options.removeSourcemaps ?? true;
     const version = options.version ?? randomUUID();
 
@@ -34,8 +34,7 @@ export function withFlareSourcemaps(nextConfig: NextConfig, options: FlareNextjs
                 );
             }
 
-            // The webpack plugin auto-detects the server compiler and emits base-free paths, so
-            // registering it for every build is safe.
+            // The webpack plugin auto-detects the server compiler and emits base-free paths, so registering it for every build is safe.
             config.plugins.push(
                 new FlareWebpackPlugin({
                     apiKey: options.apiKey,
