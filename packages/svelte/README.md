@@ -97,6 +97,15 @@ Profiling and component tracking are independent. You can run either on its own:
 withFlareConfig(config, { componentTracking: false, profileComponents: [/\+page$/] });
 ```
 
+### Self time
+
+Every component span carries `flare.component.self_time_ns`: the span's duration minus the time its own
+profiled children account for. Children that overlap in time are counted once, so the value never goes
+below zero.
+
+A child that mounts after its parent's span closed is not subtracted. Its work happened outside the
+parent's window, so the parent keeps its full duration.
+
 ### Preprocessor ordering
 
 Both features are injected by a Svelte preprocessor, which `withFlareConfig` installs for you. It parses

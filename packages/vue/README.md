@@ -87,6 +87,18 @@ are mounted. A component with an async `setup()`, or one inside a `<Suspense>` b
 after its profiled ancestor's span has closed, so it appears after its parent in the waterfall. If the
 whole trace closed by then, the span is dropped rather than attached to a finished trace.
 
+### Self time
+
+Every component span carries `flare.component.self_time_ns`: the span's duration minus the time its own
+profiled children account for. Children that overlap in time are counted once, so the value never goes
+below zero.
+
+A child that mounts after its parent's span closed is not subtracted. Its work happened outside the
+parent's window, so the parent keeps its full duration.
+
+A layout is the usual example. `vue-router` resolves the first route after the layout mounted, so the page
+component's work falls outside the layout's window.
+
 ### Naming with Inertia
 
 Inertia names navigation spans after the page component from its page object, so a root reads `Products/Show`.

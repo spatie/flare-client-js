@@ -12,6 +12,7 @@ import type {
     Span,
     SpanOptions,
 } from '../types';
+import { evictLruIfNew } from '../util';
 import { ActiveSpanHolder, InMemoryActiveSpanHolder } from './context';
 import { spanId as makeSpanId, traceId as makeTraceId } from './ids';
 import { resolveSampling } from './sampler';
@@ -70,19 +71,6 @@ type TraceState = {
 
 // What survives a pruned trace: three primitives, no span reference, so an ended root is not held alive.
 type ClosedTrace = { localRootSpanId: string; recording: boolean; startedSpanCount: number };
-
-// Insertion order is LRU, so the first key is the one to drop.
-// Only evicts when key is new. A set() that overwrites an existing key must not evict something else to
-// make room for it.
-function evictLruIfNew<V>(map: Map<string, V>, key: string, cap: number): void {
-    if (map.has(key) || map.size < cap) {
-        return;
-    }
-    const lru = map.keys().next().value;
-    if (lru !== undefined) {
-        map.delete(lru);
-    }
-}
 
 const MAX_CLOSED_TRACES = 100;
 

@@ -93,14 +93,71 @@ describe('component-profiler seam', () => {
                 parent: { traceId: 'T', spanId: 'root' },
                 spanType: 'browser_component',
                 startTimeUnixNano: 10,
-                attributes: { 'flare.component.name': 'ProductPage' },
+                attributes: { 'flare.component.name': 'ProductPage', 'flare.component.self_time_ns': 10 },
             }),
         );
 
         // Checked by key list, not deep equality: an undefined attribute still costs a wire slot,
         // but toEqual treats it as absent. No framework attribute here, since the framework name
         // already lives on the envelope resource.
-        expect(Object.keys(startSpan.mock.calls[0]![1]!.attributes!)).toEqual(['flare.component.name']);
+        expect(Object.keys(startSpan.mock.calls[0]![1]!.attributes!)).toEqual([
+            'flare.component.name',
+            'flare.component.self_time_ns',
+        ]);
+    });
+
+    it('recordComponentSpan subtracts the children a component already recorded', () => {
+        vi.useFakeTimers();
+        const { flare, startSpan } = fakeFlare(() => rootSpan({ traceId: 'T', spanId: 'root' }));
+        startBrowserTracing(flare);
+        startSpan.mockClear();
+
+        // Mount order: the child records first, then its parent, like every framework's mount hook.
+        recordComponentSpan({
+            name: 'ProductGallery',
+            spanId: 'c1',
+            parent: { traceId: 'T', parentSpanId: 'p1' },
+            startTimeUnixNano: 10,
+            endTimeUnixNano: 18,
+        });
+        recordComponentSpan({
+            name: 'ProductPage',
+            spanId: 'p1',
+            parent: { traceId: 'T', parentSpanId: 'root' },
+            startTimeUnixNano: 5,
+            endTimeUnixNano: 25,
+        });
+
+        expect(startSpan.mock.calls[0]![1]!.attributes!['flare.component.self_time_ns']).toBe(8);
+        expect(startSpan.mock.calls[1]![1]!.attributes!['flare.component.self_time_ns']).toBe(12); // 20 - 8
+    });
+
+    it('recordComponentSpan does not subtract a child the trace dropped', () => {
+        vi.useFakeTimers();
+        let active = rootSpan({ traceId: 'DIFFERENT', spanId: 'root2' });
+        const { flare, startSpan } = fakeFlare(() => active);
+        startBrowserTracing(flare);
+        startSpan.mockClear();
+
+        // Dropped: the child points at a trace that is no longer live.
+        recordComponentSpan({
+            name: 'ProductGallery',
+            spanId: 'c1',
+            parent: { traceId: 'T', parentSpanId: 'p1' },
+            startTimeUnixNano: 10,
+            endTimeUnixNano: 18,
+        });
+
+        active = rootSpan({ traceId: 'T', spanId: 'root' });
+        recordComponentSpan({
+            name: 'ProductPage',
+            spanId: 'p1',
+            parent: { traceId: 'T', parentSpanId: 'root' },
+            startTimeUnixNano: 5,
+            endTimeUnixNano: 25,
+        });
+
+        expect(startSpan.mock.calls[0]![1]!.attributes!['flare.component.self_time_ns']).toBe(20); // full duration
     });
 
     it('recordComponentSpan drops the span when the active root no longer matches the traceId', () => {

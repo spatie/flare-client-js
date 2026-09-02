@@ -7,6 +7,8 @@ export type OtlpSpan = {
     spanId: string;
     parentSpanId: string | null;
     traceId: string;
+    startTimeUnixNano: number;
+    endTimeUnixNano: number;
     status?: { code: number; message?: string };
     attributes: Array<{ key: string; value: Record<string, unknown> }>;
 };
@@ -22,6 +24,10 @@ export const attr = (span: OtlpSpan, key: string): unknown =>
 // An attribute's `stringValue`, or undefined when the attribute is absent or not a string.
 export const stringAttr = (span: OtlpSpan, key: string): string | undefined =>
     (attr(span, key) as { stringValue?: string } | undefined)?.stringValue;
+
+// An attribute's `intValue`, or undefined when the attribute is absent or not an integer.
+export const intAttr = (span: OtlpSpan, key: string): number | undefined =>
+    (attr(span, key) as { intValue?: number } | undefined)?.intValue;
 
 // Every attribute key on a span. For asserting a key is absent without matching against values.
 export const attributeKeys = (span: OtlpSpan): string[] => span.attributes.map((attribute) => attribute.key);

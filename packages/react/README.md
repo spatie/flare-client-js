@@ -115,6 +115,18 @@ under that ancestor, whose own span closed when it finished mounting. The tree i
 correct, but the waterfall shows the child starting after its parent ended. A page body
 swapped inside a persistent layout is the usual way to see this.
 
+### Self time
+
+Every component span carries `flare.component.self_time_ns`: the span's duration minus the time its own
+profiled children account for. Children that overlap in time are counted once, so the value never goes
+below zero.
+
+A child that mounts after its parent's span closed is not subtracted. Its work happened outside the
+parent's window, so the parent keeps its full duration.
+
+React starts every component during render and ends them all during commit, so sibling spans overlap in
+time. The self times of one tree therefore add up to more than the root span's duration.
+
 **Import the main entry somewhere too.** `@flareapp/react/profiler` is deliberately dependency-free, so
 it does not register React as the framework. That identity (`flare.framework.name`) is what tells Flare a
 component span came from React, and importing `@flareapp/react` anywhere in the app sets it. An app that
