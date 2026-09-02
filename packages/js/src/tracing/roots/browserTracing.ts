@@ -12,6 +12,7 @@ import {
     takeWebVitals,
     vitalAttributes,
 } from '../vitals';
+import { resetComponentSelfTime } from './componentSelfTime';
 import { DEFAULT_IDLE_TIMEOUTS, IdleRootController, type IdleTimeouts } from './IdleRootController';
 import { pageloadEndNano, pageloadStartNano, resolvePageloadStartNano } from './navigationTiming';
 
@@ -89,6 +90,9 @@ type StartRootOptions = {
 function startRoot(flare: BrowserTracingFlare, options: StartRootOptions): void {
     const { spanType, startTimeUnixNano, name = location.pathname, urlOverride, hold, backdated } = options;
     let root: Span | undefined;
+    // Anything still pending belongs to the root this one replaces, and records against a trace
+    // that already shipped.
+    resetComponentSelfTime();
     try {
         const context = collectBrowserSpanContext(flare.config, urlOverride);
         root = flare.startSpan(name, {
@@ -348,6 +352,7 @@ export function stopBrowserTracing(): void {
     pendingRouteName = null;
     pendingRouteNameOwner = null;
     stopWebVitals();
+    resetComponentSelfTime();
     pageloadRoot = null;
     pageloadRootStartNano = 0;
     pageloadRoute = null;

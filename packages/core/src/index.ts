@@ -37,6 +37,7 @@ export {
     createIdentityTagger,
     DEFAULT_URL_DENYLIST,
     describeRejectionReason,
+    evictLruIfNew,
     extractCode,
     flatJsonStringify,
     glowsToEvents,

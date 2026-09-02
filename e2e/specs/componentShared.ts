@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import type { FakeFlare } from '../fixtures/fake-flare';
-import { hasSpanType, parentOf, spansOf, stringAttr, type OtlpSpan } from './otlp';
+import { hasSpanType, intAttr, parentOf, spansOf, stringAttr, type OtlpSpan } from './otlp';
 
 const isComponent = (span: OtlpSpan, name: string): boolean =>
     hasSpanType(span, 'browser_component') && stringAttr(span, 'flare.component.name') === name;
@@ -25,6 +25,19 @@ export const waitForComponentSpan = async (fakeFlare: FakeFlare, name: string): 
     return span!;
 };
 
+// Every component span carries its self time, and it never exceeds the span's own duration.
+// How much lower it runs is framework-specific: React mounts a whole tree in one commit, while
+// vue-router resolves the initial route after the layout mounted, so a Vue layout keeps its full
+// duration. react.spec.ts pins the subtraction itself.
+export const assertSelfTime = (span: OtlpSpan): number => {
+    const selfTime = intAttr(span, 'flare.component.self_time_ns');
+
+    expect(selfTime).toBeGreaterThanOrEqual(0);
+    expect(selfTime).toBeLessThanOrEqual(span.endTimeUnixNano - span.startTimeUnixNano);
+
+    return selfTime!;
+};
+
 // `outer` is the outermost profiled component, so its parent is the root. `inner` hangs off `outer`,
 // not the root: `resolveComponentParent` prefers the nearest live ancestor marker (componentProfiler.ts:36-44).
 export const assertComponentTree = async (
@@ -43,4 +56,7 @@ export const assertComponentTree = async (
     const root = await parentOf(fakeFlare, outer);
     expect(root && hasSpanType(root, options.rootType)).toBe(true);
     expect(root!.parentSpanId ?? null).toBeNull();
+
+    assertSelfTime(outer);
+    assertSelfTime(inner!);
 };

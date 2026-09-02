@@ -3,6 +3,7 @@ export * from './assertKey';
 export * from './componentMatcher';
 export * from './convertToError';
 export * from './createIdentityTagger';
+export * from './evictLruIfNew';
 export * from './extractCode';
 export * from './flatJsonStringify';
 export * from './glowsToEvents';

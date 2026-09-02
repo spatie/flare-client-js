@@ -1,7 +1,7 @@
 import { testIds } from '../../playgrounds/shared/src';
 import { expect, test } from '../fixtures/fake-flare';
 import { runRouteChangeScenario } from './breadcrumbShared';
-import { assertComponentTree, componentSpanCount, waitForComponentSpan } from './componentShared';
+import { assertComponentTree, assertSelfTime, componentSpanCount, waitForComponentSpan } from './componentShared';
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, hasSpanType, parentOf, spansOf, stringAttr } from './otlp';
@@ -97,6 +97,11 @@ test.describe('react component profiling', () => {
 
         // StrictMode double-invokes the mount effect in dev; the record-once guard must still emit one span.
         expect(await componentSpanCount(fakeFlare, 'Layout')).toBe(1);
+
+        // React starts every component during render and ends them all during commit, so
+        // ProductsPage always overlaps Layout's window and Layout gives up that time.
+        const layout = await waitForComponentSpan(fakeFlare, 'Layout');
+        expect(assertSelfTime(layout)).toBeLessThan(layout.endTimeUnixNano - layout.startTimeUnixNano);
     });
 
     test('a client navigation records the new route component under the navigation root', async ({

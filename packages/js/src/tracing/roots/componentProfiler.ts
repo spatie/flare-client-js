@@ -4,6 +4,7 @@ import { defaultNowNano, spanId as makeSpanId, type Attributes } from '@flareapp
 
 import { BrowserSpanType } from '../spanTypes';
 import { activeTracingFlare } from './browserTracing';
+import { takeSelfTime, trackChildInterval } from './componentSelfTime';
 
 export type ComponentTraceContext = { traceId: string; parentSpanId: string };
 
@@ -74,16 +75,26 @@ export function recordComponentSpan(record: ComponentSpanRecord): void {
         if (!root || root.traceId !== record.parent.traceId || !root.isRecording) {
             return;
         }
+        // Before the span is built: every framework runs its mount hook bottom-up, so a synchronous
+        // child has already filed its interval by now.
+        const selfTime = takeSelfTime(record.spanId, record.startTimeUnixNano, record.endTimeUnixNano);
         flare
             .startSpan(record.name, {
                 spanId: record.spanId,
                 parent: { traceId: record.parent.traceId, spanId: record.parent.parentSpanId },
                 spanType: BrowserSpanType.Component,
                 startTimeUnixNano: record.startTimeUnixNano,
-                attributes: { ...record.attributes, 'flare.component.name': record.name },
+                attributes: {
+                    ...record.attributes,
+                    'flare.component.name': record.name,
+                    'flare.component.self_time_ns': selfTime,
+                },
                 claimed: true, // taken in reserveSpanId
             })
             .end(record.endTimeUnixNano);
+        // Only shipped spans count, so a parent's self time never subtracts a child the backend
+        // never receives.
+        trackChildInterval(record.parent.parentSpanId, record.startTimeUnixNano, record.endTimeUnixNano);
     } catch {
         // instrumentation must never throw into the host app
     }
