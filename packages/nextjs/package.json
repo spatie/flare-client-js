@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/nextjs",
-    "version": "2.11.0",
+    "version": "2.12.0",
     "description": "Next.js plugin for uploading sourcemaps to Flare",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -45,7 +45,7 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/webpack": "^2.11.0"
+        "@flareapp/webpack": "^2.12.0"
     },
     "devDependencies": {
         "next": "^15.0.0",

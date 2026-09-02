@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/inertia",
-    "version": "2.11.0",
+    "version": "2.12.0",
     "description": "Inertia.js performance tracing for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": "https://github.com/spatie/flare-client-js/issues",
@@ -52,7 +52,7 @@
         "vitest": "^4.0.0"
     },
     "peerDependencies": {
-        "@flareapp/js": "^2.11.0"
+        "@flareapp/js": "^2.12.0"
     },
     "publishConfig": {
         "access": "public"
