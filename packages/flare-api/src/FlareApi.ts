@@ -1,5 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 
+import { settleWithConcurrency } from './settleWithConcurrency';
 import type { Sourcemap } from './types';
 
 class FlareApiError extends Error {
@@ -10,6 +11,9 @@ class FlareApiError extends Error {
 }
 
 const RETRIABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
+
+// Flare accepts a limited number of connections, so uploads run in a small pool.
+const MAX_CONCURRENT_UPLOADS = 10;
 
 function describeNetworkError(error: unknown): string {
     if (!(error instanceof Error)) {
@@ -40,6 +44,12 @@ export class FlareApi {
             relative_filename: sourcemap.originalFile,
             sourcemap: base64GzipSourcemap,
         });
+    }
+
+    uploadSourcemaps(sourcemaps: readonly Sourcemap[]): Promise<PromiseSettledResult<void>[]> {
+        return settleWithConcurrency(sourcemaps, MAX_CONCURRENT_UPLOADS, (sourcemap) =>
+            this.uploadSourcemap(sourcemap),
+        );
     }
 
     private async postWithRetry(data: Record<string, string>, maxRetries = 3): Promise<void> {

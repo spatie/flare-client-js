@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 
 import { FlareApi } from '@flareapp/flare-api';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import flareSourcemaps from '../src/index';
 
@@ -10,15 +10,6 @@ vi.mock('node:fs', () => ({
     readFileSync: vi.fn(),
     unlinkSync: vi.fn(),
 }));
-
-// Keep the real settleWithConcurrency: only the network client is mocked.
-vi.mock('@flareapp/flare-api', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@flareapp/flare-api')>();
-    const MockFlareApi = vi.fn();
-    MockFlareApi.prototype.uploadSourcemap = vi.fn();
-
-    return { ...actual, FlareApi: MockFlareApi };
-});
 
 function createPlugin(
     { apiKey = 'test-key', ...rest }: Parameters<typeof flareSourcemaps>[0] = { apiKey: 'test-key' },
@@ -32,6 +23,10 @@ function createPlugin(
 
     return plugin;
 }
+
+beforeEach(() => {
+    vi.spyOn(FlareApi.prototype, 'uploadSourcemap').mockResolvedValue();
+});
 
 afterEach(() => {
     vi.clearAllMocks();
@@ -246,45 +241,20 @@ describe('flareSourcemaps plugin', () => {
             expect(unlinkSync).toHaveBeenCalledTimes(1);
             expect(unlinkSync).toHaveBeenCalledWith(expect.stringContaining('ok.js.map'));
         });
-        test('uploads at most 10 sourcemaps at the same time', async () => {
+
+        test('hands every sourcemap to one pooled upload', async () => {
             const plugin = createPlugin();
+            const pooledUpload = vi.spyOn(FlareApi.prototype, 'uploadSourcemaps');
             vi.mocked(existsSync).mockReturnValue(true);
             vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
 
-            const release: Array<() => void> = [];
-            let running = 0;
-            let peak = 0;
+            await plugin.writeBundle({ dir: '/dist' }, { 'assets/app.js.map': {}, 'assets/vendor.js.map': {} });
 
-            vi.mocked(FlareApi.prototype.uploadSourcemap).mockImplementation(() => {
-                running++;
-                peak = Math.max(peak, running);
-
-                return new Promise<void>((resolve) => {
-                    release.push(() => {
-                        running--;
-                        resolve();
-                    });
-                });
-            });
-
-            const bundle: Record<string, object> = {};
-            for (let i = 0; i < 30; i++) {
-                bundle[`assets/chunk-${i}.js.map`] = {};
-            }
-
-            const done = plugin.writeBundle({ dir: '/dist' }, bundle);
-
-            await vi.waitFor(() => expect(release.length).toBe(10));
-
-            while (release.length > 0) {
-                release.shift()!();
-                await vi.waitFor(() => expect(running).toBeLessThanOrEqual(10));
-            }
-
-            await done;
-
-            expect(peak).toBe(10);
-            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledTimes(30);
+            expect(pooledUpload).toHaveBeenCalledTimes(1);
+            expect(pooledUpload).toHaveBeenCalledWith([
+                expect.objectContaining({ originalFile: '/assets/app.js' }),
+                expect.objectContaining({ originalFile: '/assets/vendor.js' }),
+            ]);
         });
     });
 });

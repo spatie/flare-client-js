@@ -2,13 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { FlareApi, settleWithConcurrency, type Sourcemap } from '@flareapp/flare-api';
+import { FlareApi, type Sourcemap } from '@flareapp/flare-api';
 import webpack, { type Compiler, type Compilation } from 'webpack';
 
 import type { FlareWebpackPluginOptions } from './types';
-
-// Flare accepts a limited number of connections, so uploads run in a small pool.
-const MAX_CONCURRENT_UPLOADS = 10;
 
 function log(message: string, isError = false) {
     const formatted = `@flareapp/webpack: ${message}`;
@@ -72,9 +69,7 @@ export class FlareWebpackPlugin {
 
             log(`Uploading ${sourcemaps.length} sourcemap(s) to Flare.`);
 
-            const results = await settleWithConcurrency(sourcemaps, MAX_CONCURRENT_UPLOADS, ({ sourcemap }) =>
-                flare.uploadSourcemap(sourcemap),
-            );
+            const results = await flare.uploadSourcemaps(sourcemaps.map(({ sourcemap }) => sourcemap));
 
             const failed = results.filter((r) => r.status === 'rejected');
             if (failed.length > 0) {

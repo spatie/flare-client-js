@@ -1,24 +1,24 @@
 export async function settleWithConcurrency<TItem, TResult>(
     items: readonly TItem[],
-    limit: number,
-    task: (item: TItem, index: number) => Promise<TResult>,
+    concurrency: number,
+    task: (item: TItem) => Promise<TResult>,
 ): Promise<PromiseSettledResult<TResult>[]> {
     const results: PromiseSettledResult<TResult>[] = Array.from({ length: items.length });
-    let next = 0;
+    let nextIndex = 0;
 
     async function worker(): Promise<void> {
-        while (next < items.length) {
-            const index = next++;
+        while (nextIndex < items.length) {
+            const index = nextIndex++;
 
             try {
-                results[index] = { status: 'fulfilled', value: await task(items[index], index) };
+                results[index] = { status: 'fulfilled', value: await task(items[index]) };
             } catch (reason) {
                 results[index] = { status: 'rejected', reason };
             }
         }
     }
 
-    const workerCount = Math.max(1, Math.min(Math.floor(limit), items.length));
+    const workerCount = Math.min(concurrency, items.length);
 
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
