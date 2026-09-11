@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 
 import { FlareApi } from '@flareapp/flare-api';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import flareSourcemaps from '../src/index';
 
@@ -10,8 +10,6 @@ vi.mock('node:fs', () => ({
     readFileSync: vi.fn(),
     unlinkSync: vi.fn(),
 }));
-
-vi.mock('@flareapp/flare-api');
 
 function createPlugin(
     { apiKey = 'test-key', ...rest }: Parameters<typeof flareSourcemaps>[0] = { apiKey: 'test-key' },
@@ -25,6 +23,10 @@ function createPlugin(
 
     return plugin;
 }
+
+beforeEach(() => {
+    vi.spyOn(FlareApi.prototype, 'uploadSourcemap').mockResolvedValue();
+});
 
 afterEach(() => {
     vi.clearAllMocks();
@@ -238,6 +240,21 @@ describe('flareSourcemaps plugin', () => {
 
             expect(unlinkSync).toHaveBeenCalledTimes(1);
             expect(unlinkSync).toHaveBeenCalledWith(expect.stringContaining('ok.js.map'));
+        });
+
+        test('hands every sourcemap to one pooled upload', async () => {
+            const plugin = createPlugin();
+            const pooledUpload = vi.spyOn(FlareApi.prototype, 'uploadSourcemaps');
+            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+
+            await plugin.writeBundle({ dir: '/dist' }, { 'assets/app.js.map': {}, 'assets/vendor.js.map': {} });
+
+            expect(pooledUpload).toHaveBeenCalledTimes(1);
+            expect(pooledUpload).toHaveBeenCalledWith([
+                expect.objectContaining({ originalFile: '/assets/app.js' }),
+                expect.objectContaining({ originalFile: '/assets/vendor.js' }),
+            ]);
         });
     });
 });

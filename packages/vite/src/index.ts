@@ -123,7 +123,7 @@ export default function flareSourcemaps({
 
             log(`Uploading ${sourcemaps.length} sourcemap(s) to Flare.`);
 
-            const results = await Promise.allSettled(sourcemaps.map((sourcemap) => flare.uploadSourcemap(sourcemap)));
+            const results = await flare.uploadSourcemaps(sourcemaps);
 
             const failed = results.filter((r) => r.status === 'rejected');
             if (failed.length > 0) {

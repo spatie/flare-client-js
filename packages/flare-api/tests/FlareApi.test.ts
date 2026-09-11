@@ -1,16 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { FlareApi } from '../src/FlareApi';
+import { createConcurrencyProbe } from './helpers/concurrencyProbe';
 
 describe('FlareApi', () => {
     beforeEach(() => {
         vi.spyOn(globalThis, 'fetch');
-        vi.useFakeTimers();
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
-        vi.useRealTimers();
     });
 
     describe('uploadSourcemap', () => {
@@ -39,7 +38,54 @@ describe('FlareApi', () => {
         });
     });
 
+    describe('uploadSourcemaps', () => {
+        test('uploads at most 10 sourcemaps at the same time', async () => {
+            const probe = createConcurrencyProbe();
+            vi.mocked(fetch).mockImplementation(() => probe.start().then(() => new Response('{}', { status: 200 })));
+
+            const api = new FlareApi('https://flare.test/api', 'key', 'v1');
+            const sourcemaps = Array.from({ length: 30 }, (_, i) => ({
+                originalFile: `/chunk-${i}.js`,
+                content: '{}',
+            }));
+
+            const upload = api.uploadSourcemaps(sourcemaps);
+
+            await vi.waitFor(() => expect(probe.running).toBe(10));
+            await probe.drain();
+            const results = await upload;
+
+            expect(probe.peak).toBe(10);
+            expect(results).toHaveLength(30);
+            expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
+        });
+
+        test('keeps a failed upload at its index and finishes the others', async () => {
+            vi.mocked(fetch)
+                .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+                .mockResolvedValueOnce(new Response('bad request', { status: 400 }))
+                .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+            const api = new FlareApi('https://flare.test/api', 'key', 'v1');
+            const results = await api.uploadSourcemaps([
+                { originalFile: '/a.js', content: '{}' },
+                { originalFile: '/b.js', content: '{}' },
+                { originalFile: '/c.js', content: '{}' },
+            ]);
+
+            expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
+        });
+    });
+
     describe('retry logic', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
         test('retries on 429 with exponential backoff', async () => {
             vi.mocked(fetch)
                 .mockResolvedValueOnce(new Response('rate limited', { status: 429 }))

@@ -69,9 +69,7 @@ export class FlareWebpackPlugin {
 
             log(`Uploading ${sourcemaps.length} sourcemap(s) to Flare.`);
 
-            const results = await Promise.allSettled(
-                sourcemaps.map(({ sourcemap }) => flare.uploadSourcemap(sourcemap)),
-            );
+            const results = await flare.uploadSourcemaps(sourcemaps.map(({ sourcemap }) => sourcemap));
 
             const failed = results.filter((r) => r.status === 'rejected');
             if (failed.length > 0) {

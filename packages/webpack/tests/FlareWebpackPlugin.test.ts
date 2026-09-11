@@ -1,11 +1,9 @@
 import { readFileSync, unlinkSync } from 'node:fs';
 
 import { FlareApi } from '@flareapp/flare-api';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { FlareWebpackPlugin } from '../src/FlareWebpackPlugin';
-
-vi.mock('@flareapp/flare-api');
 
 vi.mock('webpack', () => {
     class DefinePlugin {
@@ -29,6 +27,10 @@ vi.mock('node:fs', () => ({
     readFileSync: vi.fn(),
     unlinkSync: vi.fn(),
 }));
+
+beforeEach(() => {
+    vi.spyOn(FlareApi.prototype, 'uploadSourcemap').mockResolvedValue();
+});
 
 afterEach(() => {
     vi.clearAllMocks();
@@ -182,6 +184,31 @@ describe('FlareWebpackPlugin', () => {
             await afterEmitCallback(compilation);
 
             expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledTimes(2);
+        });
+
+        test('hands every sourcemap to one pooled upload', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+            const pooledUpload = vi.spyOn(FlareApi.prototype, 'uploadSourcemaps');
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler();
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: [
+                    { files: ['main.js'], auxiliaryFiles: ['main.js.map'] },
+                    { files: ['vendor.js'], auxiliaryFiles: ['vendor.js.map'] },
+                ],
+            });
+            await afterEmitCallback(compilation);
+
+            expect(pooledUpload).toHaveBeenCalledTimes(1);
+            expect(pooledUpload).toHaveBeenCalledWith([
+                expect.objectContaining({ originalFile: '/main.js' }),
+                expect.objectContaining({ originalFile: '/vendor.js' }),
+            ]);
         });
 
         test('warns when no sourcemaps found', async () => {
