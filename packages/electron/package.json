@@ -1,6 +1,6 @@
 {
     "name": "@flareapp/electron",
-    "version": "2.12.0",
+    "version": "2.12.1",
     "description": "Electron SDK for flareapp.io",
     "homepage": "https://flareapp.io",
     "bugs": {
@@ -65,8 +65,8 @@
         "release": "release-it"
     },
     "dependencies": {
-        "@flareapp/core": "2.12.0",
-        "@flareapp/js": "2.12.0"
+        "@flareapp/core": "2.12.1",
+        "@flareapp/js": "2.12.1"
     },
     "peerDependencies": {
         "electron": ">=35"
