@@ -2,12 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { FlareApi } from '@flareapp/flare-api';
+import { FlareApi, settleWithConcurrency } from '@flareapp/flare-api';
 import { type Plugin, type ResolvedConfig } from 'vite';
 
 import type { FlareVitePluginOptions, Sourcemap } from './types';
 
 export type { FlareVitePluginOptions, Sourcemap } from './types';
+
+// Flare accepts a limited number of connections, so uploads run in a small pool.
+const MAX_CONCURRENT_UPLOADS = 10;
 
 export default function flareSourcemaps({
     apiKey,
@@ -123,7 +126,9 @@ export default function flareSourcemaps({
 
             log(`Uploading ${sourcemaps.length} sourcemap(s) to Flare.`);
 
-            const results = await Promise.allSettled(sourcemaps.map((sourcemap) => flare.uploadSourcemap(sourcemap)));
+            const results = await settleWithConcurrency(sourcemaps, MAX_CONCURRENT_UPLOADS, (sourcemap) =>
+                flare.uploadSourcemap(sourcemap),
+            );
 
             const failed = results.filter((r) => r.status === 'rejected');
             if (failed.length > 0) {

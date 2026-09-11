@@ -5,7 +5,14 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { FlareWebpackPlugin } from '../src/FlareWebpackPlugin';
 
-vi.mock('@flareapp/flare-api');
+// Keep the real settleWithConcurrency: only the network client is mocked.
+vi.mock('@flareapp/flare-api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@flareapp/flare-api')>();
+    const MockFlareApi = vi.fn();
+    MockFlareApi.prototype.uploadSourcemap = vi.fn();
+
+    return { ...actual, FlareApi: MockFlareApi };
+});
 
 vi.mock('webpack', () => {
     class DefinePlugin {
@@ -409,6 +416,52 @@ describe('FlareWebpackPlugin', () => {
             expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledWith(
                 expect.objectContaining({ originalFile: '/_next/chunks/0.js' }),
             );
+        });
+        test('uploads at most 10 sourcemaps at the same time', async () => {
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+
+            const release: Array<() => void> = [];
+            let running = 0;
+            let peak = 0;
+
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockImplementation(() => {
+                running++;
+                peak = Math.max(peak, running);
+
+                return new Promise<void>((resolve) => {
+                    release.push(() => {
+                        running--;
+                        resolve();
+                    });
+                });
+            });
+
+            const plugin = new FlareWebpackPlugin({ apiKey: 'test-key' });
+            const { compiler, tapPromise } = createMockCompiler();
+
+            plugin.apply(compiler as any);
+
+            const afterEmitCallback = tapPromise.mock.calls[0][1];
+            const compilation = createMockCompilation({
+                chunks: Array.from({ length: 30 }, (_, i) => ({
+                    files: [`chunk-${i}.js`],
+                    auxiliaryFiles: [`chunk-${i}.js.map`],
+                })),
+            });
+
+            const done = afterEmitCallback(compilation);
+
+            await vi.waitFor(() => expect(release.length).toBe(10));
+
+            while (release.length > 0) {
+                release.shift()!();
+                await vi.waitFor(() => expect(running).toBeLessThanOrEqual(10));
+            }
+
+            await done;
+
+            expect(peak).toBe(10);
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledTimes(30);
         });
     });
 });

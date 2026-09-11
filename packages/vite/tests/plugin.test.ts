@@ -11,7 +11,14 @@ vi.mock('node:fs', () => ({
     unlinkSync: vi.fn(),
 }));
 
-vi.mock('@flareapp/flare-api');
+// Keep the real settleWithConcurrency: only the network client is mocked.
+vi.mock('@flareapp/flare-api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@flareapp/flare-api')>();
+    const MockFlareApi = vi.fn();
+    MockFlareApi.prototype.uploadSourcemap = vi.fn();
+
+    return { ...actual, FlareApi: MockFlareApi };
+});
 
 function createPlugin(
     { apiKey = 'test-key', ...rest }: Parameters<typeof flareSourcemaps>[0] = { apiKey: 'test-key' },
@@ -238,6 +245,46 @@ describe('flareSourcemaps plugin', () => {
 
             expect(unlinkSync).toHaveBeenCalledTimes(1);
             expect(unlinkSync).toHaveBeenCalledWith(expect.stringContaining('ok.js.map'));
+        });
+        test('uploads at most 10 sourcemaps at the same time', async () => {
+            const plugin = createPlugin();
+            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(readFileSync).mockReturnValue('{"mappings":""}');
+
+            const release: Array<() => void> = [];
+            let running = 0;
+            let peak = 0;
+
+            vi.mocked(FlareApi.prototype.uploadSourcemap).mockImplementation(() => {
+                running++;
+                peak = Math.max(peak, running);
+
+                return new Promise<void>((resolve) => {
+                    release.push(() => {
+                        running--;
+                        resolve();
+                    });
+                });
+            });
+
+            const bundle: Record<string, object> = {};
+            for (let i = 0; i < 30; i++) {
+                bundle[`assets/chunk-${i}.js.map`] = {};
+            }
+
+            const done = plugin.writeBundle({ dir: '/dist' }, bundle);
+
+            await vi.waitFor(() => expect(release.length).toBe(10));
+
+            while (release.length > 0) {
+                release.shift()!();
+                await vi.waitFor(() => expect(running).toBeLessThanOrEqual(10));
+            }
+
+            await done;
+
+            expect(peak).toBe(10);
+            expect(FlareApi.prototype.uploadSourcemap).toHaveBeenCalledTimes(30);
         });
     });
 });
