@@ -10,7 +10,8 @@ class FlareApiError extends Error {
     }
 }
 
-const RETRIABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
+// Cloudflare's 525 (origin TLS handshake failure) can be transient.
+const RETRIABLE_STATUS_CODES = new Set([429, 502, 503, 504, 525]);
 
 // Flare accepts a limited number of connections, so uploads run in a small pool.
 const MAX_CONCURRENT_UPLOADS = 10;

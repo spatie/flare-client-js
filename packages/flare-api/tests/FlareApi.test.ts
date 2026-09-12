@@ -106,9 +106,9 @@ describe('FlareApi', () => {
             expect(fetch).toHaveBeenCalledTimes(3);
         });
 
-        test('retries on 502/503/504', async () => {
+        test.each([502, 503, 504, 525])('retries on %i', async (status) => {
             vi.mocked(fetch)
-                .mockResolvedValueOnce(new Response('', { status: 502 }))
+                .mockResolvedValueOnce(new Response('', { status }))
                 .mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
             const api = new FlareApi('https://flare.test/api', 'key', 'v1');
@@ -117,8 +117,7 @@ describe('FlareApi', () => {
                 content: '{}',
             });
 
-            await vi.advanceTimersByTimeAsync(1000);
-            await promise;
+            await Promise.all([vi.advanceTimersByTimeAsync(1000), expect(promise).resolves.toBeUndefined()]);
 
             expect(fetch).toHaveBeenCalledTimes(2);
         });
@@ -180,8 +179,8 @@ describe('FlareApi', () => {
             await assertion;
         });
 
-        test('throws after max retries exhausted', async () => {
-            vi.mocked(fetch).mockResolvedValue(new Response('', { status: 503 }));
+        test.each([503, 525])('throws after max retries exhausted for %i', async (status) => {
+            vi.mocked(fetch).mockResolvedValue(new Response('', { status }));
 
             const api = new FlareApi('https://flare.test/api', 'key', 'v1');
             const promise = api.uploadSourcemap({
@@ -189,12 +188,10 @@ describe('FlareApi', () => {
                 content: '{}',
             });
 
-            const rejection = expect(promise).rejects.toThrow('after 3 attempts');
-
-            await vi.advanceTimersByTimeAsync(1000);
-            await vi.advanceTimersByTimeAsync(2000);
-
-            await rejection;
+            await Promise.all([
+                vi.advanceTimersByTimeAsync(3000),
+                expect(promise).rejects.toThrow(`Flare API returned ${status} after 3 attempts`),
+            ]);
             expect(fetch).toHaveBeenCalledTimes(3);
         });
     });
