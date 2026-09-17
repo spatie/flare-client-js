@@ -1,5 +1,13 @@
-export type { NavigationSource, NavigationSubscriber, RouteName } from './types';
-export { currentHref, currentPath, resolveHref, routeName } from './utils';
+export type { NavigationSource, NavigationSubscriber, RouteName, RouterTracingOptions } from './types';
+export {
+    currentHref,
+    currentPath,
+    hashRouteBase,
+    normalizeRouteBase,
+    resolveHref,
+    routeName,
+    stripBasename,
+} from './utils';
 export {
     isActiveNavigationSource,
     registerNavigationSource,

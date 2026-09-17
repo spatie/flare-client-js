@@ -76,11 +76,15 @@ export { BrowserFlushScheduler } from './browser/BrowserFlushScheduler';
 export {
     currentHref,
     currentPath,
+    hashRouteBase,
+    normalizeRouteBase,
     registerNavigationSource,
     resolveHref,
     routeName,
+    stripBasename,
     type NavigationSource,
     type RouteName,
+    type RouterTracingOptions,
 } from './instrumentation/navigation';
 export { absoluteHref, absoluteUrl, insulate, instrumentOnce, safeInvoke, type TrackTeardown } from './tracing/utils';
 export {
