@@ -10,7 +10,17 @@ import {
     throwWithoutReload,
 } from './breadcrumbShared';
 import { logScenariosFor, runLogScenario, waitForLogMessage } from './logShared';
-import { attr, attributeKeys, hasSpanType, spansOf, stringAttr, urlOf, waitForSpan, waitForSpanType } from './otlp';
+import {
+    attr,
+    attributeKeys,
+    expectSdkVersion,
+    hasSpanType,
+    spansOf,
+    stringAttr,
+    urlOf,
+    waitForSpan,
+    waitForSpanType,
+} from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('js playground', () => {
@@ -131,6 +141,7 @@ test.describe('js playground', () => {
         await page.waitForLoadState('networkidle');
 
         const pageload = await waitForSpanType(fakeFlare, 'browser_pageload');
+        await expectSdkVersion(fakeFlare, pageload);
         expect(attr(pageload, 'flare.entry_point.type')).toEqual({ stringValue: 'web' });
     });
 

@@ -4,7 +4,7 @@ import { runRouteChangeScenario } from './breadcrumbShared';
 import { assertComponentTree } from './componentShared';
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, spansOf, stringAttr } from './otlp';
+import { attr, expectSdkVersion, hasSpanType, spansOf, stringAttr } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('vue playground', () => {
@@ -47,6 +47,7 @@ test.describe('vue-router tracing', () => {
             },
         });
         const pageload = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_pageload'));
+        await expectSdkVersion(fakeFlare, pageload);
         expect(pageload && attr(pageload, 'flare.entry_point.handler.identifier')).toEqual({
             stringValue: '/product/:id',
         });
