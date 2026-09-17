@@ -1,6 +1,6 @@
-// Structural subset of React Router v7's DataRouter that the tracing integration reads. Vendored, not
+// Structural subset of React Router's DataRouter (v7 and v8) that the tracing integration reads. Vendored, not
 // imported, so this entry needs no runtime dependency and non-RR consumers still type-check cleanly.
-// Read from react-router 7.x (installed 7.18.1, peer floor >=7.0.0 <8); verify against that floor if these shapes drift.
+// Verified against react-router 7.0.0 (peer floor) and 8.4.0 — recheck if these shapes drift.
 
 export type ReactRouterLocationLike = { pathname: string; search?: string; hash?: string; state?: unknown };
 export type ReactRouterRouteLike = { path?: string; index?: boolean; id?: string };

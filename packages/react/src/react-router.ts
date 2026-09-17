@@ -50,7 +50,7 @@ export function routeNameFromMatches(matches: ReactRouterMatchLike[] | undefined
 }
 
 /**
- * Traces a React Router v7 data router: names the `browser_pageload` root from the initial route, then
+ * Traces a React Router v7 or v8 data router: names the `browser_pageload` root from the initial route, then
  * opens a held, parameterized `browser_navigation` root per route change once it settles. Safe to call
  * before/after tracing is enabled, and to call twice (replaces the prior instrumentation).
  */
