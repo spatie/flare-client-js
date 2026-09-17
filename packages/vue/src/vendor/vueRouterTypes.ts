@@ -1,6 +1,6 @@
 // Structural subset of vue-router that the tracing integration reads. Vendored, not imported, so this
 // needs no runtime vue-router dependency and non-router consumers still type-check. Verified against
-// vue-router 5.x (installed 5.1.0, peer floor ^4.0.0 || ^5.0.0) — recheck if these shapes drift.
+// vue-router 4.0.0 (peer floor) and 5.3.1 — recheck if these shapes drift.
 
 export type VueRouteLocationLike = {
     path: string;
