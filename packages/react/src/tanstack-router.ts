@@ -33,10 +33,13 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
 
-    // `publicHref` matches the address bar; `basepath` is a rewrite, so it's stripped from `href` but
-    // kept on `publicHref`. Falling back to `href` just costs the basepath, same as before this existed.
+    // `publicHref` keeps the `basepath` that `href` strips. Neither has the page path and `#` of a hash
+    // history, so the history's own `createHref` adds those. A browser history returns the path unchanged.
     function hrefOf(loc: TanStackLocationLike): string | undefined {
-        return resolveHref(() => loc.publicHref ?? loc.href, loc.pathname);
+        return resolveHref(() => {
+            const href = loc.publicHref ?? loc.href;
+            return href !== undefined && router.history ? router.history.createHref(href) : href;
+        }, loc.pathname);
     }
 
     // Roots here open without a url of their own (TanStack reports the destination only as a parsed

@@ -29,4 +29,6 @@ export type TanStackRouterLike = {
         opts?: { preload?: boolean; throwOnError?: boolean },
     ): TanStackMatchLike[];
     state: { location: TanStackLocationLike };
+    // A hash history puts the page path and `#` in front of the href.
+    history?: { createHref(href: string): string };
 };
