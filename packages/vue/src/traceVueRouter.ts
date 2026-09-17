@@ -1,10 +1,12 @@
 import {
     insulate,
     instrumentOnce,
+    normalizeRouteBase,
     registerNavigationSource,
     resolveHref,
     routeName,
     type RouteName,
+    type RouterTracingOptions,
     type TrackTeardown,
 } from '@flareapp/js/browser';
 
@@ -14,12 +16,12 @@ const NAVIGATION_CANCELLED = 8; // ErrorTypes.NAVIGATION_CANCELLED: a newer nav 
 
 // Internal, wired through `flareVue({ router })`. Opens a held navigation root per route change,
 // settled when the navigation confirms.
-export function traceVueRouter(router: unknown): () => void {
+export function traceVueRouter(router: unknown, options: RouterTracingOptions = {}): () => void {
     if (!isVueRouter(router)) {
         return () => {};
     }
 
-    return instrumentOnce(router, (track) => install(router, track));
+    return instrumentOnce(router, (track) => install(router, track, options));
 }
 
 // Guards only what the integration calls unconditionally; `resolve` and `onError` stay optional.
@@ -35,14 +37,17 @@ function isVueRouter(router: unknown): router is VueRouterLike {
     );
 }
 
-function install(router: VueRouterLike, track: TrackTeardown): void {
+function install(router: VueRouterLike, track: TrackTeardown, options: RouterTracingOptions): void {
     const nav = registerNavigationSource();
     // Tracked first so it unwinds last — releasing the hold must happen once no guard can open a new
     // root. Later registrations track as they happen, so a throw tears down what's already attached.
     track(() => nav.unregister());
 
+    // The history base already holds the `#` of a hash history (`/app/#`).
+    const base = options.includeRouterBase ? normalizeRouteBase(router.options?.history?.base) : '';
+
     function routeNameFor(loc: VueRouteLocationLike): RouteName {
-        return routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc));
+        return routeName(() => loc.matched?.[loc.matched.length - 1]?.path, loc.path, hrefOf(loc), base);
     }
 
     // `resolve` restores the app's base path or `#` prefix, which `fullPath` strips. Without it, an

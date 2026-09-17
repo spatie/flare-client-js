@@ -158,7 +158,7 @@ export const flareVue: Plugin<[FlareVueOptions?]> = (app: App, options?: FlareVu
     // plugin order matter, unlike the other integrations.
     if (options?.router) {
         try {
-            const stopRouterTracing = traceVueRouter(options.router);
+            const stopRouterTracing = traceVueRouter(options.router, { includeRouterBase: options.includeRouterBase });
             // app.onUnmount exists from Vue 3.5 on; the declared peer floor is ^3.0.0. Without it, an
             // SSR app-per-request setup leaves old router guards attached with no way to remove them.
             if (typeof app.onUnmount === 'function') {

@@ -58,6 +58,11 @@ export type FlareVueOptions = {
     /** A vue-router Router instance. When set, enables navigation/pageload performance tracing. */
     router?: unknown;
     /**
+     * Puts the router base in front of the route name: `/agent/#/:id` instead of `/:id`. Use it when
+     * apps with different bases share one Flare project. Requires `router`.
+     */
+    includeRouterBase?: boolean;
+    /**
      * Records a span per component mount. An array matches component names exactly (string) or by
      * `test()` (RegExp). `true` profiles every named component — useful for debugging, but a real
      * page will hit `maxSpansPerTrace` and bury the useful spans. Requires `enableTracing`.

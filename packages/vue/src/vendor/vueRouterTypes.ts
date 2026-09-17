@@ -13,6 +13,8 @@ export type NavigationFailureLike = { type?: number } | undefined;
 
 export type VueRouterLike = {
     currentRoute?: { value?: VueRouteLocationLike };
+    // `/app` for `createWebHistory('/app/')`, `/app/#` for `createWebHashHistory('/app/')`.
+    options?: { history?: { base?: string } };
     // `href` here already has the app's base path (or `#` prefix) applied, which `fullPath` does
     // not. Optional because a caller can pass any router-shaped object; we fall back to `fullPath`.
     resolve?(to: string): { href?: string };
