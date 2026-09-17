@@ -9,7 +9,8 @@ export type VueRouteLocationLike = {
 };
 
 // Truthy = a NavigationFailure; `.type` is a numeric ErrorTypes value (ABORTED 4 / CANCELLED 8 / DUPLICATED 16).
-export type NavigationFailureLike = { type?: number } | undefined;
+// vue-router types it with `void`, so without it a real router does not fit `VueRouterLike`.
+export type NavigationFailureLike = { type?: number } | undefined | void;
 
 export type VueRouterLike = {
     currentRoute?: { value?: VueRouteLocationLike };
