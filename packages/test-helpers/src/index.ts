@@ -4,3 +4,4 @@ export * from './factories';
 export * from './globals';
 export * from './navigationSource';
 export * from './componentProfiler';
+export * from './routerBase';

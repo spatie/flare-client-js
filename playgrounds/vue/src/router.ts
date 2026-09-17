@@ -1,5 +1,10 @@
-import { httpScenarioUrl } from '@flareapp/playgrounds-shared';
-import { createRouter as createVueRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { httpScenarioUrl, playgroundRouterSetup } from '@flareapp/playgrounds-shared';
+import {
+    createRouter as createVueRouter,
+    createWebHashHistory,
+    createWebHistory,
+    type RouteRecordRaw,
+} from 'vue-router';
 
 import BrokenPage from './pages/BrokenPage.vue';
 import CartPage from './pages/CartPage.vue';
@@ -28,7 +33,9 @@ const routes: RouteRecordRaw[] = [
     },
 ];
 
+const { mode, base } = playgroundRouterSetup();
+
 export const router = createVueRouter({
-    history: createWebHistory(),
+    history: mode === 'hash' ? createWebHashHistory(base) : createWebHistory(base),
     routes,
 });

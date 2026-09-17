@@ -5,6 +5,7 @@ import { assertComponentTree, assertSelfTime, componentSpanCount, waitForCompone
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, expectSdkVersion, hasSpanType, parentOf, spansOf, stringAttr } from './otlp';
+import { runRouterBaseSuite } from './routerBaseShared';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('react playground', () => {
@@ -155,4 +156,8 @@ test.describe('react logging', () => {
     test('records a route change', async ({ page, fakeFlare }) => {
         await runRouteChangeScenario(page, fakeFlare);
     });
+});
+
+test.describe('react router base', () => {
+    runRouterBaseSuite('/product/$id');
 });

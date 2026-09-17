@@ -1,4 +1,5 @@
-import { createRouter } from '@tanstack/react-router';
+import { playgroundRouterSetup } from '@flareapp/playgrounds-shared';
+import { createBrowserHistory, createHashHistory, createRouter } from '@tanstack/react-router';
 
 import { rootRoute } from './routes/__root';
 import { brokenRoute } from './routes/broken';
@@ -24,8 +25,13 @@ const routeTree = rootRoute.addChildren([
 // Disables TanStack Router's per-route error component so render errors bubble up to the
 // outer FlareErrorBoundary instead: disableGlobalCatchBoundary turns off the router-level
 // catch, and re-throwing in defaultErrorComponent lets React's own boundary carry it up.
+const { mode, base } = playgroundRouterSetup();
+
 export const router = createRouter({
     routeTree,
+    // A hash history has no basepath: its base is the page path in front of the `#`.
+    history: mode === 'hash' ? createHashHistory() : createBrowserHistory(),
+    basepath: mode === 'hash' ? '/' : base,
     disableGlobalCatchBoundary: true,
     defaultErrorComponent: ({ error }) => {
         throw error;

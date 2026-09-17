@@ -1,3 +1,4 @@
+import { playgroundRouterSetup } from '@flareapp/playgrounds-shared';
 import { flareVue, FlareErrorBoundary } from '@flareapp/vue';
 import { createApp } from 'vue';
 
@@ -12,6 +13,7 @@ const app = createApp(Layout);
 app.use(router);
 app.use(flareVue, {
     router,
+    includeRouterBase: playgroundRouterSetup().includeRouterBase,
     profileComponents: [
         'Layout',
         'ProductsPage',

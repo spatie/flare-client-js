@@ -372,6 +372,28 @@ describe('traceTanStackRouter url.full keeps the basepath', () => {
         });
     });
 
+    it('adds the page path and # of a hash history', () => {
+        const { router, emit } = fakeRouter();
+        const hashRouter = { ...router, history: { createHref: (href: string) => `/shop/#${href}` } };
+        traceTanStackRouter(hashRouter);
+        nav.setActiveRouteName.mockClear();
+        emit('onBeforeLoad', {
+            fromLocation: { pathname: '/', search: {}, href: '/', publicHref: '/', state: {} },
+            toLocation: {
+                pathname: '/product/p01',
+                search: {},
+                href: '/product/p01',
+                publicHref: '/product/p01',
+                state: {},
+            },
+        });
+        expect(nav.setActiveRouteName).toHaveBeenCalledWith({
+            name: '/product/$id',
+            source: 'route',
+            url: u('/shop/#/product/p01'),
+        });
+    });
+
     // No basepath means no rewrite, and then TanStack sets publicHref and href to the same value.
     it('is unchanged when the two agree', () => {
         const { router, emit } = fakeRouter();

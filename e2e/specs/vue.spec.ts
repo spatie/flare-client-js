@@ -5,6 +5,7 @@ import { assertComponentTree } from './componentShared';
 import { assertNavigationRequestNests, assertNestedHttpSpan, openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
 import { attr, expectSdkVersion, hasSpanType, spansOf, stringAttr } from './otlp';
+import { runRouterBaseSuite } from './routerBaseShared';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('vue playground', () => {
@@ -127,4 +128,8 @@ test.describe('vue logging', () => {
     test('records a route change', async ({ page, fakeFlare }) => {
         await runRouteChangeScenario(page, fakeFlare);
     });
+});
+
+test.describe('vue router base', () => {
+    runRouterBaseSuite('/product/:id');
 });

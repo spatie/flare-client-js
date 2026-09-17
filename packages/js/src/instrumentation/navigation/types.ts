@@ -5,6 +5,14 @@ export type RouteName = {
     url?: string;
 };
 
+export type RouterTracingOptions = {
+    /**
+     * Puts the router base in front of the route name: `/agent/#/:id` instead of `/:id`. Use it when
+     * apps with different bases share one Flare project.
+     */
+    includeRouterBase?: boolean;
+};
+
 export type NavigationSource = {
     startNavigation(opts?: { path?: string; url?: string; hold?: boolean }): void;
     setActiveRouteName(route: RouteName): void;
