@@ -1,12 +1,16 @@
 // Electron-safe entry: no @flareapp/js root import; the navigation-source seam is side-effect-free.
 // No runtime dependency on react-router either — the router is consumed structurally (see ./vendor/reactRouterTypes).
 import {
+    hashRouteBase,
     insulate,
     instrumentOnce,
+    normalizeRouteBase,
     registerNavigationSource,
     resolveHref,
     routeName,
+    stripBasename,
     type RouteName,
+    type RouterTracingOptions,
     type TrackTeardown,
 } from '@flareapp/js/browser';
 
@@ -50,20 +54,25 @@ export function routeNameFromMatches(matches: ReactRouterMatchLike[] | undefined
  * opens a held, parameterized `browser_navigation` root per route change once it settles. Safe to call
  * before/after tracing is enabled, and to call twice (replaces the prior instrumentation).
  */
-export function traceReactRouter(router: ReactRouterLike): () => void {
+export function traceReactRouter(router: ReactRouterLike, options: RouterTracingOptions = {}): () => void {
     if (typeof router?.subscribe !== 'function') {
         return () => {}; // not a router: do nothing
     }
 
-    return instrumentOnce(router, (track) => install(router, track));
+    return instrumentOnce(router, (track) => install(router, track, options));
 }
 
-function install(router: ReactRouterLike, track: TrackTeardown): void {
+function install(router: ReactRouterLike, track: TrackTeardown, options: RouterTracingOptions): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
 
+    const base = options.includeRouterBase ? reactRouterBase(router) : '';
+
     function routeNameFor(state: ReactRouterStateLike): RouteName {
-        return routeName(() => routeNameFromMatches(state.matches), state.location.pathname, hrefOf(state.location));
+        // `state.location.pathname` holds the basename but the matches do not. Remove it here, so the
+        // base is added once.
+        const fallbackPath = base ? stripBasename(state.location.pathname, router.basename) : state.location.pathname;
+        return routeName(() => routeNameFromMatches(state.matches), fallbackPath, hrefOf(state.location), base);
     }
 
     // `createHref` restores the router's `basename` and turns a hash router's location into the
@@ -145,6 +154,17 @@ function install(router: ReactRouterLike, track: TrackTeardown): void {
     track(router.subscribe(insulate(onState)));
 }
 
+// A hash router's `createHref` gives `#/`. React Router has no other public sign of a hash router.
+function reactRouterBase(router: ReactRouterLike): string {
+    const basename = router.basename === '/' ? '' : router.basename;
+    let isHashRouter = false;
+    try {
+        isHashRouter = router.createHref?.({ pathname: '/' }).includes('#') ?? false;
+    } catch {}
+    return normalizeRouteBase(isHashRouter ? hashRouteBase(basename) : basename);
+}
+
+export type { RouterTracingOptions } from '@flareapp/js/browser';
 export type {
     ReactRouterLike,
     ReactRouterLocationLike,

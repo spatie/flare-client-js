@@ -1,12 +1,16 @@
 // Electron-safe entry: no @flareapp/js root import; the navigation-source seam is side-effect-free.
 // No runtime dependency on @tanstack/react-router either — the router is consumed structurally (see ./vendor).
 import {
+    hashRouteBase,
     insulate,
     instrumentOnce,
+    normalizeRouteBase,
     registerNavigationSource,
     resolveHref,
     routeName,
+    stripBasename,
     type RouteName,
+    type RouterTracingOptions,
     type TrackTeardown,
 } from '@flareapp/js/browser';
 
@@ -21,17 +25,19 @@ export const STALE_NAVIGATION_TIMEOUT_MS = 5_000;
  * opens a parameterized `browser_navigation` root per route change. Safe to call before/after tracing
  * is enabled, and to call twice (replaces the prior instrumentation instead of stacking subscriptions).
  */
-export function traceTanStackRouter(router: TanStackRouterLike): () => void {
+export function traceTanStackRouter(router: TanStackRouterLike, options: RouterTracingOptions = {}): () => void {
     if (typeof router?.subscribe !== 'function') {
         return () => {}; // not a router: do nothing
     }
 
-    return instrumentOnce(router, (track) => install(router, track));
+    return instrumentOnce(router, (track) => install(router, track, options));
 }
 
-function install(router: TanStackRouterLike, track: TrackTeardown): void {
+function install(router: TanStackRouterLike, track: TrackTeardown, options: RouterTracingOptions): void {
     const nav = registerNavigationSource();
     track(() => nav.unregister()); // tracked first so it unwinds last
+
+    const base = options.includeRouterBase ? tanStackRouterBase(router) : '';
 
     // `publicHref` keeps the `basepath` that `href` strips. Neither has the page path and `#` of a hash
     // history, so the history's own `createHref` adds those. A browser history returns the path unchanged.
@@ -55,8 +61,10 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
                 const last = matches[matches.length - 1];
                 return last?.fullPath || last?.routeId;
             },
-            loc.pathname,
+            // TanStack before the `basepath` rewrite keeps the basepath on `pathname`.
+            base ? stripBasename(loc.pathname, router.options?.basepath) : loc.pathname,
             hrefOf(loc),
+            base,
         );
     }
 
@@ -147,6 +155,17 @@ function install(router: TanStackRouterLike, track: TrackTeardown): void {
     );
 }
 
+// A hash history's `createHref` puts the page path and `#` in front of the path.
+function tanStackRouterBase(router: TanStackRouterLike): string {
+    const basepath = router.options?.basepath;
+    let isHashHistory = false;
+    try {
+        isHashHistory = router.history?.createHref('/').includes('#') ?? false;
+    } catch {}
+    return normalizeRouteBase(isHashHistory ? hashRouteBase(basepath) : basepath);
+}
+
+export type { RouterTracingOptions } from '@flareapp/js/browser';
 export type {
     TanStackLocationLike,
     TanStackMatchLike,

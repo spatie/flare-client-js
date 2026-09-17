@@ -98,6 +98,7 @@
         "@flareapp/electron": "file:../electron",
         "@flareapp/js": "file:../js",
         "@flareapp/test-helpers": "*",
+        "@tanstack/react-router": "^1.170.38",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.0.0",
         "@types/react": "^19.0.0",
