@@ -13,3 +13,4 @@ export * from './api/types';
 export * from './checkout/journey';
 export * from './checkout/order';
 export * from './checkout/pricing';
+export * from './routerSetup';

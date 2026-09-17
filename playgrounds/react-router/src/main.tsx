@@ -1,4 +1,5 @@
 import '@flareapp/playgrounds-shared/styles.css';
+import { playgroundRouterSetup } from '@flareapp/playgrounds-shared';
 import { traceReactRouter } from '@flareapp/react/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -8,7 +9,7 @@ import { initFlare } from './flare';
 import { router } from './router';
 
 initFlare();
-traceReactRouter(router);
+traceReactRouter(router, { includeRouterBase: playgroundRouterSetup().includeRouterBase });
 
 const container = document.getElementById('root');
 if (!container) throw new Error('No #root element');

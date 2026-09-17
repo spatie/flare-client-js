@@ -1,4 +1,5 @@
 import '@flareapp/playgrounds-shared/styles.css';
+import { playgroundRouterSetup } from '@flareapp/playgrounds-shared';
 import { Fallback } from '@flareapp/playgrounds-shared/react';
 import { FlareErrorBoundary } from '@flareapp/react';
 import { traceTanStackRouter } from '@flareapp/react/tanstack-router';
@@ -10,7 +11,7 @@ import { initFlare } from './flare';
 import { router } from './router';
 
 initFlare();
-traceTanStackRouter(router);
+traceTanStackRouter(router, { includeRouterBase: playgroundRouterSetup().includeRouterBase });
 
 // Tracks the pathname via router.subscribe instead of useRouterState, since the boundary
 // wraps RouterProvider rather than mounting inside it.
