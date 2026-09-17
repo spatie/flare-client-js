@@ -4,7 +4,7 @@ import { runRouteChangeScenario } from './breadcrumbShared';
 import { assertComponentTree } from './componentShared';
 import { openHttpPage } from './httpShared';
 import { logScenariosFor, runLogScenario } from './logShared';
-import { attr, hasSpanType, parentOf, spansOf, stringAttr, urlOf } from './otlp';
+import { attr, expectSdkVersion, hasSpanType, parentOf, spansOf, stringAttr, urlOf } from './otlp';
 import { runScenario, scenariosFor } from './shared';
 
 test.describe('svelte playground', () => {
@@ -59,6 +59,7 @@ test.describe('svelte tracing', () => {
             },
         });
         const pageload = spansOf(trace.bodyJson).find((span) => hasSpanType(span, 'browser_pageload'));
+        await expectSdkVersion(fakeFlare, pageload);
         expect(pageload && attr(pageload, 'flare.entry_point.handler.identifier')).toEqual({
             stringValue: '/product/[id]',
         });

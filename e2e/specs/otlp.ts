@@ -1,6 +1,6 @@
 // Shared OTLP trace-span parsing helpers for the tracing e2e specs (js, react, react-router, svelte).
 
-import type { FakeFlare } from '../fixtures/fake-flare';
+import { expect, type FakeFlare } from '../fixtures/fake-flare';
 
 export type OtlpSpan = {
     name: string;
@@ -70,3 +70,26 @@ export const parentOf = async (fakeFlare: FakeFlare, child: OtlpSpan): Promise<O
     spansOf((await waitForParentEnvelope(fakeFlare, child)).bodyJson).find(
         (span) => span.spanId === child.parentSpanId,
     );
+
+const scopeVersionsOf = (bodyJson: unknown): string[] =>
+    (
+        (bodyJson as { resourceSpans?: Array<{ scopeSpans?: Array<{ scope?: { version?: string } }> }> })
+            .resourceSpans ?? []
+    )
+        .flatMap((resourceSpan) => resourceSpan.scopeSpans ?? [])
+        .map((scopeSpan) => scopeSpan.scope?.version ?? '');
+
+// The build inlines the package version into the envelope scope. A guard that survives the build reads
+// '?' in browsers, which only a real browser run can catch.
+export const expectSdkVersion = async (fakeFlare: FakeFlare, span: OtlpSpan | undefined): Promise<void> => {
+    expect(span).toBeDefined();
+    const record = await fakeFlare.waitForTrace({
+        timeout: 9000,
+        predicate: (trace) => spansOf(trace.bodyJson).some((candidate) => candidate.spanId === span!.spanId),
+    });
+    const versions = scopeVersionsOf(record.bodyJson);
+    expect(versions.length).toBeGreaterThan(0);
+    for (const version of versions) {
+        expect(version).toMatch(/^\d+\.\d+\.\d+/);
+    }
+};
