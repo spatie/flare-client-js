@@ -2,13 +2,9 @@ import { resolveDenylist as baseResolveDenylist } from '@flareapp/core';
 
 import type { ErrorOrigin } from './types';
 
-declare const process: { env?: { PACKAGE_VERSION?: string } } | undefined;
-
-// Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version).
-export const PACKAGE_VERSION =
-    typeof process !== 'undefined' && typeof process.env?.PACKAGE_VERSION !== 'undefined'
-        ? process.env.PACKAGE_VERSION
-        : '?';
+// tsdown inlines the member access at build time. A `typeof process` guard or a local `process`
+// declaration survives the build and reads '?' in browsers. Under vitest it reads '?'.
+export const PACKAGE_VERSION: string = process.env.PACKAGE_VERSION ?? '?';
 
 export const MAX_HIERARCHY_DEPTH = 50;
 

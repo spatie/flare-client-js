@@ -11,8 +11,6 @@ export const FIREFOX_SAFARI_STACK_REGEX = /^(\S+?)@(.+):(\d+):(\d+)$/;
 export const REACT_LEGACY_STACK_REGEX =
     /^in\s+(\S+)(?:\s+\(at\s+(.+?):(\d+)(?::(\d+))?\))?(?:\s+\(created by\s+.+\))?$/;
 
-// Injected at build time via tsdown --env.PACKAGE_VERSION (reads package.json version).
-export const PACKAGE_VERSION =
-    typeof process !== 'undefined' && typeof process.env?.PACKAGE_VERSION !== 'undefined'
-        ? process.env.PACKAGE_VERSION
-        : '?';
+// tsdown inlines the member access at build time. A `typeof process` guard or a local `process`
+// declaration survives the build and reads '?' in browsers. Under vitest it reads '?'.
+export const PACKAGE_VERSION: string = process.env.PACKAGE_VERSION ?? '?';
